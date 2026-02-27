@@ -74,8 +74,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "PdfError in pdfplumber-core with manual Error impl. BackendError in pdfplumber-parse with thiserror. ExtractWarning has description + optional page/element context. ExtractOptions with sensible defaults (10 recursion, 100K objects, 100MB streams)."
     },
     {
       "id": "US-005",
