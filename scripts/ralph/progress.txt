@@ -13,6 +13,10 @@
 - ContentHandler has default no-op methods. Implementors override only the events they care about.
 - ContentHandler is object-safe: use `&mut dyn ContentHandler` in trait method signatures.
 - CTM stored as [f64; 6] in event types (CharEvent, PathEvent, ImageEvent) for consistency with Char.ctm.
+- LopdfBackend uses BackendError as its Error type (already converts to PdfError via From impl).
+- LopdfDocument caches page ObjectIds in a Vec for O(1) 0-based index access (lopdf's get_pages returns BTreeMap<u32, ObjectId> with 1-based keys).
+- LopdfDocument.inner() accessor provides read access to the underlying lopdf::Document.
+- Create test PDFs programmatically with lopdf: Document::with_version + add_object with dictionary! macro. Save to Vec<u8> with save_to().
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -94,4 +98,22 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - CharEvent carries full text state context (matrix, spacing, scaling) for bbox calculation in later layers
   - PathEvent uses Vec<PathSegment> from core and includes paint_op, colors, dash_pattern, fill_rule
   - ImageEvent carries CTM for position/size determination + pixel dimensions and colorspace
+---
+
+## 2026-02-28 - US-006
+- What was implemented: LopdfBackend struct implementing PdfBackend trait for open/page_count/get_page operations using lopdf crate.
+- Files changed:
+  - crates/pdfplumber-parse/Cargo.toml (added lopdf = "0.34")
+  - crates/pdfplumber-parse/src/lopdf_backend.rs (new - LopdfBackend, LopdfDocument, LopdfPage, create_test_pdf helper, 14 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added lopdf_backend module + exports)
+  - crates/pdfplumber/src/lib.rs (re-export LopdfBackend, LopdfDocument, LopdfPage)
+  - scripts/ralph/prd.json (marked US-006 passes: true)
+- Dependencies added: lopdf 0.34 (approved in PRD for default PDF parsing backend)
+- **Learnings for future iterations:**
+  - lopdf::Document doesn't implement Debug — need manual Debug impl for wrapper types
+  - lopdf's get_pages() returns BTreeMap<u32, ObjectId> with 1-based page numbers; cache as Vec for O(1) 0-based access
+  - pub(crate) fields still trigger dead_code warning if not read in lib target — use pub accessor methods instead
+  - lopdf's Document::load_mem parses PDF from &[u8]; errors are lopdf::Error which must be mapped to BackendError
+  - Test PDFs created with lopdf::Document::with_version + dictionary! macro + save_to(&mut Vec<u8>)
+  - Stub methods use todo!() for methods that will be implemented in later stories (US-007+)
 ---

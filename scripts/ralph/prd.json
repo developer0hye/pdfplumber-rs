@@ -111,8 +111,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": "Add lopdf as dependency to pdfplumber-parse."
+      "passes": true,
+      "notes": "LopdfBackend implements PdfBackend for open/page_count/get_page. lopdf 0.34 added as dependency. LopdfDocument wraps lopdf::Document + cached page_ids. LopdfPage holds ObjectId + index. Stub methods for page_media_box/page_crop_box/page_rotate/interpret_page (US-007+). Test PDFs created programmatically with lopdf."
     },
     {
       "id": "US-007",

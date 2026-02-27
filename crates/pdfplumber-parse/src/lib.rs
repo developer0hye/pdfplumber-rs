@@ -7,8 +7,10 @@
 pub mod backend;
 pub mod error;
 pub mod handler;
+pub mod lopdf_backend;
 
 pub use backend::PdfBackend;
 pub use error::BackendError;
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
+pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
 pub use pdfplumber_core;

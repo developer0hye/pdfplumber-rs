@@ -23,7 +23,8 @@ pub use pdfplumber_core::{
     split_lines_at_columns, words_to_text,
 };
 pub use pdfplumber_parse::{
-    self, CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent, PdfBackend,
+    self, CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, LopdfPage, PaintOp,
+    PathEvent, PdfBackend,
 };
 
 #[cfg(test)]
