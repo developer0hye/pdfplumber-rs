@@ -207,4 +207,29 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - advance_text_position() only modifies text_matrix (for glyph advance in Tj/TJ)
   - h_scaling stored as percentage (100.0), h_scaling_normalized() returns fraction (1.0)
   - clippy requires #[derive(Default)] with #[default] attribute instead of manual Default impl for simple enums
+- Text rendering operators (Tj/TJ/'/") live in text_renderer.rs as free functions taking `&mut TextState`.
+- RawChar captures: char_code (u32), displacement (f64, text-space advance), text_matrix ([f64; 6] snapshot).
+- TjElement enum: String(Vec<u8>) or Adjustment(f64) for TJ array elements.
+- Width lookup via `&dyn Fn(u32) -> f64` callback — allows font metrics (US-013) to plug in later.
+- Displacement formula: `((w0/1000) * font_size + char_spacing + word_spacing_if_space) * h_scaling_normalized`.
+- TJ adjustment formula: `tx = -(adj/1000) * font_size * h_scaling`. Positive adj → move left, negative → move right.
+- Word spacing (Tw) only applies for char_code == 32 (space character).
+- Single-byte encoding: each byte in string_bytes treated as one char code. Multi-byte CID fonts are a later concern.
+---
+
+## 2026-02-28 - US-011
+- What was implemented: Text rendering operators — Tj (show_string), TJ (show_string_with_positioning), ' (quote_show_string), " (double_quote_show_string), RawChar struct, TjElement enum
+- Files changed:
+  - crates/pdfplumber-parse/src/text_renderer.rs (new — RawChar, TjElement, 4 operator functions, 34 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added text_renderer module + public exports)
+  - scripts/ralph/prd.json (marked US-011 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Text rendering operators are free functions (not methods on TextState) for separation of concerns
+  - show_string is the workhorse; TJ/'/\" all delegate to it
+  - RawChar.displacement is the actual text-space advance (tx), not raw glyph width
+  - Width callback allows flexibility: constant width for testing, font metrics later
+  - Quote (') = T* + Tj. Double quote (") = Tw + Tc + ' (sets spacing first)
+  - The line_matrix is NOT modified during Tj — only text_matrix advances
+  - With scaled text matrix (e.g., 12x), advance_text_position pre-multiplies, so tx=0.6 becomes 7.2 in page space
 ---
