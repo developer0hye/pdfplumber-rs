@@ -17,6 +17,10 @@
 - LopdfDocument caches page ObjectIds in a Vec for O(1) 0-based index access (lopdf's get_pages returns BTreeMap<u32, ObjectId> with 1-based keys).
 - LopdfDocument.inner() accessor provides read access to the underlying lopdf::Document.
 - Create test PDFs programmatically with lopdf: Document::with_version + add_object with dictionary! macro. Save to Vec<u8> with save_to().
+- resolve_inherited() walks up page tree via /Parent to find inheritable properties (MediaBox, Rotate, etc.).
+- lopdf Object::as_float() returns f32 for both Integer and Real. Use custom object_to_f64() for f64 precision.
+- lopdf Dictionary::get(b"Key") takes byte slice key. Returns Result — Err if key missing.
+- CropBox is NOT inheritable in practice for this library (read from page dict only). MediaBox and Rotate ARE inherited.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -116,4 +120,19 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - lopdf's Document::load_mem parses PDF from &[u8]; errors are lopdf::Error which must be mapped to BackendError
   - Test PDFs created with lopdf::Document::with_version + dictionary! macro + save_to(&mut Vec<u8>)
   - Stub methods use todo!() for methods that will be implemented in later stories (US-007+)
+---
+
+## 2026-02-28 - US-007
+- What was implemented: lopdf backend page_media_box, page_crop_box, page_rotate with inheritance support
+- Files changed:
+  - crates/pdfplumber-parse/src/lopdf_backend.rs (added 3 helper functions + 3 trait method implementations + 5 test PDF builder functions + 11 tests)
+  - scripts/ralph/prd.json (marked US-007 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - lopdf get_object() auto-dereferences indirect references; as_dict() casts to dictionary
+  - Page tree inheritance: walk /Parent chain for inheritable properties like MediaBox and Rotate
+  - lopdf Object::as_i64() only works for Integer (not Real); Object::as_float() works for both but returns f32
+  - Custom object_to_f64() helper needed for BBox extraction since we use f64 throughout
+  - CropBox is page-level only (no inheritance in this impl); MediaBox and Rotate use inheritance
+  - Test PDFs with inheritance: put property on Pages node, omit from Page node
 ---
