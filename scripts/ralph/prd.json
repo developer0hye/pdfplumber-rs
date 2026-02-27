@@ -18,7 +18,7 @@
         "cargo test --workspace passes (even if no tests yet)"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "This is the first story - creates the project structure from scratch."
     },
     {

@@ -1,3 +1,20 @@
 # Ralph Progress Log - Phase 1: Foundation - Workspace, PDF Parsing, Content Interpreter, Char Extraction
 Started: 2026년  2월 27일 금요일 23시 26분 24초 KST
 ---
+
+## Codebase Patterns
+- Workspace uses `edition.workspace = true` and `rust-version.workspace = true` to inherit from root
+- Crate directory structure: `crates/<name>/Cargo.toml` + `crates/<name>/src/lib.rs`
+- Dependency chain: pdfplumber → {pdfplumber-core, pdfplumber-parse}, pdfplumber-parse → pdfplumber-core
+- pdfplumber-core has zero external dependencies (pure algorithms)
+- Quality checks: `cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && cargo check --workspace`
+---
+
+## 2026-02-27 - US-001
+- What was implemented: 3-crate workspace scaffolding (pdfplumber-core, pdfplumber-parse, pdfplumber)
+- Files changed: Cargo.toml (root), crates/pdfplumber-core/{Cargo.toml, src/lib.rs}, crates/pdfplumber-parse/{Cargo.toml, src/lib.rs}, crates/pdfplumber/{Cargo.toml, src/lib.rs}
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - resolver = "3" is the correct resolver for edition 2024
+  - Each crate re-exports its dependencies via `pub use` for downstream access
+---
