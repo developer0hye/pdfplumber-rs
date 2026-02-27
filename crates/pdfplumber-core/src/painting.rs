@@ -7,27 +7,26 @@
 
 use crate::path::{Path, PathBuilder};
 
-/// Simple RGB color.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Color {
-    pub r: f64,
-    pub g: f64,
-    pub b: f64,
+/// Color value from a PDF color space.
+///
+/// Supports the standard PDF color spaces: DeviceGray, DeviceRGB,
+/// DeviceCMYK, and other (e.g., indexed, ICC-based) spaces.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Color {
+    /// DeviceGray: single component in [0.0, 1.0].
+    Gray(f32),
+    /// DeviceRGB: (r, g, b) components in [0.0, 1.0].
+    Rgb(f32, f32, f32),
+    /// DeviceCMYK: (c, m, y, k) components in [0.0, 1.0].
+    Cmyk(f32, f32, f32, f32),
+    /// Other color space (e.g., indexed, ICC-based).
+    Other(Vec<f32>),
 }
 
 impl Color {
-    /// Create a new RGB color with values in [0.0, 1.0].
-    pub fn new(r: f64, g: f64, b: f64) -> Self {
-        Self { r, g, b }
-    }
-
-    /// Black color (0, 0, 0).
+    /// Black color (gray 0).
     pub fn black() -> Self {
-        Self {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-        }
+        Self::Gray(0.0)
     }
 }
 
@@ -203,8 +202,8 @@ impl PathBuilder {
             fill,
             fill_rule,
             line_width: gs.line_width,
-            stroke_color: gs.stroke_color,
-            fill_color: gs.fill_color,
+            stroke_color: gs.stroke_color.clone(),
+            fill_color: gs.fill_color.clone(),
             dash_pattern: gs.dash_pattern.clone(),
             stroke_alpha: gs.stroke_alpha,
             fill_alpha: gs.fill_alpha,
@@ -293,8 +292,8 @@ mod tests {
     fn custom_gs() -> GraphicsState {
         GraphicsState {
             line_width: 2.5,
-            stroke_color: Color::new(1.0, 0.0, 0.0),
-            fill_color: Color::new(0.0, 0.0, 1.0),
+            stroke_color: Color::Rgb(1.0, 0.0, 0.0),
+            fill_color: Color::Rgb(0.0, 0.0, 1.0),
             ..GraphicsState::default()
         }
     }
@@ -312,24 +311,49 @@ mod tests {
     // --- Color tests ---
 
     #[test]
-    fn test_color_new() {
-        let c = Color::new(0.5, 0.6, 0.7);
-        assert_eq!(c.r, 0.5);
-        assert_eq!(c.g, 0.6);
-        assert_eq!(c.b, 0.7);
+    fn test_color_gray() {
+        let c = Color::Gray(0.5);
+        assert_eq!(c, Color::Gray(0.5));
+    }
+
+    #[test]
+    fn test_color_rgb() {
+        let c = Color::Rgb(0.5, 0.6, 0.7);
+        assert_eq!(c, Color::Rgb(0.5, 0.6, 0.7));
+    }
+
+    #[test]
+    fn test_color_cmyk() {
+        let c = Color::Cmyk(0.1, 0.2, 0.3, 0.4);
+        assert_eq!(c, Color::Cmyk(0.1, 0.2, 0.3, 0.4));
+    }
+
+    #[test]
+    fn test_color_other() {
+        let c = Color::Other(vec![0.1, 0.2, 0.3, 0.4, 0.5]);
+        if let Color::Other(ref v) = c {
+            assert_eq!(v.len(), 5);
+        } else {
+            panic!("expected Color::Other");
+        }
     }
 
     #[test]
     fn test_color_black() {
         let c = Color::black();
-        assert_eq!(c.r, 0.0);
-        assert_eq!(c.g, 0.0);
-        assert_eq!(c.b, 0.0);
+        assert_eq!(c, Color::Gray(0.0));
     }
 
     #[test]
     fn test_color_default_is_black() {
         assert_eq!(Color::default(), Color::black());
+    }
+
+    #[test]
+    fn test_color_clone() {
+        let c = Color::Rgb(1.0, 0.0, 0.0);
+        let c2 = c.clone();
+        assert_eq!(c, c2);
     }
 
     // --- FillRule tests ---
@@ -587,8 +611,8 @@ mod tests {
         let gs = custom_gs();
         let painted = builder.stroke(&gs);
         assert_eq!(painted.line_width, 2.5);
-        assert_eq!(painted.stroke_color, Color::new(1.0, 0.0, 0.0));
-        assert_eq!(painted.fill_color, Color::new(0.0, 0.0, 1.0));
+        assert_eq!(painted.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
+        assert_eq!(painted.fill_color, Color::Rgb(0.0, 0.0, 1.0));
     }
 
     #[test]
@@ -725,8 +749,8 @@ mod tests {
         let gs = custom_gs();
         let painted = builder.fill_and_stroke(&gs);
         assert_eq!(painted.line_width, 2.5);
-        assert_eq!(painted.stroke_color, Color::new(1.0, 0.0, 0.0));
-        assert_eq!(painted.fill_color, Color::new(0.0, 0.0, 1.0));
+        assert_eq!(painted.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
+        assert_eq!(painted.fill_color, Color::Rgb(0.0, 0.0, 1.0));
     }
 
     // --- B* operator (fill even-odd + stroke) ---
@@ -823,7 +847,7 @@ mod tests {
         builder.line_to(50.0, 50.0);
         let gs1 = GraphicsState {
             line_width: 1.0,
-            stroke_color: Color::new(1.0, 0.0, 0.0),
+            stroke_color: Color::Rgb(1.0, 0.0, 0.0),
             fill_color: Color::black(),
             ..GraphicsState::default()
         };
@@ -834,7 +858,7 @@ mod tests {
         builder.line_to(60.0, 60.0);
         let gs2 = GraphicsState {
             line_width: 3.0,
-            stroke_color: Color::new(0.0, 1.0, 0.0),
+            stroke_color: Color::Rgb(0.0, 1.0, 0.0),
             fill_color: Color::black(),
             ..GraphicsState::default()
         };
@@ -842,9 +866,9 @@ mod tests {
 
         // Each painted path should have its own state
         assert_eq!(first.line_width, 1.0);
-        assert_eq!(first.stroke_color, Color::new(1.0, 0.0, 0.0));
+        assert_eq!(first.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
         assert_eq!(second.line_width, 3.0);
-        assert_eq!(second.stroke_color, Color::new(0.0, 1.0, 0.0));
+        assert_eq!(second.stroke_color, Color::Rgb(0.0, 1.0, 0.0));
     }
 
     // --- Painting with CTM-transformed paths ---

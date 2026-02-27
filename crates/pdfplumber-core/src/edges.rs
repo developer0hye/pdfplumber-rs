@@ -3,7 +3,8 @@
 //! Edges are line segments derived from Lines, Rects, and Curves for
 //! use in table detection algorithms.
 
-use crate::shapes::{Curve, Line, LineOrientation, Rect};
+use crate::geometry::Orientation;
+use crate::shapes::{Curve, Line, Rect};
 
 /// Source of an edge, tracking which geometric primitive it came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,7 +38,7 @@ pub struct Edge {
     /// Bottom y coordinate (distance from top of page).
     pub bottom: f64,
     /// Edge orientation.
-    pub orientation: LineOrientation,
+    pub orientation: Orientation,
     /// Where this edge was derived from.
     pub source: EdgeSource,
 }
@@ -62,7 +63,7 @@ pub fn edges_from_rect(rect: &Rect) -> Vec<Edge> {
             top: rect.top,
             x1: rect.x1,
             bottom: rect.top,
-            orientation: LineOrientation::Horizontal,
+            orientation: Orientation::Horizontal,
             source: EdgeSource::RectTop,
         },
         Edge {
@@ -70,7 +71,7 @@ pub fn edges_from_rect(rect: &Rect) -> Vec<Edge> {
             top: rect.bottom,
             x1: rect.x1,
             bottom: rect.bottom,
-            orientation: LineOrientation::Horizontal,
+            orientation: Orientation::Horizontal,
             source: EdgeSource::RectBottom,
         },
         Edge {
@@ -78,7 +79,7 @@ pub fn edges_from_rect(rect: &Rect) -> Vec<Edge> {
             top: rect.top,
             x1: rect.x0,
             bottom: rect.bottom,
-            orientation: LineOrientation::Vertical,
+            orientation: Orientation::Vertical,
             source: EdgeSource::RectLeft,
         },
         Edge {
@@ -86,7 +87,7 @@ pub fn edges_from_rect(rect: &Rect) -> Vec<Edge> {
             top: rect.top,
             x1: rect.x1,
             bottom: rect.bottom,
-            orientation: LineOrientation::Vertical,
+            orientation: Orientation::Vertical,
             source: EdgeSource::RectRight,
         },
     ]
@@ -96,15 +97,15 @@ pub fn edges_from_rect(rect: &Rect) -> Vec<Edge> {
 const EDGE_AXIS_TOLERANCE: f64 = 1e-6;
 
 /// Classify orientation for an edge from two points.
-fn classify_edge_orientation(x0: f64, y0: f64, x1: f64, y1: f64) -> LineOrientation {
+fn classify_edge_orientation(x0: f64, y0: f64, x1: f64, y1: f64) -> Orientation {
     let dx = (x1 - x0).abs();
     let dy = (y1 - y0).abs();
     if dy < EDGE_AXIS_TOLERANCE {
-        LineOrientation::Horizontal
+        Orientation::Horizontal
     } else if dx < EDGE_AXIS_TOLERANCE {
-        LineOrientation::Vertical
+        Orientation::Vertical
     } else {
-        LineOrientation::Diagonal
+        Orientation::Diagonal
     }
 }
 
@@ -161,7 +162,7 @@ mod tests {
         );
     }
 
-    fn make_line(x0: f64, top: f64, x1: f64, bottom: f64, orient: LineOrientation) -> Line {
+    fn make_line(x0: f64, top: f64, x1: f64, bottom: f64, orient: Orientation) -> Line {
         Line {
             x0,
             top,
@@ -208,36 +209,36 @@ mod tests {
 
     #[test]
     fn test_edge_from_horizontal_line() {
-        let line = make_line(10.0, 50.0, 100.0, 50.0, LineOrientation::Horizontal);
+        let line = make_line(10.0, 50.0, 100.0, 50.0, Orientation::Horizontal);
         let edge = edge_from_line(&line);
 
         assert_approx(edge.x0, 10.0);
         assert_approx(edge.top, 50.0);
         assert_approx(edge.x1, 100.0);
         assert_approx(edge.bottom, 50.0);
-        assert_eq!(edge.orientation, LineOrientation::Horizontal);
+        assert_eq!(edge.orientation, Orientation::Horizontal);
         assert_eq!(edge.source, EdgeSource::Line);
     }
 
     #[test]
     fn test_edge_from_vertical_line() {
-        let line = make_line(50.0, 10.0, 50.0, 200.0, LineOrientation::Vertical);
+        let line = make_line(50.0, 10.0, 50.0, 200.0, Orientation::Vertical);
         let edge = edge_from_line(&line);
 
         assert_approx(edge.x0, 50.0);
         assert_approx(edge.top, 10.0);
         assert_approx(edge.x1, 50.0);
         assert_approx(edge.bottom, 200.0);
-        assert_eq!(edge.orientation, LineOrientation::Vertical);
+        assert_eq!(edge.orientation, Orientation::Vertical);
         assert_eq!(edge.source, EdgeSource::Line);
     }
 
     #[test]
     fn test_edge_from_diagonal_line() {
-        let line = make_line(10.0, 20.0, 100.0, 200.0, LineOrientation::Diagonal);
+        let line = make_line(10.0, 20.0, 100.0, 200.0, Orientation::Diagonal);
         let edge = edge_from_line(&line);
 
-        assert_eq!(edge.orientation, LineOrientation::Diagonal);
+        assert_eq!(edge.orientation, Orientation::Diagonal);
         assert_eq!(edge.source, EdgeSource::Line);
     }
 
@@ -260,7 +261,7 @@ mod tests {
         assert_approx(top_edge.top, 20.0);
         assert_approx(top_edge.x1, 110.0);
         assert_approx(top_edge.bottom, 20.0);
-        assert_eq!(top_edge.orientation, LineOrientation::Horizontal);
+        assert_eq!(top_edge.orientation, Orientation::Horizontal);
         assert_eq!(top_edge.source, EdgeSource::RectTop);
     }
 
@@ -274,7 +275,7 @@ mod tests {
         assert_approx(bottom_edge.top, 70.0);
         assert_approx(bottom_edge.x1, 110.0);
         assert_approx(bottom_edge.bottom, 70.0);
-        assert_eq!(bottom_edge.orientation, LineOrientation::Horizontal);
+        assert_eq!(bottom_edge.orientation, Orientation::Horizontal);
         assert_eq!(bottom_edge.source, EdgeSource::RectBottom);
     }
 
@@ -288,7 +289,7 @@ mod tests {
         assert_approx(left_edge.top, 20.0);
         assert_approx(left_edge.x1, 10.0);
         assert_approx(left_edge.bottom, 70.0);
-        assert_eq!(left_edge.orientation, LineOrientation::Vertical);
+        assert_eq!(left_edge.orientation, Orientation::Vertical);
         assert_eq!(left_edge.source, EdgeSource::RectLeft);
     }
 
@@ -302,7 +303,7 @@ mod tests {
         assert_approx(right_edge.top, 20.0);
         assert_approx(right_edge.x1, 110.0);
         assert_approx(right_edge.bottom, 70.0);
-        assert_eq!(right_edge.orientation, LineOrientation::Vertical);
+        assert_eq!(right_edge.orientation, Orientation::Vertical);
         assert_eq!(right_edge.source, EdgeSource::RectRight);
     }
 
@@ -323,7 +324,7 @@ mod tests {
         assert_approx(edge.x1, 100.0);
         assert_approx(edge.top, 100.0);
         assert_approx(edge.bottom, 100.0);
-        assert_eq!(edge.orientation, LineOrientation::Horizontal);
+        assert_eq!(edge.orientation, Orientation::Horizontal);
         assert_eq!(edge.source, EdgeSource::Curve);
     }
 
@@ -342,7 +343,7 @@ mod tests {
         assert_approx(edge.x1, 50.0);
         assert_approx(edge.top, 0.0);
         assert_approx(edge.bottom, 100.0);
-        assert_eq!(edge.orientation, LineOrientation::Vertical);
+        assert_eq!(edge.orientation, Orientation::Vertical);
         assert_eq!(edge.source, EdgeSource::Curve);
     }
 
@@ -356,7 +357,7 @@ mod tests {
         assert_approx(edge.x1, 100.0);
         assert_approx(edge.top, 0.0);
         assert_approx(edge.bottom, 100.0);
-        assert_eq!(edge.orientation, LineOrientation::Diagonal);
+        assert_eq!(edge.orientation, Orientation::Diagonal);
         assert_eq!(edge.source, EdgeSource::Curve);
     }
 
@@ -371,8 +372,8 @@ mod tests {
     #[test]
     fn test_derive_edges_lines_only() {
         let lines = vec![
-            make_line(0.0, 50.0, 100.0, 50.0, LineOrientation::Horizontal),
-            make_line(50.0, 0.0, 50.0, 100.0, LineOrientation::Vertical),
+            make_line(0.0, 50.0, 100.0, 50.0, Orientation::Horizontal),
+            make_line(50.0, 0.0, 50.0, 100.0, Orientation::Vertical),
         ];
         let edges = derive_edges(&lines, &[], &[]);
         assert_eq!(edges.len(), 2);
@@ -402,13 +403,7 @@ mod tests {
 
     #[test]
     fn test_derive_edges_mixed() {
-        let lines = vec![make_line(
-            0.0,
-            50.0,
-            100.0,
-            50.0,
-            LineOrientation::Horizontal,
-        )];
+        let lines = vec![make_line(0.0, 50.0, 100.0, 50.0, Orientation::Horizontal)];
         let rects = vec![make_rect(10.0, 20.0, 110.0, 70.0)];
         let curves = vec![make_curve(vec![
             (0.0, 100.0),

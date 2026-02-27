@@ -3,17 +3,12 @@
 //! Converts painted PDF paths into geometric shapes (Line, Rect) with
 //! coordinates in top-left origin system (y-flipped from PDF's bottom-left).
 
-use crate::geometry::Point;
+use crate::geometry::{Orientation, Point};
 use crate::painting::{Color, PaintedPath};
 use crate::path::PathSegment;
 
-/// Orientation of a line segment.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LineOrientation {
-    Horizontal,
-    Vertical,
-    Diagonal,
-}
+/// Type alias preserving backward compatibility.
+pub type LineOrientation = Orientation;
 
 /// A line segment extracted from a painted path.
 ///
@@ -33,7 +28,7 @@ pub struct Line {
     /// Stroking color.
     pub stroke_color: Color,
     /// Line orientation classification.
-    pub orientation: LineOrientation,
+    pub orientation: Orientation,
 }
 
 /// A curve extracted from a painted path (cubic Bezier segment).
@@ -104,15 +99,15 @@ impl Rect {
 const AXIS_TOLERANCE: f64 = 1e-6;
 
 /// Classify line orientation based on start and end points (already y-flipped).
-fn classify_orientation(x0: f64, y0: f64, x1: f64, y1: f64) -> LineOrientation {
+fn classify_orientation(x0: f64, y0: f64, x1: f64, y1: f64) -> Orientation {
     let dx = (x1 - x0).abs();
     let dy = (y1 - y0).abs();
     if dy < AXIS_TOLERANCE {
-        LineOrientation::Horizontal
+        Orientation::Horizontal
     } else if dx < AXIS_TOLERANCE {
-        LineOrientation::Vertical
+        Orientation::Vertical
     } else {
-        LineOrientation::Diagonal
+        Orientation::Diagonal
     }
 }
 
@@ -285,8 +280,8 @@ pub fn extract_shapes(
                     line_width: painted.line_width,
                     stroke: painted.stroke,
                     fill: painted.fill,
-                    stroke_color: painted.stroke_color,
-                    fill_color: painted.fill_color,
+                    stroke_color: painted.stroke_color.clone(),
+                    fill_color: painted.fill_color.clone(),
                 });
                 continue;
             }
@@ -308,8 +303,8 @@ pub fn extract_shapes(
                         line_width: painted.line_width,
                         stroke: painted.stroke,
                         fill: painted.fill,
-                        stroke_color: painted.stroke_color,
-                        fill_color: painted.fill_color,
+                        stroke_color: painted.stroke_color.clone(),
+                        fill_color: painted.fill_color.clone(),
                     });
                     continue;
                 }
@@ -385,7 +380,7 @@ fn push_line(
         x1,
         bottom,
         line_width: painted.line_width,
-        stroke_color: painted.stroke_color,
+        stroke_color: painted.stroke_color.clone(),
         orientation,
     });
 }
@@ -445,8 +440,8 @@ fn extract_curves_from_subpath(
                         line_width: painted.line_width,
                         stroke: painted.stroke,
                         fill: painted.fill,
-                        stroke_color: painted.stroke_color,
-                        fill_color: painted.fill_color,
+                        stroke_color: painted.stroke_color.clone(),
+                        fill_color: painted.fill_color.clone(),
                     });
                 }
                 prev_point = Some(*end);
@@ -484,8 +479,8 @@ mod tests {
     fn custom_gs() -> GraphicsState {
         GraphicsState {
             line_width: 2.5,
-            stroke_color: Color::new(1.0, 0.0, 0.0),
-            fill_color: Color::new(0.0, 0.0, 1.0),
+            stroke_color: Color::Rgb(1.0, 0.0, 0.0),
+            fill_color: Color::Rgb(0.0, 0.0, 1.0),
             ..GraphicsState::default()
         }
     }
@@ -517,7 +512,7 @@ mod tests {
         // y-flip: 792 - 500 = 292
         assert_approx(line.top, 292.0);
         assert_approx(line.bottom, 292.0);
-        assert_eq!(line.orientation, LineOrientation::Horizontal);
+        assert_eq!(line.orientation, Orientation::Horizontal);
         assert_approx(line.line_width, 1.0);
     }
 
@@ -540,7 +535,7 @@ mod tests {
         // y-flip: 792-400=392 (top), 792-100=692 (bottom)
         assert_approx(line.top, 392.0);
         assert_approx(line.bottom, 692.0);
-        assert_eq!(line.orientation, LineOrientation::Vertical);
+        assert_eq!(line.orientation, Orientation::Vertical);
     }
 
     // --- Diagonal line ---
@@ -562,7 +557,7 @@ mod tests {
         // y-flip: min(792-100, 792-400) = min(692, 392) = 392
         assert_approx(line.top, 392.0);
         assert_approx(line.bottom, 692.0);
-        assert_eq!(line.orientation, LineOrientation::Diagonal);
+        assert_eq!(line.orientation, Orientation::Diagonal);
     }
 
     // --- Line with custom width and color ---
@@ -579,7 +574,7 @@ mod tests {
 
         let line = &lines[0];
         assert_approx(line.line_width, 2.5);
-        assert_eq!(line.stroke_color, Color::new(1.0, 0.0, 0.0));
+        assert_eq!(line.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
     }
 
     // --- Rectangle from `re` operator ---
@@ -649,8 +644,8 @@ mod tests {
         assert!(rect.stroke);
         assert!(rect.fill);
         assert_approx(rect.line_width, 2.5);
-        assert_eq!(rect.stroke_color, Color::new(1.0, 0.0, 0.0));
-        assert_eq!(rect.fill_color, Color::new(0.0, 0.0, 1.0));
+        assert_eq!(rect.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
+        assert_eq!(rect.fill_color, Color::Rgb(0.0, 0.0, 1.0));
     }
 
     // --- Rect dimensions ---
@@ -687,10 +682,10 @@ mod tests {
         assert_eq!(lines.len(), 3);
 
         // First line is horizontal
-        assert_eq!(lines[0].orientation, LineOrientation::Horizontal);
+        assert_eq!(lines[0].orientation, Orientation::Horizontal);
         // Other two are diagonal
-        assert_eq!(lines[1].orientation, LineOrientation::Diagonal);
-        assert_eq!(lines[2].orientation, LineOrientation::Diagonal);
+        assert_eq!(lines[1].orientation, Orientation::Diagonal);
+        assert_eq!(lines[2].orientation, Orientation::Diagonal);
     }
 
     // --- Non-axis-aligned 4-vertex path produces lines ---
@@ -744,8 +739,8 @@ mod tests {
         let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 2);
         assert!(rects.is_empty());
-        assert_eq!(lines[0].orientation, LineOrientation::Horizontal);
-        assert_eq!(lines[1].orientation, LineOrientation::Vertical);
+        assert_eq!(lines[0].orientation, Orientation::Horizontal);
+        assert_eq!(lines[1].orientation, Orientation::Vertical);
     }
 
     // --- Multiple subpaths: rect + line ---
@@ -782,7 +777,7 @@ mod tests {
     fn test_classify_orientation_horizontal() {
         assert_eq!(
             classify_orientation(0.0, 100.0, 200.0, 100.0),
-            LineOrientation::Horizontal
+            Orientation::Horizontal
         );
     }
 
@@ -790,7 +785,7 @@ mod tests {
     fn test_classify_orientation_vertical() {
         assert_eq!(
             classify_orientation(100.0, 0.0, 100.0, 200.0),
-            LineOrientation::Vertical
+            Orientation::Vertical
         );
     }
 
@@ -798,7 +793,7 @@ mod tests {
     fn test_classify_orientation_diagonal() {
         assert_eq!(
             classify_orientation(0.0, 0.0, 100.0, 200.0),
-            LineOrientation::Diagonal
+            Orientation::Diagonal
         );
     }
 
@@ -951,7 +946,7 @@ mod tests {
         assert_approx(curve.line_width, 2.5);
         assert!(curve.stroke);
         assert!(!curve.fill);
-        assert_eq!(curve.stroke_color, Color::new(1.0, 0.0, 0.0));
+        assert_eq!(curve.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
     }
 
     #[test]
