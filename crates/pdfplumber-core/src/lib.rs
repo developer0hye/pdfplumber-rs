@@ -5,11 +5,13 @@
 //! It has no external dependencies — all functionality is pure Rust.
 
 pub mod geometry;
+pub mod painting;
 pub mod path;
 pub mod text;
 pub mod words;
 
 pub use geometry::{BBox, Ctm, Point};
+pub use painting::{Color, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};

@@ -13,8 +13,8 @@ mod page;
 
 pub use page::Page;
 pub use pdfplumber_core::{
-    BBox, Char, Ctm, Path, PathBuilder, PathSegment, Point, TextDirection, Word, WordExtractor,
-    WordOptions, is_cjk, is_cjk_text,
+    BBox, Char, Color, Ctm, FillRule, GraphicsState, PaintedPath, Path, PathBuilder, PathSegment,
+    Point, TextDirection, Word, WordExtractor, WordOptions, is_cjk, is_cjk_text,
 };
 pub use pdfplumber_parse;
 
