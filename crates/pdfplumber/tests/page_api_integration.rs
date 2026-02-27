@@ -16,6 +16,13 @@ fn char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
         bbox: BBox::new(x0, top, x1, bottom),
         fontname: "Helvetica".to_string(),
         size: 12.0,
+        doctop: top,
+        upright: true,
+        direction: pdfplumber::TextDirection::Ltr,
+        stroking_color: None,
+        non_stroking_color: None,
+        ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        char_code: 0,
     }
 }
 

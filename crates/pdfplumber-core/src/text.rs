@@ -1,4 +1,5 @@
 use crate::geometry::BBox;
+use crate::painting::Color;
 
 /// A single character extracted from a PDF page.
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +12,20 @@ pub struct Char {
     pub fontname: String,
     /// Font size in points.
     pub size: f64,
+    /// Distance from the top of the first page (accumulates across pages).
+    pub doctop: f64,
+    /// Whether the character is upright (not rotated).
+    pub upright: bool,
+    /// Text direction for this character.
+    pub direction: TextDirection,
+    /// Stroking (outline) color, if any.
+    pub stroking_color: Option<Color>,
+    /// Non-stroking (fill) color, if any.
+    pub non_stroking_color: Option<Color>,
+    /// Current transformation matrix `[a, b, c, d, e, f]` at time of rendering.
+    pub ctm: [f64; 6],
+    /// Raw character code from the PDF content stream.
+    pub char_code: u32,
 }
 
 /// Text flow direction.
@@ -67,17 +82,72 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_char_creation() {
+    fn test_char_creation_basic() {
         let ch = Char {
             text: "A".to_string(),
             bbox: BBox::new(10.0, 20.0, 20.0, 32.0),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            doctop: 20.0,
+            upright: true,
+            direction: TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: Some(Color::Gray(0.0)),
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 65,
         };
         assert_eq!(ch.text, "A");
         assert_eq!(ch.bbox.x0, 10.0);
         assert_eq!(ch.fontname, "Helvetica");
         assert_eq!(ch.size, 12.0);
+        assert_eq!(ch.doctop, 20.0);
+        assert!(ch.upright);
+        assert_eq!(ch.direction, TextDirection::Ltr);
+        assert_eq!(ch.stroking_color, None);
+        assert_eq!(ch.non_stroking_color, Some(Color::Gray(0.0)));
+        assert_eq!(ch.ctm, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(ch.char_code, 65);
+    }
+
+    #[test]
+    fn test_char_with_colors() {
+        let ch = Char {
+            text: "B".to_string(),
+            bbox: BBox::new(30.0, 20.0, 40.0, 32.0),
+            fontname: "Times-Roman".to_string(),
+            size: 14.0,
+            doctop: 820.0,
+            upright: true,
+            direction: TextDirection::Ltr,
+            stroking_color: Some(Color::Rgb(1.0, 0.0, 0.0)),
+            non_stroking_color: Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)),
+            ctm: [2.0, 0.0, 0.0, 2.0, 100.0, 200.0],
+            char_code: 66,
+        };
+        assert_eq!(ch.stroking_color, Some(Color::Rgb(1.0, 0.0, 0.0)));
+        assert_eq!(ch.non_stroking_color, Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)));
+        assert_eq!(ch.ctm[4], 100.0);
+        assert_eq!(ch.ctm[5], 200.0);
+        assert_eq!(ch.doctop, 820.0);
+    }
+
+    #[test]
+    fn test_char_rotated_text() {
+        let ch = Char {
+            text: "R".to_string(),
+            bbox: BBox::new(50.0, 100.0, 62.0, 110.0),
+            fontname: "Courier".to_string(),
+            size: 10.0,
+            doctop: 100.0,
+            upright: false,
+            direction: TextDirection::Ttb,
+            stroking_color: None,
+            non_stroking_color: Some(Color::Gray(0.0)),
+            ctm: [0.0, 1.0, -1.0, 0.0, 50.0, 100.0],
+            char_code: 82,
+        };
+        assert!(!ch.upright);
+        assert_eq!(ch.direction, TextDirection::Ttb);
     }
 
     #[test]
