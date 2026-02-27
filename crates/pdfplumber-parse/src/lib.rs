@@ -7,12 +7,14 @@
 pub mod backend;
 pub mod error;
 pub mod handler;
+pub mod interpreter_state;
 pub mod lopdf_backend;
 pub mod tokenizer;
 
 pub use backend::PdfBackend;
 pub use error::BackendError;
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
+pub use interpreter_state::InterpreterState;
 pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
 pub use pdfplumber_core;
 pub use tokenizer::{Operand, Operator, tokenize};
