@@ -1,7 +1,3 @@
-# Ralph Progress Log - Phase 1: Foundation - Workspace, PDF Parsing, Content Interpreter, Char Extraction
-Started: 2026년  2월 27일 금요일 23시 26분 24초 KST
----
-
 ## Codebase Patterns
 - Workspace uses `edition.workspace = true` and `rust-version.workspace = true` to inherit from root
 - Crate directory structure: `crates/<name>/Cargo.toml` + `crates/<name>/src/lib.rs`
@@ -10,11 +6,26 @@ Started: 2026년  2월 27일 금요일 23시 26분 24초 KST
 - Quality checks: `cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && cargo check --workspace`
 ---
 
-## 2026-02-27 - US-001
-- What was implemented: 3-crate workspace scaffolding (pdfplumber-core, pdfplumber-parse, pdfplumber)
-- Files changed: Cargo.toml (root), crates/pdfplumber-core/{Cargo.toml, src/lib.rs}, crates/pdfplumber-parse/{Cargo.toml, src/lib.rs}, crates/pdfplumber/{Cargo.toml, src/lib.rs}
-- Dependencies added: none
+# Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
+Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
+---
+
+## 2026-02-27 - US-018: WordExtractor - tolerance-based character grouping
+- **What was implemented:**
+  - `BBox` type in `crates/pdfplumber-core/src/geometry.rs` — bounding box with top-left origin (x0, top, x1, bottom), with union/width/height methods
+  - `Char` type in `crates/pdfplumber-core/src/text.rs` — character with text, bbox, fontname, size
+  - `WordOptions` struct with pdfplumber-compatible defaults (x_tolerance=3, y_tolerance=3, keep_blank_chars=false, use_text_flow=false)
+  - `Word` struct with text, bbox (union of char bboxes), and constituent chars
+  - `WordExtractor::extract()` — groups chars into words by spatial proximity with sorting, space handling, and tolerance-based grouping
+- **Files changed:**
+  - `crates/pdfplumber-core/src/lib.rs` — module declarations and re-exports
+  - `crates/pdfplumber-core/src/geometry.rs` (new) — BBox type
+  - `crates/pdfplumber-core/src/text.rs` (new) — Char type
+  - `crates/pdfplumber-core/src/words.rs` (new) — Word, WordOptions, WordExtractor + 21 unit tests
+- **Dependencies added:** None (pure Rust, zero dependencies)
 - **Learnings for future iterations:**
-  - resolver = "3" is the correct resolver for edition 2024
-  - Each crate re-exports its dependencies via `pub use` for downstream access
+  - Keep modules flat (geometry.rs, text.rs, words.rs) rather than nested — simpler and matches crate convention
+  - `BBox::union()` is the key primitive for composing bounding boxes — will be reused across many features
+  - Word extraction gap check: `x_gap = next.x0 - prev.x1`, new word if `> x_tolerance` or `y_diff > y_tolerance`
+  - Sorting by (top, x0) before grouping handles out-of-order chars from PDF content streams
 ---
