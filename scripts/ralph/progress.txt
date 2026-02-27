@@ -30,6 +30,12 @@
 - InterpreterState (pdfplumber-parse) bundles Ctm + GraphicsState + save/restore stack. Use save_state()/restore_state() for q/Q, concat_matrix() for cm.
 - cm operator uses pre-multiplication: new_matrix.concat(&current_ctm). This follows PDF spec where cm modifies CTM by pre-concatenating.
 - SC/SCN/sc/scn use component count to infer color space (1→Gray, 3→RGB, 4→CMYK, other→Other).
+- TextState (pdfplumber-parse) tracks text params (Tc/Tw/Tz/TL/Tf/Tr/Ts) + text_matrix + line_matrix + in_text_object flag.
+- TextRenderMode uses #[derive(Default)] with #[default] on Fill variant (clippy: derivable_impls).
+- h_scaling stored as percentage (100.0 = 100%). Use h_scaling_normalized() for fraction (1.0).
+- Td/TD/T* operate on line_matrix (pre-multiply translation), then copy to text_matrix.
+- advance_text_position() modifies text_matrix only (not line_matrix) — for glyph advance during Tj/TJ.
+- Tm replaces both text_matrix and line_matrix (it does NOT concatenate).
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -183,4 +189,22 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - restore_state() returns bool (false if stack empty) for graceful handling of unbalanced Q
   - ctm_array() converts Ctm struct to [f64; 6] for compatibility with CharEvent/PathEvent/ImageEvent
   - GraphicsState from core already has all needed fields; no core changes were required
+---
+
+## 2026-02-28 - US-010
+- What was implemented: Text state machine — TextState struct tracking text parameters, text/line matrices, and BT/ET/Tf/Tm/Td/TD/T*/Tc/Tw/Tz/TL/Tr/Ts operators
+- Files changed:
+  - crates/pdfplumber-parse/src/text_state.rs (new — TextRenderMode enum, TextState struct, 37 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added text_state module + TextRenderMode/TextState exports)
+  - scripts/ralph/prd.json (marked US-010 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - TextState tracks both text_matrix (current glyph position) and line_matrix (start of current line)
+  - BT resets both matrices to identity; text state params (font, spacing, etc.) persist across BT/ET
+  - Tm REPLACES both matrices (not concatenate); Td pre-multiplies translation onto line_matrix
+  - TD is `-ty TL` + `tx ty Td` (sets leading then moves)
+  - T* is `0 -TL Td` (move to next line using current leading)
+  - advance_text_position() only modifies text_matrix (for glyph advance in Tj/TJ)
+  - h_scaling stored as percentage (100.0), h_scaling_normalized() returns fraction (1.0)
+  - clippy requires #[derive(Default)] with #[default] attribute instead of manual Default impl for simple enums
 ---

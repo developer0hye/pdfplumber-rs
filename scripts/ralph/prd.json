@@ -184,8 +184,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "TextState in pdfplumber-parse. TextRenderMode enum (0-7). BT resets text/line matrices to identity. ET clears in_text_object. Tf sets font_name/font_size. Tm replaces (not concatenates) both matrices. Td pre-multiplies translation onto line_matrix, copies to text_matrix. TD sets leading=-ty then calls Td. T* calls Td(0,-leading). advance_text_position pre-multiplies horizontal translation onto text_matrix only. Text state params (Tc/Tw/Tz/TL/Tr/Ts) persist across BT/ET."
     },
     {
       "id": "US-011",
