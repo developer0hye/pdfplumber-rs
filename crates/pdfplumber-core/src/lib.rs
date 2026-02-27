@@ -5,6 +5,7 @@
 //! It has no external dependencies — all functionality is pure Rust.
 
 pub mod edges;
+pub mod encoding;
 pub mod geometry;
 pub mod images;
 pub mod painting;
@@ -14,6 +15,7 @@ pub mod text;
 pub mod words;
 
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
+pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use geometry::{BBox, Ctm, Point};
 pub use images::{Image, ImageMetadata, image_from_ctm};
 pub use painting::{Color, FillRule, GraphicsState, PaintedPath};
