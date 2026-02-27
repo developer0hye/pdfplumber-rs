@@ -8,4 +8,5 @@ description = "PDF parsing and content stream interpreter for pdfplumber-rs"
 
 [dependencies]
 pdfplumber-core = { path = "../pdfplumber-core" }
+lopdf = "0.34"
 thiserror = "2"
