@@ -9,7 +9,10 @@
 //! - **pdfplumber-parse**: PDF parsing (Layer 1) and content stream interpreter (Layer 2)
 //! - **pdfplumber** (this crate): Public API that ties everything together
 
-pub use pdfplumber_core;
+mod page;
+
+pub use page::Page;
+pub use pdfplumber_core::{BBox, Char, Word, WordExtractor, WordOptions};
 pub use pdfplumber_parse;
 
 #[cfg(test)]

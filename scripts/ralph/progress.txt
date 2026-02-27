@@ -29,3 +29,20 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - Word extraction gap check: `x_gap = next.x0 - prev.x1`, new word if `> x_tolerance` or `y_diff > y_tolerance`
   - Sorting by (top, x0) before grouping handles out-of-order chars from PDF content streams
 ---
+
+## 2026-02-27 - US-019: Page::extract_words() API + Word type integration
+- **What was implemented:**
+  - `Page` struct in `crates/pdfplumber/src/page.rs` — holds page metadata (page_number, width, height) and extracted chars
+  - `Page::new()` constructor, accessor methods: `page_number()`, `width()`, `height()`, `chars()`
+  - `Page::extract_words(&self, options: &WordOptions) -> Vec<Word>` — delegates to `WordExtractor::extract()`
+  - Public re-exports from `crates/pdfplumber/src/lib.rs`: `Page`, `BBox`, `Char`, `Word`, `WordExtractor`, `WordOptions`
+  - 9 unit tests covering: page creation, chars access, word extraction with default/custom options, text concatenation, bbox calculation, multiline, empty page, constituent chars
+- **Files changed:**
+  - `crates/pdfplumber/src/page.rs` (new) — Page type + 9 tests
+  - `crates/pdfplumber/src/lib.rs` — added page module, public re-exports
+- **Dependencies added:** None
+- **Learnings for future iterations:**
+  - The pdfplumber facade crate re-exports core types so users only need `use pdfplumber::{Page, WordOptions}`
+  - Page is constructed from pre-extracted chars; actual PDF parsing will feed chars into Page later
+  - Test modules within the facade crate need explicit `use pdfplumber_core::BBox` since `super::*` only imports from the module scope, not the crate re-exports
+---
