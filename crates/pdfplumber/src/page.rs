@@ -1,7 +1,9 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Char, Curve, Edge, Image, Line, Rect, Word, WordExtractor, WordOptions, derive_edges,
+    Char, Curve, Edge, Image, Line, Rect, TextOptions, Word, WordExtractor, WordOptions,
+    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A single page from a PDF document.
@@ -143,13 +145,37 @@ impl Page {
     pub fn extract_words(&self, options: &WordOptions) -> Vec<Word> {
         WordExtractor::extract(&self.chars, options)
     }
+
+    /// Extract text from this page.
+    ///
+    /// When `options.layout` is false (default): extracts words in spatial order,
+    /// joining with spaces within lines and newlines between lines.
+    ///
+    /// When `options.layout` is true: detects text blocks and reading order,
+    /// handling multi-column layouts. Blocks are separated by double newlines.
+    pub fn extract_text(&self, options: &TextOptions) -> String {
+        let words = self.extract_words(&WordOptions {
+            y_tolerance: options.y_tolerance,
+            ..WordOptions::default()
+        });
+
+        if !options.layout {
+            return words_to_text(&words, options.y_tolerance);
+        }
+
+        let lines = cluster_words_into_lines(&words, options.y_tolerance);
+        let split = split_lines_at_columns(lines, options.x_density);
+        let mut blocks = cluster_lines_into_blocks(split, options.y_density);
+        sort_blocks_reading_order(&mut blocks, options.x_density);
+        blocks_to_text(&blocks)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use pdfplumber_core::{
-        BBox, Color, Ctm, EdgeSource, ImageMetadata, LineOrientation, image_from_ctm,
+        BBox, Color, Ctm, EdgeSource, ImageMetadata, LineOrientation, TextOptions, image_from_ctm,
     };
 
     fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
@@ -539,5 +565,117 @@ mod tests {
         assert_eq!(page.curves().len(), 1);
         assert_eq!(page.images().len(), 1);
         assert_eq!(page.edges().len(), 6); // 1 + 4 + 1
+    }
+
+    // --- extract_text tests ---
+
+    #[test]
+    fn test_extract_text_simple_mode() {
+        // "Hello World" on one line
+        let chars = vec![
+            make_char("H", 10.0, 100.0, 18.0, 112.0),
+            make_char("e", 18.0, 100.0, 26.0, 112.0),
+            make_char("l", 26.0, 100.0, 30.0, 112.0),
+            make_char("l", 30.0, 100.0, 34.0, 112.0),
+            make_char("o", 34.0, 100.0, 42.0, 112.0),
+            make_char(" ", 42.0, 100.0, 46.0, 112.0),
+            make_char("W", 46.0, 100.0, 56.0, 112.0),
+            make_char("o", 56.0, 100.0, 64.0, 112.0),
+            make_char("r", 64.0, 100.0, 70.0, 112.0),
+            make_char("l", 70.0, 100.0, 74.0, 112.0),
+            make_char("d", 74.0, 100.0, 82.0, 112.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let text = page.extract_text(&TextOptions::default());
+        assert_eq!(text, "Hello World");
+    }
+
+    #[test]
+    fn test_extract_text_multiline_simple() {
+        // Two lines of text
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 100.0, 30.0, 112.0),
+            make_char("C", 10.0, 120.0, 20.0, 132.0),
+            make_char("D", 20.0, 120.0, 30.0, 132.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let text = page.extract_text(&TextOptions::default());
+        assert_eq!(text, "AB\nCD");
+    }
+
+    #[test]
+    fn test_extract_text_layout_single_column() {
+        // Two paragraphs separated by large gap
+        let chars = vec![
+            // Paragraph 1, line 1
+            make_char("H", 10.0, 100.0, 18.0, 112.0),
+            make_char("i", 18.0, 100.0, 24.0, 112.0),
+            // Paragraph 1, line 2
+            make_char("T", 10.0, 115.0, 18.0, 127.0),
+            make_char("o", 18.0, 115.0, 24.0, 127.0),
+            // Paragraph 2 (large gap)
+            make_char("B", 10.0, 200.0, 18.0, 212.0),
+            make_char("y", 18.0, 200.0, 24.0, 212.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let opts = TextOptions {
+            layout: true,
+            ..TextOptions::default()
+        };
+        let text = page.extract_text(&opts);
+        assert_eq!(text, "Hi\nTo\n\nBy");
+    }
+
+    #[test]
+    fn test_extract_text_layout_two_columns() {
+        // Left column at x=10, right column at x=200
+        let chars = vec![
+            // Left column
+            make_char("L", 10.0, 100.0, 18.0, 112.0),
+            make_char("1", 18.0, 100.0, 26.0, 112.0),
+            make_char("L", 10.0, 115.0, 18.0, 127.0),
+            make_char("2", 18.0, 115.0, 26.0, 127.0),
+            // Right column
+            make_char("R", 200.0, 100.0, 208.0, 112.0),
+            make_char("1", 208.0, 100.0, 216.0, 112.0),
+            make_char("R", 200.0, 115.0, 208.0, 127.0),
+            make_char("2", 208.0, 115.0, 216.0, 127.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let opts = TextOptions {
+            layout: true,
+            ..TextOptions::default()
+        };
+        let text = page.extract_text(&opts);
+        assert_eq!(text, "L1\nL2\n\nR1\nR2");
+    }
+
+    #[test]
+    fn test_extract_text_empty_page() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        let text = page.extract_text(&TextOptions::default());
+        assert_eq!(text, "");
+    }
+
+    #[test]
+    fn test_extract_text_layout_mixed_with_header_footer() {
+        let chars = vec![
+            // Header
+            make_char("H", 10.0, 50.0, 18.0, 62.0),
+            // Left column
+            make_char("L", 10.0, 100.0, 18.0, 112.0),
+            // Right column
+            make_char("R", 200.0, 100.0, 208.0, 112.0),
+            // Footer
+            make_char("F", 10.0, 250.0, 18.0, 262.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let opts = TextOptions {
+            layout: true,
+            ..TextOptions::default()
+        };
+        let text = page.extract_text(&opts);
+        assert_eq!(text, "H\n\nL\n\nR\n\nF");
     }
 }
