@@ -124,6 +124,40 @@ mod tests {
     // --- Image struct ---
 
     #[test]
+    fn test_image_construction_and_field_access() {
+        let img = Image {
+            x0: 72.0,
+            top: 100.0,
+            x1: 272.0,
+            bottom: 250.0,
+            width: 200.0,
+            height: 150.0,
+            name: "Im0".to_string(),
+            src_width: Some(1920),
+            src_height: Some(1080),
+            bits_per_component: Some(8),
+            color_space: Some("DeviceRGB".to_string()),
+        };
+        assert_eq!(img.x0, 72.0);
+        assert_eq!(img.top, 100.0);
+        assert_eq!(img.x1, 272.0);
+        assert_eq!(img.bottom, 250.0);
+        assert_eq!(img.width, 200.0);
+        assert_eq!(img.height, 150.0);
+        assert_eq!(img.name, "Im0");
+        assert_eq!(img.src_width, Some(1920));
+        assert_eq!(img.src_height, Some(1080));
+        assert_eq!(img.bits_per_component, Some(8));
+        assert_eq!(img.color_space, Some("DeviceRGB".to_string()));
+
+        let bbox = img.bbox();
+        assert_approx(bbox.x0, 72.0);
+        assert_approx(bbox.top, 100.0);
+        assert_approx(bbox.x1, 272.0);
+        assert_approx(bbox.bottom, 250.0);
+    }
+
+    #[test]
     fn test_image_bbox() {
         let img = Image {
             x0: 100.0,

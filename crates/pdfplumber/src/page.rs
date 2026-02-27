@@ -184,6 +184,13 @@ mod tests {
             bbox: BBox::new(x0, top, x1, bottom),
             fontname: "TestFont".to_string(),
             size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: pdfplumber_core::TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 0,
         }
     }
 

@@ -35,6 +35,10 @@ pub struct Word {
     pub text: String,
     /// Bounding box encompassing all constituent characters.
     pub bbox: BBox,
+    /// Distance from the top of the first page (minimum doctop of constituent chars).
+    pub doctop: f64,
+    /// Text direction for this word.
+    pub direction: TextDirection,
     /// The characters that make up this word.
     pub chars: Vec<Char>,
 }
@@ -188,9 +192,13 @@ impl WordExtractor {
             .map(|c| c.bbox)
             .reduce(|a, b| a.union(&b))
             .expect("make_word called with non-empty chars");
+        let doctop = chars.iter().map(|c| c.doctop).fold(f64::INFINITY, f64::min);
+        let direction = chars[0].direction;
         Word {
             text,
             bbox,
+            doctop,
+            direction,
             chars: chars.to_vec(),
         }
     }
@@ -206,7 +214,39 @@ mod tests {
             bbox: BBox::new(x0, top, x1, bottom),
             fontname: "TestFont".to_string(),
             size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 0,
         }
+    }
+
+    #[test]
+    fn test_word_has_doctop_and_direction() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 100.0, 30.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].doctop, 100.0);
+        assert_eq!(words[0].direction, TextDirection::Ltr);
+    }
+
+    #[test]
+    fn test_word_doctop_uses_min_char_doctop() {
+        // Characters with different doctop values - word should use minimum
+        let mut chars = vec![
+            make_char("X", 10.0, 100.0, 20.0, 112.0),
+            make_char("Y", 20.0, 100.0, 30.0, 112.0),
+        ];
+        chars[0].doctop = 900.0;
+        chars[1].doctop = 892.0;
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words[0].doctop, 892.0);
     }
 
     #[test]
@@ -508,6 +548,13 @@ mod tests {
             bbox: BBox::new(x0, top, x0 + width, top + height),
             fontname: "SimSun".to_string(),
             size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 0,
         }
     }
 
@@ -694,6 +741,13 @@ mod tests {
                 bbox: BBox::new(22.0, 100.0, 25.0, 112.0),
                 fontname: "SimSun".to_string(),
                 size: 12.0,
+                doctop: 100.0,
+                upright: true,
+                direction: TextDirection::Ltr,
+                stroking_color: None,
+                non_stroking_color: None,
+                ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+                char_code: 32,
             },
             make_cjk_char("国", 25.0, 100.0, 12.0, 12.0),
         ];

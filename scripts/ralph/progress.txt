@@ -3,6 +3,10 @@
 - Orientation enum lives in geometry.rs. LineOrientation in shapes.rs is a type alias for Orientation.
 - All coordinates use f64. Color values use f32.
 - BBox uses top-left origin: (x0, top, x1, bottom).
+- Char has all PDF fields: text, bbox, fontname, size, doctop, upright, direction, stroking_color, non_stroking_color, ctm ([f64; 6]), char_code (u32).
+- Word has doctop (min of char doctops) and direction (from first char).
+- Line/Rect/Curve use top/bottom naming (not y0/y1) matching BBox convention.
+- When constructing test Char instances, use a helper fn with sensible defaults for the 12 fields.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -23,4 +27,24 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Color was a simple RGB struct - changed to proper PDF color space enum
   - Color can't derive Copy due to Other(Vec<f32>) - need .clone() everywhere it was previously copied
   - Kept LineOrientation as type alias to avoid breaking existing code in pdfplumber crate
+---
+
+## 2026-02-28 - US-003
+- What was implemented: Extended Char with doctop, upright, direction, stroking_color, non_stroking_color, ctm, char_code fields. Extended Word with doctop, direction. Added construction+field-access tests for Line, Rect, Curve, Edge, Image.
+- Files changed:
+  - crates/pdfplumber-core/src/text.rs (Char: added 7 new fields, new tests)
+  - crates/pdfplumber-core/src/words.rs (Word: added doctop + direction, updated make_word, new tests)
+  - crates/pdfplumber-core/src/shapes.rs (added construction tests for Line/Rect/Curve)
+  - crates/pdfplumber-core/src/edges.rs (added construction tests for Edge/EdgeSource)
+  - crates/pdfplumber-core/src/images.rs (added construction test for Image)
+  - crates/pdfplumber-core/src/layout.rs (updated test helper for new Char/Word fields)
+  - crates/pdfplumber/src/page.rs (updated test helper for new Char fields)
+  - crates/pdfplumber/tests/page_api_integration.rs (updated test helper for new Char fields)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Most types already existed from Phase 2 work; US-003 mainly added missing fields to Char/Word
+  - Char now has 12 fields - test helpers are essential to avoid verbose test code
+  - Word::doctop is computed as min of constituent char doctops during extraction
+  - Word::direction is taken from the first char's direction
+  - ctm stored as [f64; 6] (not Ctm struct) for simplicity in the Char record
 ---

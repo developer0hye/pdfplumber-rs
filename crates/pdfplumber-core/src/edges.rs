@@ -154,6 +154,41 @@ mod tests {
     use super::*;
     use crate::painting::Color;
 
+    #[test]
+    fn test_edge_construction_and_field_access() {
+        let edge = Edge {
+            x0: 10.0,
+            top: 20.0,
+            x1: 200.0,
+            bottom: 20.0,
+            orientation: Orientation::Horizontal,
+            source: EdgeSource::Line,
+        };
+        assert_eq!(edge.x0, 10.0);
+        assert_eq!(edge.top, 20.0);
+        assert_eq!(edge.x1, 200.0);
+        assert_eq!(edge.bottom, 20.0);
+        assert_eq!(edge.orientation, Orientation::Horizontal);
+        assert_eq!(edge.source, EdgeSource::Line);
+    }
+
+    #[test]
+    fn test_edge_source_variants() {
+        let sources = [
+            EdgeSource::Line,
+            EdgeSource::RectTop,
+            EdgeSource::RectBottom,
+            EdgeSource::RectLeft,
+            EdgeSource::RectRight,
+            EdgeSource::Curve,
+        ];
+        // EdgeSource derives Copy
+        for source in sources {
+            let copy = source;
+            assert_eq!(source, copy);
+        }
+    }
+
     fn assert_approx(a: f64, b: f64) {
         assert!(
             (a - b).abs() < 1e-6,

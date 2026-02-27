@@ -472,6 +472,80 @@ mod tests {
 
     const PAGE_HEIGHT: f64 = 792.0;
 
+    // --- Direct construction and field access tests ---
+
+    #[test]
+    fn test_line_construction_and_field_access() {
+        let line = Line {
+            x0: 10.0,
+            top: 20.0,
+            x1: 100.0,
+            bottom: 20.0,
+            line_width: 1.5,
+            stroke_color: Color::Rgb(1.0, 0.0, 0.0),
+            orientation: Orientation::Horizontal,
+        };
+        assert_eq!(line.x0, 10.0);
+        assert_eq!(line.top, 20.0);
+        assert_eq!(line.x1, 100.0);
+        assert_eq!(line.bottom, 20.0);
+        assert_eq!(line.line_width, 1.5);
+        assert_eq!(line.stroke_color, Color::Rgb(1.0, 0.0, 0.0));
+        assert_eq!(line.orientation, Orientation::Horizontal);
+    }
+
+    #[test]
+    fn test_rect_construction_and_field_access() {
+        let rect = Rect {
+            x0: 50.0,
+            top: 100.0,
+            x1: 200.0,
+            bottom: 300.0,
+            line_width: 2.0,
+            stroke: true,
+            fill: true,
+            stroke_color: Color::Gray(0.0),
+            fill_color: Color::Cmyk(0.0, 1.0, 1.0, 0.0),
+        };
+        assert_eq!(rect.x0, 50.0);
+        assert_eq!(rect.top, 100.0);
+        assert_eq!(rect.x1, 200.0);
+        assert_eq!(rect.bottom, 300.0);
+        assert_eq!(rect.line_width, 2.0);
+        assert!(rect.stroke);
+        assert!(rect.fill);
+        assert_eq!(rect.stroke_color, Color::Gray(0.0));
+        assert_eq!(rect.fill_color, Color::Cmyk(0.0, 1.0, 1.0, 0.0));
+        assert_eq!(rect.width(), 150.0);
+        assert_eq!(rect.height(), 200.0);
+    }
+
+    #[test]
+    fn test_curve_construction_and_field_access() {
+        let curve = Curve {
+            x0: 0.0,
+            top: 50.0,
+            x1: 100.0,
+            bottom: 100.0,
+            pts: vec![(0.0, 100.0), (30.0, 50.0), (70.0, 50.0), (100.0, 100.0)],
+            line_width: 1.0,
+            stroke: true,
+            fill: false,
+            stroke_color: Color::black(),
+            fill_color: Color::black(),
+        };
+        assert_eq!(curve.x0, 0.0);
+        assert_eq!(curve.top, 50.0);
+        assert_eq!(curve.x1, 100.0);
+        assert_eq!(curve.bottom, 100.0);
+        assert_eq!(curve.pts.len(), 4);
+        assert_eq!(curve.pts[0], (0.0, 100.0));
+        assert_eq!(curve.pts[3], (100.0, 100.0));
+        assert_eq!(curve.line_width, 1.0);
+        assert!(curve.stroke);
+        assert!(!curve.fill);
+    }
+
     fn default_gs() -> GraphicsState {
         GraphicsState::default()
     }
