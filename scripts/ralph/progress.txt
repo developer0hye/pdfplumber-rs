@@ -20,6 +20,9 @@
 - Image extraction: `image_from_ctm(ctm, name, page_height, metadata) -> Image` in `images.rs`
 - Image bbox from CTM: transform unit square corners (0,0),(1,0),(0,1),(1,1) through CTM, find bounding box, y-flip
 - Page holds images: `with_geometry_and_images()` constructor (8 args, #[allow(clippy::too_many_arguments)])
+- Encoding tables: `static [Option<char>; 256]` in const blocks, `StandardEncoding` enum for lookup
+- FontEncoding: base table + Differences override via `apply_differences(&[(u8, char)])`
+- EncodingResolver: 3-level chain — ToUnicode (HashMap<u16, String>) > FontEncoding > default
 - ImageMetadata: src_width, src_height, bits_per_component, color_space — all Optional
 - y-flip: `top_origin_y = page_height - pdf_y` for coordinate conversion
 - Rect detection: axis-aligned closed 4-vertex subpath OR 5-vertex where last==first
@@ -228,4 +231,30 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - Clippy `too_many_arguments` triggered at 8 args — use `#[allow(clippy::too_many_arguments)]` for constructors that legitimately need all data
   - Clippy `derivable_impls` — always use `#[derive(Default)]` when all fields default to None/zero
   - Integration tests in `crates/<name>/tests/` directory — separate binary targets, test full public API
+---
+
+## 2026-02-28 - US-026: Standard encodings - WinAnsi, MacRoman, Differences array
+- **What was implemented:**
+  - `StandardEncoding` enum (WinAnsi, MacRoman, MacExpert, Standard) with `decode(u8)` and `decode_bytes(&[u8])` methods
+  - WinAnsiEncoding: full 256-entry table (Windows code page 1252 superset, incl. Euro, curly quotes, dashes)
+  - MacRomanEncoding: full 256-entry table (Classic Mac OS Roman, incl. fi/fl ligatures, math symbols)
+  - MacExpertEncoding: expert glyph set (small caps in Adobe PUA, fractions, super/subscripts, old-style numerals)
+  - StandardEncoding: Adobe standard Latin encoding (differs from ASCII at 0x27=quoteright, 0x60=quoteleft)
+  - `FontEncoding` struct: 256-entry lookup table with Differences array override support
+  - `FontEncoding::from_standard()`, `from_standard_with_differences()`, `from_table()`, `apply_differences()`
+  - `EncodingResolver` with 3-level resolution: ToUnicode (HashMap<u16, String>) > font encoding > default encoding
+  - `EncodingResolver::resolve(code: u16) -> Option<String>` and `decode_bytes(&[u8]) -> String`
+  - 35 unit tests: each encoding's key characters, undefined codes, cross-encoding comparisons, Differences override, resolution chain
+  - Total: 215 tests in workspace (35 new)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/encoding.rs` (new) — StandardEncoding, FontEncoding, EncodingResolver + 35 tests
+  - `crates/pdfplumber-core/src/lib.rs` — added encoding module, re-exports
+  - `crates/pdfplumber/src/lib.rs` — re-export EncodingResolver, FontEncoding, StandardEncoding from facade
+- **Dependencies added:** None (still pure Rust, zero external dependencies)
+- **Learnings for future iterations:**
+  - Encoding tables as `static [Option<char>; 256]` initialized in `const {}` blocks — zero runtime cost, no lazy_static needed
+  - StandardEncoding 0x27 = curly right quote (U+2019), not ASCII apostrophe — common gotcha
+  - MacExpert uses Adobe Private Use Area (U+F6xx–U+F7xx) for small caps — not standard Unicode
+  - `HashMap<u16, String>` for ToUnicode allows multi-byte codes (CID fonts) and multi-char mappings (ligatures)
+  - `cargo fmt` reformats trailing comment alignment — don't fight it, let rustfmt win
 ---
