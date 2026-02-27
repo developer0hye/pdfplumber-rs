@@ -73,7 +73,7 @@ fn extract_bbox_from_array(array: &[lopdf::Object]) -> Result<BBox, BackendError
 }
 
 /// Convert a lopdf numeric object (Integer or Real) to f64.
-fn object_to_f64(obj: &lopdf::Object) -> Result<f64, BackendError> {
+pub(crate) fn object_to_f64(obj: &lopdf::Object) -> Result<f64, BackendError> {
     match obj {
         lopdf::Object::Integer(i) => Ok(*i as f64),
         lopdf::Object::Real(f) => Ok(*f as f64),
@@ -187,13 +187,126 @@ impl PdfBackend for LopdfBackend {
     }
 
     fn interpret_page(
-        _doc: &Self::Document,
-        _page: &Self::Page,
-        _handler: &mut dyn ContentHandler,
-        _options: &ExtractOptions,
+        doc: &Self::Document,
+        page: &Self::Page,
+        handler: &mut dyn ContentHandler,
+        options: &ExtractOptions,
     ) -> Result<(), Self::Error> {
-        // Stub: will be implemented in later stories
-        todo!("interpret_page not yet implemented")
+        let inner = &doc.inner;
+
+        // Get the page dictionary
+        let page_dict = inner
+            .get_object(page.object_id)
+            .and_then(|o| o.as_dict())
+            .map_err(|e| BackendError::Parse(format!("failed to get page dictionary: {e}")))?;
+
+        // Get page content stream bytes
+        let content_bytes = get_page_content_bytes(inner, page_dict)?;
+
+        // Get page resources (may be inherited)
+        let resources = get_page_resources(inner, page.object_id)?;
+
+        // Initialize state machines
+        let mut gstate = crate::interpreter_state::InterpreterState::new();
+        let mut tstate = crate::text_state::TextState::new();
+
+        // Interpret the content stream
+        crate::interpreter::interpret_content_stream(
+            inner,
+            &content_bytes,
+            resources,
+            handler,
+            options,
+            0, // page-level depth
+            &mut gstate,
+            &mut tstate,
+        )
+    }
+}
+
+/// Get the content stream bytes from a page dictionary.
+///
+/// Handles both single stream references and arrays of stream references.
+fn get_page_content_bytes(
+    doc: &lopdf::Document,
+    page_dict: &lopdf::Dictionary,
+) -> Result<Vec<u8>, BackendError> {
+    let contents_obj = match page_dict.get(b"Contents") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()), // Page with no content
+    };
+
+    match contents_obj {
+        lopdf::Object::Reference(id) => {
+            let obj = doc
+                .get_object(*id)
+                .map_err(|e| BackendError::Parse(format!("failed to resolve /Contents: {e}")))?;
+            let stream = obj
+                .as_stream()
+                .map_err(|e| BackendError::Parse(format!("/Contents is not a stream: {e}")))?;
+            decode_content_stream(stream)
+        }
+        lopdf::Object::Array(arr) => {
+            let mut content = Vec::new();
+            for item in arr {
+                let id = item.as_reference().map_err(|e| {
+                    BackendError::Parse(format!("/Contents array item is not a reference: {e}"))
+                })?;
+                let obj = doc.get_object(id).map_err(|e| {
+                    BackendError::Parse(format!("failed to resolve /Contents stream: {e}"))
+                })?;
+                let stream = obj.as_stream().map_err(|e| {
+                    BackendError::Parse(format!("/Contents array item is not a stream: {e}"))
+                })?;
+                let bytes = decode_content_stream(stream)?;
+                if !content.is_empty() {
+                    content.push(b' ');
+                }
+                content.extend_from_slice(&bytes);
+            }
+            Ok(content)
+        }
+        _ => Err(BackendError::Parse(
+            "/Contents is not a reference or array".to_string(),
+        )),
+    }
+}
+
+/// Decode a content stream, decompressing if needed.
+fn decode_content_stream(stream: &lopdf::Stream) -> Result<Vec<u8>, BackendError> {
+    if stream.dict.get(b"Filter").is_ok() {
+        stream
+            .decompressed_content()
+            .map_err(|e| BackendError::Parse(format!("failed to decompress content stream: {e}")))
+    } else {
+        Ok(stream.content.clone())
+    }
+}
+
+/// Get the resources dictionary for a page, handling inheritance.
+fn get_page_resources(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+) -> Result<&lopdf::Dictionary, BackendError> {
+    match resolve_inherited(doc, page_id, b"Resources")? {
+        Some(obj) => {
+            // Resolve indirect reference if needed
+            let obj = match obj {
+                lopdf::Object::Reference(id) => doc.get_object(*id).map_err(|e| {
+                    BackendError::Parse(format!("failed to resolve /Resources reference: {e}"))
+                })?,
+                other => other,
+            };
+            obj.as_dict()
+                .map_err(|_| BackendError::Parse("/Resources is not a dictionary".to_string()))
+        }
+        None => {
+            // No resources at all — use empty dictionary
+            // This is unusual but we handle it gracefully
+            static EMPTY_DICT: std::sync::LazyLock<lopdf::Dictionary> =
+                std::sync::LazyLock::new(lopdf::Dictionary::new);
+            Ok(&EMPTY_DICT)
+        }
     }
 }
 
@@ -384,10 +497,392 @@ fn create_test_pdf_inherited_rotate(rotation: i64) -> Vec<u8> {
     buf
 }
 
+/// Create a PDF with a page that references a Form XObject containing text.
+///
+/// Page content: `q /FM1 Do Q`
+/// Form XObject FM1 content: `BT /F1 12 Tf 72 700 Td (Hello) Tj ET`
+#[cfg(test)]
+fn create_test_pdf_with_form_xobject() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    // Minimal Type1 font dictionary
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    // Form XObject stream: contains text
+    let form_content = b"BT /F1 12 Tf 72 700 Td (Hello) Tj ET";
+    let form_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Resources" => Object::Dictionary(dictionary! {
+                "Font" => Object::Dictionary(dictionary! {
+                    "F1" => font_id,
+                }),
+            }),
+        },
+        form_content.to_vec(),
+    );
+    let form_id = doc.add_object(Object::Stream(form_stream));
+
+    // Page content: invoke the form XObject
+    let page_content = b"q /FM1 Do Q";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => font_id,
+            }),
+            "XObject" => Object::Dictionary(dictionary! {
+                "FM1" => form_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
+/// Create a PDF with nested Form XObjects (2 levels).
+///
+/// Page content: `q /FM1 Do Q`
+/// FM1 content: `q /FM2 Do Q` (references FM2)
+/// FM2 content: `BT /F1 10 Tf (Deep) Tj ET` (actual text)
+#[cfg(test)]
+fn create_test_pdf_with_nested_form_xobjects() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    // Inner Form XObject (FM2): contains actual text
+    let fm2_content = b"BT /F1 10 Tf (Deep) Tj ET";
+    let fm2_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Resources" => Object::Dictionary(dictionary! {
+                "Font" => Object::Dictionary(dictionary! {
+                    "F1" => font_id,
+                }),
+            }),
+        },
+        fm2_content.to_vec(),
+    );
+    let fm2_id = doc.add_object(Object::Stream(fm2_stream));
+
+    // Outer Form XObject (FM1): references FM2
+    let fm1_content = b"q /FM2 Do Q";
+    let fm1_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Resources" => Object::Dictionary(dictionary! {
+                "XObject" => Object::Dictionary(dictionary! {
+                    "FM2" => fm2_id,
+                }),
+                "Font" => Object::Dictionary(dictionary! {
+                    "F1" => font_id,
+                }),
+            }),
+        },
+        fm1_content.to_vec(),
+    );
+    let fm1_id = doc.add_object(Object::Stream(fm1_stream));
+
+    // Page content: invoke FM1
+    let page_content = b"q /FM1 Do Q";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "XObject" => Object::Dictionary(dictionary! {
+                "FM1" => fm1_id,
+            }),
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => font_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
+/// Create a PDF with a Form XObject that has a /Matrix transform.
+///
+/// The Form XObject has /Matrix [2 0 0 2 10 20] (scale 2x + translate).
+#[cfg(test)]
+fn create_test_pdf_form_xobject_with_matrix() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let form_content = b"BT /F1 12 Tf (A) Tj ET";
+    let form_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Form",
+            "BBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Matrix" => vec![
+                Object::Real(2.0), Object::Real(0.0),
+                Object::Real(0.0), Object::Real(2.0),
+                Object::Real(10.0), Object::Real(20.0),
+            ],
+            "Resources" => Object::Dictionary(dictionary! {
+                "Font" => Object::Dictionary(dictionary! {
+                    "F1" => font_id,
+                }),
+            }),
+        },
+        form_content.to_vec(),
+    );
+    let form_id = doc.add_object(Object::Stream(form_stream));
+
+    let page_content = b"q /FM1 Do Q";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "XObject" => Object::Dictionary(dictionary! {
+                "FM1" => form_id,
+            }),
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => font_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
+/// Create a PDF with an Image XObject (not Form).
+#[cfg(test)]
+fn create_test_pdf_with_image_xobject() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    // 2x2 RGB image (12 bytes of pixel data)
+    let image_data = vec![255u8, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
+    let image_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => 2i64,
+            "Height" => 2i64,
+            "ColorSpace" => "DeviceRGB",
+            "BitsPerComponent" => 8i64,
+        },
+        image_data,
+    );
+    let image_id = doc.add_object(Object::Stream(image_stream));
+
+    // Page content: scale then place image
+    let page_content = b"q 200 0 0 150 100 300 cm /Im0 Do Q";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "XObject" => Object::Dictionary(dictionary! {
+                "Im0" => image_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
+/// Create a PDF with a page that has direct text content (no XObjects).
+#[cfg(test)]
+fn create_test_pdf_with_text_content() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let page_content = b"BT /F1 12 Tf 72 700 Td (Hi) Tj ET";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => font_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::handler::{CharEvent, ContentHandler, ImageEvent};
     use pdfplumber_core::PdfError;
+
+    // --- CollectingHandler for interpret_page tests ---
+
+    struct CollectingHandler {
+        chars: Vec<CharEvent>,
+        images: Vec<ImageEvent>,
+    }
+
+    impl CollectingHandler {
+        fn new() -> Self {
+            Self {
+                chars: Vec::new(),
+                images: Vec::new(),
+            }
+        }
+    }
+
+    impl ContentHandler for CollectingHandler {
+        fn on_char(&mut self, event: CharEvent) {
+            self.chars.push(event);
+        }
+        fn on_image(&mut self, event: ImageEvent) {
+            self.images.push(event);
+        }
+    }
 
     // --- open() tests ---
 
@@ -629,5 +1124,159 @@ mod tests {
         assert_eq!(media_box, BBox::new(0.0, 0.0, 612.0, 792.0));
         assert!(crop_box.is_some());
         assert_eq!(rotation, 0);
+    }
+
+    // --- interpret_page: basic text extraction ---
+
+    #[test]
+    fn interpret_page_simple_text() {
+        let pdf_bytes = create_test_pdf_with_text_content();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+
+        // "Hi" = 2 characters
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].char_code, b'H' as u32);
+        assert_eq!(handler.chars[1].char_code, b'i' as u32);
+        assert_eq!(handler.chars[0].font_size, 12.0);
+        assert_eq!(handler.chars[0].font_name, "Helvetica");
+    }
+
+    #[test]
+    fn interpret_page_no_content() {
+        let pdf_bytes = create_test_pdf(1);
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        // Page with no /Contents should not fail
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+        assert_eq!(handler.chars.len(), 0);
+    }
+
+    // --- interpret_page: Form XObject tests (US-016) ---
+
+    #[test]
+    fn interpret_page_form_xobject_text() {
+        let pdf_bytes = create_test_pdf_with_form_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+
+        // Form XObject contains "Hello" = 5 chars
+        assert_eq!(handler.chars.len(), 5);
+        assert_eq!(handler.chars[0].char_code, b'H' as u32);
+        assert_eq!(handler.chars[1].char_code, b'e' as u32);
+        assert_eq!(handler.chars[2].char_code, b'l' as u32);
+        assert_eq!(handler.chars[3].char_code, b'l' as u32);
+        assert_eq!(handler.chars[4].char_code, b'o' as u32);
+        assert_eq!(handler.chars[0].font_name, "Helvetica");
+        assert_eq!(handler.chars[0].font_size, 12.0);
+    }
+
+    #[test]
+    fn interpret_page_nested_form_xobjects() {
+        let pdf_bytes = create_test_pdf_with_nested_form_xobjects();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+
+        // Nested form XObject FM1→FM2 contains "Deep" = 4 chars
+        assert_eq!(handler.chars.len(), 4);
+        assert_eq!(handler.chars[0].char_code, b'D' as u32);
+        assert_eq!(handler.chars[1].char_code, b'e' as u32);
+        assert_eq!(handler.chars[2].char_code, b'e' as u32);
+        assert_eq!(handler.chars[3].char_code, b'p' as u32);
+    }
+
+    #[test]
+    fn interpret_page_form_xobject_matrix_applied() {
+        let pdf_bytes = create_test_pdf_form_xobject_with_matrix();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+
+        // Form XObject has /Matrix [2 0 0 2 10 20], character "A"
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].char_code, b'A' as u32);
+        // CTM should include the form's matrix transform
+        let ctm = handler.chars[0].ctm;
+        // Form matrix [2 0 0 2 10 20] applied on top of identity
+        assert!((ctm[0] - 2.0).abs() < 0.01);
+        assert!((ctm[3] - 2.0).abs() < 0.01);
+        assert!((ctm[4] - 10.0).abs() < 0.01);
+        assert!((ctm[5] - 20.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn interpret_page_form_xobject_state_restored() {
+        // After processing a Form XObject, the graphics state should be restored.
+        // The Form XObject is wrapped in q/Q on the page, and the interpreter
+        // also saves/restores state around the Form XObject.
+        let pdf_bytes = create_test_pdf_with_form_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        // This should complete without errors (state properly saved/restored)
+        let result = LopdfBackend::interpret_page(&doc, &page, &mut handler, &options);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn interpret_page_image_xobject() {
+        let pdf_bytes = create_test_pdf_with_image_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let options = ExtractOptions::default();
+        let mut handler = CollectingHandler::new();
+
+        LopdfBackend::interpret_page(&doc, &page, &mut handler, &options).unwrap();
+
+        // Should have 1 image event, no chars
+        assert_eq!(handler.chars.len(), 0);
+        assert_eq!(handler.images.len(), 1);
+        assert_eq!(handler.images[0].name, "Im0");
+        assert_eq!(handler.images[0].width, 2);
+        assert_eq!(handler.images[0].height, 2);
+        assert_eq!(handler.images[0].colorspace.as_deref(), Some("DeviceRGB"));
+        assert_eq!(handler.images[0].bits_per_component, Some(8));
+        // CTM should be [200 0 0 150 100 300] from the cm operator
+        let ctm = handler.images[0].ctm;
+        assert!((ctm[0] - 200.0).abs() < 0.01);
+        assert!((ctm[3] - 150.0).abs() < 0.01);
+        assert!((ctm[4] - 100.0).abs() < 0.01);
+        assert!((ctm[5] - 300.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn interpret_page_recursion_limit() {
+        // Use the nested form XObject PDF but with max_recursion_depth = 0
+        let pdf_bytes = create_test_pdf_with_form_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let mut options = ExtractOptions::default();
+        options.max_recursion_depth = 0; // Page level = 0, Form XObject = 1 > limit
+        let mut handler = CollectingHandler::new();
+
+        let result = LopdfBackend::interpret_page(&doc, &page, &mut handler, &options);
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("recursion depth"));
     }
 }

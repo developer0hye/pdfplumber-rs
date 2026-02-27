@@ -10,6 +10,7 @@ pub mod cmap;
 pub mod error;
 pub mod font_metrics;
 pub mod handler;
+pub mod interpreter;
 pub mod interpreter_state;
 pub mod lopdf_backend;
 pub mod page_geometry;
