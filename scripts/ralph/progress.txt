@@ -27,6 +27,9 @@
 - PDF whitespace: space, tab, CR, LF, FF (0x0C), NUL (0x00). NUL is whitespace — be careful with binary data boundaries.
 - PDF names support #XX hex escapes (e.g., /F#231 → "F#1"). parse_name handles this.
 - Use `std::mem::take()` instead of `drain(..).collect()` for moving Vec contents (clippy drain_collect lint).
+- InterpreterState (pdfplumber-parse) bundles Ctm + GraphicsState + save/restore stack. Use save_state()/restore_state() for q/Q, concat_matrix() for cm.
+- cm operator uses pre-multiplication: new_matrix.concat(&current_ctm). This follows PDF spec where cm modifies CTM by pre-concatenating.
+- SC/SCN/sc/scn use component count to infer color space (1→Gray, 3→RGB, 4→CMYK, other→Other).
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -162,4 +165,22 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Hex strings: odd digit count gets trailing 0 appended (e.g., <ABC> → <ABC0>)
   - Names support #XX hex escapes (e.g., /F#231 → "F#1")
   - clippy: use std::mem::take() instead of drain(..).collect(), is_some_and() instead of map_or(false, ...)
+---
+
+## 2026-02-28 - US-009
+- What was implemented: Graphics state stack — InterpreterState combining Ctm + GraphicsState + state stack for q/Q, cm, color operators
+- Files changed:
+  - crates/pdfplumber-parse/src/interpreter_state.rs (new — InterpreterState struct, 38 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added interpreter_state module + InterpreterState export)
+  - scripts/ralph/prd.json (marked US-009 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - InterpreterState bundles Ctm + GraphicsState + Vec<SavedState> stack
+  - q/Q save/restore both CTM and full GraphicsState (colors, line_width, dash, alpha)
+  - cm operator: new_matrix.concat(&current_ctm) — pre-multiplication per PDF spec
+  - Color operators map to Color enum variants: G/g→Gray, RG/rg→Rgb, K/k→Cmyk
+  - SC/SCN/sc/scn use component count heuristic: 1→Gray, 3→RGB, 4→CMYK, other→Other
+  - restore_state() returns bool (false if stack empty) for graceful handling of unbalanced Q
+  - ctm_array() converts Ctm struct to [f64; 6] for compatibility with CharEvent/PathEvent/ImageEvent
+  - GraphicsState from core already has all needed fields; no core changes were required
 ---

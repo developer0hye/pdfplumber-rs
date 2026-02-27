@@ -164,8 +164,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "InterpreterState in pdfplumber-parse bundles Ctm + GraphicsState + state stack. q/Q push/pop full state (CTM + graphics). cm pre-multiplies new matrix onto CTM. Color operators: G/g (gray), RG/rg (RGB), K/k (CMYK), SC/SCN/sc/scn (generic via component count). Also w (line width), d (dash pattern). 38 unit tests."
     },
     {
       "id": "US-010",
