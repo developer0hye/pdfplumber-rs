@@ -100,4 +100,38 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - `re` operator delegates to move_to/line_to/close_path for consistent CTM handling
   - CTM concat: `a.concat(&b)` = `a × b` — used for cm operator in content stream
   - `subpath_start` tracks the most recent MoveTo for close_path to return to
+- Painting operations consume PathBuilder segments via `take_and_reset()` and reset for next path
+- `PaintedPath` captures path + stroke/fill flags + fill_rule + colors + line_width at painting time
+---
+
+## 2026-02-28 - US-022: Path painting operators - S, s, f, F, f*, B, B*, b, b*, n
+- **What was implemented:**
+  - `Color` struct (RGB, default black) in `crates/pdfplumber-core/src/painting.rs`
+  - `FillRule` enum (NonZeroWinding default, EvenOdd) in `painting.rs`
+  - `GraphicsState` struct (line_width, stroke_color, fill_color) in `painting.rs`
+  - `PaintedPath` struct — path + stroke/fill flags + fill_rule + colors + line_width
+  - Painting methods on `PathBuilder` (impl in `painting.rs`):
+    - `stroke()` — S operator
+    - `close_and_stroke()` — s operator (h then S)
+    - `fill()` — f/F operator (nonzero winding)
+    - `fill_even_odd()` — f* operator (even-odd rule)
+    - `fill_and_stroke()` — B operator
+    - `fill_even_odd_and_stroke()` — B* operator
+    - `close_fill_and_stroke()` — b operator
+    - `close_fill_even_odd_and_stroke()` — b* operator
+    - `end_path()` — n operator (returns None, discards path)
+  - `take_and_reset()` method on `PathBuilder` — consumes segments and resets for next path
+  - 26 unit tests covering all operators, graphics state capture, path clearing, curves, CTM, sequential paints
+- **Files changed:**
+  - `crates/pdfplumber-core/src/painting.rs` (new) — Color, FillRule, GraphicsState, PaintedPath + painting methods + 26 tests
+  - `crates/pdfplumber-core/src/path.rs` — added `take_and_reset()` method to PathBuilder
+  - `crates/pdfplumber-core/src/lib.rs` — added painting module, re-exports
+  - `crates/pdfplumber/src/lib.rs` — re-export new types from facade
+- **Dependencies added:** None (still pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - Painting methods are impl'd on PathBuilder in a separate file (`painting.rs`) — Rust allows impl blocks across files within same crate
+  - `take_and_reset()` uses `std::mem::take()` for efficient Vec drain — avoids clone, resets builder state
+  - `close_and_stroke()` / `close_fill_*()` delegate to `close_path()` then the base paint method
+  - `n` operator returns `Option<PaintedPath>` (None) — callers can use `if let Some(painted) = ...`
+  - Clippy prefers `#[derive(Default)]` + `#[default]` attribute over manual `impl Default` for enums
 ---
