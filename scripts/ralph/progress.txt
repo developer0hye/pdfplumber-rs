@@ -9,6 +9,10 @@
 - When constructing test Char instances, use a helper fn with sensible defaults for the 12 fields.
 - PdfError (core) has manual Error impl; BackendError (parse) uses thiserror. Convert between them via From impls.
 - ExtractResult<T> wraps value + warnings. Use ExtractResult::ok(val) for clean results.
+- PdfBackend trait uses associated functions (no &self). Call as `MyBackend::open(bytes)`, `MyBackend::page_count(&doc)`.
+- ContentHandler has default no-op methods. Implementors override only the events they care about.
+- ContentHandler is object-safe: use `&mut dyn ContentHandler` in trait method signatures.
+- CTM stored as [f64; 6] in event types (CharEvent, PathEvent, ImageEvent) for consistency with Char.ctm.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -69,4 +73,25 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - BackendError in pdfplumber-parse bridges thiserror world with core PdfError
   - ExtractOptions defaults: 10 recursion depth, 100K objects/page, 100MB stream bytes, collect_warnings=true
   - ExtractResult<T>::map() preserves warnings when transforming values
+---
+
+## 2026-02-28 - US-005
+- What was implemented: PdfBackend trait and ContentHandler trait in pdfplumber-parse
+- Files changed:
+  - crates/pdfplumber-parse/src/backend.rs (new - PdfBackend trait with 7 methods, associated types Document/Page/Error)
+  - crates/pdfplumber-parse/src/handler.rs (new - ContentHandler trait, CharEvent, PathEvent, ImageEvent, PaintOp)
+  - crates/pdfplumber-parse/src/lib.rs (added backend + handler modules, exported PdfBackend, ContentHandler, event types)
+  - crates/pdfplumber/src/lib.rs (re-export PdfBackend, ContentHandler, CharEvent, PathEvent, ImageEvent, PaintOp)
+  - scripts/ralph/prd.json (marked US-005 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - PdfBackend uses associated functions (no &self) with associated types Document, Page, Error
+  - Error bound is `std::error::Error + Into<PdfError>` — PdfError itself satisfies this
+  - ContentHandler default no-op methods make it easy to subscribe to specific events
+  - ContentHandler is object-safe, so `&mut dyn ContentHandler` works in trait signatures
+  - Mock backend tests in the same module verify the trait contract effectively
+  - Mock types need `#[derive(Debug)]` for `.unwrap_err()` to work in tests
+  - CharEvent carries full text state context (matrix, spacing, scaling) for bbox calculation in later layers
+  - PathEvent uses Vec<PathSegment> from core and includes paint_op, colors, dash_pattern, fill_rule
+  - ImageEvent carries CTM for position/size determination + pixel dimensions and colorspace
 ---
