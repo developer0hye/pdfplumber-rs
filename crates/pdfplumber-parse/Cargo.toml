@@ -8,3 +8,4 @@ description = "PDF parsing and content stream interpreter for pdfplumber-rs"
 
 [dependencies]
 pdfplumber-core = { path = "../pdfplumber-core" }
+thiserror = "2"

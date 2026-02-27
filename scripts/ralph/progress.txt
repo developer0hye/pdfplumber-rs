@@ -7,6 +7,8 @@
 - Word has doctop (min of char doctops) and direction (from first char).
 - Line/Rect/Curve use top/bottom naming (not y0/y1) matching BBox convention.
 - When constructing test Char instances, use a helper fn with sensible defaults for the 12 fields.
+- PdfError (core) has manual Error impl; BackendError (parse) uses thiserror. Convert between them via From impls.
+- ExtractResult<T> wraps value + warnings. Use ExtractResult::ok(val) for clean results.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -47,4 +49,24 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Word::doctop is computed as min of constituent char doctops during extraction
   - Word::direction is taken from the first char's direction
   - ctm stored as [f64; 6] (not Ctm struct) for simplicity in the Char record
+---
+
+## 2026-02-28 - US-004
+- What was implemented: Error and warning model - PdfError enum, ExtractWarning, ExtractResult<T>, ExtractOptions in pdfplumber-core. BackendError with thiserror in pdfplumber-parse.
+- Files changed:
+  - crates/pdfplumber-core/src/error.rs (new - PdfError, ExtractWarning, ExtractResult, ExtractOptions)
+  - crates/pdfplumber-core/src/lib.rs (added error module + exports)
+  - crates/pdfplumber-parse/src/error.rs (new - BackendError with thiserror)
+  - crates/pdfplumber-parse/src/lib.rs (added error module + BackendError export)
+  - crates/pdfplumber-parse/Cargo.toml (added thiserror = "2")
+  - crates/pdfplumber/src/lib.rs (re-export PdfError, ExtractWarning, ExtractResult, ExtractOptions)
+  - scripts/ralph/prd.json (marked US-004 passes: true)
+- Dependencies added: thiserror 2 (in pdfplumber-parse only, as approved in PRD)
+- **Learnings for future iterations:**
+  - pdfplumber-core stays dependency-free: manual Display+Error impls for PdfError
+  - PdfError uses String messages (not source errors) to stay Clone+PartialEq
+  - From<std::io::Error> for PdfError converts via to_string() (loses original error, but keeps PdfError Clone-able)
+  - BackendError in pdfplumber-parse bridges thiserror world with core PdfError
+  - ExtractOptions defaults: 10 recursion depth, 100K objects/page, 100MB stream bytes, collect_warnings=true
+  - ExtractResult<T>::map() preserves warnings when transforming values
 ---

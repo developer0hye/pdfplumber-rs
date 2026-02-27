@@ -6,6 +6,7 @@
 
 pub mod edges;
 pub mod encoding;
+pub mod error;
 pub mod geometry;
 pub mod images;
 pub mod layout;
@@ -17,6 +18,7 @@ pub mod words;
 
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
+pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use images::{Image, ImageMetadata, image_from_ctm};
 pub use layout::{

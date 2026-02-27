@@ -4,6 +4,9 @@
 //! Layer 2 (content stream interpretation) of the pdfplumber-rs architecture.
 //! It depends on pdfplumber-core for shared data types.
 
+pub mod error;
+
+pub use error::BackendError;
 pub use pdfplumber_core;
 
 #[cfg(test)]

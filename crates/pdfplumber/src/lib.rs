@@ -14,12 +14,13 @@ mod page;
 pub use page::Page;
 pub use pdfplumber_core::{
     BBox, Char, Color, Ctm, Curve, DashPattern, Edge, EdgeSource, EncodingResolver, ExtGState,
-    FillRule, FontEncoding, GraphicsState, Image, ImageMetadata, Line, LineOrientation,
-    Orientation, PaintedPath, Path, PathBuilder, PathSegment, Point, Rect, StandardEncoding,
-    TextBlock, TextDirection, TextLine, TextOptions, Word, WordExtractor, WordOptions,
-    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
-    edge_from_curve, edge_from_line, edges_from_rect, extract_shapes, image_from_ctm, is_cjk,
-    is_cjk_text, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    ExtractOptions, ExtractResult, ExtractWarning, FillRule, FontEncoding, GraphicsState, Image,
+    ImageMetadata, Line, LineOrientation, Orientation, PaintedPath, Path, PathBuilder, PathSegment,
+    PdfError, Point, Rect, StandardEncoding, TextBlock, TextDirection, TextLine, TextOptions, Word,
+    WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, derive_edges, edge_from_curve, edge_from_line, edges_from_rect,
+    extract_shapes, image_from_ctm, is_cjk, is_cjk_text, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 pub use pdfplumber_parse;
 
