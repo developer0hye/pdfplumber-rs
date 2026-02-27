@@ -22,7 +22,9 @@ pub use pdfplumber_core::{
     extract_shapes, image_from_ctm, is_cjk, is_cjk_text, sort_blocks_reading_order,
     split_lines_at_columns, words_to_text,
 };
-pub use pdfplumber_parse;
+pub use pdfplumber_parse::{
+    self, CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent, PdfBackend,
+};
 
 #[cfg(test)]
 mod tests {
