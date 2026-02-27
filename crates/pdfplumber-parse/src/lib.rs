@@ -12,6 +12,7 @@ pub mod font_metrics;
 pub mod handler;
 pub mod interpreter_state;
 pub mod lopdf_backend;
+pub mod page_geometry;
 pub mod text_renderer;
 pub mod text_state;
 pub mod tokenizer;
@@ -24,6 +25,7 @@ pub use font_metrics::{FontMetrics, extract_font_metrics};
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 pub use interpreter_state::InterpreterState;
 pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
+pub use page_geometry::PageGeometry;
 pub use pdfplumber_core;
 pub use text_renderer::{
     RawChar, TjElement, double_quote_show_string, quote_show_string, show_string,

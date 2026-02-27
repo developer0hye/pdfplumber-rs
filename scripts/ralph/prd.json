@@ -280,8 +280,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": "Centralize this in a single transform module for consistency."
+      "passes": true,
+      "notes": "PageGeometry struct in pdfplumber-parse/page_geometry.rs. Combines MediaBox + CropBox + rotation into unified transform. Pipeline: MediaBox offset → rotation (0/90/180/270) → CropBox offset → y-flip. normalize_point() for single points, normalize_bbox() for bounding boxes. Handles non-zero MediaBox origin, negative rotations, all CropBox+rotation combinations. 32 unit tests."
     },
     {
       "id": "US-016",

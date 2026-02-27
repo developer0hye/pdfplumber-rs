@@ -300,4 +300,29 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Unicode fallback chain: event.unicode → char::from_u32(char_code) → U+FFFD replacement
   - Guard against division by zero when font_size is 0 (skip spacing term)
   - CharEvent.displacement is raw glyph width in 1/1000 units (NOT the full advance width)
+- PageGeometry.normalize_point(x, y) transforms PDF native → top-left display space. normalize_bbox(min_x, min_y, max_x, max_y) → BBox.
+- PageGeometry transform pipeline: MediaBox offset → rotation → CropBox offset → y-flip.
+- Rotation transforms (after MediaBox offset): 0→(x,y), 90→(y, W-x), 180→(W-x, H-y), 270→(H-y, x). W/H are native MediaBox dimensions.
+- CropBox is rotated through the same transform as points. Rotated crop bounds become the display viewport.
+- For 90/270 rotation, display width/height swap (native H becomes display W and vice versa).
+- Use i32::rem_euclid(360) for rotation normalization (clippy: manual_rem_euclid).
+---
+
+## 2026-02-28 - US-015
+- What was implemented: Page coordinate normalization — PageGeometry struct that transforms PDF native coordinates to top-left origin display space, accounting for page rotation and CropBox
+- Files changed:
+  - crates/pdfplumber-parse/src/page_geometry.rs (new — PageGeometry struct, normalize_point(), normalize_bbox(), width(), height(), rotation(), 32 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added page_geometry module + PageGeometry export)
+  - crates/pdfplumber/src/lib.rs (re-export PageGeometry)
+  - scripts/ralph/prd.json (marked US-015 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Transform pipeline: MediaBox offset → rotation (0/90/180/270 CW) → CropBox offset → y-flip
+  - Rotation transforms on (px, py) after MediaBox offset: 0→(px,py), 90→(py, W-px), 180→(W-px, H-py), 270→(H-py, px)
+  - CropBox must also be rotated through the same transform to find its bounds in display space
+  - normalize_bbox transforms 2 opposite corners then re-normalizes min/max (rotation may swap them)
+  - BBox stores raw PDF values: x0=left, top=y_min (PDF bottom), x1=right, bottom=y_max (PDF top)
+  - Use i32::rem_euclid(360) instead of manual ((x%360)+360)%360 (clippy: manual_rem_euclid)
+  - For square pages, 90/270 rotation doesn't change dimensions
+  - Non-zero MediaBox origin is subtracted first, so all subsequent transforms work on (0,0)-based coords
 ---
