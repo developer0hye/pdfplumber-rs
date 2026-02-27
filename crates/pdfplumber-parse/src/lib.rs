@@ -5,6 +5,7 @@
 //! It depends on pdfplumber-core for shared data types.
 
 pub mod backend;
+pub mod cmap;
 pub mod error;
 pub mod handler;
 pub mod interpreter_state;
@@ -14,6 +15,7 @@ pub mod text_state;
 pub mod tokenizer;
 
 pub use backend::PdfBackend;
+pub use cmap::CMap;
 pub use error::BackendError;
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 pub use interpreter_state::InterpreterState;
