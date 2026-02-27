@@ -12,7 +12,15 @@
 - PathBuilder stores CTM-transformed coordinates; current_point is always in device space
 - `v` operator uses already-transformed current_point as cp1 (no double transform)
 - `re` operator delegates to move_to/line_to/close_path for consistent CTM handling
-- Shape extraction: `extract_shapes(painted, page_height) -> (Vec<Line>, Vec<Rect>)` in `shapes.rs`
+- Shape extraction: `extract_shapes(painted, page_height) -> (Vec<Line>, Vec<Rect>, Vec<Curve>)` in `shapes.rs`
+- Curve: 4-point (start, cp1, cp2, end) in top-left origin; bbox from control points
+- Edge derivation: `edges.rs` — `edge_from_line`, `edges_from_rect` (4 edges), `edge_from_curve` (chord)
+- `derive_edges(lines, rects, curves) -> Vec<Edge>` — combines all sources with EdgeSource tracking
+- Page holds geometry: `with_geometry()` constructor, `lines()/rects()/curves()/edges()` accessors
+- Image extraction: `image_from_ctm(ctm, name, page_height, metadata) -> Image` in `images.rs`
+- Image bbox from CTM: transform unit square corners (0,0),(1,0),(0,1),(1,1) through CTM, find bounding box, y-flip
+- Page holds images: `with_geometry_and_images()` constructor (8 args, #[allow(clippy::too_many_arguments)])
+- ImageMetadata: src_width, src_height, bits_per_component, color_space — all Optional
 - y-flip: `top_origin_y = page_height - pdf_y` for coordinate conversion
 - Rect detection: axis-aligned closed 4-vertex subpath OR 5-vertex where last==first
 - Line extraction: only from stroked paths (fill-only non-rects produce nothing)
@@ -164,4 +172,60 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - Fill-only non-rectangle paths produce no lines — only stroked paths generate Line objects
   - ClosePath must check start != current before generating a closing line (avoid zero-length lines)
   - `extract_subpaths()` returns slices to avoid cloning — efficient for large paths
+---
+
+## 2026-02-28 - US-024: Curve extraction + Edge derivation
+- **What was implemented:**
+  - `Curve` struct in `shapes.rs` — cubic Bezier with bbox (x0, top, x1, bottom), pts vec [(x,y);4], line_width, stroke/fill flags, colors
+  - Extended `extract_shapes()` return type to `(Vec<Line>, Vec<Rect>, Vec<Curve>)` — 3-tuple
+  - `extract_curves_from_subpath()` — handles subpaths with CurveTo segments, extracting Curve objects and Lines from mixed subpaths
+  - `has_curves()` helper to detect subpaths requiring curve processing
+  - Refactored line extraction into `push_line()` and `extract_lines_from_subpath()` helpers
+  - `Edge` struct in `edges.rs` — x0, top, x1, bottom, orientation, source
+  - `EdgeSource` enum — Line, RectTop, RectBottom, RectLeft, RectRight, Curve
+  - `edge_from_line()` — direct Line → Edge conversion
+  - `edges_from_rect()` — 4 edges per Rect (top, bottom, left, right)
+  - `edge_from_curve()` — chord approximation (start→end line segment)
+  - `derive_edges()` — combines edges from all sources
+  - `Page::with_geometry()` constructor, `lines()/rects()/curves()/edges()` accessors
+  - 30 new tests (8 curve, 17 edge, 5 Page) — total: 164 tests in workspace
+- **Files changed:**
+  - `crates/pdfplumber-core/src/shapes.rs` — Curve struct, extract_shapes returns 3-tuple, curve extraction logic, 8 new tests
+  - `crates/pdfplumber-core/src/edges.rs` (new) — Edge, EdgeSource, derivation functions, 17 tests
+  - `crates/pdfplumber-core/src/lib.rs` — added edges module, re-exports for Curve, Edge, EdgeSource, derive_edges
+  - `crates/pdfplumber/src/lib.rs` — re-export new types from facade
+  - `crates/pdfplumber/src/page.rs` — with_geometry(), geometry accessors, edges(), 5 new tests
+- **Dependencies added:** None (still pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - Curve bbox is computed from all 4 control points (not tight bbox, but sufficient for most uses)
+  - Chord approximation for curve→edge is simple and fast; De Casteljau subdivision can be added later if needed
+  - Subpaths with curves may also contain LineTo segments — mixed extraction handles both
+  - `has_curves()` check allows early branching between curve and line-only subpath processing
+  - Page geometry (lines, rects, curves) stored alongside chars; edges computed on demand via derive_edges
+---
+
+## 2026-02-28 - US-025: Page::lines()/rects()/curves()/edges()/images() API
+- **What was implemented:**
+  - `Image` struct in `crates/pdfplumber-core/src/images.rs` — bbox (x0, top, x1, bottom), display width/height, name, src dimensions, bits_per_component, color_space
+  - `ImageMetadata` struct (derive Default) — optional source metadata from PDF XObject dictionary
+  - `image_from_ctm()` function — extracts Image from CTM active during Do operator by transforming unit square corners
+  - `Image::bbox()` method — returns BBox from image coordinates
+  - `Page::images() -> &[Image]` accessor in `crates/pdfplumber/src/page.rs`
+  - `Page::with_geometry_and_images()` constructor — full page with chars, lines, rects, curves, and images
+  - 8 unit tests for Image/image_from_ctm (core crate), 5 unit tests for Page images (facade crate)
+  - 3 integration tests in `crates/pdfplumber/tests/page_api_integration.rs`: full page with all object types, typical PDF image placement, multiple images
+  - Total: 180 tests in workspace (16 new)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/images.rs` (new) — Image, ImageMetadata, image_from_ctm + 8 tests
+  - `crates/pdfplumber-core/src/lib.rs` — added images module, re-exports
+  - `crates/pdfplumber/src/lib.rs` — re-export Image, ImageMetadata, image_from_ctm from facade
+  - `crates/pdfplumber/src/page.rs` — added images field, images() accessor, with_geometry_and_images() constructor + 5 tests
+  - `crates/pdfplumber/tests/page_api_integration.rs` (new) — 3 integration tests
+- **Dependencies added:** None (still pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - Image XObjects occupy a 1×1 unit square; CTM maps this to display area on page
+  - Image bbox: transform 4 corners of unit square through CTM, find min/max, y-flip
+  - Clippy `too_many_arguments` triggered at 8 args — use `#[allow(clippy::too_many_arguments)]` for constructors that legitimately need all data
+  - Clippy `derivable_impls` — always use `#[derive(Default)]` when all fields default to None/zero
+  - Integration tests in `crates/<name>/tests/` directory — separate binary targets, test full public API
 ---
