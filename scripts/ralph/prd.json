@@ -128,8 +128,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "page_media_box with inheritance via resolve_inherited helper. page_crop_box reads from page dict only (no inheritance). page_rotate with inheritance, defaults to 0. Helper functions: extract_bbox_from_array, object_to_f64, resolve_inherited."
     },
     {
       "id": "US-008",
