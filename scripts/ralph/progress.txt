@@ -9,3 +9,23 @@
 # Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
 Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
 ---
+
+## 2026-02-27 - US-018: WordExtractor - tolerance-based character grouping
+- **What was implemented:**
+  - `BBox` type in `crates/pdfplumber-core/src/geometry.rs` — bounding box with top-left origin (x0, top, x1, bottom), with union/width/height methods
+  - `Char` type in `crates/pdfplumber-core/src/text.rs` — character with text, bbox, fontname, size
+  - `WordOptions` struct with pdfplumber-compatible defaults (x_tolerance=3, y_tolerance=3, keep_blank_chars=false, use_text_flow=false)
+  - `Word` struct with text, bbox (union of char bboxes), and constituent chars
+  - `WordExtractor::extract()` — groups chars into words by spatial proximity with sorting, space handling, and tolerance-based grouping
+- **Files changed:**
+  - `crates/pdfplumber-core/src/lib.rs` — module declarations and re-exports
+  - `crates/pdfplumber-core/src/geometry.rs` (new) — BBox type
+  - `crates/pdfplumber-core/src/text.rs` (new) — Char type
+  - `crates/pdfplumber-core/src/words.rs` (new) — Word, WordOptions, WordExtractor + 21 unit tests
+- **Dependencies added:** None (pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - Keep modules flat (geometry.rs, text.rs, words.rs) rather than nested — simpler and matches crate convention
+  - `BBox::union()` is the key primitive for composing bounding boxes — will be reused across many features
+  - Word extraction gap check: `x_gap = next.x0 - prev.x1`, new word if `> x_tolerance` or `y_diff > y_tolerance`
+  - Sorting by (top, x0) before grouping handles out-of-order chars from PDF content streams
+---
