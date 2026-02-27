@@ -128,6 +128,17 @@ impl PathBuilder {
     pub fn is_empty(&self) -> bool {
         self.segments.is_empty()
     }
+
+    /// Take the accumulated segments as a `Path` and reset the builder.
+    ///
+    /// After this call, the builder is empty and ready for a new path.
+    /// The current point and subpath start are also reset.
+    pub fn take_and_reset(&mut self) -> Path {
+        let segments = std::mem::take(&mut self.segments);
+        self.current_point = None;
+        self.subpath_start = None;
+        Path { segments }
+    }
 }
 
 #[cfg(test)]
