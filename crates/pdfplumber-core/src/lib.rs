@@ -18,7 +18,7 @@ pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line,
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use geometry::{BBox, Ctm, Point};
 pub use images::{Image, ImageMetadata, image_from_ctm};
-pub use painting::{Color, FillRule, GraphicsState, PaintedPath};
+pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};

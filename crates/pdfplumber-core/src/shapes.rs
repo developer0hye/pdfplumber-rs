@@ -472,7 +472,7 @@ fn extract_curves_from_subpath(
 mod tests {
     use super::*;
     use crate::geometry::Ctm;
-    use crate::painting::{FillRule, GraphicsState};
+    use crate::painting::{DashPattern, FillRule, GraphicsState};
     use crate::path::PathBuilder;
 
     const PAGE_HEIGHT: f64 = 792.0;
@@ -486,6 +486,7 @@ mod tests {
             line_width: 2.5,
             stroke_color: Color::new(1.0, 0.0, 0.0),
             fill_color: Color::new(0.0, 0.0, 1.0),
+            ..GraphicsState::default()
         }
     }
 
@@ -825,6 +826,9 @@ mod tests {
             line_width: 1.0,
             stroke_color: Color::black(),
             fill_color: Color::black(),
+            dash_pattern: DashPattern::solid(),
+            stroke_alpha: 1.0,
+            fill_alpha: 1.0,
         };
 
         let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
