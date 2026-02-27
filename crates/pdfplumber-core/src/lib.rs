@@ -8,6 +8,7 @@ pub mod edges;
 pub mod encoding;
 pub mod geometry;
 pub mod images;
+pub mod layout;
 pub mod painting;
 pub mod path;
 pub mod shapes;
@@ -18,6 +19,10 @@ pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line,
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use geometry::{BBox, Ctm, Point};
 pub use images::{Image, ImageMetadata, image_from_ctm};
+pub use layout::{
+    TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+};
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};

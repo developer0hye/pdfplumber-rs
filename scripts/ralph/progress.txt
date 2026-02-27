@@ -34,6 +34,12 @@
 - `d` operator: `GraphicsState::set_dash_pattern(array, phase)` — inline dash pattern setting
 - PaintedPath captures dash_pattern + alpha from GraphicsState at paint time
 - Painting refactored: private `paint()` helper avoids 9× struct literal duplication
+- Layout pipeline: words → lines (y-proximity) → split at columns (x-gaps) → blocks (x-overlap + y-proximity) → reading order (top, x0)
+- `split_lines_at_columns()`: splits TextLines at gaps > x_density between consecutive words
+- `cluster_lines_into_blocks()`: x-overlap-aware — line must overlap block's x-range to join it
+- `sort_blocks_reading_order()`: simple (top, x0) sort — handles single/multi-column naturally
+- `words_to_text()` for simple mode; `blocks_to_text()` for layout mode (blocks separated by \n\n)
+- TextOptions: layout (bool), y_tolerance, y_density, x_density — all with sensible defaults
 ---
 
 # Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
@@ -287,4 +293,32 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - `..GraphicsState::default()` is essential when adding fields to avoid breaking existing struct construction
   - ExtGState uses all-Optional fields: callers read `ext.font` separately (not stored in GraphicsState, which is graphics-only)
   - `DashPattern::solid()` (empty array) is the PDF default — matches `[] 0 d`
+---
+
+## 2026-02-28 - US-028: extract_text(layout=true) - reading order with TextBlocks
+- **What was implemented:**
+  - `TextLine` struct (words + bbox) and `TextBlock` struct (lines + bbox) in `crates/pdfplumber-core/src/layout.rs`
+  - `TextOptions` struct: layout (bool), y_tolerance, y_density, x_density with defaults (false, 3.0, 10.0, 10.0)
+  - `cluster_words_into_lines()` — groups words by y-proximity (midpoint comparison)
+  - `split_lines_at_columns()` — splits lines at large horizontal gaps (>x_density) for multi-column detection
+  - `cluster_lines_into_blocks()` — x-overlap-aware clustering: lines must overlap block's x-range and be within y_density
+  - `sort_blocks_reading_order()` — simple (top, x0) sort for natural reading order
+  - `blocks_to_text()` — joins words with spaces, lines with \n, blocks with \n\n
+  - `words_to_text()` — simple mode: cluster into lines then join with \n
+  - `Page::extract_text(&TextOptions)` — dispatches to simple or layout mode
+  - 31 unit tests in layout.rs (TextOptions, line clustering, block clustering, column splitting, reading order, end-to-end)
+  - 6 unit tests in page.rs (simple mode, multiline, layout single column, two columns, mixed header/footer, empty)
+  - Total: 253 tests in workspace (37 new)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/layout.rs` (new) — TextLine, TextBlock, TextOptions, layout pipeline + 31 tests
+  - `crates/pdfplumber-core/src/lib.rs` — added layout module, re-exports
+  - `crates/pdfplumber/src/page.rs` — added extract_text() method + 6 tests
+  - `crates/pdfplumber/src/lib.rs` — re-export TextBlock, TextLine, TextOptions, layout functions
+- **Dependencies added:** None (still pure Rust, zero external dependencies)
+- **Learnings for future iterations:**
+  - Multi-column detection: split lines at large x-gaps BEFORE block clustering — lines from different columns get separated
+  - x-overlap-aware block clustering prevents false merges: `has_x_overlap()` check ensures lines are horizontally aligned
+  - Simple (top, x0) sorting handles both single-column and multi-column layouts naturally
+  - Clippy `collapsible_if`: nested `if` inside `if` should be collapsed into single condition
+  - Clippy `ptr_arg`: prefer `&mut [T]` over `&mut Vec<T>` for function parameters
 ---
