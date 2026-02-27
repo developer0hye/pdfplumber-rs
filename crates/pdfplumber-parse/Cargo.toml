@@ -1,0 +1,10 @@
+[package]
+name = "pdfplumber-parse"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "PDF parsing and content stream interpreter for pdfplumber-rs"
+
+[dependencies]
+pdfplumber-core = { path = "../pdfplumber-core" }

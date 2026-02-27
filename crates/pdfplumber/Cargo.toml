@@ -1,0 +1,11 @@
+[package]
+name = "pdfplumber"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates"
+
+[dependencies]
+pdfplumber-core = { path = "../pdfplumber-core" }
+pdfplumber-parse = { path = "../pdfplumber-parse" }
