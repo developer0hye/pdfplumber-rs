@@ -299,8 +299,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 16,
-      "passes": false,
-      "notes": "Critical for many real-world PDFs where content is wrapped in Form XObjects."
+      "passes": true,
+      "notes": "Full content stream interpreter with operator dispatch loop. Form XObject handling: save state, apply /Matrix, get resources (with parent fallback), decode stream, recurse. Image XObject events. Font caching with metrics + ToUnicode CMap. Respect max_recursion_depth. 13 unit + integration tests."
     },
     {
       "id": "US-017",

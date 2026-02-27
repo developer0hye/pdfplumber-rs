@@ -326,3 +326,27 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - For square pages, 90/270 rotation doesn't change dimensions
   - Non-zero MediaBox origin is subtracted first, so all subsequent transforms work on (0,0)-based coords
 ---
+
+## 2026-02-28 - US-016
+- What was implemented: Form XObject (Do operator) — full content stream interpreter + recursive Form XObject processing + Image XObject events
+- Files changed:
+  - crates/pdfplumber-parse/src/interpreter.rs (new — interpret_content_stream(), operator dispatch, handle_do(), handle_form_xobject(), handle_image_xobject(), font caching, 6 unit tests)
+  - crates/pdfplumber-parse/src/lopdf_backend.rs (replaced interpret_page() todo!() with full implementation, added get_page_content_bytes(), decode_content_stream(), get_page_resources(), test PDF builders, CollectingHandler, 8 integration tests)
+  - crates/pdfplumber-parse/src/lib.rs (added interpreter module)
+  - scripts/ralph/prd.json (marked US-016 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Content stream interpreter is a separate module (interpreter.rs) from the backend (lopdf_backend.rs) for separation of concerns
+  - interpret_content_stream() takes 8 args (doc, bytes, resources, handler, options, depth, gstate, tstate) — uses #[allow(clippy::too_many_arguments)]
+  - Font caching: CachedFont holds FontMetrics + optional CMap + base_name. Only loaded once per font name.
+  - load_font_if_needed() resolves /Resources/Font/<name> → font dictionary → extract_font_metrics + ToUnicode CMap
+  - Form XObject resources: check form's own /Resources first, fall back to parent page resources
+  - Form XObject /Matrix: 6-element array applied via gstate.concat_matrix() after save_state()
+  - Image XObject: extract /Width, /Height, /ColorSpace (name), /BitsPerComponent from stream dict
+  - get_page_content_bytes() handles both single stream reference and array of stream references
+  - get_page_resources() resolves inherited resources via resolve_inherited() + handles indirect refs
+  - decode_content_stream() checks for /Filter before attempting decompression
+  - LazyLock used for static empty dictionary fallback in get_page_resources()
+  - object_to_f64 changed from fn to pub(crate) fn for use by interpreter module
+  - Redundant closures: use `.filter_map(operand_to_f32)` not `.filter_map(|o| operand_to_f32(o))`
+---
