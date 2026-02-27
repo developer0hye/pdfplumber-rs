@@ -1,7 +1,7 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Char, Curve, Edge, Line, Rect, Word, WordExtractor, WordOptions, derive_edges,
+    Char, Curve, Edge, Image, Line, Rect, Word, WordExtractor, WordOptions, derive_edges,
 };
 
 /// A single page from a PDF document.
@@ -23,6 +23,8 @@ pub struct Page {
     rects: Vec<Rect>,
     /// Curves extracted from painted paths.
     curves: Vec<Curve>,
+    /// Images extracted from Do operator (Image XObjects).
+    images: Vec<Image>,
 }
 
 impl Page {
@@ -36,6 +38,7 @@ impl Page {
             lines: Vec::new(),
             rects: Vec::new(),
             curves: Vec::new(),
+            images: Vec::new(),
         }
     }
 
@@ -57,6 +60,31 @@ impl Page {
             lines,
             rects,
             curves,
+            images: Vec::new(),
+        }
+    }
+
+    /// Create a new page with characters, geometry, and images.
+    #[allow(clippy::too_many_arguments)]
+    pub fn with_geometry_and_images(
+        page_number: usize,
+        width: f64,
+        height: f64,
+        chars: Vec<Char>,
+        lines: Vec<Line>,
+        rects: Vec<Rect>,
+        curves: Vec<Curve>,
+        images: Vec<Image>,
+    ) -> Self {
+        Self {
+            page_number,
+            width,
+            height,
+            chars,
+            lines,
+            rects,
+            curves,
+            images,
         }
     }
 
@@ -95,6 +123,11 @@ impl Page {
         &self.curves
     }
 
+    /// Returns the images extracted from this page.
+    pub fn images(&self) -> &[Image] {
+        &self.images
+    }
+
     /// Compute edges from all geometric primitives (lines, rects, curves).
     ///
     /// Edges are line segments derived from all geometric objects on the page,
@@ -115,7 +148,9 @@ impl Page {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pdfplumber_core::{BBox, Color, EdgeSource, LineOrientation};
+    use pdfplumber_core::{
+        BBox, Color, Ctm, EdgeSource, ImageMetadata, LineOrientation, image_from_ctm,
+    };
 
     fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
         Char {
@@ -398,5 +433,111 @@ mod tests {
         assert_eq!(edges.len(), 6);
         assert_eq!(edges[0].source, EdgeSource::Line);
         assert_eq!(edges[5].source, EdgeSource::Curve);
+    }
+
+    // --- Image accessors ---
+
+    fn make_image(name: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Image {
+        Image {
+            x0,
+            top,
+            x1,
+            bottom,
+            width: x1 - x0,
+            height: bottom - top,
+            name: name.to_string(),
+            src_width: Some(640),
+            src_height: Some(480),
+            bits_per_component: Some(8),
+            color_space: Some("DeviceRGB".to_string()),
+        }
+    }
+
+    #[test]
+    fn test_page_new_has_empty_images() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        assert!(page.images().is_empty());
+    }
+
+    #[test]
+    fn test_page_with_geometry_has_empty_images() {
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], vec![], vec![]);
+        assert!(page.images().is_empty());
+    }
+
+    #[test]
+    fn test_page_with_images() {
+        let images = vec![
+            make_image("Im0", 100.0, 200.0, 300.0, 400.0),
+            make_image("Im1", 50.0, 50.0, 150.0, 100.0),
+        ];
+        let page =
+            Page::with_geometry_and_images(0, 612.0, 792.0, vec![], vec![], vec![], vec![], images);
+
+        assert_eq!(page.images().len(), 2);
+        assert_eq!(page.images()[0].name, "Im0");
+        assert_eq!(page.images()[1].name, "Im1");
+    }
+
+    #[test]
+    fn test_page_images_from_ctm() {
+        // Simulate extracting an image using image_from_ctm
+        let ctm = Ctm::new(200.0, 0.0, 0.0, 150.0, 100.0, 500.0);
+        let meta = ImageMetadata {
+            src_width: Some(640),
+            src_height: Some(480),
+            bits_per_component: Some(8),
+            color_space: Some("DeviceRGB".to_string()),
+        };
+        let img = image_from_ctm(&ctm, "Im0", 792.0, &meta);
+
+        let page = Page::with_geometry_and_images(
+            0,
+            612.0,
+            792.0,
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            vec![img],
+        );
+
+        assert_eq!(page.images().len(), 1);
+        let img = &page.images()[0];
+        assert_eq!(img.name, "Im0");
+        assert!((img.width - 200.0).abs() < 1e-6);
+        assert!((img.height - 150.0).abs() < 1e-6);
+        assert_eq!(img.src_width, Some(640));
+        assert_eq!(img.src_height, Some(480));
+    }
+
+    #[test]
+    fn test_page_with_geometry_and_images_all_accessors() {
+        let lines = vec![make_line(
+            0.0,
+            50.0,
+            100.0,
+            50.0,
+            LineOrientation::Horizontal,
+        )];
+        let rects = vec![make_rect(10.0, 20.0, 110.0, 70.0)];
+        let curves = vec![make_curve(vec![
+            (0.0, 100.0),
+            (10.0, 50.0),
+            (90.0, 50.0),
+            (100.0, 100.0),
+        ])];
+        let images = vec![make_image("Im0", 100.0, 200.0, 300.0, 400.0)];
+        let chars = vec![make_char("A", 10.0, 100.0, 20.0, 112.0)];
+
+        let page =
+            Page::with_geometry_and_images(0, 612.0, 792.0, chars, lines, rects, curves, images);
+
+        assert_eq!(page.chars().len(), 1);
+        assert_eq!(page.lines().len(), 1);
+        assert_eq!(page.rects().len(), 1);
+        assert_eq!(page.curves().len(), 1);
+        assert_eq!(page.images().len(), 1);
+        assert_eq!(page.edges().len(), 6); // 1 + 4 + 1
     }
 }
