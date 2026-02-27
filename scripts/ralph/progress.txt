@@ -21,6 +21,12 @@
 - lopdf Object::as_float() returns f32 for both Integer and Real. Use custom object_to_f64() for f64 precision.
 - lopdf Dictionary::get(b"Key") takes byte slice key. Returns Result — Err if key missing.
 - CropBox is NOT inheritable in practice for this library (read from page dict only). MediaBox and Rotate ARE inherited.
+- Content stream tokenizer: `tokenize(&[u8]) -> Result<Vec<Operator>, BackendError>`. Operands accumulated on stack until operator keyword encountered.
+- Operand enum: Integer(i64), Real(f64), Name(String), LiteralString(Vec<u8>), HexString(Vec<u8>), Array(Vec<Operand>), Boolean(bool), Null.
+- Inline images (BI/ID/EI): dict stored as flattened Array of Name/value pairs, data as LiteralString. Single whitespace byte after ID is the separator.
+- PDF whitespace: space, tab, CR, LF, FF (0x0C), NUL (0x00). NUL is whitespace — be careful with binary data boundaries.
+- PDF names support #XX hex escapes (e.g., /F#231 → "F#1"). parse_name handles this.
+- Use `std::mem::take()` instead of `drain(..).collect()` for moving Vec contents (clippy drain_collect lint).
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -135,4 +141,25 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Custom object_to_f64() helper needed for BBox extraction since we use f64 throughout
   - CropBox is page-level only (no inheritance in this impl); MediaBox and Rotate use inheritance
   - Test PDFs with inheritance: put property on Pages node, omit from Page node
+---
+
+## 2026-02-28 - US-008
+- What was implemented: Content stream tokenizer — parses PDF content stream bytes into Operator/Operand sequences
+- Files changed:
+  - crates/pdfplumber-parse/src/tokenizer.rs (new — Operand enum, Operator struct, tokenize() function, 48 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added tokenizer module + public exports)
+  - scripts/ralph/prd.json (marked US-008 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - PDF content streams interleave operands (pushed onto stack) with operators (consume stack)
+  - Operand types: Integer, Real, Name, LiteralString, HexString, Array, Boolean, Null
+  - Keywords "true"/"false"/"null" are operands, not operators — handled before operator dispatch
+  - Quote operators (' and ") must be matched in keyword parser alongside alphabetic chars
+  - f* (fill even-odd) uses asterisk — keyword parser must accept '*' character
+  - Inline images (BI/ID/EI) are special: dict entries between BI-ID, raw binary data between ID-EI
+  - NUL (0x00) is PDF whitespace — matters for inline image data boundary after ID
+  - Literal strings handle balanced parens (depth tracking), escape sequences (\n \r \t \b \f \\ \( \)), octal (\ddd), and line continuations (\CR or \LF)
+  - Hex strings: odd digit count gets trailing 0 appended (e.g., <ABC> → <ABC0>)
+  - Names support #XX hex escapes (e.g., /F#231 → "F#1")
+  - clippy: use std::mem::take() instead of drain(..).collect(), is_some_and() instead of map_or(false, ...)
 ---

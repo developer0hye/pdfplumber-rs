@@ -146,8 +146,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": "Place in pdfplumber-parse. This is independent of the PDF backend."
+      "passes": true,
+      "notes": "Tokenizer in pdfplumber-parse. Operand enum (Integer/Real/Name/LiteralString/HexString/Array/Boolean/Null), Operator struct, tokenize() function. Handles comments, inline images (BI/ID/EI), escape sequences, hex strings, balanced parens, octal escapes, #XX name escapes. 48 unit tests."
     },
     {
       "id": "US-009",
