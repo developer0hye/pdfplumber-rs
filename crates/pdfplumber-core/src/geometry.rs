@@ -1,3 +1,80 @@
+/// A 2D point.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
+}
+
+impl Point {
+    pub fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+}
+
+/// Current Transformation Matrix (CTM) — affine transform.
+///
+/// Represented as six values `[a, b, c, d, e, f]` corresponding to:
+/// ```text
+/// | a  b  0 |
+/// | c  d  0 |
+/// | e  f  1 |
+/// ```
+/// Point transformation: `(x', y') = (a*x + c*y + e, b*x + d*y + f)`
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Ctm {
+    pub a: f64,
+    pub b: f64,
+    pub c: f64,
+    pub d: f64,
+    pub e: f64,
+    pub f: f64,
+}
+
+impl Default for Ctm {
+    fn default() -> Self {
+        Self::identity()
+    }
+}
+
+impl Ctm {
+    /// Create a new CTM with the given values.
+    pub fn new(a: f64, b: f64, c: f64, d: f64, e: f64, f: f64) -> Self {
+        Self { a, b, c, d, e, f }
+    }
+
+    /// Identity matrix (no transformation).
+    pub fn identity() -> Self {
+        Self {
+            a: 1.0,
+            b: 0.0,
+            c: 0.0,
+            d: 1.0,
+            e: 0.0,
+            f: 0.0,
+        }
+    }
+
+    /// Transform a point through this CTM.
+    pub fn transform_point(&self, p: Point) -> Point {
+        Point {
+            x: self.a * p.x + self.c * p.y + self.e,
+            y: self.b * p.x + self.d * p.y + self.f,
+        }
+    }
+
+    /// Concatenate this CTM with another: `self × other`.
+    pub fn concat(&self, other: &Ctm) -> Ctm {
+        Ctm {
+            a: self.a * other.a + self.b * other.c,
+            b: self.a * other.b + self.b * other.d,
+            c: self.c * other.a + self.d * other.c,
+            d: self.c * other.b + self.d * other.d,
+            e: self.e * other.a + self.f * other.c + other.e,
+            f: self.e * other.b + self.f * other.d + other.f,
+        }
+    }
+}
+
 /// Bounding box with top-left origin coordinate system.
 ///
 /// Coordinates follow pdfplumber convention:
@@ -47,6 +124,98 @@ impl BBox {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_point_approx(p: Point, x: f64, y: f64) {
+        assert!((p.x - x).abs() < 1e-10, "x: expected {x}, got {}", p.x);
+        assert!((p.y - y).abs() < 1e-10, "y: expected {y}, got {}", p.y);
+    }
+
+    // --- Point tests ---
+
+    #[test]
+    fn test_point_new() {
+        let p = Point::new(3.0, 4.0);
+        assert_eq!(p.x, 3.0);
+        assert_eq!(p.y, 4.0);
+    }
+
+    // --- Ctm tests ---
+
+    #[test]
+    fn test_ctm_identity() {
+        let ctm = Ctm::identity();
+        assert_eq!(ctm.a, 1.0);
+        assert_eq!(ctm.b, 0.0);
+        assert_eq!(ctm.c, 0.0);
+        assert_eq!(ctm.d, 1.0);
+        assert_eq!(ctm.e, 0.0);
+        assert_eq!(ctm.f, 0.0);
+    }
+
+    #[test]
+    fn test_ctm_default_is_identity() {
+        assert_eq!(Ctm::default(), Ctm::identity());
+    }
+
+    #[test]
+    fn test_ctm_transform_identity() {
+        let ctm = Ctm::identity();
+        let p = ctm.transform_point(Point::new(5.0, 10.0));
+        assert_point_approx(p, 5.0, 10.0);
+    }
+
+    #[test]
+    fn test_ctm_transform_translation() {
+        // Translation by (100, 200)
+        let ctm = Ctm::new(1.0, 0.0, 0.0, 1.0, 100.0, 200.0);
+        let p = ctm.transform_point(Point::new(5.0, 10.0));
+        assert_point_approx(p, 105.0, 210.0);
+    }
+
+    #[test]
+    fn test_ctm_transform_scaling() {
+        // Scale by 2x horizontal, 3x vertical
+        let ctm = Ctm::new(2.0, 0.0, 0.0, 3.0, 0.0, 0.0);
+        let p = ctm.transform_point(Point::new(5.0, 10.0));
+        assert_point_approx(p, 10.0, 30.0);
+    }
+
+    #[test]
+    fn test_ctm_transform_scale_and_translate() {
+        // Scale by 2x then translate by (10, 20)
+        let ctm = Ctm::new(2.0, 0.0, 0.0, 2.0, 10.0, 20.0);
+        let p = ctm.transform_point(Point::new(5.0, 10.0));
+        assert_point_approx(p, 20.0, 40.0);
+    }
+
+    #[test]
+    fn test_ctm_concat_identity() {
+        let a = Ctm::new(2.0, 0.0, 0.0, 3.0, 10.0, 20.0);
+        let id = Ctm::identity();
+        assert_eq!(a.concat(&id), a);
+    }
+
+    #[test]
+    fn test_ctm_concat_two_translations() {
+        let a = Ctm::new(1.0, 0.0, 0.0, 1.0, 10.0, 20.0);
+        let b = Ctm::new(1.0, 0.0, 0.0, 1.0, 5.0, 7.0);
+        let c = a.concat(&b);
+        let p = c.transform_point(Point::new(0.0, 0.0));
+        assert_point_approx(p, 15.0, 27.0);
+    }
+
+    #[test]
+    fn test_ctm_concat_scale_then_translate() {
+        // Scale 2x, then translate by (10, 20)
+        let scale = Ctm::new(2.0, 0.0, 0.0, 2.0, 0.0, 0.0);
+        let translate = Ctm::new(1.0, 0.0, 0.0, 1.0, 10.0, 20.0);
+        let combined = scale.concat(&translate);
+        let p = combined.transform_point(Point::new(3.0, 4.0));
+        // scale first: (6, 8), then translate: (16, 28)
+        assert_point_approx(p, 16.0, 28.0);
+    }
+
+    // --- BBox tests ---
 
     #[test]
     fn test_bbox_new() {
