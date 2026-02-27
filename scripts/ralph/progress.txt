@@ -28,6 +28,12 @@
 - Rect detection: axis-aligned closed 4-vertex subpath OR 5-vertex where last==first
 - Line extraction: only from stroked paths (fill-only non-rects produce nothing)
 - ClosePath generates a closing Line segment back to subpath start if start != current
+- DashPattern: `dash_array: Vec<f64>`, `dash_phase: f64`; solid = empty array; `is_solid()` check
+- GraphicsState extended: `dash_pattern`, `stroke_alpha`, `fill_alpha` alongside line_width/colors
+- ExtGState: all-Optional struct applied via `GraphicsState::apply_ext_gstate()` — only overrides present fields
+- `d` operator: `GraphicsState::set_dash_pattern(array, phase)` — inline dash pattern setting
+- PaintedPath captures dash_pattern + alpha from GraphicsState at paint time
+- Painting refactored: private `paint()` helper avoids 9× struct literal duplication
 ---
 
 # Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
@@ -257,4 +263,28 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - MacExpert uses Adobe Private Use Area (U+F6xx–U+F7xx) for small caps — not standard Unicode
   - `HashMap<u16, String>` for ToUnicode allows multi-byte codes (CID fonts) and multi-char mappings (ligatures)
   - `cargo fmt` reformats trailing comment alignment — don't fight it, let rustfmt win
+---
+
+## 2026-02-28 - US-027: ExtGState (gs operator) - line width, dash pattern, opacity
+- **What was implemented:**
+  - `DashPattern` struct (dash_array, dash_phase) with solid(), is_solid(), Default
+  - Extended `GraphicsState` with: dash_pattern (DashPattern), stroke_alpha (f64), fill_alpha (f64)
+  - `ExtGState` struct with all-Optional fields: line_width, dash_pattern, stroke_alpha, fill_alpha, font
+  - `GraphicsState::apply_ext_gstate(&mut self, ext: &ExtGState)` — applies only present fields
+  - `GraphicsState::set_dash_pattern(array, phase)` — for `d` operator (inline dash pattern)
+  - Extended `PaintedPath` with: dash_pattern, stroke_alpha, fill_alpha — captured from GraphicsState at paint time
+  - Refactored painting methods: private `paint()` helper consolidates struct literal creation (was duplicated 9×)
+  - 20 new tests: DashPattern (4), GraphicsState extensions (3), ExtGState (8), d operator (3), gs propagation (2)
+  - Total: 240 tests in workspace (24 new including existing test updates)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/painting.rs` — DashPattern, ExtGState, extended GraphicsState/PaintedPath, refactored paint(), 20 new tests
+  - `crates/pdfplumber-core/src/shapes.rs` — updated test helpers for new GraphicsState/PaintedPath fields
+  - `crates/pdfplumber-core/src/lib.rs` — re-export DashPattern, ExtGState
+  - `crates/pdfplumber/src/lib.rs` — re-export DashPattern, ExtGState from facade
+- **Dependencies added:** None (still pure Rust, zero external dependencies)
+- **Learnings for future iterations:**
+  - Private `paint()` helper method eliminates PaintedPath struct literal duplication across 9 painting operators
+  - `..GraphicsState::default()` is essential when adding fields to avoid breaking existing struct construction
+  - ExtGState uses all-Optional fields: callers read `ext.font` separately (not stored in GraphicsState, which is graphics-only)
+  - `DashPattern::solid()` (empty array) is the PDF default — matches `[] 0 d`
 ---

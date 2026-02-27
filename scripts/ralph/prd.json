@@ -190,7 +190,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Dash patterns affect table detection quality."
     },
     {
