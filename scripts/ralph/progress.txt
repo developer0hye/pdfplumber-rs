@@ -4,6 +4,14 @@
 - Dependency chain: pdfplumber → {pdfplumber-core, pdfplumber-parse}, pdfplumber-parse → pdfplumber-core
 - pdfplumber-core has zero external dependencies (pure algorithms)
 - Quality checks: `cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && cargo check --workspace`
+- CJK detection: `is_cjk(char)` / `is_cjk_text(&str)` in `text.rs` — covers 11 Unicode blocks
+- TextDirection enum (Ltr/Rtl/Ttb/Btt) in `text.rs` — controls sorting and gap logic in WordExtractor
+- CJK tolerance pattern: use `last_char.bbox.width().max(base_tolerance)` for horizontal, `.height()` for vertical
+- Geometric primitives: `Point(x, y)` and `Ctm(a, b, c, d, e, f)` in `geometry.rs`
+- CTM transform: `(x', y') = (a*x + c*y + e, b*x + d*y + f)` — row-vector convention
+- PathBuilder stores CTM-transformed coordinates; current_point is always in device space
+- `v` operator uses already-transformed current_point as cp1 (no double transform)
+- `re` operator delegates to move_to/line_to/close_path for consistent CTM handling
 ---
 
 # Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
@@ -45,4 +53,51 @@ Started: 2026년  2월 27일 금요일 23시 36분 31초 KST
   - The pdfplumber facade crate re-exports core types so users only need `use pdfplumber::{Page, WordOptions}`
   - Page is constructed from pre-extracted chars; actual PDF parsing will feed chars into Page later
   - Test modules within the facade crate need explicit `use pdfplumber_core::BBox` since `super::*` only imports from the module scope, not the crate re-exports
+---
+
+## 2026-02-27 - US-020: CJK word grouping - character-width-based tolerance
+- **What was implemented:**
+  - `TextDirection` enum (Ltr, Rtl, Ttb, Btt) in `crates/pdfplumber-core/src/text.rs`
+  - `is_cjk(char)` and `is_cjk_text(&str)` functions covering 11 Unicode blocks (CJK Unified, Hiragana, Katakana, Hangul, Bopomofo, etc.)
+  - CJK-aware tolerance in `WordExtractor`: uses `char.bbox.width()` as tolerance for CJK chars instead of fixed `x_tolerance`
+  - Vertical text support: `TextDirection::Ttb/Btt` — sorts columns right-to-left, uses `y_gap` and char height as tolerance
+  - `text_direction` field added to `WordOptions` (default: Ltr, backward-compatible)
+  - Helper methods: `effective_x_tolerance()`, `effective_y_tolerance()`, `should_split_horizontal()`, `should_split_vertical()`
+  - 12 new CJK-specific tests + 8 `is_cjk`/TextDirection tests (total: 53 tests in workspace)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/text.rs` — TextDirection enum, is_cjk(), is_cjk_text(), 8 tests
+  - `crates/pdfplumber-core/src/words.rs` — CJK tolerance logic, vertical text support, 12 CJK tests
+  - `crates/pdfplumber-core/src/lib.rs` — re-export TextDirection, is_cjk, is_cjk_text
+  - `crates/pdfplumber/src/lib.rs` — re-export new types from facade
+- **Dependencies added:** None (still pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - CJK tolerance pattern: `last.bbox.width().max(base_tolerance)` — uses char width as minimum, falls back to configured tolerance
+  - Vertical text sorting: (x0 descending, top ascending) — right-to-left columns, top-to-bottom within column
+  - Vertical gap check: `y_gap = current.top - last.bottom` and `x_diff` for column detection
+  - `is_some_and()` is cleaner than `map_or(false, ...)` for Option predicate checks
+---
+
+## 2026-02-28 - US-021: Graphics path operators - m, l, c, v, y, h, re
+- **What was implemented:**
+  - `Point` struct in `crates/pdfplumber-core/src/geometry.rs` — simple 2D point (x, y)
+  - `Ctm` struct in `geometry.rs` — Current Transformation Matrix with identity, new, transform_point, concat methods
+  - `PathSegment` enum in `crates/pdfplumber-core/src/path.rs` — MoveTo, LineTo, CurveTo, ClosePath
+  - `Path` struct — collection of path segments
+  - `PathBuilder` struct — builds paths from PDF operators with CTM transformation
+  - All 7 PDF path operators: m (move_to), l (line_to), c (curve_to), v (curve_to_v), y (curve_to_y), h (close_path), re (rectangle)
+  - All coordinates transformed through CTM before storage
+  - 24 path tests + 10 geometry tests (Point/Ctm) = 34 new tests (total: 87 in workspace)
+- **Files changed:**
+  - `crates/pdfplumber-core/src/geometry.rs` — added Point, Ctm types + 10 tests
+  - `crates/pdfplumber-core/src/path.rs` (new) — PathSegment, Path, PathBuilder + 24 tests
+  - `crates/pdfplumber-core/src/lib.rs` — added path module, re-exports for Point, Ctm, Path, PathBuilder, PathSegment
+  - `crates/pdfplumber/src/lib.rs` — re-export new types from facade
+- **Dependencies added:** None (still pure Rust, zero dependencies)
+- **Learnings for future iterations:**
+  - PathBuilder stores device-space (CTM-transformed) coordinates — current_point is always post-transform
+  - `v` operator: cp1 = current_point (already transformed), cp2/end need CTM transform
+  - `y` operator: cp2 = end point (both need CTM transform)
+  - `re` operator delegates to move_to/line_to/close_path for consistent CTM handling
+  - CTM concat: `a.concat(&b)` = `a × b` — used for cm operator in content stream
+  - `subpath_start` tracks the most recent MoveTo for close_path to return to
 ---
