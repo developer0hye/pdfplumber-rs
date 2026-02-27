@@ -38,6 +38,10 @@
 - Tm replaces both text_matrix and line_matrix (it does NOT concatenate).
 - CMap::parse(data) -> Result<CMap, BackendError>. CMap::lookup(code) -> Option<&str>. CMap::lookup_or_replacement(code) -> String (returns U+FFFD for missing).
 - CMap parses beginbfchar/endbfchar and beginbfrange/endbfrange sections. Ignores CMap boilerplate (codespacerange, CIDSystemInfo, etc.).
+- FontMetrics.get_width(char_code) returns width in glyph space (1/1000 units). Indexes widths array by (char_code - first_char), falls back to missing_width.
+- extract_font_metrics(doc, font_dict) parses /Widths, /FirstChar, /LastChar + /FontDescriptor. Handles indirect references via resolve_object().
+- Default font metrics: ascent=750.0, descent=-250.0, width=600.0 (glyph space units).
+- lopdf Object::Real is f32 — use (f64 - expected).abs() < 1.0 for test assertions on values read from lopdf.
 - UTF-16BE decoding: hex string → u16 code units → String::from_utf16(). Handles surrogate pairs and multi-char mappings (ligatures).
 - bfrange supports both `<low> <high> <start>` (increment) and `<low> <high> [<str1> <str2>...]` (array) forms.
 
@@ -254,4 +258,22 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - CMap data is embedded in PDF as text, so String::from_utf8_lossy is safe for parsing keywords
   - extract_hex_tokens() scans for <...> pairs — simple and robust for CMap syntax
   - Single-byte source codes (e.g., <41>) are parsed as u32 directly (not padded to 2 bytes)
+---
+
+## 2026-02-28 - US-013
+- What was implemented: Font metrics extraction — FontMetrics struct with glyph width lookup, ascent/descent, and lopdf font dictionary parser
+- Files changed:
+  - crates/pdfplumber-parse/src/font_metrics.rs (new — FontMetrics struct, extract_font_metrics(), resolve_object(), 22 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added font_metrics module + FontMetrics/extract_font_metrics exports)
+  - scripts/ralph/prd.json (marked US-013 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - FontMetrics.get_width(char_code) indexes into widths array using (char_code - first_char), falls back to missing_width
+  - /Widths is often an indirect reference (ObjectId) — must resolve_object() before accessing as array
+  - /FontDescriptor is also typically an indirect reference in real PDFs
+  - lopdf Object::Real is f32 internally — precision loss when converting to f64, use (f64 - expected).abs() < 1.0 for assertions
+  - Default metrics (ascent=750, descent=-250, width=600) match typical PDF standard font metrics
+  - FontDescriptorInfo struct avoids clippy type_complexity lint for complex return tuples
+  - object_to_f64_opt as a free function allows direct use with .and_then() without redundant closures (clippy: redundant_closure)
+  - FontMetrics works as the width callback for text_renderer: `&|code| metrics.get_width(code)`
 ---

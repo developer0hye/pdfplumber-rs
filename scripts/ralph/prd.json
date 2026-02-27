@@ -241,8 +241,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "FontMetrics struct in pdfplumber-parse/font_metrics.rs. get_width(char_code) with first_char/last_char range, missing_width fallback. extract_font_metrics() parses lopdf Dictionary for /Widths, /FirstChar, /LastChar + /FontDescriptor (/Ascent, /Descent, /MissingWidth, /FontBBox). Handles indirect references, Integer and Real values, missing fields with defaults. 22 unit tests."
     },
     {
       "id": "US-014",
