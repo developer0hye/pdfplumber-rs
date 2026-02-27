@@ -44,6 +44,9 @@
 - lopdf Object::Real is f32 — use (f64 - expected).abs() < 1.0 for test assertions on values read from lopdf.
 - UTF-16BE decoding: hex string → u16 code units → String::from_utf16(). Handles surrogate pairs and multi-char mappings (ligatures).
 - bfrange supports both `<low> <high> <start>` (increment) and `<low> <high> [<str1> <str2>...]` (array) forms.
+- char_from_event(event, metrics, page_height, stroke_color, fill_color) → Char. Builds Trm, computes 4-corner AABB, y-flips.
+- Trm = font_matrix × Tm × CTM. font_matrix = Ctm::new(fs*Th, 0, 0, fs, 0, rise).
+- Glyph-normalized width: w_norm = displacement/1000 + (Tc + Tw_if_space)/font_size. h_scaling cancels out.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -276,4 +279,25 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - FontDescriptorInfo struct avoids clippy type_complexity lint for complex return tuples
   - object_to_f64_opt as a free function allows direct use with .and_then() without redundant closures (clippy: redundant_closure)
   - FontMetrics works as the width callback for text_renderer: `&|code| metrics.get_width(code)`
+---
+
+## 2026-02-28 - US-014
+- What was implemented: Char BBox calculation — combines font metrics, text state (Tm), and CTM to produce final character bounding boxes in top-left origin coordinates
+- Files changed:
+  - crates/pdfplumber-parse/src/char_extraction.rs (new — char_from_event(), ctm_from_array(), 24 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added char_extraction module + char_from_event export)
+  - scripts/ralph/prd.json (marked US-014 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Text Rendering Matrix (Trm) = [Tfs*Th, 0, 0, Tfs, 0, Trise] × Tm × CTM per PDF spec 9.4.4
+  - Character width in glyph-normalized space: w_norm = displacement/1000 + (char_spacing + word_spacing_if_space) / font_size
+  - word_spacing only applies when char_code == 32 (space character)
+  - h_scaling cancels out in glyph-norm width calculation (it's in both Trm x-scale and the advance formula)
+  - For rotated text, transform all 4 corners through Trm and take axis-aligned bounding box (AABB)
+  - Y-flip: top = page_height - max_y, bottom = page_height - min_y (PDF bottom-left → top-left)
+  - Upright detection: trm.b ≈ 0 && trm.c ≈ 0 (no rotation/shear components)
+  - Text direction: compare |trm.a| vs |trm.b| for dominant axis, then sign determines forward/backward
+  - Unicode fallback chain: event.unicode → char::from_u32(char_code) → U+FFFD replacement
+  - Guard against division by zero when font_size is 0 (skip spacing term)
+  - CharEvent.displacement is raw glyph width in 1/1000 units (NOT the full advance width)
 ---
