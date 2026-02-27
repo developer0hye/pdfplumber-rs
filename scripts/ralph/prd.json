@@ -56,8 +56,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Char extended with doctop, upright, direction, stroking_color, non_stroking_color, ctm, char_code. Word extended with doctop, direction. Line/Rect/Curve/Edge/Image already existed from Phase 2. Construction and field access tests added for all types."
     },
     {
       "id": "US-004",
