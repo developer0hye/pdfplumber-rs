@@ -36,6 +36,33 @@ pub struct Line {
     pub orientation: LineOrientation,
 }
 
+/// A curve extracted from a painted path (cubic Bezier segment).
+///
+/// Coordinates use pdfplumber's top-left origin system.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Curve {
+    /// Bounding box left x.
+    pub x0: f64,
+    /// Bounding box top y (distance from top of page).
+    pub top: f64,
+    /// Bounding box right x.
+    pub x1: f64,
+    /// Bounding box bottom y (distance from top of page).
+    pub bottom: f64,
+    /// All points in top-left origin: [start, cp1, cp2, end].
+    pub pts: Vec<(f64, f64)>,
+    /// Line width (stroke width from graphics state).
+    pub line_width: f64,
+    /// Whether the curve is stroked.
+    pub stroke: bool,
+    /// Whether the curve is filled.
+    pub fill: bool,
+    /// Stroking color.
+    pub stroke_color: Color,
+    /// Fill color.
+    pub fill_color: Color,
+}
+
 /// A rectangle extracted from a painted path.
 ///
 /// Coordinates use pdfplumber's top-left origin system.
@@ -200,25 +227,46 @@ fn is_closed(subpath: &[PathSegment], vertices: &[Point]) -> bool {
     false
 }
 
-/// Extract Line and Rect objects from a painted path.
+/// Check if a subpath contains any curve segments.
+fn has_curves(subpath: &[PathSegment]) -> bool {
+    subpath
+        .iter()
+        .any(|s| matches!(s, PathSegment::CurveTo { .. }))
+}
+
+/// Extract Line, Rect, and Curve objects from a painted path.
 ///
 /// Coordinates are converted from PDF's bottom-left origin to pdfplumber's
 /// top-left origin using the provided `page_height`.
 ///
 /// Rectangle detection:
-/// - Axis-aligned closed paths with exactly 4 vertices
+/// - Axis-aligned closed paths with exactly 4 vertices (no curves)
 /// - Both from `re` operator and manual 4-line constructions
 ///
 /// Line extraction:
-/// - Each LineTo segment in a non-rectangle subpath becomes a Line
+/// - Each LineTo segment in a non-rectangle, non-curve subpath becomes a Line
 /// - Stroked paths produce lines; non-stroked paths do not produce lines
-pub fn extract_shapes(painted: &PaintedPath, page_height: f64) -> (Vec<Line>, Vec<Rect>) {
+///
+/// Curve extraction:
+/// - Each CurveTo segment becomes a Curve object with control points
+/// - LineTo segments in curve-containing subpaths also become Lines (if stroked)
+pub fn extract_shapes(
+    painted: &PaintedPath,
+    page_height: f64,
+) -> (Vec<Line>, Vec<Rect>, Vec<Curve>) {
     let mut lines = Vec::new();
     let mut rects = Vec::new();
+    let mut curves = Vec::new();
 
     let subpaths = extract_subpaths(&painted.path.segments);
 
     for subpath in subpaths {
+        // If the subpath has curves, extract curve objects
+        if has_curves(subpath) {
+            extract_curves_from_subpath(subpath, painted, page_height, &mut curves, &mut lines);
+            continue;
+        }
+
         let vertices = collect_vertices(subpath);
         if vertices.is_empty() {
             continue;
@@ -273,72 +321,151 @@ pub fn extract_shapes(painted: &PaintedPath, page_height: f64) -> (Vec<Line>, Ve
             continue;
         }
 
-        let mut prev_point: Option<Point> = None;
-        for seg in subpath {
-            match seg {
-                PathSegment::MoveTo(p) => {
-                    prev_point = Some(*p);
-                }
-                PathSegment::LineTo(p) => {
-                    if let Some(start) = prev_point {
-                        let fy0 = flip_y(start.y, page_height);
-                        let fy1 = flip_y(p.y, page_height);
+        extract_lines_from_subpath(subpath, &vertices, painted, page_height, &mut lines);
+    }
 
-                        let x0 = start.x.min(p.x);
-                        let x1 = start.x.max(p.x);
-                        let top = fy0.min(fy1);
-                        let bottom = fy0.max(fy1);
-                        let orientation = classify_orientation(start.x, fy0, p.x, fy1);
+    (lines, rects, curves)
+}
 
-                        lines.push(Line {
-                            x0,
-                            top,
-                            x1,
-                            bottom,
-                            line_width: painted.line_width,
-                            stroke_color: painted.stroke_color,
-                            orientation,
-                        });
-                    }
-                    prev_point = Some(*p);
+/// Extract lines from a non-curve subpath.
+fn extract_lines_from_subpath(
+    subpath: &[PathSegment],
+    vertices: &[Point],
+    painted: &PaintedPath,
+    page_height: f64,
+    lines: &mut Vec<Line>,
+) {
+    let mut prev_point: Option<Point> = None;
+    for seg in subpath {
+        match seg {
+            PathSegment::MoveTo(p) => {
+                prev_point = Some(*p);
+            }
+            PathSegment::LineTo(p) => {
+                if let Some(start) = prev_point {
+                    push_line(start, *p, painted, page_height, lines);
                 }
-                PathSegment::ClosePath => {
-                    // ClosePath draws a line back to the subpath start
-                    if let (Some(current), Some(start_pt)) = (prev_point, vertices.first().copied())
+                prev_point = Some(*p);
+            }
+            PathSegment::ClosePath => {
+                if let (Some(current), Some(start_pt)) = (prev_point, vertices.first().copied()) {
+                    if (current.x - start_pt.x).abs() > AXIS_TOLERANCE
+                        || (current.y - start_pt.y).abs() > AXIS_TOLERANCE
                     {
+                        push_line(current, start_pt, painted, page_height, lines);
+                    }
+                }
+                prev_point = vertices.first().copied();
+            }
+            PathSegment::CurveTo { .. } => {}
+        }
+    }
+}
+
+/// Push a Line from two points (PDF coords) into the lines vector.
+fn push_line(
+    start: Point,
+    end: Point,
+    painted: &PaintedPath,
+    page_height: f64,
+    lines: &mut Vec<Line>,
+) {
+    let fy0 = flip_y(start.y, page_height);
+    let fy1 = flip_y(end.y, page_height);
+
+    let x0 = start.x.min(end.x);
+    let x1 = start.x.max(end.x);
+    let top = fy0.min(fy1);
+    let bottom = fy0.max(fy1);
+    let orientation = classify_orientation(start.x, fy0, end.x, fy1);
+
+    lines.push(Line {
+        x0,
+        top,
+        x1,
+        bottom,
+        line_width: painted.line_width,
+        stroke_color: painted.stroke_color,
+        orientation,
+    });
+}
+
+/// Extract curves (and lines from mixed subpaths) from a subpath containing CurveTo segments.
+fn extract_curves_from_subpath(
+    subpath: &[PathSegment],
+    painted: &PaintedPath,
+    page_height: f64,
+    curves: &mut Vec<Curve>,
+    lines: &mut Vec<Line>,
+) {
+    let mut prev_point: Option<Point> = None;
+    let mut subpath_start: Option<Point> = None;
+
+    for seg in subpath {
+        match seg {
+            PathSegment::MoveTo(p) => {
+                prev_point = Some(*p);
+                subpath_start = Some(*p);
+            }
+            PathSegment::LineTo(p) => {
+                if painted.stroke {
+                    if let Some(start) = prev_point {
+                        push_line(start, *p, painted, page_height, lines);
+                    }
+                }
+                prev_point = Some(*p);
+            }
+            PathSegment::CurveTo { cp1, cp2, end } => {
+                if let Some(start) = prev_point {
+                    // Collect all x/y coordinates for bbox
+                    let all_x = [start.x, cp1.x, cp2.x, end.x];
+                    let all_y = [
+                        flip_y(start.y, page_height),
+                        flip_y(cp1.y, page_height),
+                        flip_y(cp2.y, page_height),
+                        flip_y(end.y, page_height),
+                    ];
+
+                    let x0 = all_x.iter().cloned().fold(f64::INFINITY, f64::min);
+                    let x1 = all_x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+                    let top = all_y.iter().cloned().fold(f64::INFINITY, f64::min);
+                    let bottom = all_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+                    curves.push(Curve {
+                        x0,
+                        top,
+                        x1,
+                        bottom,
+                        pts: vec![
+                            (start.x, flip_y(start.y, page_height)),
+                            (cp1.x, flip_y(cp1.y, page_height)),
+                            (cp2.x, flip_y(cp2.y, page_height)),
+                            (end.x, flip_y(end.y, page_height)),
+                        ],
+                        line_width: painted.line_width,
+                        stroke: painted.stroke,
+                        fill: painted.fill,
+                        stroke_color: painted.stroke_color,
+                        fill_color: painted.fill_color,
+                    });
+                }
+                prev_point = Some(*end);
+            }
+            PathSegment::ClosePath => {
+                // ClosePath draws a line back to the subpath start
+                if painted.stroke {
+                    if let (Some(current), Some(start_pt)) = (prev_point, subpath_start) {
                         if (current.x - start_pt.x).abs() > AXIS_TOLERANCE
                             || (current.y - start_pt.y).abs() > AXIS_TOLERANCE
                         {
-                            let fy0 = flip_y(current.y, page_height);
-                            let fy1 = flip_y(start_pt.y, page_height);
-
-                            let x0 = current.x.min(start_pt.x);
-                            let x1 = current.x.max(start_pt.x);
-                            let top = fy0.min(fy1);
-                            let bottom = fy0.max(fy1);
-                            let orientation = classify_orientation(current.x, fy0, start_pt.x, fy1);
-
-                            lines.push(Line {
-                                x0,
-                                top,
-                                x1,
-                                bottom,
-                                line_width: painted.line_width,
-                                stroke_color: painted.stroke_color,
-                                orientation,
-                            });
+                            push_line(current, start_pt, painted, page_height, lines);
                         }
                     }
-                    prev_point = vertices.first().copied();
                 }
-                PathSegment::CurveTo { .. } => {
-                    // Curves are handled in US-024 (Curve extraction)
-                }
+                prev_point = subpath_start;
             }
         }
     }
-
-    (lines, rects)
 }
 
 #[cfg(test)]
@@ -379,7 +506,7 @@ mod tests {
         builder.line_to(300.0, 500.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 1);
         assert!(rects.is_empty());
 
@@ -402,7 +529,7 @@ mod tests {
         builder.line_to(200.0, 400.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 1);
         assert!(rects.is_empty());
 
@@ -424,7 +551,7 @@ mod tests {
         builder.line_to(300.0, 400.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 1);
         assert!(rects.is_empty());
 
@@ -446,7 +573,7 @@ mod tests {
         builder.line_to(100.0, 0.0);
         let painted = builder.stroke(&custom_gs());
 
-        let (lines, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, _, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 1);
 
         let line = &lines[0];
@@ -463,7 +590,7 @@ mod tests {
         builder.rectangle(100.0, 200.0, 200.0, 100.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert_eq!(rects.len(), 1);
 
@@ -491,7 +618,7 @@ mod tests {
         builder.close_path();
         let painted = builder.fill(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert_eq!(rects.len(), 1);
 
@@ -513,7 +640,7 @@ mod tests {
         builder.rectangle(10.0, 20.0, 100.0, 50.0);
         let painted = builder.fill_and_stroke(&custom_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert_eq!(rects.len(), 1);
 
@@ -533,7 +660,7 @@ mod tests {
         builder.rectangle(100.0, 200.0, 150.0, 80.0);
         let painted = builder.stroke(&default_gs());
 
-        let (_, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (_, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(rects.len(), 1);
 
         let rect = &rects[0];
@@ -553,7 +680,7 @@ mod tests {
         builder.close_path(); // closes back to (100, 100)
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
         // 3 lines: (100,100)→(200,100), (200,100)→(150,200), (150,200)→(100,100)
         assert_eq!(lines.len(), 3);
@@ -578,7 +705,7 @@ mod tests {
         builder.close_path();
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
         assert_eq!(lines.len(), 4); // 4 diagonal lines
     }
@@ -595,7 +722,7 @@ mod tests {
         builder.close_path();
         let painted = builder.fill(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty()); // fill-only, no stroked lines
         assert!(rects.is_empty()); // not a rectangle
     }
@@ -613,7 +740,7 @@ mod tests {
         builder.line_to(100.0, 200.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(lines.len(), 2);
         assert!(rects.is_empty());
         assert_eq!(lines[0].orientation, LineOrientation::Horizontal);
@@ -632,7 +759,7 @@ mod tests {
         builder.line_to(200.0, 100.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(rects.len(), 1);
         assert_eq!(lines.len(), 1);
     }
@@ -700,7 +827,7 @@ mod tests {
             fill_color: Color::black(),
         };
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert!(rects.is_empty());
     }
@@ -713,12 +840,12 @@ mod tests {
         builder.move_to(100.0, 100.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert!(rects.is_empty());
     }
 
-    // --- Path with curves produces no lines/rects (curves handled in US-024) ---
+    // --- Path with curves produces curves, not rects ---
 
     #[test]
     fn test_path_with_curves_no_rect_detection() {
@@ -728,11 +855,11 @@ mod tests {
         builder.close_path();
         let painted = builder.stroke(&default_gs());
 
-        // Curve subpaths should not produce rects
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
-        // Curves don't produce lines either (handled in US-024)
-        assert!(lines.is_empty());
+        // ClosePath generates a line back to (0,0) since path is stroked
+        assert_eq!(lines.len(), 1);
+        assert_eq!(curves.len(), 1);
     }
 
     // --- Rectangle with CTM transformation ---
@@ -745,7 +872,7 @@ mod tests {
         builder.rectangle(50.0, 100.0, 100.0, 50.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(lines.is_empty());
         assert_eq!(rects.len(), 1);
 
@@ -756,5 +883,141 @@ mod tests {
         // y-flip: 792-300=492 (top), 792-200=592 (bottom)
         assert_approx(rect.top, 492.0);
         assert_approx(rect.bottom, 592.0);
+    }
+
+    // ==================== Curve extraction tests (US-024) ====================
+
+    #[test]
+    fn test_curve_extraction_simple() {
+        // Simple cubic Bezier from (0,0) to (100,0) with control points at (10,50) and (90,50)
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 50.0, 90.0, 50.0, 100.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 1);
+
+        let curve = &curves[0];
+        // 4 points: start, cp1, cp2, end
+        assert_eq!(curve.pts.len(), 4);
+        // Start: (0, flip(0)) = (0, 792)
+        assert_approx(curve.pts[0].0, 0.0);
+        assert_approx(curve.pts[0].1, 792.0);
+        // CP1: (10, flip(50)) = (10, 742)
+        assert_approx(curve.pts[1].0, 10.0);
+        assert_approx(curve.pts[1].1, 742.0);
+        // CP2: (90, flip(50)) = (90, 742)
+        assert_approx(curve.pts[2].0, 90.0);
+        assert_approx(curve.pts[2].1, 742.0);
+        // End: (100, flip(0)) = (100, 792)
+        assert_approx(curve.pts[3].0, 100.0);
+        assert_approx(curve.pts[3].1, 792.0);
+    }
+
+    #[test]
+    fn test_curve_bbox() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 50.0, 90.0, 50.0, 100.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        let curve = &curves[0];
+
+        // x: min(0, 10, 90, 100) = 0, max = 100
+        assert_approx(curve.x0, 0.0);
+        assert_approx(curve.x1, 100.0);
+        // y (flipped): min(792, 742, 742, 792) = 742, max = 792
+        assert_approx(curve.top, 742.0);
+        assert_approx(curve.bottom, 792.0);
+    }
+
+    #[test]
+    fn test_curve_captures_graphics_state() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 20.0, 30.0, 40.0, 50.0, 0.0);
+        let painted = builder.stroke(&custom_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 1);
+
+        let curve = &curves[0];
+        assert_approx(curve.line_width, 2.5);
+        assert!(curve.stroke);
+        assert!(!curve.fill);
+        assert_eq!(curve.stroke_color, Color::new(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_curve_fill_only() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 50.0, 90.0, 50.0, 100.0, 0.0);
+        builder.close_path();
+        let painted = builder.fill(&default_gs());
+
+        let (lines, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 1);
+        assert!(curves[0].fill);
+        assert!(!curves[0].stroke);
+        // Fill-only: no lines from ClosePath
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_curves_in_subpath() {
+        // Two curve segments in one subpath
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 50.0, 40.0, 50.0, 50.0, 0.0);
+        builder.curve_to(60.0, 50.0, 90.0, 50.0, 100.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 2);
+
+        // First curve: (0,0) -> (50,0)
+        assert_approx(curves[0].pts[0].0, 0.0);
+        assert_approx(curves[0].pts[3].0, 50.0);
+        // Second curve: (50,0) -> (100,0)
+        assert_approx(curves[1].pts[0].0, 50.0);
+        assert_approx(curves[1].pts[3].0, 100.0);
+    }
+
+    #[test]
+    fn test_mixed_line_and_curve_subpath() {
+        // Subpath with both LineTo and CurveTo: line + curve + line
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(50.0, 0.0);
+        builder.curve_to(60.0, 0.0, 70.0, 10.0, 70.0, 20.0);
+        builder.line_to(70.0, 50.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 1);
+        assert_eq!(lines.len(), 2); // line_to(50,0) and line_to(70,50)
+    }
+
+    #[test]
+    fn test_curve_with_ctm_transform() {
+        // CTM scales by 2x
+        let ctm = Ctm::new(2.0, 0.0, 0.0, 2.0, 0.0, 0.0);
+        let mut builder = PathBuilder::new(ctm);
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 25.0, 40.0, 25.0, 50.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(curves.len(), 1);
+
+        let curve = &curves[0];
+        // Coords are CTM-transformed: (0,0)->(0,0), (10,25)->(20,50), (40,25)->(80,50), (50,0)->(100,0)
+        assert_approx(curve.pts[0].0, 0.0);
+        assert_approx(curve.pts[1].0, 20.0);
+        assert_approx(curve.pts[2].0, 80.0);
+        assert_approx(curve.pts[3].0, 100.0);
     }
 }
