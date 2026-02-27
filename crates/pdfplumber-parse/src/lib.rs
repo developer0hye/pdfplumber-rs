@@ -9,6 +9,7 @@ pub mod error;
 pub mod handler;
 pub mod interpreter_state;
 pub mod lopdf_backend;
+pub mod text_renderer;
 pub mod text_state;
 pub mod tokenizer;
 
@@ -18,5 +19,9 @@ pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 pub use interpreter_state::InterpreterState;
 pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
 pub use pdfplumber_core;
+pub use text_renderer::{
+    RawChar, TjElement, double_quote_show_string, quote_show_string, show_string,
+    show_string_with_positioning,
+};
 pub use text_state::{TextRenderMode, TextState};
 pub use tokenizer::{Operand, Operator, tokenize};

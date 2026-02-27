@@ -203,8 +203,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "At this stage, character codes are raw - Unicode mapping comes in US-012."
+      "passes": true,
+      "notes": "RawChar struct captures char_code + displacement + text_matrix snapshot. TjElement enum for TJ arrays. Functions: show_string (Tj), show_string_with_positioning (TJ), quote_show_string ('), double_quote_show_string (\"). Width lookup via callback (dyn Fn(u32)->f64). Single-byte encoding (each byte = char code). 34 unit tests."
     },
     {
       "id": "US-012",
