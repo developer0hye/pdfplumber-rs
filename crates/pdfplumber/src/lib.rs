@@ -13,8 +13,9 @@ mod page;
 
 pub use page::Page;
 pub use pdfplumber_core::{
-    BBox, Char, Color, Ctm, FillRule, GraphicsState, Line, LineOrientation, PaintedPath, Path,
-    PathBuilder, PathSegment, Point, Rect, TextDirection, Word, WordExtractor, WordOptions,
+    BBox, Char, Color, Ctm, Curve, Edge, EdgeSource, FillRule, GraphicsState, Line,
+    LineOrientation, PaintedPath, Path, PathBuilder, PathSegment, Point, Rect, TextDirection, Word,
+    WordExtractor, WordOptions, derive_edges, edge_from_curve, edge_from_line, edges_from_rect,
     extract_shapes, is_cjk, is_cjk_text,
 };
 pub use pdfplumber_parse;
