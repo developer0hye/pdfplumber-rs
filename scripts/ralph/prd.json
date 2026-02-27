@@ -222,8 +222,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 12,
-      "passes": false,
-      "notes": "Place CMap parser in pdfplumber-parse. It needs to handle the CMap syntax from PDF spec."
+      "passes": true,
+      "notes": "CMap struct in pdfplumber-parse/cmap.rs. Parses beginbfchar/endbfchar and beginbfrange/endbfrange sections. UTF-16BE decoding with surrogate pair support. Multi-byte source codes (1-2 bytes). Multi-char Unicode mappings (ligatures). Array destination form for bfrange. 24 unit tests."
     },
     {
       "id": "US-013",

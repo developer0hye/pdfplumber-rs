@@ -36,6 +36,10 @@
 - Td/TD/T* operate on line_matrix (pre-multiply translation), then copy to text_matrix.
 - advance_text_position() modifies text_matrix only (not line_matrix) — for glyph advance during Tj/TJ.
 - Tm replaces both text_matrix and line_matrix (it does NOT concatenate).
+- CMap::parse(data) -> Result<CMap, BackendError>. CMap::lookup(code) -> Option<&str>. CMap::lookup_or_replacement(code) -> String (returns U+FFFD for missing).
+- CMap parses beginbfchar/endbfchar and beginbfrange/endbfrange sections. Ignores CMap boilerplate (codespacerange, CIDSystemInfo, etc.).
+- UTF-16BE decoding: hex string → u16 code units → String::from_utf16(). Handles surrogate pairs and multi-char mappings (ligatures).
+- bfrange supports both `<low> <high> <start>` (increment) and `<low> <high> [<str1> <str2>...]` (array) forms.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
@@ -232,4 +236,22 @@ Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
   - Quote (') = T* + Tj. Double quote (") = Tw + Tc + ' (sets spacing first)
   - The line_matrix is NOT modified during Tj — only text_matrix advances
   - With scaled text matrix (e.g., 12x), advance_text_position pre-multiplies, so tx=0.6 becomes 7.2 in page space
+---
+
+## 2026-02-28 - US-012
+- What was implemented: ToUnicode CMap parser — parses bfchar/bfrange sections with UTF-16BE decoding for character code → Unicode mapping
+- Files changed:
+  - crates/pdfplumber-parse/src/cmap.rs (new — CMap struct, parse(), lookup(), UTF-16BE decoder, hex token extractor, 24 tests)
+  - crates/pdfplumber-parse/src/lib.rs (added cmap module + CMap export)
+  - scripts/ralph/prd.json (marked US-012 passes: true)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - CMap format: beginbfchar/endbfchar for single mappings, beginbfrange/endbfrange for range mappings
+  - Source codes are hex-encoded (1-2 bytes), Unicode values are UTF-16BE encoded hex
+  - UTF-16BE surrogate pairs: D800-DBFF (high) followed by DC00-DFFF (low) for supplementary characters
+  - Multi-char Unicode mappings (e.g., ligature <FB01> → <00660069> = "fi") have hex len > 4
+  - bfrange has two forms: `<low> <high> <start>` (auto-increment) and `<low> <high> [<str1>...]` (explicit array)
+  - CMap data is embedded in PDF as text, so String::from_utf8_lossy is safe for parsing keywords
+  - extract_hex_tokens() scans for <...> pairs — simple and robust for CMap syntax
+  - Single-byte source codes (e.g., <41>) are parsed as u32 directly (not padded to 2 bytes)
 ---
