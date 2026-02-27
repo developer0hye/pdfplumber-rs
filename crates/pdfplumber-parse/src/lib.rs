@@ -5,6 +5,7 @@
 //! It depends on pdfplumber-core for shared data types.
 
 pub mod backend;
+pub mod char_extraction;
 pub mod cmap;
 pub mod error;
 pub mod font_metrics;
@@ -16,6 +17,7 @@ pub mod text_state;
 pub mod tokenizer;
 
 pub use backend::PdfBackend;
+pub use char_extraction::char_from_event;
 pub use cmap::CMap;
 pub use error::BackendError;
 pub use font_metrics::{FontMetrics, extract_font_metrics};

@@ -260,8 +260,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": "This is where Layer 2 (interpreter) feeds into Layer 3 (object extraction)."
+      "passes": true,
+      "notes": "char_from_event() in pdfplumber-parse/char_extraction.rs. Builds Trm (Text Rendering Matrix) = font_matrix × Tm × CTM. Computes 4 corners in glyph-normalized space, transforms through Trm, takes AABB, and y-flips for top-left origin. Handles: char_spacing, word_spacing (space only), h_scaling, rise (superscript/subscript), rotated text, CTM transformations. Determines upright flag (trm.b≈0 && trm.c≈0) and text direction (Ltr/Rtl/Ttb/Btt). Unicode fallback: event.unicode → char::from_u32 → U+FFFD. 24 unit tests."
     },
     {
       "id": "US-015",
