@@ -75,6 +75,14 @@ impl Ctm {
     }
 }
 
+/// Orientation of a geometric element.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Orientation {
+    Horizontal,
+    Vertical,
+    Diagonal,
+}
+
 /// Bounding box with top-left origin coordinate system.
 ///
 /// Coordinates follow pdfplumber convention:
@@ -231,6 +239,34 @@ mod tests {
         let bbox = BBox::new(10.0, 20.0, 50.0, 60.0);
         assert_eq!(bbox.width(), 40.0);
         assert_eq!(bbox.height(), 40.0);
+    }
+
+    #[test]
+    fn test_bbox_zero_size() {
+        let bbox = BBox::new(10.0, 20.0, 10.0, 20.0);
+        assert_eq!(bbox.width(), 0.0);
+        assert_eq!(bbox.height(), 0.0);
+    }
+
+    // --- Orientation tests ---
+
+    #[test]
+    fn test_orientation_variants() {
+        let h = Orientation::Horizontal;
+        let v = Orientation::Vertical;
+        let d = Orientation::Diagonal;
+        assert_ne!(h, v);
+        assert_ne!(v, d);
+        assert_ne!(h, d);
+    }
+
+    #[test]
+    fn test_orientation_clone_copy() {
+        let o = Orientation::Horizontal;
+        let o2 = o; // Copy
+        let o3 = o.clone(); // Clone
+        assert_eq!(o, o2);
+        assert_eq!(o, o3);
     }
 
     #[test]

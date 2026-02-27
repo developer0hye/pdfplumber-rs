@@ -1,47 +1,26 @@
 ## Codebase Patterns
-- Workspace uses `edition.workspace = true` and `rust-version.workspace = true` to inherit from root
-- Crate directory structure: `crates/<name>/Cargo.toml` + `crates/<name>/src/lib.rs`
-- Dependency chain: pdfplumber → {pdfplumber-core, pdfplumber-parse}, pdfplumber-parse → pdfplumber-core
-- pdfplumber-core has zero external dependencies (pure algorithms)
-- Quality checks: `cargo fmt --all -- --check && cargo clippy --workspace -- -D warnings && cargo test --workspace && cargo check --workspace`
-- CJK detection: `is_cjk(char)` / `is_cjk_text(&str)` in `text.rs` — covers 11 Unicode blocks
-- TextDirection enum (Ltr/Rtl/Ttb/Btt) in `text.rs` — controls sorting and gap logic in WordExtractor
-- CJK tolerance pattern: use `last_char.bbox.width().max(base_tolerance)` for horizontal, `.height()` for vertical
-- Geometric primitives: `Point(x, y)` and `Ctm(a, b, c, d, e, f)` in `geometry.rs`
-- CTM transform: `(x', y') = (a*x + c*y + e, b*x + d*y + f)` — row-vector convention
-- PathBuilder stores CTM-transformed coordinates; current_point is always in device space
-- `v` operator uses already-transformed current_point as cp1 (no double transform)
-- `re` operator delegates to move_to/line_to/close_path for consistent CTM handling
-- Shape extraction: `extract_shapes(painted, page_height) -> (Vec<Line>, Vec<Rect>, Vec<Curve>)` in `shapes.rs`
-- Curve: 4-point (start, cp1, cp2, end) in top-left origin; bbox from control points
-- Edge derivation: `edges.rs` — `edge_from_line`, `edges_from_rect` (4 edges), `edge_from_curve` (chord)
-- `derive_edges(lines, rects, curves) -> Vec<Edge>` — combines all sources with EdgeSource tracking
-- Page holds geometry: `with_geometry()` constructor, `lines()/rects()/curves()/edges()` accessors
-- Image extraction: `image_from_ctm(ctm, name, page_height, metadata) -> Image` in `images.rs`
-- Image bbox from CTM: transform unit square corners (0,0),(1,0),(0,1),(1,1) through CTM, find bounding box, y-flip
-- Page holds images: `with_geometry_and_images()` constructor (8 args, #[allow(clippy::too_many_arguments)])
-- Encoding tables: `static [Option<char>; 256]` in const blocks, `StandardEncoding` enum for lookup
-- FontEncoding: base table + Differences override via `apply_differences(&[(u8, char)])`
-- EncodingResolver: 3-level chain — ToUnicode (HashMap<u16, String>) > FontEncoding > default
-- ImageMetadata: src_width, src_height, bits_per_component, color_space — all Optional
-- y-flip: `top_origin_y = page_height - pdf_y` for coordinate conversion
-- Rect detection: axis-aligned closed 4-vertex subpath OR 5-vertex where last==first
-- Line extraction: only from stroked paths (fill-only non-rects produce nothing)
-- ClosePath generates a closing Line segment back to subpath start if start != current
-- DashPattern: `dash_array: Vec<f64>`, `dash_phase: f64`; solid = empty array; `is_solid()` check
-- GraphicsState extended: `dash_pattern`, `stroke_alpha`, `fill_alpha` alongside line_width/colors
-- ExtGState: all-Optional struct applied via `GraphicsState::apply_ext_gstate()` — only overrides present fields
-- `d` operator: `GraphicsState::set_dash_pattern(array, phase)` — inline dash pattern setting
-- PaintedPath captures dash_pattern + alpha from GraphicsState at paint time
-- Painting refactored: private `paint()` helper avoids 9× struct literal duplication
-- Layout pipeline: words → lines (y-proximity) → split at columns (x-gaps) → blocks (x-overlap + y-proximity) → reading order (top, x0)
-- `split_lines_at_columns()`: splits TextLines at gaps > x_density between consecutive words
-- `cluster_lines_into_blocks()`: x-overlap-aware — line must overlap block's x-range to join it
-- `sort_blocks_reading_order()`: simple (top, x0) sort — handles single/multi-column naturally
-- `words_to_text()` for simple mode; `blocks_to_text()` for layout mode (blocks separated by \n\n)
-- TextOptions: layout (bool), y_tolerance, y_density, x_density — all with sensible defaults
+- Color is an enum (Gray/Rgb/Cmyk/Other with f32 values), not a struct. Use `.clone()` since it doesn't implement Copy (due to Other(Vec<f32>)).
+- Orientation enum lives in geometry.rs. LineOrientation in shapes.rs is a type alias for Orientation.
+- All coordinates use f64. Color values use f32.
+- BBox uses top-left origin: (x0, top, x1, bottom).
+
+# Ralph Progress Log
+Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
 ---
 
-# Ralph Progress Log - Phase 1: Foundation - Workspace, PDF Parsing, Content Interpreter, Char Extraction
-Started: 2026년  2월 28일 토요일 01시 07분 17초 KST
+## 2026-02-28 - US-002
+- What was implemented: Core data model types - Color enum (Gray/Rgb/Cmyk/Other), Orientation enum, zero-size BBox edge case test
+- Files changed:
+  - crates/pdfplumber-core/src/geometry.rs (added Orientation enum, zero-size BBox test)
+  - crates/pdfplumber-core/src/painting.rs (Color struct -> enum with Gray/Rgb/Cmyk/Other variants)
+  - crates/pdfplumber-core/src/shapes.rs (LineOrientation -> type alias for Orientation, clone Color)
+  - crates/pdfplumber-core/src/edges.rs (use Orientation from geometry)
+  - crates/pdfplumber-core/src/lib.rs (export Orientation)
+  - crates/pdfplumber/src/lib.rs (re-export Orientation)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - BBox, TextDirection, LineOrientation already existed in the codebase from Phase 2 work
+  - Color was a simple RGB struct - changed to proper PDF color space enum
+  - Color can't derive Copy due to Other(Vec<f32>) - need .clone() everywhere it was previously copied
+  - Kept LineOrientation as type alias to avoid breaking existing code in pdfplumber crate
 ---

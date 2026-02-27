@@ -36,8 +36,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Completed. Color changed from struct to enum (Gray/Rgb/Cmyk/Other). Orientation enum added to geometry.rs. LineOrientation kept as type alias."
     },
     {
       "id": "US-003",
