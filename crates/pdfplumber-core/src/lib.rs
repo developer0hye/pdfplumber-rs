@@ -9,5 +9,5 @@ pub mod text;
 pub mod words;
 
 pub use geometry::BBox;
-pub use text::Char;
+pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};

@@ -12,7 +12,9 @@
 mod page;
 
 pub use page::Page;
-pub use pdfplumber_core::{BBox, Char, Word, WordExtractor, WordOptions};
+pub use pdfplumber_core::{
+    BBox, Char, TextDirection, Word, WordExtractor, WordOptions, is_cjk, is_cjk_text,
+};
 pub use pdfplumber_parse;
 
 #[cfg(test)]
