@@ -1,6 +1,6 @@
 [package]
 name = "pdfplumber-parse"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -10,7 +10,7 @@ keywords = ["pdf", "parser", "content-stream", "pdfplumber"]
 categories = ["parser-implementations"]
 
 [dependencies]
-pdfplumber-core = { version = "0.1.0", path = "../pdfplumber-core" }
+pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
 lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
 thiserror = "2"
 
