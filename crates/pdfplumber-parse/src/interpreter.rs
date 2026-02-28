@@ -22,7 +22,9 @@ use crate::text_renderer::{
 };
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
-use pdfplumber_core::{ExtractOptions, ExtractWarning};
+use pdfplumber_core::{
+    ExtractOptions, ExtractWarning, FontEncoding, StandardEncoding, glyph_name_to_char,
+};
 
 /// Cached font information for the interpreter.
 struct CachedFont {
@@ -37,6 +39,8 @@ struct CachedFont {
     /// Used in US-041 for vertical writing mode support.
     #[allow(dead_code)]
     writing_mode: u8,
+    /// Font encoding from the /Encoding entry (for simple fonts).
+    encoding: Option<FontEncoding>,
 }
 
 /// Interpret a content stream and emit events to the handler.
@@ -361,7 +365,7 @@ fn load_font_if_needed(
         font_obj.as_dict().ok()
     })();
 
-    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode) =
+    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode, encoding) =
         if let Some(fd) = font_dict {
             if is_type0_font(fd) {
                 // Type0 (composite/CID) font
@@ -398,7 +402,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, cid_met, true, wm)
+                (metrics, cmap, base_name, cid_met, true, wm, None)
             } else {
                 // Simple font
                 let metrics = match extract_font_metrics(doc, fd) {
@@ -415,6 +419,7 @@ fn load_font_if_needed(
                     }
                 };
                 let cmap = extract_tounicode_cmap(doc, fd);
+                let encoding = extract_font_encoding(doc, fd);
                 let raw_base_name = fd
                     .get(b"BaseFont")
                     .ok()
@@ -422,7 +427,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, None, false, 0)
+                (metrics, cmap, base_name, None, false, 0, encoding)
             }
         } else {
             // Font not found in page resources — use defaults
@@ -440,6 +445,7 @@ fn load_font_if_needed(
                 None,
                 false,
                 0,
+                None,
             )
         };
 
@@ -452,6 +458,7 @@ fn load_font_if_needed(
             cid_metrics,
             is_cid_font,
             writing_mode,
+            encoding,
         },
     );
 }
@@ -463,6 +470,87 @@ fn extract_tounicode_cmap(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Opti
     let stream = tounicode_obj.as_stream().ok()?;
     let data = decode_stream(stream).ok()?;
     CMap::parse(&data).ok()
+}
+
+/// Extract font encoding from a simple font dictionary's /Encoding entry.
+fn extract_font_encoding(
+    doc: &lopdf::Document,
+    fd: &lopdf::Dictionary,
+) -> Option<FontEncoding> {
+    let encoding_obj = fd.get(b"Encoding").ok()?;
+    let encoding_obj = resolve_ref(doc, encoding_obj);
+
+    // Case 1: /Encoding is a name (e.g., /WinAnsiEncoding)
+    if let Ok(name) = encoding_obj.as_name_str() {
+        let std_enc = match name {
+            "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+            "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+            "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+            "StandardEncoding" => Some(StandardEncoding::Standard),
+            _ => None,
+        };
+        return std_enc.map(FontEncoding::from_standard);
+    }
+
+    // Case 2: /Encoding is a dictionary with /BaseEncoding and/or /Differences
+    if let Ok(enc_dict) = encoding_obj.as_dict() {
+        let base = enc_dict
+            .get(b"BaseEncoding")
+            .ok()
+            .and_then(|o| o.as_name_str().ok())
+            .and_then(|name| match name {
+                "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+                "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+                "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+                "StandardEncoding" => Some(StandardEncoding::Standard),
+                _ => None,
+            })
+            .unwrap_or(StandardEncoding::Standard);
+
+        let mut enc = FontEncoding::from_standard(base);
+
+        // Apply /Differences array
+        if let Ok(diff_obj) = enc_dict.get(b"Differences") {
+            let diff_obj = resolve_ref(doc, diff_obj);
+            if let Ok(diff_arr) = diff_obj.as_array() {
+                let differences = parse_differences_array(diff_arr);
+                enc.apply_differences(&differences);
+            }
+        }
+
+        return Some(enc);
+    }
+
+    None
+}
+
+/// Parse a PDF /Differences array into (code, char) pairs.
+///
+/// Format: `[code1 /name1 /name2 ... codeN /nameN ...]`
+/// Each integer starts a run; subsequent names are assigned consecutive codes.
+fn parse_differences_array(arr: &[lopdf::Object]) -> Vec<(u8, char)> {
+    let mut result = Vec::new();
+    let mut current_code: Option<u8> = None;
+
+    for obj in arr {
+        match obj {
+            lopdf::Object::Integer(i) => {
+                current_code = Some(*i as u8);
+            }
+            lopdf::Object::Name(name_bytes) => {
+                if let Some(code) = current_code {
+                    let name = String::from_utf8_lossy(name_bytes);
+                    if let Some(ch) = glyph_name_to_char(&name) {
+                        result.push((code, ch));
+                    }
+                    current_code = Some(code.wrapping_add(1));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    result
 }
 
 /// Load CID font information from a Type0 font dictionary.
@@ -570,11 +658,30 @@ fn emit_char_events(
     let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
 
     for rc in raw_chars {
-        let unicode = cached.and_then(|c| {
-            c.cmap
-                .as_ref()
-                .and_then(|cm| cm.lookup(rc.char_code).map(|s| s.to_string()))
-        });
+        // Unicode resolution chain: CMap → FontEncoding → char::from_u32
+        let unicode = cached
+            .and_then(|c| {
+                // 1. Try ToUnicode CMap (highest priority)
+                c.cmap
+                    .as_ref()
+                    .and_then(|cm| cm.lookup(rc.char_code).map(|s| s.to_string()))
+            })
+            .or_else(|| {
+                // 2. Try font encoding (for simple fonts)
+                cached.and_then(|c| {
+                    c.encoding.as_ref().and_then(|enc| {
+                        if rc.char_code <= 255 {
+                            enc.decode(rc.char_code as u8).map(|ch| ch.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                })
+            })
+            .or_else(|| {
+                // 3. Fallback: char::from_u32 for ASCII-range codes
+                char::from_u32(rc.char_code).map(|ch| ch.to_string())
+            });
 
         // Use CID font metrics for displacement if available
         let displacement = match cached {
