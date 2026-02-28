@@ -1,15 +1,26 @@
-## Codebase Patterns
-
-- **PDF test fixture creation**: Use lopdf programmatically to create minimal PDFs for testing. Pattern: create font → content stream → resources → page → pages tree → catalog → save to bytes. See `create_pdf_with_content()` in `crates/pdfplumber/src/pdf.rs`.
-- **ContentHandler collecting pattern**: Implement a `CollectingHandler` that stores `CharEvent`s and `ImageEvent`s during `interpret_page`, then convert them to `Char`s and `Image`s afterward using `char_from_event` and `image_from_ctm`.
-- **CharEvent → Char conversion**: Use `FontMetrics::default_metrics()` (ascent=750, descent=-250) when per-font metrics aren't available. The displacement (glyph width) in CharEvent already comes from actual font metrics in the interpreter.
-- **doctop calculation**: Accumulate display page heights (`PageGeometry::height()`) for pages before the current one. Offset each char's doctop by this sum.
-- **Page parent reference**: When building PDFs with lopdf, create the page first, then the pages tree, then update the page's Parent reference afterward (circular reference workaround).
-
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
+Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
+
+## Codebase Patterns
+- New modules go in `crates/pdfplumber-core/src/` with `pub mod` in `lib.rs` and re-exports at crate root
+- Facade crate (`crates/pdfplumber/src/lib.rs`) re-exports all public types from pdfplumber-core
+- Tests use inline `#[cfg(test)] mod tests` with `assert_approx` for f64 comparisons (tolerance 1e-6)
+- Helper constructors: `make_line()`, `make_rect()`, `make_curve()` in test modules
+- Coordinate system: top-left origin (x0, top, x1, bottom) where top < bottom
+- `BBox::union()` computes enclosing bbox of two bboxes
+- `Edge` struct has x0/top/x1/bottom/orientation/source fields
+- `derive_edges()` converts Lines+Rects+Curves to Vec<Edge>
+- Clippy: use `#[derive(Default)]` with `#[default]` variant instead of manual `impl Default` for enums
+
 ---
 
-# Ralph Progress Log - Phase 3: Table Detection - Lattice, Stream, Explicit Strategies
-Started: 2026년  2월 28일 토요일 09시 18분 00초 KST
+## 2026-02-28 - US-029
+- Implemented TableSettings, Strategy, TableFinder, Table, Cell, ExplicitLines
+- Files changed: `crates/pdfplumber-core/src/table.rs` (new), `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - All table detection types live in `crates/pdfplumber-core/src/table.rs`
+  - Strategy defaults to Lattice, all tolerances default to 3.0
+  - TableFinder::find_tables() is a placeholder returning empty Vec, will be wired up in US-030 through US-036
+  - Clippy enforces `#[derive(Default)]` for enums on Rust edition 2024
 ---
