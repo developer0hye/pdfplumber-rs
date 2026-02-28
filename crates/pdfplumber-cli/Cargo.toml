@@ -1,0 +1,23 @@
+[package]
+name = "pdfplumber-cli"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Command-line tool to extract text, characters, words, and tables from PDF documents"
+keywords = ["pdf", "cli", "table", "text-extraction"]
+categories = ["command-line-utilities"]
+
+[[bin]]
+name = "pdfplumber"
+path = "src/main.rs"
+
+[dependencies]
+pdfplumber = { version = "0.1.0", path = "../pdfplumber" }
+clap = { version = "4", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+assert_cmd = "2"
+predicates = "3"

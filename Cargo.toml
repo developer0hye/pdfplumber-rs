@@ -3,6 +3,7 @@ members = [
     "crates/pdfplumber-core",
     "crates/pdfplumber-parse",
     "crates/pdfplumber",
+    "crates/pdfplumber-cli",
 ]
 resolver = "3"
 
