@@ -1,0 +1,191 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  # ── crates.io ──────────────────────────────────────────────
+
+  publish:
+    name: Publish to crates.io
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Publish pdfplumber-core
+        run: cargo publish -p pdfplumber-core
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish pdfplumber-parse
+        run: cargo publish -p pdfplumber-parse
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish pdfplumber
+        run: cargo publish -p pdfplumber
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Wait for crates.io index
+        run: sleep 30
+
+      - name: Publish pdfplumber-cli
+        run: cargo publish -p pdfplumber-cli
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  release:
+    name: GitHub Release
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+
+  # ── PyPI (maturin wheels + sdist) ──────────────────────────
+
+  build-wheels:
+    name: Build wheel (${{ matrix.os }}, ${{ matrix.target }})
+    needs: ci
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Linux ──
+          - os: linux
+            runner: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: linux
+            runner: ubuntu-latest
+            target: aarch64
+            manylinux: auto
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          # ── macOS (both targets cross-compile on Apple Silicon) ──
+          - os: macos
+            runner: macos-latest
+            target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: macos
+            runner: macos-latest
+            target: aarch64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          # ── Windows ──
+          - os: windows
+            runner: windows-latest
+            target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'linux'
+        with:
+          python-version: |
+            3.9
+            3.10
+            3.11
+            3.12
+            3.13
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: >-
+            --release
+            --out dist
+            --interpreter ${{ matrix.interpreter }}
+            --manifest-path crates/pdfplumber-py/Cargo.toml
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: dist
+
+  build-sdist:
+    name: Build sdist
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: >-
+            --out dist
+            --manifest-path crates/pdfplumber-py/Cargo.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheels-sdist
+          path: dist
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [build-wheels, build-sdist]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          merge-multiple: true
+          path: dist
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  # ── npm (wasm-pack) ────────────────────────────────────────
+
+  publish-npm:
+    name: Publish to npm
+    needs: ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org
+
+      - name: Install wasm-pack
+        uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM package
+        run: wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm
+
+      - name: Copy hand-authored type definitions
+        run: cp crates/pdfplumber-wasm/pdfplumber-wasm.d.ts crates/pdfplumber-wasm/pkg/pdfplumber_wasm.d.ts
+
+      - name: Publish to npm
+        run: |
+          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
+          npm publish crates/pdfplumber-wasm/pkg --access public
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

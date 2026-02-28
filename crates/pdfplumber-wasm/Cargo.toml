@@ -1,6 +1,6 @@
 [package]
 name = "pdfplumber-wasm"
-version = "0.1.0"
+version = "0.2.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -8,6 +8,7 @@ repository.workspace = true
 description = "WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction"
 keywords = ["pdf", "wasm", "webassembly", "pdfplumber", "table-extraction"]
 categories = ["wasm", "parser-implementations"]
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]

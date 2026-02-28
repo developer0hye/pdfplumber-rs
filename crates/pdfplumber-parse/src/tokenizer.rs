@@ -76,14 +76,12 @@ pub fn tokenize(input: &[u8]) -> Result<Vec<Operator>, BackendError> {
             // Hex string
             b'<' => {
                 if pos + 1 < input.len() && input[pos + 1] == b'<' {
-                    // << is a dictionary start — not valid in content streams as operand,
-                    // but handle gracefully by treating as unknown token
-                    return Err(BackendError::Interpreter(
-                        "unexpected '<<' in content stream".to_string(),
-                    ));
+                    // << is a dictionary start — skip the entire <<...>> block
+                    skip_dict(input, &mut pos);
+                } else {
+                    let s = parse_hex_string(input, &mut pos)?;
+                    operand_stack.push(Operand::HexString(s));
                 }
-                let s = parse_hex_string(input, &mut pos)?;
-                operand_stack.push(Operand::HexString(s));
             }
             // Array start
             b'[' => {
@@ -463,6 +461,25 @@ fn parse_keyword(input: &[u8], pos: &mut usize) -> String {
     String::from_utf8_lossy(&input[start..*pos]).into_owned()
 }
 
+/// Skip a `<< ... >>` dictionary block, handling nesting.
+fn skip_dict(input: &[u8], pos: &mut usize) {
+    debug_assert!(input[*pos] == b'<' && *pos + 1 < input.len() && input[*pos + 1] == b'<');
+    *pos += 2; // skip '<<'
+    let mut depth = 1u32;
+
+    while *pos < input.len() && depth > 0 {
+        if *pos + 1 < input.len() && input[*pos] == b'<' && input[*pos + 1] == b'<' {
+            depth += 1;
+            *pos += 2;
+        } else if *pos + 1 < input.len() && input[*pos] == b'>' && input[*pos + 1] == b'>' {
+            depth -= 1;
+            *pos += 2;
+        } else {
+            *pos += 1;
+        }
+    }
+}
+
 /// Inline image dictionary entries: key-value pairs.
 type InlineImageDict = Vec<(String, Operand)>;
 
@@ -553,7 +570,15 @@ fn parse_inline_image_value(input: &[u8], pos: &mut usize) -> Result<Operand, Ba
     match b {
         b'/' => Ok(Operand::Name(parse_name(input, pos))),
         b'(' => Ok(Operand::LiteralString(parse_literal_string(input, pos)?)),
-        b'<' => Ok(Operand::HexString(parse_hex_string(input, pos)?)),
+        b'<' => {
+            if *pos + 1 < input.len() && input[*pos + 1] == b'<' {
+                // Dictionary value — skip and return as Null
+                skip_dict(input, pos);
+                Ok(Operand::Null)
+            } else {
+                Ok(Operand::HexString(parse_hex_string(input, pos)?))
+            }
+        }
         b'[' => {
             *pos += 1;
             Ok(Operand::Array(parse_array(input, pos)?))
@@ -1047,5 +1072,34 @@ mod tests {
         assert_eq!(ops.len(), 1);
         assert_eq!(ops[0].name, "Tj");
         assert_eq!(ops[0].operands.len(), 2);
+    }
+
+    // ---- << handling in content streams ----
+
+    #[test]
+    fn tokenize_skips_dict_in_content_stream() {
+        // << ... >> should be skipped gracefully instead of returning error
+        let ops = tokenize(b"BT << /Key /Value >> ET").unwrap();
+        assert_eq!(ops.len(), 2);
+        assert_eq!(ops[0].name, "BT");
+        assert_eq!(ops[1].name, "ET");
+    }
+
+    #[test]
+    fn tokenize_skips_nested_dict_in_content_stream() {
+        // Nested << >> should also be handled
+        let ops = tokenize(b"BT << /A << /B 1 >> >> ET").unwrap();
+        assert_eq!(ops.len(), 2);
+        assert_eq!(ops[0].name, "BT");
+        assert_eq!(ops[1].name, "ET");
+    }
+
+    #[test]
+    fn inline_image_with_dict_value() {
+        // BI with a dictionary value (e.g., /DecodeParms << ... >>)
+        let stream = b"BI\n/W 2 /H 2 /CS /G /BPC 8 /DP << /Columns 2 >>\nID \x00\xFF\x00\xFF\nEI";
+        let ops = tokenize(stream).unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_eq!(ops[0].name, "BI");
     }
 }
