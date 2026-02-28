@@ -1,0 +1,19 @@
+[package]
+name = "pdfplumber-py"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python bindings for pdfplumber-rs via PyO3"
+
+[lib]
+name = "pdfplumber"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.24", features = ["extension-module"] }
+pdfplumber = { path = "../pdfplumber" }
+
+[dev-dependencies]
+lopdf = "0.34"
