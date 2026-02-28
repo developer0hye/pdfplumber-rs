@@ -6,7 +6,8 @@
 //! Test PDFs are created programmatically using lopdf.
 
 use pdfplumber::{
-    AnnotationType, Bookmark, DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions,
+    AnnotationType, Bookmark, DocumentMetadata, ExtractOptions, Pdf, SearchOptions, TextOptions,
+    WordOptions,
 };
 
 // --- Test PDF creation helpers ---
@@ -1285,4 +1286,88 @@ fn bookmarks_named_destination() {
     assert_eq!(bookmarks[0].level, 0);
     assert_eq!(bookmarks[0].page_number, Some(0));
     assert_eq!(bookmarks[0].dest_top, Some(500.0));
+}
+
+// --- US-063: Text search with position ---
+
+#[test]
+fn search_simple_string_match() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let opts = SearchOptions {
+        regex: false,
+        ..Default::default()
+    };
+    let matches = page.search("Hello", &opts);
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].text, "Hello");
+    assert_eq!(matches[0].page_number, 0);
+    assert!(!matches[0].char_indices.is_empty());
+    // bbox should have positive dimensions
+    assert!(matches[0].bbox.width() > 0.0);
+    assert!(matches[0].bbox.height() > 0.0);
+}
+
+#[test]
+fn search_regex_pattern() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let opts = SearchOptions::default(); // regex=true
+    let matches = page.search("H.llo", &opts);
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].text, "Hello");
+}
+
+#[test]
+fn search_case_insensitive() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let opts = SearchOptions {
+        regex: false,
+        case_sensitive: false,
+    };
+    let matches = page.search("hello", &opts);
+
+    assert_eq!(matches.len(), 1);
+    assert_eq!(matches[0].text, "Hello");
+}
+
+#[test]
+fn search_no_matches() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let opts = SearchOptions {
+        regex: false,
+        ..Default::default()
+    };
+    let matches = page.search("XYZ", &opts);
+
+    assert!(matches.is_empty());
+}
+
+#[test]
+fn search_all_multi_page() {
+    let bytes = pdf_with_pages(&["Hello World", "Goodbye World"]);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+
+    let opts = SearchOptions {
+        regex: false,
+        ..Default::default()
+    };
+    let matches = pdf.search_all("World", &opts).unwrap();
+
+    // "World" appears on both pages
+    assert_eq!(matches.len(), 2);
+    assert_eq!(matches[0].page_number, 0);
+    assert_eq!(matches[1].page_number, 1);
 }

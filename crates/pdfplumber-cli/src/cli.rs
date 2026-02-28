@@ -156,6 +156,33 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = TextFormat::Text)]
         format: TextFormat,
     },
+
+    /// Search for text patterns with position information
+    Search {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Search pattern (regex by default, use --no-regex for literal)
+        #[arg(value_name = "PATTERN")]
+        pattern: String,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Disable case sensitivity
+        #[arg(long)]
+        case_insensitive: bool,
+
+        /// Treat pattern as literal string (not regex)
+        #[arg(long)]
+        no_regex: bool,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
 }
 
 /// Table detection strategy.
@@ -548,6 +575,70 @@ mod tests {
                 assert!(matches!(format, TextFormat::Text));
             }
             _ => panic!("expected Bookmarks subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_search_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "search", "test.pdf", "hello"]);
+        match cli.command {
+            Commands::Search {
+                ref file,
+                ref pattern,
+                case_insensitive,
+                no_regex,
+                ..
+            } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+                assert_eq!(pattern, "hello");
+                assert!(!case_insensitive);
+                assert!(!no_regex);
+            }
+            _ => panic!("expected Search subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_search_with_options() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "search",
+            "test.pdf",
+            "pattern",
+            "--case-insensitive",
+            "--no-regex",
+            "--pages",
+            "1,3-5",
+            "--format",
+            "json",
+        ]);
+        match cli.command {
+            Commands::Search {
+                ref pattern,
+                ref pages,
+                case_insensitive,
+                no_regex,
+                ref format,
+                ..
+            } => {
+                assert_eq!(pattern, "pattern");
+                assert_eq!(pages.as_deref(), Some("1,3-5"));
+                assert!(case_insensitive);
+                assert!(no_regex);
+                assert!(matches!(format, OutputFormat::Json));
+            }
+            _ => panic!("expected Search subcommand"),
+        }
+    }
+
+    #[test]
+    fn search_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "search", "test.pdf", "query"]);
+        match cli.command {
+            Commands::Search { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Text));
+            }
+            _ => panic!("expected Search subcommand"),
         }
     }
 }

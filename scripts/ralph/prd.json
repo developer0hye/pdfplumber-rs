@@ -117,7 +117,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "The `regex` crate is a new dependency — justified as the standard Rust regex library. Add to pdfplumber-core or pdfplumber crate."
     },
     {

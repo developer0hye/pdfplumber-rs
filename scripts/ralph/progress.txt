@@ -10,6 +10,7 @@
 - **Hyperlink pattern**: Hyperlinks follow: add `page_hyperlinks()` trait method → implement in LopdfBackend filtering for Link annotations and resolving /A (URI, GoTo) or /Dest → add `Vec<Hyperlink>` field to Page → pass through `from_extraction()`. Skip links without resolvable URIs.
 - **CLI subcommand pattern**: New CLI commands: add variant to `Commands` enum in cli.rs → create `<name>_cmd.rs` with `run()`, `write_text()`, `write_json()`, `write_csv()` → wire up in main.rs match. Each output format follows the same structure (header + per-page iteration).
 - **Bookmark/outline pattern**: Document-level outlines follow: add `document_bookmarks()` to PdfBackend trait → implement in LopdfBackend walking outline tree via /First, /Next sibling links → cache in Pdf struct on open → expose via `Pdf::bookmarks()`. Resolve destinations using `doc.get_pages()` (1-indexed page map). Handle circular references with visited set + max depth limit.
+- **Search pattern**: Text search follows: add types (SearchMatch, SearchOptions) + algorithm (search_chars) in pdfplumber-core/search.rs → add Page::search() delegating to search_chars → add Pdf::search_all() iterating pages. Algorithm: concatenate char texts, map byte offsets→char indices, run regex, compute union bbox from matched chars.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -127,4 +128,29 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - Named destinations are looked up in catalog /Names → /Dests name tree or catalog /Dests dictionary
   - Circular reference protection: visited set + max_depth (64) + max_siblings (10,000) limits
   - Bookmarks follow the metadata pattern: document-level, cached on open, exposed via accessor
+---
+
+## 2026-02-28 - US-063
+- Implemented text search with position (regex and literal, case-sensitive/insensitive)
+- Files changed:
+  - `crates/pdfplumber-core/src/search.rs` (NEW) — SearchMatch, SearchOptions structs, search_chars() algorithm
+  - `crates/pdfplumber-core/src/lib.rs` — Added search module and exports
+  - `crates/pdfplumber-core/Cargo.toml` — Added `regex` dependency
+  - `crates/pdfplumber/src/page.rs` — Added `Page::search()` method
+  - `crates/pdfplumber/src/pdf.rs` — Added `Pdf::search_all()` method
+  - `crates/pdfplumber/src/lib.rs` — Re-exported SearchMatch, SearchOptions
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 5 integration tests (literal, regex, case-insensitive, no match, multi-page)
+  - `crates/pdfplumber-cli/src/cli.rs` — Added Search subcommand with --pages, --case-insensitive, --no-regex, --format
+  - `crates/pdfplumber-cli/src/search_cmd.rs` (NEW) — Search CLI command with text/json/csv output
+  - `crates/pdfplumber-cli/src/main.rs` — Wired up search command
+  - `crates/pdfplumber-cli/tests/search_cmd.rs` (NEW) — 6 CLI tests (text/json/csv, no match, case-insensitive, regex)
+- Dependencies added: `regex = "1"` (to pdfplumber-core)
+- **Learnings for future iterations:**
+  - Search algorithm: concatenate all char texts, build byte-offset→char-index mapping, run regex, map matches back to char bboxes
+  - Use `regex::escape()` for literal string search to avoid regex injection
+  - `BBox::union()` is perfect for computing match bounding boxes from constituent chars
+  - The `regex` crate supports `(?i)` prefix for case-insensitive matching
+  - Invalid regex patterns return empty results (graceful degradation)
+  - Page::search() delegates to search_chars() with the page's chars and page_number
+  - Pdf::search_all() iterates all pages and collects matches
 ---
