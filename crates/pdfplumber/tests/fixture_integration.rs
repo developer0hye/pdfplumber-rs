@@ -91,7 +91,11 @@ fn basic_text_chars_have_consistent_size() {
     let page = pdf.page(0).unwrap();
     let chars = page.chars();
     // All text is 12pt Helvetica, so sizes should be consistent
-    let sizes: Vec<f64> = chars.iter().filter(|c| c.text != " ").map(|c| c.size).collect();
+    let sizes: Vec<f64> = chars
+        .iter()
+        .filter(|c| c.text != " ")
+        .map(|c| c.size)
+        .collect();
     assert!(!sizes.is_empty());
     let first = sizes[0];
     for &s in &sizes {
@@ -109,7 +113,12 @@ fn basic_text_chars_have_valid_bboxes() {
     let pdf = open_fixture(&generated("basic_text.pdf"));
     let page = pdf.page(0).unwrap();
     for ch in page.chars() {
-        assert!(ch.bbox.x0 <= ch.bbox.x1, "x0 ({}) should be <= x1 ({})", ch.bbox.x0, ch.bbox.x1);
+        assert!(
+            ch.bbox.x0 <= ch.bbox.x1,
+            "x0 ({}) should be <= x1 ({})",
+            ch.bbox.x0,
+            ch.bbox.x1
+        );
         assert!(
             ch.bbox.top <= ch.bbox.bottom,
             "top ({}) should be <= bottom ({})",
@@ -548,10 +557,7 @@ fn pdffill_text_not_empty() {
 #[test]
 fn nics_opens_and_has_pages() {
     let pdf = open_fixture(&downloaded("nics-firearm-checks.pdf"));
-    assert!(
-        pdf.page_count() > 0,
-        "nics PDF should have at least 1 page"
-    );
+    assert!(pdf.page_count() > 0, "nics PDF should have at least 1 page");
 }
 
 #[test]

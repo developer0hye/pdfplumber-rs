@@ -170,11 +170,7 @@ fn cli_info_pdffill() {
 #[test]
 fn cli_search_long_document() {
     cmd()
-        .args([
-            "search",
-            &generated("long_document.pdf"),
-            "Lorem ipsum",
-        ])
+        .args(["search", &generated("long_document.pdf"), "Lorem ipsum"])
         .assert()
         .success()
         .stdout(predicate::str::is_empty().not());
