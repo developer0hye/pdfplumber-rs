@@ -1,6 +1,7 @@
 mod chars_cmd;
 mod cli;
 mod page_range;
+mod tables_cmd;
 mod text_cmd;
 mod words_cmd;
 
@@ -29,10 +30,23 @@ fn main() {
             x_tolerance,
             y_tolerance,
         } => words_cmd::run(file, pages.as_deref(), format, x_tolerance, y_tolerance),
-        cli::Commands::Tables { .. } => {
-            eprintln!("tables subcommand not yet implemented");
-            Err(1)
-        }
+        cli::Commands::Tables {
+            ref file,
+            ref pages,
+            ref format,
+            ref strategy,
+            snap_tolerance,
+            join_tolerance,
+            text_tolerance,
+        } => tables_cmd::run(
+            file,
+            pages.as_deref(),
+            format,
+            strategy,
+            snap_tolerance,
+            join_tolerance,
+            text_tolerance,
+        ),
     };
 
     if let Err(code) = result {

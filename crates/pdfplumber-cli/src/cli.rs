@@ -83,7 +83,32 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Table detection strategy
+        #[arg(long, value_enum, default_value_t = TableStrategy::Lattice)]
+        strategy: TableStrategy,
+
+        /// Snap tolerance for aligning nearby edges (default: 3.0)
+        #[arg(long, default_value_t = 3.0)]
+        snap_tolerance: f64,
+
+        /// Join tolerance for merging collinear edges (default: 3.0)
+        #[arg(long, default_value_t = 3.0)]
+        join_tolerance: f64,
+
+        /// Text tolerance for assigning text to cells (default: 3.0)
+        #[arg(long, default_value_t = 3.0)]
+        text_tolerance: f64,
     },
+}
+
+/// Table detection strategy.
+#[derive(Debug, Clone, ValueEnum)]
+pub enum TableStrategy {
+    /// Detect tables using visible lines and rect edges
+    Lattice,
+    /// Detect tables from text alignment patterns
+    Stream,
 }
 
 /// Output format for text subcommand.
@@ -254,16 +279,52 @@ mod tests {
             "2-4",
             "--format",
             "json",
+            "--strategy",
+            "stream",
+            "--snap-tolerance",
+            "5.0",
+            "--join-tolerance",
+            "4.0",
+            "--text-tolerance",
+            "2.0",
         ]);
         match cli.command {
             Commands::Tables {
                 ref file,
                 ref pages,
                 ref format,
+                ref strategy,
+                snap_tolerance,
+                join_tolerance,
+                text_tolerance,
             } => {
                 assert_eq!(file, &PathBuf::from("doc.pdf"));
                 assert_eq!(pages.as_deref(), Some("2-4"));
                 assert!(matches!(format, OutputFormat::Json));
+                assert!(matches!(strategy, TableStrategy::Stream));
+                assert!((snap_tolerance - 5.0).abs() < f64::EPSILON);
+                assert!((join_tolerance - 4.0).abs() < f64::EPSILON);
+                assert!((text_tolerance - 2.0).abs() < f64::EPSILON);
+            }
+            _ => panic!("expected Tables subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_tables_default_strategy_and_tolerances() {
+        let cli = Cli::parse_from(["pdfplumber", "tables", "test.pdf"]);
+        match cli.command {
+            Commands::Tables {
+                ref strategy,
+                snap_tolerance,
+                join_tolerance,
+                text_tolerance,
+                ..
+            } => {
+                assert!(matches!(strategy, TableStrategy::Lattice));
+                assert!((snap_tolerance - 3.0).abs() < f64::EPSILON);
+                assert!((join_tolerance - 3.0).abs() < f64::EPSILON);
+                assert!((text_tolerance - 3.0).abs() < f64::EPSILON);
             }
             _ => panic!("expected Tables subcommand"),
         }
