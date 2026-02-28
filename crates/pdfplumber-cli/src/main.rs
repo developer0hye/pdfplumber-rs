@@ -1,5 +1,6 @@
 mod chars_cmd;
 mod cli;
+mod info_cmd;
 mod page_range;
 mod shared;
 mod tables_cmd;
@@ -48,6 +49,11 @@ fn main() {
             join_tolerance,
             text_tolerance,
         ),
+        cli::Commands::Info {
+            ref file,
+            ref pages,
+            ref format,
+        } => info_cmd::run(file, pages.as_deref(), format),
     };
 
     if let Err(code) = result {

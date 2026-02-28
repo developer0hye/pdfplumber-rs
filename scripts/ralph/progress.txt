@@ -20,6 +20,8 @@
 - `page.find_tables(&settings)` returns `Vec<Table>`, Table has `bbox`, `rows`, `cells`, `columns`
 - Table.rows is `Vec<Vec<Cell>>`, Cell has `text: Option<String>` and `bbox: BBox`
 - Strategy/TableSettings re-exported from pdfplumber facade crate
+- Info command pattern: `info_cmd::run(file, pages, format) -> Result<(), i32>`
+- Page dimension/count API: `page.width()`, `page.height()`, `page.rotation()`, `page.chars().len()`, `page.lines().len()`, `page.rects().len()`, `page.curves().len()`, `page.images().len()`
 - Shared utilities in `shared.rs`: `open_pdf`, `resolve_pages`, `direction_str`, `csv_escape`, `ProgressReporter`
 - ProgressReporter: `new(total)`, `report(current)`, `finish()` — only prints to stderr when TTY
 - `Pdf` doesn't implement `Debug` — can't use `unwrap_err()` on `Result<Pdf, i32>`
@@ -121,4 +123,18 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - Rust import ordering: rustfmt sorts identifiers alphabetically, so `ProgressReporter` comes before `direction_str`
   - `std::io::IsTerminal` trait provides `is_terminal()` method for TTY detection (stabilized in Rust 1.70)
   - Shared module pattern: extract common functions into `shared.rs`, import with `use crate::shared::{...}`
+---
+
+## 2026-02-28 - US-056
+- Implemented `info` subcommand for displaying PDF metadata and page information
+- Files changed: src/cli.rs (added Info variant + 4 CLI parsing tests), src/main.rs (wired info_cmd), src/info_cmd.rs (new), tests/info_cmd.rs (new)
+- No new dependencies
+- Features: text and JSON output formats, --pages filtering, per-page details (dimensions, rotation, object counts), total document summary (chars, tables)
+- 4 CLI parsing tests + 17 integration tests (text output, JSON structure, page filtering, error handling)
+- **Learnings for future iterations:**
+  - Info command pattern: `info_cmd::run(file, pages, format) -> Result<(), i32>`
+  - Page API: `page.width()`, `page.height()`, `page.rotation()` for dimensions; `.chars().len()`, `.lines().len()`, `.rects().len()`, `.curves().len()`, `.images().len()` for object counts
+  - `page.find_tables(&settings).len()` for table count — reuses TableSettings::default()
+  - Info uses `TextFormat` (text/json) from cli.rs — same as text subcommand, no CSV needed
+  - JSON output uses `serde_json::to_string_pretty` for human-readable structured output (unlike JSON Lines in text cmd)
 ---

@@ -100,6 +100,21 @@ pub enum Commands {
         #[arg(long, default_value_t = 3.0)]
         text_tolerance: f64,
     },
+
+    /// Display PDF metadata and page information
+    Info {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = TextFormat::Text)]
+        format: TextFormat,
+    },
 }
 
 /// Table detection strategy.
@@ -349,6 +364,50 @@ mod tests {
                 assert!(matches!(format, OutputFormat::Text));
             }
             _ => panic!("expected Chars subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_info_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "info", "test.pdf"]);
+        match cli.command {
+            Commands::Info { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Info subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_info_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "info", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Info { ref format, .. } => {
+                assert!(matches!(format, TextFormat::Json));
+            }
+            _ => panic!("expected Info subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_info_with_pages() {
+        let cli = Cli::parse_from(["pdfplumber", "info", "test.pdf", "--pages", "1-3"]);
+        match cli.command {
+            Commands::Info { ref pages, .. } => {
+                assert_eq!(pages.as_deref(), Some("1-3"));
+            }
+            _ => panic!("expected Info subcommand"),
+        }
+    }
+
+    #[test]
+    fn info_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "info", "test.pdf"]);
+        match cli.command {
+            Commands::Info { ref format, .. } => {
+                assert!(matches!(format, TextFormat::Text));
+            }
+            _ => panic!("expected Info subcommand"),
         }
     }
 }
