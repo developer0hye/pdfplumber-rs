@@ -29,6 +29,7 @@ fn main() {
             layout,
             ref unicode_norm,
             ref password,
+            repair,
         } => text_cmd::run(
             file,
             pages.as_deref(),
@@ -36,6 +37,7 @@ fn main() {
             layout,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Chars {
             ref file,
@@ -43,12 +45,14 @@ fn main() {
             ref format,
             ref unicode_norm,
             ref password,
+            repair,
         } => chars_cmd::run(
             file,
             pages.as_deref(),
             format,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Words {
             ref file,
@@ -58,6 +62,7 @@ fn main() {
             y_tolerance,
             ref unicode_norm,
             ref password,
+            repair,
         } => words_cmd::run(
             file,
             pages.as_deref(),
@@ -66,6 +71,7 @@ fn main() {
             y_tolerance,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Tables {
             ref file,
@@ -76,6 +82,7 @@ fn main() {
             join_tolerance,
             text_tolerance,
             ref password,
+            repair,
         } => tables_cmd::run(
             file,
             pages.as_deref(),
@@ -85,43 +92,57 @@ fn main() {
             join_tolerance,
             text_tolerance,
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Info {
             ref file,
             ref pages,
             ref format,
             ref password,
-        } => info_cmd::run(file, pages.as_deref(), format, password.as_deref()),
+            repair,
+        } => info_cmd::run(file, pages.as_deref(), format, password.as_deref(), repair),
         cli::Commands::Annots {
             ref file,
             ref pages,
             ref format,
             ref password,
-        } => annots_cmd::run(file, pages.as_deref(), format, password.as_deref()),
+            repair,
+        } => annots_cmd::run(file, pages.as_deref(), format, password.as_deref(), repair),
         cli::Commands::Forms {
             ref file,
             ref pages,
             ref format,
             ref password,
-        } => forms_cmd::run(file, pages.as_deref(), format, password.as_deref()),
+            repair,
+        } => forms_cmd::run(file, pages.as_deref(), format, password.as_deref(), repair),
         cli::Commands::Links {
             ref file,
             ref pages,
             ref format,
             ref password,
-        } => links_cmd::run(file, pages.as_deref(), format, password.as_deref()),
+            repair,
+        } => links_cmd::run(file, pages.as_deref(), format, password.as_deref(), repair),
         cli::Commands::Bookmarks {
             ref file,
             ref format,
             ref password,
-        } => bookmarks_cmd::run(file, format, password.as_deref()),
+            repair,
+        } => bookmarks_cmd::run(file, format, password.as_deref(), repair),
         cli::Commands::Debug {
             ref file,
             ref pages,
             ref output,
             tables,
             ref password,
-        } => debug_cmd::run(file, pages.as_deref(), output, tables, password.as_deref()),
+            repair,
+        } => debug_cmd::run(
+            file,
+            pages.as_deref(),
+            output,
+            tables,
+            password.as_deref(),
+            repair,
+        ),
         cli::Commands::Search {
             ref file,
             ref pattern,
@@ -130,6 +151,7 @@ fn main() {
             no_regex,
             ref format,
             ref password,
+            repair,
         } => search_cmd::run(
             file,
             pattern,
@@ -138,6 +160,7 @@ fn main() {
             no_regex,
             format,
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Images {
             ref file,
@@ -146,6 +169,7 @@ fn main() {
             extract,
             ref output_dir,
             ref password,
+            repair,
         } => images_cmd::run(
             file,
             pages.as_deref(),
@@ -153,6 +177,7 @@ fn main() {
             extract,
             output_dir.as_deref(),
             password.as_deref(),
+            repair,
         ),
         cli::Commands::Validate {
             ref file,

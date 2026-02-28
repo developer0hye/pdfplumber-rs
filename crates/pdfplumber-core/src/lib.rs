@@ -58,6 +58,8 @@ pub mod page_object;
 pub mod painting;
 /// PDF path construction (MoveTo, LineTo, CurveTo, ClosePath).
 pub mod path;
+/// PDF repair types for best-effort fixing of common PDF issues.
+pub mod repair;
 /// Text search with position — find text patterns and return matches with bounding boxes.
 pub mod search;
 /// Shape extraction: Lines, Rects, Curves from painted paths.
@@ -97,6 +99,7 @@ pub use metadata::DocumentMetadata;
 pub use page_object::PageObject;
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
+pub use repair::{RepairOptions, RepairResult};
 pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
 pub use struct_tree::StructElement;

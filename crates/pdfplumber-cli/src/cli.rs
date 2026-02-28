@@ -38,6 +38,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract individual characters with coordinates
@@ -61,6 +65,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract words with bounding box coordinates
@@ -92,6 +100,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Detect and extract tables from PDF pages
@@ -127,6 +139,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Display PDF metadata and page information
@@ -146,6 +162,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract annotations from PDF pages
@@ -165,6 +185,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract hyperlinks from PDF pages
@@ -184,6 +208,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract bookmarks (outline / table of contents) from PDF
@@ -199,6 +227,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Extract form fields from PDF pages
@@ -218,6 +250,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Generate debug SVG with object overlays
@@ -241,6 +277,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Search for text patterns with position information
@@ -272,6 +312,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// List or extract images from PDF pages
@@ -299,6 +343,10 @@ pub enum Commands {
         /// Password for encrypted PDFs
         #[arg(long)]
         password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
     },
 
     /// Validate PDF structure and report specification violations
@@ -1189,6 +1237,52 @@ mod tests {
                 assert_eq!(password.as_deref(), Some("secret"));
             }
             _ => panic!("expected Validate subcommand"),
+        }
+    }
+
+    // --- Repair flag tests ---
+
+    #[test]
+    fn parse_text_with_repair_flag() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf", "--repair"]);
+        match cli.command {
+            Commands::Text { repair, .. } => {
+                assert!(repair);
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_text_without_repair_flag() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf"]);
+        match cli.command {
+            Commands::Text { repair, .. } => {
+                assert!(!repair);
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_chars_with_repair_flag() {
+        let cli = Cli::parse_from(["pdfplumber", "chars", "test.pdf", "--repair"]);
+        match cli.command {
+            Commands::Chars { repair, .. } => {
+                assert!(repair);
+            }
+            _ => panic!("expected Chars subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_tables_with_repair_flag() {
+        let cli = Cli::parse_from(["pdfplumber", "tables", "test.pdf", "--repair"]);
+        match cli.command {
+            Commands::Tables { repair, .. } => {
+                assert!(repair);
+            }
+            _ => panic!("expected Tables subcommand"),
         }
     }
 }

@@ -3,10 +3,15 @@ use std::path::Path;
 use pdfplumber::Bookmark;
 
 use crate::cli::TextFormat;
-use crate::shared::open_pdf_full;
+use crate::shared::open_pdf_maybe_repair;
 
-pub fn run(file: &Path, format: &TextFormat, password: Option<&str>) -> Result<(), i32> {
-    let pdf = open_pdf_full(file, None, password)?;
+pub fn run(
+    file: &Path,
+    format: &TextFormat,
+    password: Option<&str>,
+    repair: bool,
+) -> Result<(), i32> {
+    let pdf = open_pdf_maybe_repair(file, None, password, repair)?;
     let bookmarks = pdf.bookmarks();
 
     match format {

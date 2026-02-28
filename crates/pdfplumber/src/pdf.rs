@@ -2,8 +2,8 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
-    ImageContent, ImageMetadata, PdfError, SearchMatch, SearchOptions, StructElement, UnicodeNorm,
-    ValidationIssue, image_from_ctm, normalize_chars,
+    ImageContent, ImageMetadata, PdfError, RepairOptions, RepairResult, SearchMatch, SearchOptions,
+    StructElement, UnicodeNorm, ValidationIssue, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -204,6 +204,33 @@ impl Pdf {
     ) -> Result<Self, PdfError> {
         let bytes = std::fs::read(path.as_ref()).map_err(|e| PdfError::IoError(e.to_string()))?;
         Self::open_with_password(&bytes, password, options)
+    }
+
+    /// Open a PDF document with best-effort repair of common issues.
+    ///
+    /// Attempts to fix common PDF issues (broken xref, wrong stream lengths,
+    /// broken references) before opening the document. Returns the opened
+    /// PDF along with a [`RepairResult`] describing what was fixed.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Raw PDF file bytes.
+    /// * `options` - Extraction options (resource limits, etc.). Uses defaults if `None`.
+    /// * `repair_opts` - Repair options controlling which fixes to attempt. Uses defaults if `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the PDF is too corrupted to repair or open.
+    pub fn open_with_repair(
+        bytes: &[u8],
+        options: Option<ExtractOptions>,
+        repair_opts: Option<RepairOptions>,
+    ) -> Result<(Self, RepairResult), PdfError> {
+        let repair_opts = repair_opts.unwrap_or_default();
+        let (repaired_bytes, result) =
+            LopdfBackend::repair(bytes, &repair_opts).map_err(PdfError::from)?;
+        let pdf = Self::open(&repaired_bytes, options)?;
+        Ok((pdf, result))
     }
 
     /// Internal helper to construct a `Pdf` from a loaded `LopdfDocument`.

@@ -5,7 +5,7 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
-    ImageContent, PdfError, StructElement, ValidationIssue,
+    ImageContent, PdfError, RepairOptions, RepairResult, StructElement, ValidationIssue,
 };
 
 use crate::handler::ContentHandler;
@@ -259,6 +259,23 @@ pub trait PdfBackend {
     fn validate(doc: &Self::Document) -> Result<Vec<ValidationIssue>, Self::Error> {
         let _ = doc;
         Ok(Vec::new())
+    }
+
+    /// Attempt to repair common PDF issues in the raw bytes.
+    ///
+    /// Takes the original PDF bytes and repair options, applies best-effort
+    /// fixes, and returns the repaired bytes along with a log of what was fixed.
+    /// The caller can then open the repaired bytes normally.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the PDF is too corrupted to attempt repair.
+    fn repair(
+        bytes: &[u8],
+        options: &RepairOptions,
+    ) -> Result<(Vec<u8>, RepairResult), Self::Error> {
+        let _ = (bytes, options);
+        Ok((bytes.to_vec(), RepairResult::new()))
     }
 }
 
