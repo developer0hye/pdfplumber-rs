@@ -51,9 +51,7 @@ fn cli_text_long_document_pages() {
         .stdout(predicate::str::contains("Page 3"));
 }
 
-// TODO: Content stream parser fails with "unexpected '<<' in content stream" on this PDF
 #[test]
-#[ignore]
 fn cli_text_scotus() {
     cmd()
         .args(["text", &downloaded("scotus-transcript-p1.pdf")])
@@ -108,9 +106,7 @@ fn cli_chars_multi_font() {
 
 // ==================== tables subcommand ====================
 
-// TODO: fpdf2-drawn rects are not recognized as table edges by the lattice strategy
 #[test]
-#[ignore]
 fn cli_tables_json_lattice() {
     let output = cmd()
         .args([
@@ -128,9 +124,7 @@ fn cli_tables_json_lattice() {
     assert!(!parsed.is_empty(), "should detect tables in lattice PDF");
 }
 
-// TODO: Table detection does not find tables in real-world NICS government PDF
 #[test]
-#[ignore]
 fn cli_tables_nics() {
     let output = cmd()
         .args([

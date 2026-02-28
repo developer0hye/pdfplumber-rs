@@ -159,9 +159,7 @@ fn table_lattice_opens_and_has_one_page() {
     assert_eq!(pdf.page_count(), 1);
 }
 
-// TODO: fpdf2-drawn rects are not recognized as table edges by the lattice strategy
 #[test]
-#[ignore]
 fn table_lattice_detects_table() {
     let pdf = open_fixture(&generated("table_lattice.pdf"));
     let page = pdf.page(0).unwrap();
@@ -556,9 +554,7 @@ fn nics_opens_and_has_pages() {
     );
 }
 
-// TODO: Table detection does not find tables in real-world NICS government PDF
 #[test]
-#[ignore]
 fn nics_detects_table() {
     let pdf = open_fixture(&downloaded("nics-firearm-checks.pdf"));
     let page = pdf.page(0).unwrap();
@@ -610,9 +606,7 @@ fn scotus_opens_and_has_pages() {
     );
 }
 
-// TODO: Content stream parser fails with "unexpected '<<' in content stream" on this PDF
 #[test]
-#[ignore]
 fn scotus_substantial_text() {
     let pdf = open_fixture(&downloaded("scotus-transcript-p1.pdf"));
     let page = pdf.page(0).unwrap();
@@ -624,9 +618,7 @@ fn scotus_substantial_text() {
     );
 }
 
-// TODO: Content stream parser fails with "unexpected '<<' in content stream" on this PDF
 #[test]
-#[ignore]
 fn scotus_chars_have_valid_bboxes() {
     let pdf = open_fixture(&downloaded("scotus-transcript-p1.pdf"));
     let page = pdf.page(0).unwrap();
@@ -646,9 +638,7 @@ fn scotus_chars_have_valid_bboxes() {
     }
 }
 
-// TODO: Content stream parser fails with "unexpected '<<' in content stream" on this PDF
 #[test]
-#[ignore]
 fn scotus_has_many_chars() {
     let pdf = open_fixture(&downloaded("scotus-transcript-p1.pdf"));
     let page = pdf.page(0).unwrap();
