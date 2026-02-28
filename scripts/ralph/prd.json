@@ -20,7 +20,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Width data from Adobe AFM files. Courier is monospaced (all 600). Helvetica/Times are proportional. Key file to register module: crates/pdfplumber-parse/src/lib.rs."
     },
     {

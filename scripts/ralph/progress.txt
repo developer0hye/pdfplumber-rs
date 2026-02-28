@@ -1,21 +1,27 @@
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
+
 ## Codebase Patterns
-- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
-- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
-- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
-- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
-- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
-- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
-- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
-- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
-- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
-- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
-- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
-- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
-- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
-- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
+- Font metrics: `FontMetrics` struct in `crates/pdfplumber-parse/src/font_metrics.rs`, widths in glyph space (1/1000 em)
+- Standard font data: `StandardFontData` in `crates/pdfplumber-parse/src/standard_fonts.rs`, `lookup(name)` returns `Option<&'static StandardFontData>`
+- Subset prefix stripping: `crate::cid_font::strip_subset_prefix()` handles `ABCDEF+FontName` patterns
+- Width arrays use WinAnsiEncoding char code mapping (most common in modern PDFs)
+- Oblique variants share width data with upright: Helvetica-Oblique = Helvetica, Helvetica-BoldOblique = Helvetica-Bold
+- All Courier variants share one array (monospaced, all 600)
+- pdfplumber-py tests SIGABRT on macOS (pre-existing, unrelated to standard font work)
 
 ---
 
-# Ralph Progress Log - Phase 14: Standard Font Widths - Built-in glyph width data for standard Type1 fonts
-Started: 2026년  3월  1일 일요일 04시 55분 11초 KST
+## 2026-03-01 - US-103
+- Created `crates/pdfplumber-parse/src/standard_fonts.rs` with `StandardFontData` struct and `lookup()` function
+- Added static width arrays for all 14 standard Type1 fonts (9 unique arrays, shared via match arms)
+- Width data sourced from Adobe AFM specifications, indexed by WinAnsiEncoding char codes
+- Registered `pub mod standard_fonts;` in `crates/pdfplumber-parse/src/lib.rs`
+- 11 unit tests: known widths, all 14 fonts present, unknown returns None, Courier uniform 600, proportional checks
+- Files changed: `crates/pdfplumber-parse/src/standard_fonts.rs` (new), `crates/pdfplumber-parse/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - AFM files use StandardEncoding char codes; need WinAnsiEncoding mapping for modern PDFs
+  - Codes 39 (quotesingle vs quoteright) and 96 (grave vs quoteleft) differ between encodings
+  - Symbol and ZapfDingbats use their own built-in encodings, not WinAnsiEncoding
 ---
