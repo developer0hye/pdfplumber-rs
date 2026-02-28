@@ -5,6 +5,8 @@
 
 use crate::edges::Edge;
 use crate::geometry::BBox;
+use crate::text::Char;
+use crate::words::{WordExtractor, WordOptions};
 
 /// Strategy for table detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -590,6 +592,86 @@ fn edge_length(edge: &Edge) -> f64 {
     let dx = edge.x1 - edge.x0;
     let dy = edge.bottom - edge.top;
     (dx * dx + dy * dy).sqrt()
+}
+
+/// Extract text content for each cell by finding characters within the cell bbox.
+///
+/// For each cell, finds all [`Char`]s whose bbox center point falls within the
+/// cell's bounding box. Characters are grouped into words using [`WordExtractor`],
+/// then joined into text with spaces between words on the same line and newlines
+/// between lines.
+///
+/// Cells with no matching characters get `text = None`.
+pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
+    let options = WordOptions::default();
+
+    for cell in cells.iter_mut() {
+        // Find chars whose bbox center falls within this cell
+        let cell_chars: Vec<Char> = chars
+            .iter()
+            .filter(|ch| {
+                let cx = (ch.bbox.x0 + ch.bbox.x1) / 2.0;
+                let cy = (ch.bbox.top + ch.bbox.bottom) / 2.0;
+                cx >= cell.bbox.x0
+                    && cx <= cell.bbox.x1
+                    && cy >= cell.bbox.top
+                    && cy <= cell.bbox.bottom
+            })
+            .cloned()
+            .collect();
+
+        if cell_chars.is_empty() {
+            cell.text = None;
+            continue;
+        }
+
+        // Group chars into words
+        let words = WordExtractor::extract(&cell_chars, &options);
+        if words.is_empty() {
+            cell.text = None;
+            continue;
+        }
+
+        // Group words into lines by y-coordinate proximity
+        let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
+        sorted_words.sort_by(|a, b| {
+            a.bbox
+                .top
+                .partial_cmp(&b.bbox.top)
+                .unwrap()
+                .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
+        });
+
+        let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
+        for word in &sorted_words {
+            let added = lines.last_mut().and_then(|line| {
+                let last_top = line[0].bbox.top;
+                if (word.bbox.top - last_top).abs() <= options.y_tolerance {
+                    line.push(word);
+                    Some(())
+                } else {
+                    None
+                }
+            });
+            if added.is_none() {
+                lines.push(vec![word]);
+            }
+        }
+
+        // Join: words within a line separated by spaces, lines separated by newlines
+        let text: String = lines
+            .iter()
+            .map(|line| {
+                line.iter()
+                    .map(|w| w.text.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        cell.text = Some(text);
+    }
 }
 
 /// Orchestrator for the table detection pipeline.
@@ -2273,5 +2355,193 @@ mod tests {
         // Only line edges used → 1 table with 1 cell (not 2 cells)
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    // --- extract_text_for_cells tests (US-036) ---
+
+    fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
+        Char {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            fontname: "TestFont".to_string(),
+            size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: crate::text::TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 0,
+        }
+    }
+
+    #[test]
+    fn test_extract_text_single_word_in_cell() {
+        // Cell: (0,0)-(100,50), chars spelling "Hi" centered in cell
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 100.0, 50.0),
+            text: None,
+        }];
+        let chars = vec![
+            make_char("H", 10.0, 15.0, 20.0, 27.0),
+            make_char("i", 20.0, 15.0, 28.0, 27.0),
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("Hi".to_string()));
+    }
+
+    #[test]
+    fn test_extract_text_empty_cell() {
+        // Cell with no characters inside → text should remain None
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 100.0, 50.0),
+            text: None,
+        }];
+        let chars: Vec<Char> = vec![];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, None);
+    }
+
+    #[test]
+    fn test_extract_text_chars_outside_cell() {
+        // All characters are outside the cell bbox → text should be None
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+            text: None,
+        }];
+        // Chars at x=200, far outside cell
+        let chars = vec![
+            make_char("A", 200.0, 10.0, 210.0, 22.0),
+            make_char("B", 210.0, 10.0, 220.0, 22.0),
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, None);
+    }
+
+    #[test]
+    fn test_extract_text_center_point_containment() {
+        // Char bbox partially overlaps cell but center is outside → not included
+        // Cell: (0,0)-(50,30)
+        // Char bbox: (48,10)-(60,22) → center = (54, 16) → outside cell
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+            text: None,
+        }];
+        let chars = vec![make_char("X", 48.0, 10.0, 60.0, 22.0)];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, None);
+    }
+
+    #[test]
+    fn test_extract_text_center_inside_cell() {
+        // Char bbox extends past cell border but center is inside → included
+        // Cell: (0,0)-(50,30)
+        // Char bbox: (40,10)-(52,22) → center = (46, 16) → inside cell
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+            text: None,
+        }];
+        let chars = vec![make_char("Y", 40.0, 10.0, 52.0, 22.0)];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("Y".to_string()));
+    }
+
+    #[test]
+    fn test_extract_text_multiple_words_in_cell() {
+        // Cell with two words separated by a space char
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 200.0, 50.0),
+            text: None,
+        }];
+        let chars = vec![
+            make_char("H", 10.0, 15.0, 20.0, 27.0),
+            make_char("i", 20.0, 15.0, 28.0, 27.0),
+            make_char(" ", 28.0, 15.0, 33.0, 27.0),
+            make_char("B", 33.0, 15.0, 43.0, 27.0),
+            make_char("o", 43.0, 15.0, 51.0, 27.0),
+            make_char("b", 51.0, 15.0, 59.0, 27.0),
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("Hi Bob".to_string()));
+    }
+
+    #[test]
+    fn test_extract_text_multiple_lines_in_cell() {
+        // Cell with text on two lines (different y positions)
+        let mut cells = vec![Cell {
+            bbox: BBox::new(0.0, 0.0, 200.0, 80.0),
+            text: None,
+        }];
+        let chars = vec![
+            // Line 1: "AB" at y=10
+            make_char("A", 10.0, 10.0, 20.0, 22.0),
+            make_char("B", 20.0, 10.0, 30.0, 22.0),
+            // Line 2: "CD" at y=40
+            make_char("C", 10.0, 40.0, 20.0, 52.0),
+            make_char("D", 20.0, 40.0, 30.0, 52.0),
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("AB\nCD".to_string()));
+    }
+
+    #[test]
+    fn test_extract_text_two_cells() {
+        // Two cells, each with different text
+        let mut cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                text: None,
+            },
+            Cell {
+                bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                text: None,
+            },
+        ];
+        let chars = vec![
+            // "A" in cell 0 (center at (15, 16))
+            make_char("A", 10.0, 10.0, 20.0, 22.0),
+            // "B" in cell 1 (center at (65, 16))
+            make_char("B", 60.0, 10.0, 70.0, 22.0),
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("A".to_string()));
+        assert_eq!(cells[1].text, Some("B".to_string()));
+    }
+
+    #[test]
+    fn test_extract_text_no_cells() {
+        // Empty cells slice → should not panic
+        let mut cells: Vec<Cell> = vec![];
+        let chars = vec![make_char("A", 10.0, 10.0, 20.0, 22.0)];
+        extract_text_for_cells(&mut cells, &chars);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_extract_text_mixed_empty_and_populated_cells() {
+        // Three cells: first has text, second is empty, third has text
+        let mut cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                text: None,
+            },
+            Cell {
+                bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                text: None,
+            },
+            Cell {
+                bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                text: None,
+            },
+        ];
+        let chars = vec![
+            make_char("X", 10.0, 10.0, 20.0, 22.0), // in cell 0
+            make_char("Z", 110.0, 10.0, 120.0, 22.0), // in cell 2
+                                                    // No chars in cell 1
+        ];
+        extract_text_for_cells(&mut cells, &chars);
+        assert_eq!(cells[0].text, Some("X".to_string()));
+        assert_eq!(cells[1].text, None);
+        assert_eq!(cells[2].text, Some("Z".to_string()));
     }
 }

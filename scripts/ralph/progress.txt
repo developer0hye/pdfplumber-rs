@@ -24,6 +24,9 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `edge_length(edge)` computes length via Euclidean distance (sqrt(dx²+dy²))
 - `TableFinder::find_tables()` runs full pipeline: filter by strategy → filter by min_length → snap → join → intersections → cells → tables
 - LatticeStrict filters edges by `EdgeSource::Line` only; Lattice uses all edge sources
+- `extract_text_for_cells(cells, chars)` populates cell text using center-point containment + WordExtractor
+- Center-point containment: char bbox center (cx, cy) must fall within cell bbox
+- Text assembly: chars → WordExtractor → group words into lines by y-tolerance → join with spaces/newlines
 
 ---
 
@@ -114,4 +117,19 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Edge source filtering for LatticeStrict uses the `EdgeSource` enum discriminant
   - `edge_length()` uses Euclidean distance which works for all orientations (H, V, diagonal)
   - 10 tests covering: simple bordered table, rect edges, strict mode, strict with lines, edge min length filtering, full pipeline snap+join, empty edges, no intersections, strict mixed edges
+---
+
+## 2026-02-28 - US-036
+- Implemented `extract_text_for_cells()` for extracting text content within detected table cells
+- Uses center-point containment: char bbox center (cx, cy) must be within cell bbox
+- Groups chars into words via `WordExtractor`, then groups words into lines by y-proximity
+- Joins words within a line with spaces, lines with newlines
+- Cells with no matching chars get `text = None`
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `extract_text_for_cells(cells: &mut [Cell], chars: &[Char])` takes mutable slice to modify in place
+  - Uses `WordOptions::default()` for word grouping (x_tolerance=3, y_tolerance=3)
+  - Line grouping uses same y_tolerance as word grouping for consistency
+  - 10 tests covering: single word, empty cell, chars outside, center-point containment (in/out), multiple words, multiple lines, two cells, no cells, mixed empty/populated
 ---
