@@ -14,6 +14,8 @@ pub struct WordOptions {
     pub use_text_flow: bool,
     /// Text direction for grouping characters.
     pub text_direction: TextDirection,
+    /// If true, expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
+    pub expand_ligatures: bool,
 }
 
 impl Default for WordOptions {
@@ -24,6 +26,7 @@ impl Default for WordOptions {
             keep_blank_chars: false,
             use_text_flow: false,
             text_direction: TextDirection::default(),
+            expand_ligatures: true,
         }
     }
 }
@@ -115,7 +118,7 @@ impl WordExtractor {
             // If this is a blank and we're not keeping blanks, finish current word
             if is_blank && !options.keep_blank_chars {
                 if !current_chars.is_empty() {
-                    words.push(Self::make_word(&current_chars));
+                    words.push(Self::make_word(&current_chars, options.expand_ligatures));
                     current_chars.clear();
                 }
                 continue;
@@ -135,7 +138,7 @@ impl WordExtractor {
             };
 
             if should_split {
-                words.push(Self::make_word(&current_chars));
+                words.push(Self::make_word(&current_chars, options.expand_ligatures));
                 current_chars.clear();
             }
 
@@ -143,7 +146,7 @@ impl WordExtractor {
         }
 
         if !current_chars.is_empty() {
-            words.push(Self::make_word(&current_chars));
+            words.push(Self::make_word(&current_chars, options.expand_ligatures));
         }
 
         words
@@ -193,8 +196,13 @@ impl WordExtractor {
         y_gap > y_tol || x_diff > options.x_tolerance
     }
 
-    fn make_word(chars: &[Char]) -> Word {
-        let text: String = chars.iter().map(|c| c.text.as_str()).collect();
+    fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {
+        let raw_text: String = chars.iter().map(|c| c.text.as_str()).collect();
+        let text = if expand_ligatures {
+            expand_ligatures_in_text(&raw_text)
+        } else {
+            raw_text
+        };
         let bbox = chars
             .iter()
             .map(|c| c.bbox)
@@ -210,6 +218,24 @@ impl WordExtractor {
             chars: chars.to_vec(),
         }
     }
+}
+
+/// Expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
+fn expand_ligatures_in_text(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    for ch in text.chars() {
+        match ch {
+            '\u{FB00}' => result.push_str("ff"),
+            '\u{FB01}' => result.push_str("fi"),
+            '\u{FB02}' => result.push_str("fl"),
+            '\u{FB03}' => result.push_str("ffi"),
+            '\u{FB04}' => result.push_str("ffl"),
+            '\u{FB05}' => result.push_str("\u{017F}t"), // long s + t
+            '\u{FB06}' => result.push_str("st"),
+            _ => result.push(ch),
+        }
+    }
+    result
 }
 
 #[cfg(test)]
@@ -751,6 +777,80 @@ mod tests {
         );
         assert_eq!(words[0].text, "上");
         assert_eq!(words[1].text, "下");
+    }
+
+    // --- Ligature expansion tests (US-088) ---
+
+    #[test]
+    fn test_expand_ligatures_default_true() {
+        let opts = WordOptions::default();
+        assert!(opts.expand_ligatures);
+    }
+
+    #[test]
+    fn test_fi_ligature_expanded_in_word() {
+        // "ﬁ" (U+FB01) followed by "nd" → "find"
+        let chars = vec![
+            make_char("\u{FB01}", 10.0, 100.0, 22.0, 112.0),
+            make_char("n", 22.0, 100.0, 30.0, 112.0),
+            make_char("d", 30.0, 100.0, 38.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].text, "find");
+    }
+
+    #[test]
+    fn test_ligature_preserved_when_disabled() {
+        // With expand_ligatures=false, ligature should pass through unchanged
+        let chars = vec![
+            make_char("\u{FB01}", 10.0, 100.0, 22.0, 112.0),
+            make_char("n", 22.0, 100.0, 30.0, 112.0),
+            make_char("d", 30.0, 100.0, 38.0, 112.0),
+        ];
+        let opts = WordOptions {
+            expand_ligatures: false,
+            ..WordOptions::default()
+        };
+        let words = WordExtractor::extract(&chars, &opts);
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].text, "\u{FB01}nd");
+    }
+
+    #[test]
+    fn test_all_seven_ligatures_expanded() {
+        // Test each of the 7 Latin ligatures U+FB00-U+FB06
+        let ligatures = vec![
+            ("\u{FB00}", "ff"),        // ff
+            ("\u{FB01}", "fi"),        // fi
+            ("\u{FB02}", "fl"),        // fl
+            ("\u{FB03}", "ffi"),       // ffi
+            ("\u{FB04}", "ffl"),       // ffl
+            ("\u{FB05}", "\u{017F}t"), // long s + t (ſt)
+            ("\u{FB06}", "st"),        // st
+        ];
+        for (lig, expanded) in ligatures {
+            let chars = vec![make_char(lig, 10.0, 100.0, 22.0, 112.0)];
+            let words = WordExtractor::extract(&chars, &WordOptions::default());
+            assert_eq!(
+                words[0].text, expanded,
+                "Ligature {} should expand to {:?}",
+                lig, expanded
+            );
+        }
+    }
+
+    #[test]
+    fn test_multiple_ligatures_in_one_word() {
+        // "oﬃce" with ffi ligature → "office"
+        let chars = vec![
+            make_char("o", 10.0, 100.0, 18.0, 112.0),
+            make_char("\u{FB03}", 18.0, 100.0, 30.0, 112.0), // ffi
+            make_char("c", 30.0, 100.0, 38.0, 112.0),
+            make_char("e", 38.0, 100.0, 46.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words[0].text, "office");
     }
 
     #[test]
