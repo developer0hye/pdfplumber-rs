@@ -10,8 +10,10 @@
 //! - **pdfplumber** (this crate): Public API that ties everything together
 
 mod page;
+mod pdf;
 
 pub use page::Page;
+pub use pdf::Pdf;
 pub use pdfplumber_core::{
     BBox, Char, Color, Ctm, Curve, DashPattern, Edge, EdgeSource, EncodingResolver, ExtGState,
     ExtractOptions, ExtractResult, ExtractWarning, FillRule, FontEncoding, GraphicsState, Image,

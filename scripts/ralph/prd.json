@@ -37,7 +37,7 @@
       ],
       "priority": 2,
       "passes": true,
-      "notes": "Completed. Color changed from struct to enum (Gray/Rgb/Cmyk/Other). Orientation enum added to geometry.rs. LineOrientation kept as type alias."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-003",
@@ -57,7 +57,7 @@
       ],
       "priority": 3,
       "passes": true,
-      "notes": "Char extended with doctop, upright, direction, stroking_color, non_stroking_color, ctm, char_code. Word extended with doctop, direction. Line/Rect/Curve/Edge/Image already existed from Phase 2. Construction and field access tests added for all types."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-004",
@@ -75,7 +75,7 @@
       ],
       "priority": 4,
       "passes": true,
-      "notes": "PdfError in pdfplumber-core with manual Error impl. BackendError in pdfplumber-parse with thiserror. ExtractWarning has description + optional page/element context. ExtractOptions with sensible defaults (10 recursion, 100K objects, 100MB streams)."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-005",
@@ -93,7 +93,7 @@
       ],
       "priority": 5,
       "passes": true,
-      "notes": "PdfBackend trait with associated types (Document, Page, Error). ContentHandler trait with CharEvent/PathEvent/ImageEvent callbacks. Default no-op implementations allow selective handler subscription. Mock backend tests verify the trait contract."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-006",
@@ -112,7 +112,7 @@
       ],
       "priority": 6,
       "passes": true,
-      "notes": "LopdfBackend implements PdfBackend for open/page_count/get_page. lopdf 0.34 added as dependency. LopdfDocument wraps lopdf::Document + cached page_ids. LopdfPage holds ObjectId + index. Stub methods for page_media_box/page_crop_box/page_rotate/interpret_page (US-007+). Test PDFs created programmatically with lopdf."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-007",
@@ -129,7 +129,7 @@
       ],
       "priority": 7,
       "passes": true,
-      "notes": "page_media_box with inheritance via resolve_inherited helper. page_crop_box reads from page dict only (no inheritance). page_rotate with inheritance, defaults to 0. Helper functions: extract_bbox_from_array, object_to_f64, resolve_inherited."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-008",
@@ -147,7 +147,7 @@
       ],
       "priority": 8,
       "passes": true,
-      "notes": "Tokenizer in pdfplumber-parse. Operand enum (Integer/Real/Name/LiteralString/HexString/Array/Boolean/Null), Operator struct, tokenize() function. Handles comments, inline images (BI/ID/EI), escape sequences, hex strings, balanced parens, octal escapes, #XX name escapes. 48 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-009",
@@ -165,7 +165,7 @@
       ],
       "priority": 9,
       "passes": true,
-      "notes": "InterpreterState in pdfplumber-parse bundles Ctm + GraphicsState + state stack. q/Q push/pop full state (CTM + graphics). cm pre-multiplies new matrix onto CTM. Color operators: G/g (gray), RG/rg (RGB), K/k (CMYK), SC/SCN/sc/scn (generic via component count). Also w (line width), d (dash pattern). 38 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-010",
@@ -185,7 +185,7 @@
       ],
       "priority": 10,
       "passes": true,
-      "notes": "TextState in pdfplumber-parse. TextRenderMode enum (0-7). BT resets text/line matrices to identity. ET clears in_text_object. Tf sets font_name/font_size. Tm replaces (not concatenates) both matrices. Td pre-multiplies translation onto line_matrix, copies to text_matrix. TD sets leading=-ty then calls Td. T* calls Td(0,-leading). advance_text_position pre-multiplies horizontal translation onto text_matrix only. Text state params (Tc/Tw/Tz/TL/Tr/Ts) persist across BT/ET."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-011",
@@ -204,7 +204,7 @@
       ],
       "priority": 11,
       "passes": true,
-      "notes": "RawChar struct captures char_code + displacement + text_matrix snapshot. TjElement enum for TJ arrays. Functions: show_string (Tj), show_string_with_positioning (TJ), quote_show_string ('), double_quote_show_string (\"). Width lookup via callback (dyn Fn(u32)->f64). Single-byte encoding (each byte = char code). 34 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-012",
@@ -223,7 +223,7 @@
       ],
       "priority": 12,
       "passes": true,
-      "notes": "CMap struct in pdfplumber-parse/cmap.rs. Parses beginbfchar/endbfchar and beginbfrange/endbfrange sections. UTF-16BE decoding with surrogate pair support. Multi-byte source codes (1-2 bytes). Multi-char Unicode mappings (ligatures). Array destination form for bfrange. 24 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-013",
@@ -242,7 +242,7 @@
       ],
       "priority": 13,
       "passes": true,
-      "notes": "FontMetrics struct in pdfplumber-parse/font_metrics.rs. get_width(char_code) with first_char/last_char range, missing_width fallback. extract_font_metrics() parses lopdf Dictionary for /Widths, /FirstChar, /LastChar + /FontDescriptor (/Ascent, /Descent, /MissingWidth, /FontBBox). Handles indirect references, Integer and Real values, missing fields with defaults. 22 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-014",
@@ -261,7 +261,7 @@
       ],
       "priority": 14,
       "passes": true,
-      "notes": "char_from_event() in pdfplumber-parse/char_extraction.rs. Builds Trm (Text Rendering Matrix) = font_matrix × Tm × CTM. Computes 4 corners in glyph-normalized space, transforms through Trm, takes AABB, and y-flips for top-left origin. Handles: char_spacing, word_spacing (space only), h_scaling, rise (superscript/subscript), rotated text, CTM transformations. Determines upright flag (trm.b≈0 && trm.c≈0) and text direction (Ltr/Rtl/Ttb/Btt). Unicode fallback: event.unicode → char::from_u32 → U+FFFD. 24 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-015",
@@ -281,7 +281,7 @@
       ],
       "priority": 15,
       "passes": true,
-      "notes": "PageGeometry struct in pdfplumber-parse/page_geometry.rs. Combines MediaBox + CropBox + rotation into unified transform. Pipeline: MediaBox offset → rotation (0/90/180/270) → CropBox offset → y-flip. normalize_point() for single points, normalize_bbox() for bounding boxes. Handles non-zero MediaBox origin, negative rotations, all CropBox+rotation combinations. 32 unit tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-016",
@@ -300,7 +300,7 @@
       ],
       "priority": 16,
       "passes": true,
-      "notes": "Full content stream interpreter with operator dispatch loop. Form XObject handling: save state, apply /Matrix, get resources (with parent fallback), decode stream, recurse. Image XObject events. Font caching with metrics + ToUnicode CMap. Respect max_recursion_depth. 13 unit + integration tests."
+      "notes": "Already merged to main."
     },
     {
       "id": "US-017",
@@ -320,8 +320,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": "This is the capstone story for Phase 1. Everything must work end-to-end."
+      "passes": true,
+      "notes": "Capstone story completed. Full extraction pipeline wired end-to-end."
     }
   ]
 }

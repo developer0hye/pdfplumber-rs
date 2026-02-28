@@ -1,7 +1,7 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Char, Curve, Edge, Image, Line, Rect, TextOptions, Word, WordExtractor, WordOptions,
+    BBox, Char, Curve, Edge, Image, Line, Rect, TextOptions, Word, WordExtractor, WordOptions,
     blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
     sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
@@ -17,6 +17,8 @@ pub struct Page {
     width: f64,
     /// Page height in points.
     height: f64,
+    /// Page rotation in degrees (0, 90, 180, or 270).
+    rotation: i32,
     /// Characters extracted from this page.
     chars: Vec<Char>,
     /// Lines extracted from painted paths.
@@ -36,6 +38,7 @@ impl Page {
             page_number,
             width,
             height,
+            rotation: 0,
             chars,
             lines: Vec::new(),
             rects: Vec::new(),
@@ -58,6 +61,7 @@ impl Page {
             page_number,
             width,
             height,
+            rotation: 0,
             chars,
             lines,
             rects,
@@ -82,10 +86,36 @@ impl Page {
             page_number,
             width,
             height,
+            rotation: 0,
             chars,
             lines,
             rects,
             curves,
+            images,
+        }
+    }
+
+    /// Create a page from PDF extraction results.
+    ///
+    /// Used internally by [`Pdf::page()`](crate::Pdf::page) to construct pages
+    /// from content stream interpretation.
+    pub(crate) fn from_extraction(
+        page_number: usize,
+        width: f64,
+        height: f64,
+        rotation: i32,
+        chars: Vec<Char>,
+        images: Vec<Image>,
+    ) -> Self {
+        Self {
+            page_number,
+            width,
+            height,
+            rotation,
+            chars,
+            lines: Vec::new(),
+            rects: Vec::new(),
+            curves: Vec::new(),
             images,
         }
     }
@@ -103,6 +133,16 @@ impl Page {
     /// Returns the page height in points.
     pub fn height(&self) -> f64 {
         self.height
+    }
+
+    /// Returns the page rotation in degrees (0, 90, 180, or 270).
+    pub fn rotation(&self) -> i32 {
+        self.rotation
+    }
+
+    /// Returns the page bounding box: `(0, 0, width, height)`.
+    pub fn bbox(&self) -> BBox {
+        BBox::new(0.0, 0.0, self.width, self.height)
     }
 
     /// Returns the characters extracted from this page.
