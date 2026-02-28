@@ -84,6 +84,190 @@ impl CMap {
     }
 }
 
+/// A parsed CID CMap that maps character codes to CIDs.
+///
+/// Used by predefined CMaps (e.g., Adobe-Japan1) and embedded CID CMaps
+/// that use `begincidchar`/`endcidchar` and `begincidrange`/`endcidrange`
+/// sections. Unlike [`CMap`] which maps to Unicode strings, this maps
+/// character codes to numeric CID values.
+#[derive(Debug, Clone)]
+pub struct CidCMap {
+    /// Mapping from character code to CID.
+    cid_mappings: HashMap<u32, u32>,
+    /// CMap name (e.g., "Adobe-Japan1-6").
+    name: Option<String>,
+    /// Writing mode: 0 = horizontal, 1 = vertical.
+    writing_mode: u8,
+}
+
+impl CidCMap {
+    /// Parse a CID CMap from its raw byte content.
+    ///
+    /// Extracts `begincidchar`/`endcidchar` and `begincidrange`/`endcidrange`
+    /// sections to build the character code → CID mapping table.
+    pub fn parse(data: &[u8]) -> Result<Self, BackendError> {
+        let text = String::from_utf8_lossy(data);
+        let mut cid_mappings = HashMap::new();
+
+        // Parse CMap name
+        let name = parse_cmap_name(&text);
+
+        // Parse writing mode (/WMode)
+        let writing_mode = parse_writing_mode(&text);
+
+        // Parse all begincidchar...endcidchar sections
+        let mut search_from = 0;
+        while let Some(start) = text[search_from..].find("begincidchar") {
+            let section_start = search_from + start + "begincidchar".len();
+            if let Some(end) = text[section_start..].find("endcidchar") {
+                let section = &text[section_start..section_start + end];
+                parse_cidchar_section(section, &mut cid_mappings)?;
+                search_from = section_start + end + "endcidchar".len();
+            } else {
+                break;
+            }
+        }
+
+        // Parse all begincidrange...endcidrange sections
+        search_from = 0;
+        while let Some(start) = text[search_from..].find("begincidrange") {
+            let section_start = search_from + start + "begincidrange".len();
+            if let Some(end) = text[section_start..].find("endcidrange") {
+                let section = &text[section_start..section_start + end];
+                parse_cidrange_section(section, &mut cid_mappings)?;
+                search_from = section_start + end + "endcidrange".len();
+            } else {
+                break;
+            }
+        }
+
+        Ok(CidCMap {
+            cid_mappings,
+            name,
+            writing_mode,
+        })
+    }
+
+    /// Look up the CID for a character code.
+    pub fn lookup(&self, code: u32) -> Option<u32> {
+        self.cid_mappings.get(&code).copied()
+    }
+
+    /// Returns the number of mappings in this CID CMap.
+    pub fn len(&self) -> usize {
+        self.cid_mappings.len()
+    }
+
+    /// Returns true if this CID CMap has no mappings.
+    pub fn is_empty(&self) -> bool {
+        self.cid_mappings.is_empty()
+    }
+
+    /// CMap name.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
+    }
+
+    /// Writing mode: 0 = horizontal, 1 = vertical.
+    pub fn writing_mode(&self) -> u8 {
+        self.writing_mode
+    }
+}
+
+/// Parse a begincidchar...endcidchar section.
+///
+/// Each line has format: `<srcCode> CID`
+fn parse_cidchar_section(
+    section: &str,
+    mappings: &mut HashMap<u32, u32>,
+) -> Result<(), BackendError> {
+    for line in section.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || !trimmed.contains('<') {
+            continue;
+        }
+
+        let tokens = extract_hex_tokens(trimmed);
+        if tokens.is_empty() {
+            continue;
+        }
+        let src_code = parse_hex_code(tokens[0])?;
+
+        // CID is a decimal number after the hex token
+        let after_hex = trimmed
+            .rfind('>')
+            .map(|pos| &trimmed[pos + 1..])
+            .unwrap_or("");
+        if let Ok(cid) = after_hex.trim().parse::<u32>() {
+            mappings.insert(src_code, cid);
+        }
+    }
+    Ok(())
+}
+
+/// Parse a begincidrange...endcidrange section.
+///
+/// Each line has format: `<srcLow> <srcHigh> CID_start`
+fn parse_cidrange_section(
+    section: &str,
+    mappings: &mut HashMap<u32, u32>,
+) -> Result<(), BackendError> {
+    for line in section.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || !trimmed.contains('<') {
+            continue;
+        }
+
+        let tokens = extract_hex_tokens(trimmed);
+        if tokens.len() < 2 {
+            continue;
+        }
+        let src_low = parse_hex_code(tokens[0])?;
+        let src_high = parse_hex_code(tokens[1])?;
+
+        // CID start is a decimal number after the last hex token
+        let after_last_hex = trimmed
+            .rfind('>')
+            .map(|pos| &trimmed[pos + 1..])
+            .unwrap_or("");
+        if let Ok(cid_start) = after_last_hex.trim().parse::<u32>() {
+            for offset in 0..=(src_high.saturating_sub(src_low)) {
+                mappings.insert(src_low + offset, cid_start + offset);
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Parse /CMapName from CMap data.
+fn parse_cmap_name(text: &str) -> Option<String> {
+    // Look for "/CMapName /SomeName def"
+    let idx = text.find("/CMapName")?;
+    let rest = &text[idx + "/CMapName".len()..];
+    let rest = rest.trim_start();
+    if let Some(rest) = rest.strip_prefix('/') {
+        let end = rest.find(|c: char| c.is_whitespace()).unwrap_or(rest.len());
+        Some(rest[..end].to_string())
+    } else {
+        None
+    }
+}
+
+/// Parse /WMode from CMap data.
+fn parse_writing_mode(text: &str) -> u8 {
+    // Look for "/WMode N def"
+    if let Some(idx) = text.find("/WMode") {
+        let rest = &text[idx + "/WMode".len()..];
+        let rest = rest.trim_start();
+        if let Some(ch) = rest.chars().next() {
+            if ch == '1' {
+                return 1;
+            }
+        }
+    }
+    0 // default horizontal
+}
+
 /// Parse a hex string like "0041" into a u32 character code.
 fn parse_hex_code(hex: &str) -> Result<u32, BackendError> {
     u32::from_str_radix(hex, 16)
@@ -533,5 +717,165 @@ mod tests {
             endbfchar\n";
         let cmap = CMap::parse(data).unwrap();
         assert_eq!(cmap.lookup_or_replacement(0x9999), "\u{FFFD}");
+    }
+
+    // --- CidCMap tests ---
+
+    #[test]
+    fn cid_cmap_empty() {
+        let cmap = CidCMap::parse(b"").unwrap();
+        assert!(cmap.is_empty());
+        assert_eq!(cmap.len(), 0);
+        assert_eq!(cmap.lookup(0), None);
+    }
+
+    #[test]
+    fn cid_cmap_cidchar_single() {
+        let data = b"\
+            begincidchar\n\
+            <0041> 100\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some(100));
+    }
+
+    #[test]
+    fn cid_cmap_cidchar_multiple() {
+        let data = b"\
+            begincidchar\n\
+            <0041> 100\n\
+            <0042> 101\n\
+            <0043> 102\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some(100));
+        assert_eq!(cmap.lookup(0x0042), Some(101));
+        assert_eq!(cmap.lookup(0x0043), Some(102));
+        assert_eq!(cmap.len(), 3);
+    }
+
+    #[test]
+    fn cid_cmap_cidrange_simple() {
+        let data = b"\
+            begincidrange\n\
+            <0041> <0043> 100\n\
+            endcidrange\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some(100));
+        assert_eq!(cmap.lookup(0x0042), Some(101));
+        assert_eq!(cmap.lookup(0x0043), Some(102));
+        assert_eq!(cmap.len(), 3);
+    }
+
+    #[test]
+    fn cid_cmap_cidrange_single_code() {
+        let data = b"\
+            begincidrange\n\
+            <0041> <0041> 50\n\
+            endcidrange\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some(50));
+        assert_eq!(cmap.len(), 1);
+    }
+
+    #[test]
+    fn cid_cmap_combined_cidchar_and_cidrange() {
+        let data = b"\
+            1 begincidchar\n\
+            <0001> 1\n\
+            endcidchar\n\
+            1 begincidrange\n\
+            <0010> <0012> 100\n\
+            endcidrange\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0001), Some(1));
+        assert_eq!(cmap.lookup(0x0010), Some(100));
+        assert_eq!(cmap.lookup(0x0011), Some(101));
+        assert_eq!(cmap.lookup(0x0012), Some(102));
+        assert_eq!(cmap.len(), 4);
+    }
+
+    #[test]
+    fn cid_cmap_parses_name() {
+        let data = b"\
+            /CMapName /Adobe-Japan1-6 def\n\
+            begincidrange\n\
+            <0041> <0043> 100\n\
+            endcidrange\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.name(), Some("Adobe-Japan1-6"));
+    }
+
+    #[test]
+    fn cid_cmap_parses_writing_mode_horizontal() {
+        let data = b"\
+            /WMode 0 def\n\
+            begincidchar\n\
+            <0041> 1\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.writing_mode(), 0);
+    }
+
+    #[test]
+    fn cid_cmap_parses_writing_mode_vertical() {
+        let data = b"\
+            /WMode 1 def\n\
+            begincidchar\n\
+            <0041> 1\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.writing_mode(), 1);
+    }
+
+    #[test]
+    fn cid_cmap_default_writing_mode_horizontal() {
+        let data = b"\
+            begincidchar\n\
+            <0041> 1\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.writing_mode(), 0);
+    }
+
+    #[test]
+    fn cid_cmap_with_full_boilerplate() {
+        let data = b"\
+            /CIDInit /ProcSet findresource begin\n\
+            12 dict begin\n\
+            begincmap\n\
+            /CIDSystemInfo << /Registry (Adobe) /Ordering (Japan1) /Supplement 6 >> def\n\
+            /CMapName /Adobe-Japan1-6 def\n\
+            /CMapType 1 def\n\
+            /WMode 0 def\n\
+            1 begincodespacerange\n\
+            <0000> <FFFF>\n\
+            endcodespacerange\n\
+            2 begincidchar\n\
+            <0041> 100\n\
+            <0042> 101\n\
+            endcidchar\n\
+            1 begincidrange\n\
+            <0100> <010F> 200\n\
+            endcidrange\n\
+            endcmap\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.name(), Some("Adobe-Japan1-6"));
+        assert_eq!(cmap.writing_mode(), 0);
+        assert_eq!(cmap.lookup(0x0041), Some(100));
+        assert_eq!(cmap.lookup(0x0042), Some(101));
+        assert_eq!(cmap.lookup(0x0100), Some(200));
+        assert_eq!(cmap.lookup(0x010F), Some(215)); // 200 + 15
+        assert_eq!(cmap.len(), 18); // 2 + 16
+    }
+
+    #[test]
+    fn cid_cmap_missing_lookup_returns_none() {
+        let data = b"\
+            begincidchar\n\
+            <0041> 100\n\
+            endcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x9999), None);
     }
 }

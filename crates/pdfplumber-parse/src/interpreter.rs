@@ -6,6 +6,10 @@
 
 use std::collections::HashMap;
 
+use crate::cid_font::{
+    CidFontMetrics, extract_cid_font_metrics, get_descendant_font, get_type0_encoding,
+    is_type0_font, parse_predefined_cmap_name,
+};
 use crate::cmap::CMap;
 use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
@@ -22,6 +26,14 @@ struct CachedFont {
     metrics: FontMetrics,
     cmap: Option<CMap>,
     base_name: String,
+    /// CID font metrics (present for Type0/CID fonts).
+    cid_metrics: Option<CidFontMetrics>,
+    /// Whether this is a CID (composite/Type0) font.
+    is_cid_font: bool,
+    /// Writing mode: 0 = horizontal, 1 = vertical.
+    /// Used in US-041 for vertical writing mode support.
+    #[allow(dead_code)]
+    writing_mode: u8,
 }
 
 /// Interpret a content stream and emit events to the handler.
@@ -320,31 +332,61 @@ fn load_font_if_needed(
         font_obj.as_dict().ok()
     })();
 
-    let (metrics, cmap, base_name) = if let Some(fd) = font_dict {
-        let metrics =
-            extract_font_metrics(doc, fd).unwrap_or_else(|_| FontMetrics::default_metrics());
+    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode) =
+        if let Some(fd) = font_dict {
+            if is_type0_font(fd) {
+                // Type0 (composite/CID) font
+                let (cid_met, wm) = load_cid_font(doc, fd);
+                let metrics = if let Some(ref cm) = cid_met {
+                    // Create a FontMetrics from CID font data for backward compat
+                    FontMetrics::new(
+                        Vec::new(),
+                        0,
+                        0,
+                        cm.default_width(),
+                        cm.ascent(),
+                        cm.descent(),
+                        cm.font_bbox(),
+                    )
+                } else {
+                    FontMetrics::default_metrics()
+                };
 
-        // Extract ToUnicode CMap if present
-        let cmap = (|| -> Option<CMap> {
-            let tounicode_obj = fd.get(b"ToUnicode").ok()?;
-            let tounicode_obj = resolve_ref(doc, tounicode_obj);
-            let stream = tounicode_obj.as_stream().ok()?;
-            let data = decode_stream(stream).ok()?;
-            CMap::parse(&data).ok()
-        })();
+                // Extract ToUnicode CMap if present
+                let cmap = extract_tounicode_cmap(doc, fd);
 
-        // Get base font name
-        let base_name = fd
-            .get(b"BaseFont")
-            .ok()
-            .and_then(|o| o.as_name_str().ok())
-            .unwrap_or(font_name)
-            .to_string();
+                let base_name = fd
+                    .get(b"BaseFont")
+                    .ok()
+                    .and_then(|o| o.as_name_str().ok())
+                    .unwrap_or(font_name)
+                    .to_string();
 
-        (metrics, cmap, base_name)
-    } else {
-        (FontMetrics::default_metrics(), None, font_name.to_string())
-    };
+                (metrics, cmap, base_name, cid_met, true, wm)
+            } else {
+                // Simple font
+                let metrics = extract_font_metrics(doc, fd)
+                    .unwrap_or_else(|_| FontMetrics::default_metrics());
+                let cmap = extract_tounicode_cmap(doc, fd);
+                let base_name = fd
+                    .get(b"BaseFont")
+                    .ok()
+                    .and_then(|o| o.as_name_str().ok())
+                    .unwrap_or(font_name)
+                    .to_string();
+
+                (metrics, cmap, base_name, None, false, 0)
+            }
+        } else {
+            (
+                FontMetrics::default_metrics(),
+                None,
+                font_name.to_string(),
+                None,
+                false,
+                0,
+            )
+        };
 
     cache.insert(
         font_name.to_string(),
@@ -352,11 +394,60 @@ fn load_font_if_needed(
             metrics,
             cmap,
             base_name,
+            cid_metrics,
+            is_cid_font,
+            writing_mode,
         },
     );
 }
 
+/// Extract ToUnicode CMap from a font dictionary.
+fn extract_tounicode_cmap(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Option<CMap> {
+    let tounicode_obj = fd.get(b"ToUnicode").ok()?;
+    let tounicode_obj = resolve_ref(doc, tounicode_obj);
+    let stream = tounicode_obj.as_stream().ok()?;
+    let data = decode_stream(stream).ok()?;
+    CMap::parse(&data).ok()
+}
+
+/// Load CID font information from a Type0 font dictionary.
+fn load_cid_font(
+    doc: &lopdf::Document,
+    type0_dict: &lopdf::Dictionary,
+) -> (Option<CidFontMetrics>, u8) {
+    // Determine writing mode from encoding name
+    let writing_mode = get_type0_encoding(type0_dict)
+        .and_then(|enc| parse_predefined_cmap_name(&enc))
+        .map(|info| info.writing_mode)
+        .unwrap_or(0);
+
+    // Get descendant CIDFont dictionary
+    let cid_metrics = get_descendant_font(doc, type0_dict)
+        .and_then(|desc| extract_cid_font_metrics(doc, desc).ok());
+
+    (cid_metrics, writing_mode)
+}
+
 // --- Text rendering ---
+
+/// Build a width lookup function for a cached font.
+/// For CID fonts, uses CidFontMetrics; for simple fonts, uses FontMetrics.
+fn get_width_fn(cached: Option<&CachedFont>) -> Box<dyn Fn(u32) -> f64 + '_> {
+    match cached {
+        Some(cf) if cf.is_cid_font => {
+            if let Some(ref cid_met) = cf.cid_metrics {
+                Box::new(move |code: u32| cid_met.get_width(code))
+            } else {
+                Box::new(move |code: u32| cf.metrics.get_width(code))
+            }
+        }
+        Some(cf) => Box::new(move |code: u32| cf.metrics.get_width(code)),
+        None => {
+            let default_metrics = FontMetrics::default_metrics();
+            Box::new(move |code: u32| default_metrics.get_width(code))
+        }
+    }
+}
 
 fn handle_tj(
     tstate: &mut TextState,
@@ -371,11 +462,8 @@ fn handle_tj(
     };
 
     let cached = font_cache.get(&tstate.font_name);
-    let default_metrics = FontMetrics::default_metrics();
-    let metrics = cached.map_or(&default_metrics, |c| &c.metrics);
-
-    let width_fn = |code: u32| -> f64 { metrics.get_width(code) };
-    let raw_chars = show_string(tstate, string_bytes, &width_fn);
+    let width_fn = get_width_fn(cached);
+    let raw_chars = show_string(tstate, string_bytes, &*width_fn);
 
     emit_char_events(raw_chars, tstate, gstate, handler, cached);
 }
@@ -404,11 +492,8 @@ fn handle_tj_array(
         .collect();
 
     let cached = font_cache.get(&tstate.font_name);
-    let default_metrics = FontMetrics::default_metrics();
-    let metrics = cached.map_or(&default_metrics, |c| &c.metrics);
-
-    let width_fn = |code: u32| -> f64 { metrics.get_width(code) };
-    let raw_chars = show_string_with_positioning(tstate, &elements, &width_fn);
+    let width_fn = get_width_fn(cached);
+    let raw_chars = show_string_with_positioning(tstate, &elements, &*width_fn);
 
     emit_char_events(raw_chars, tstate, gstate, handler, cached);
 }
@@ -430,6 +515,16 @@ fn emit_char_events(
                 .and_then(|cm| cm.lookup(rc.char_code).map(|s| s.to_string()))
         });
 
+        // Use CID font metrics for displacement if available
+        let displacement = match cached {
+            Some(cf) if cf.is_cid_font => cf
+                .cid_metrics
+                .as_ref()
+                .map_or(600.0, |cm| cm.get_width(rc.char_code)),
+            Some(cf) => cf.metrics.get_width(rc.char_code),
+            None => 600.0,
+        };
+
         handler.on_char(CharEvent {
             char_code: rc.char_code,
             unicode,
@@ -437,7 +532,7 @@ fn emit_char_events(
             font_size: tstate.font_size,
             text_matrix: rc.text_matrix,
             ctm,
-            displacement: cached.map_or(600.0, |c| c.metrics.get_width(rc.char_code)),
+            displacement,
             char_spacing: tstate.char_spacing,
             word_spacing: tstate.word_spacing,
             h_scaling: tstate.h_scaling_normalized(),
