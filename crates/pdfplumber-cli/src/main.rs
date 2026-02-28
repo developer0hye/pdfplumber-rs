@@ -1,4 +1,5 @@
 mod annots_cmd;
+mod bookmarks_cmd;
 mod chars_cmd;
 mod cli;
 mod info_cmd;
@@ -66,6 +67,10 @@ fn main() {
             ref pages,
             ref format,
         } => links_cmd::run(file, pages.as_deref(), format),
+        cli::Commands::Bookmarks {
+            ref file,
+            ref format,
+        } => bookmarks_cmd::run(file, format),
     };
 
     if let Err(code) = result {

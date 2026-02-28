@@ -1,8 +1,8 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata, PdfError,
-    image_from_ctm,
+    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata,
+    PdfError, image_from_ctm,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -62,6 +62,8 @@ pub struct Pdf {
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
     metadata: DocumentMetadata,
+    /// Cached document bookmarks (outline / table of contents).
+    bookmarks: Vec<Bookmark>,
 }
 
 /// Internal handler that collects content stream events during interpretation.
@@ -170,12 +172,16 @@ impl Pdf {
         // Extract document metadata
         let metadata = LopdfBackend::document_metadata(&doc).map_err(PdfError::from)?;
 
+        // Extract document bookmarks (outline / table of contents)
+        let bookmarks = LopdfBackend::document_bookmarks(&doc).map_err(PdfError::from)?;
+
         Ok(Self {
             doc,
             options,
             page_heights,
             raw_page_heights,
             metadata,
+            bookmarks,
         })
     }
 
@@ -191,6 +197,15 @@ impl Pdf {
     /// Fields not present in the PDF are `None`.
     pub fn metadata(&self) -> &DocumentMetadata {
         &self.metadata
+    }
+
+    /// Return the document bookmarks (outline / table of contents).
+    ///
+    /// Returns a slice of [`Bookmark`]s representing the flattened outline
+    /// tree, with each bookmark's `level` indicating nesting depth.
+    /// Returns an empty slice if the document has no outlines.
+    pub fn bookmarks(&self) -> &[Bookmark] {
+        &self.bookmarks
     }
 
     /// Return a streaming iterator over all pages in the document.

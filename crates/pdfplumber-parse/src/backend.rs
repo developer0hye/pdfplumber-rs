@@ -3,7 +3,9 @@
 //! Defines the [`PdfBackend`] trait that abstracts PDF parsing operations.
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
-use pdfplumber_core::{Annotation, BBox, DocumentMetadata, ExtractOptions, Hyperlink, PdfError};
+use pdfplumber_core::{
+    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink, PdfError,
+};
 
 use crate::handler::ContentHandler;
 
@@ -130,6 +132,17 @@ pub trait PdfBackend {
     ///
     /// Returns an error if the /Info dictionary exists but is malformed.
     fn document_metadata(doc: &Self::Document) -> Result<DocumentMetadata, Self::Error>;
+
+    /// Extract the document outline (bookmarks / table of contents).
+    ///
+    /// Returns a flat list of [`Bookmark`]s representing the outline tree,
+    /// with each bookmark's `level` indicating its depth. Returns an empty
+    /// Vec if the document has no /Outlines dictionary.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the /Outlines dictionary exists but is malformed.
+    fn document_bookmarks(doc: &Self::Document) -> Result<Vec<Bookmark>, Self::Error>;
 
     /// Extract annotations from a page.
     ///
@@ -318,6 +331,10 @@ mod tests {
 
         fn document_metadata(_doc: &Self::Document) -> Result<DocumentMetadata, Self::Error> {
             Ok(DocumentMetadata::default())
+        }
+
+        fn document_bookmarks(_doc: &Self::Document) -> Result<Vec<Bookmark>, Self::Error> {
+            Ok(Vec::new())
         }
 
         fn page_annotations(
