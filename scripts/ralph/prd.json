@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Place SvgRenderer in a new module in pdfplumber-core or pdfplumber crate. Pure string generation — no rendering library needed."
     },
     {
@@ -40,7 +40,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "This + US-069 together recreate Python pdfplumber's visual debugging capability."
     },
     {

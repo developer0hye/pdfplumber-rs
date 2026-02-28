@@ -2,6 +2,7 @@ mod annots_cmd;
 mod bookmarks_cmd;
 mod chars_cmd;
 mod cli;
+mod debug_cmd;
 mod info_cmd;
 mod links_cmd;
 mod page_range;
@@ -93,6 +94,11 @@ fn main() {
             ref file,
             ref format,
         } => bookmarks_cmd::run(file, format),
+        cli::Commands::Debug {
+            ref file,
+            ref pages,
+            ref output,
+        } => debug_cmd::run(file, pages.as_deref(), output),
         cli::Commands::Search {
             ref file,
             ref pattern,

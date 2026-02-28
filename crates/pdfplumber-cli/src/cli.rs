@@ -169,6 +169,21 @@ pub enum Commands {
         format: TextFormat,
     },
 
+    /// Generate debug SVG with object overlays
+    Debug {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output SVG file path
+        #[arg(long, value_name = "FILE")]
+        output: PathBuf,
+    },
+
     /// Search for text patterns with position information
     Search {
         /// Path to the PDF file
@@ -729,6 +744,47 @@ mod tests {
                 assert!(matches!(unicode_norm, Some(UnicodeNormArg::Nfkd)));
             }
             _ => panic!("expected Words subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_debug_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "debug", "test.pdf", "--output", "out.svg"]);
+        match cli.command {
+            Commands::Debug {
+                ref file,
+                ref pages,
+                ref output,
+            } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+                assert!(pages.is_none());
+                assert_eq!(output, &PathBuf::from("out.svg"));
+            }
+            _ => panic!("expected Debug subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_debug_with_pages() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "debug",
+            "test.pdf",
+            "--pages",
+            "1-3",
+            "--output",
+            "debug.svg",
+        ]);
+        match cli.command {
+            Commands::Debug {
+                ref pages,
+                ref output,
+                ..
+            } => {
+                assert_eq!(pages.as_deref(), Some("1-3"));
+                assert_eq!(output, &PathBuf::from("debug.svg"));
+            }
+            _ => panic!("expected Debug subcommand"),
         }
     }
 
