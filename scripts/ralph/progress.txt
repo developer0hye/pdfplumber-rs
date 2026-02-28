@@ -9,6 +9,9 @@
 - Table has `rows: Vec<Vec<Cell>>`, Cell has `text: Option<String>`
 - Integration tests in `crates/pdfplumber/tests/` use real PDFs from `tests/fixtures/`
 - CLI crate uses `assert_cmd` and `predicates` for integration tests
+- CLI integration tests use `lopdf` + `tempfile` to create PDF fixtures on disk
+- Page range parsing: `parse_page_range("1,3-5", page_count)` → 0-indexed `Vec<usize>`
+- Text command pattern: `text_cmd::run(file, pages, format, layout) -> Result<(), i32>`
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
@@ -28,4 +31,18 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - `assert_cmd::Command::cargo_bin` is deprecated in favor of `cargo::cargo_bin_cmd!` macro but still works
   - clap derive requires `#[command(subcommand)]` on the enum field and `#[derive(Subcommand)]` on the enum
   - Subcommand stubs use `eprintln!` + `std::process::exit(1)` for not-yet-implemented commands
+---
+
+## 2026-02-28 - US-051
+- Implemented `text` subcommand for extracting text from PDF pages
+- Files changed: crates/pdfplumber-cli/{Cargo.toml, src/main.rs, src/text_cmd.rs, src/page_range.rs, tests/text_cmd.rs}
+- New modules: `text_cmd` (text extraction logic), `page_range` (page range parsing)
+- Dependencies added: lopdf (dev), tempfile (dev) — for creating test fixture PDFs
+- Features: text/json output formats, --pages filtering, --layout flag, error handling
+- 8 unit tests (page_range) + 12 integration tests (text_cmd)
+- **Learnings for future iterations:**
+  - `page_range::parse_page_range` is reusable for all subcommands
+  - Test PDF fixtures: use `lopdf` to create PDFs programmatically, `tempfile::NamedTempFile` to write to disk
+  - Error pattern: return `Result<(), i32>` from subcommand handlers where i32 is the exit code
+  - JSON output uses `serde_json::json!` macro with JSON Lines format (one JSON object per line)
 ---
