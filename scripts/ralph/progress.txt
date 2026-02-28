@@ -1,3 +1,7 @@
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
+---
+
 ## Codebase Patterns
 - **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
 - **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
@@ -18,10 +22,6 @@
 - `WordExtractor::make_word()` is called from 3 places in `extract()` — all must be updated when changing its signature
 - pdfplumber-py tests fail locally due to missing Python 3.11 dylib (pre-existing, not a regression)
 
----
-
-# Ralph Progress Log - Phase 11: Text & Image - Ligature Expansion, Image Data, Inline Images, Real-world Tests
-Started: 2026년  3월  1일 일요일 02시 21분 39초 KST
 ---
 
 ## 2026-03-01 - US-088
