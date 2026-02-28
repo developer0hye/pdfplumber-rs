@@ -363,6 +363,11 @@ impl Page {
             }
         }
 
+        // Filter by minimum accuracy if configured
+        if let Some(min_acc) = settings.min_accuracy {
+            tables.retain(|t| t.accuracy() >= min_acc);
+        }
+
         tables
     }
 

@@ -67,3 +67,19 @@ Started: 2026년  2월 28일 토요일 17시 04분 35초 KST
   - `Intersection` type from `table.rs` is used in `svg.rs` — import at module level so `use super::*` in tests brings it in.
   - The Explicit strategy in `find_tables_debug()` must inline-build edges (not use `explicit_lines_to_edges()`) because it mixes detected + explicit edge bounds.
 ---
+
+## 2026-02-28 - US-070 - Table extraction quality metrics
+- Added `TableQuality` struct with `accuracy` and `whitespace` fields in `pdfplumber-core/src/table.rs`
+- Added `Table::accuracy()` — percentage of cells with non-empty text (0.0 to 1.0). Whitespace-only cells treated as empty.
+- Added `Table::whitespace()` — average ratio of whitespace chars in cell text (0.0 to 1.0). Only considers cells with text.
+- Added `Table::quality()` — returns combined `TableQuality` struct
+- Added `TableSettings::min_accuracy` field (Option<f64>) for auto-filtering low-quality tables in `Page::find_tables()`
+- Added quality metrics (`accuracy`, `whitespace`) to CLI `tables` JSON output
+- Re-exported `TableQuality` from facade crate
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber/src/page.rs`, `crates/pdfplumber-cli/src/tables_cmd.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Cell text is `Option<String>` — `None` means no text, `Some("")` shouldn't normally occur but whitespace-only strings should be treated as empty for accuracy.
+  - Quality metrics are computed from `table.cells` (flat list), not from `rows` or `columns` (which contain the same cells organized differently).
+  - `min_accuracy` filtering must happen after `extract_text_for_cells()` since accuracy depends on cell text.
+---

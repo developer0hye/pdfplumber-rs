@@ -168,6 +168,7 @@ fn write_json(
                 .map(|row| row.iter().map(|cell| cell.text.as_deref()).collect())
                 .collect();
 
+            let quality = table.quality();
             all_tables.push(serde_json::json!({
                 "page": idx + 1,
                 "bbox": {
@@ -177,6 +178,10 @@ fn write_json(
                     "bottom": table.bbox.bottom,
                 },
                 "rows": rows,
+                "quality": {
+                    "accuracy": quality.accuracy,
+                    "whitespace": quality.whitespace,
+                },
             }));
         }
     }

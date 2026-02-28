@@ -63,6 +63,9 @@ pub struct TableSettings {
     pub intersection_y_tolerance: f64,
     /// Optional explicit line coordinates for Explicit strategy.
     pub explicit_lines: Option<ExplicitLines>,
+    /// Minimum accuracy threshold for auto-filtering low-quality tables (0.0 to 1.0).
+    /// Tables with accuracy below this threshold are discarded. Default: None (no filtering).
+    pub min_accuracy: Option<f64>,
 }
 
 impl Default for TableSettings {
@@ -85,6 +88,7 @@ impl Default for TableSettings {
             intersection_x_tolerance: 3.0,
             intersection_y_tolerance: 3.0,
             explicit_lines: None,
+            min_accuracy: None,
         }
     }
 }
@@ -109,6 +113,16 @@ pub struct Cell {
     pub text: Option<String>,
 }
 
+/// Quality metrics for a detected table.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TableQuality {
+    /// Percentage of cells with non-empty text (0.0 to 1.0).
+    pub accuracy: f64,
+    /// Average ratio of whitespace in cell text (0.0 to 1.0, lower is better).
+    pub whitespace: f64,
+}
+
 /// A detected table.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -121,6 +135,51 @@ pub struct Table {
     pub rows: Vec<Vec<Cell>>,
     /// Cells organized into columns (left-to-right, top-to-bottom within each column).
     pub columns: Vec<Vec<Cell>>,
+}
+
+impl Table {
+    /// Percentage of cells with non-empty text (0.0 to 1.0).
+    ///
+    /// Returns 0.0 if the table has no cells.
+    pub fn accuracy(&self) -> f64 {
+        if self.cells.is_empty() {
+            return 0.0;
+        }
+        let filled = self
+            .cells
+            .iter()
+            .filter(|c| c.text.as_ref().is_some_and(|t| !t.trim().is_empty()))
+            .count();
+        filled as f64 / self.cells.len() as f64
+    }
+
+    /// Average ratio of whitespace characters in cell text (0.0 to 1.0, lower is better).
+    ///
+    /// Only considers cells that have text. Returns 0.0 if no cells have text.
+    pub fn whitespace(&self) -> f64 {
+        let ratios: Vec<f64> = self
+            .cells
+            .iter()
+            .filter_map(|c| c.text.as_ref())
+            .filter(|t| !t.is_empty())
+            .map(|t| {
+                let ws = t.chars().filter(|ch| ch.is_whitespace()).count();
+                ws as f64 / t.len() as f64
+            })
+            .collect();
+        if ratios.is_empty() {
+            return 0.0;
+        }
+        ratios.iter().sum::<f64>() / ratios.len() as f64
+    }
+
+    /// Combined quality metrics for the table.
+    pub fn quality(&self) -> TableQuality {
+        TableQuality {
+            accuracy: self.accuracy(),
+            whitespace: self.whitespace(),
+        }
+    }
 }
 
 /// Snap nearby parallel edges to aligned positions.
@@ -3594,5 +3653,257 @@ mod tests {
         assert!(!debug.intersections.is_empty());
         assert_eq!(debug.intersections[0].x, 0.0);
         assert_eq!(debug.intersections[0].y, 0.0);
+    }
+
+    // ---- TableQuality / accuracy / whitespace tests ----
+
+    #[test]
+    fn test_accuracy_all_cells_filled() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("B".into()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("C".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".into()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.accuracy() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_accuracy_half_empty() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: None,
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("C".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: None,
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.accuracy() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_accuracy_all_empty() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: None,
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: None,
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.accuracy()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_accuracy_whitespace_only_treated_as_empty() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("  ".into()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.accuracy() - 0.5).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_accuracy_no_cells() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.accuracy()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_whitespace_no_whitespace() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("ABC".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("DEF".into()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.whitespace()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_whitespace_all_spaces() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+            cells: vec![Cell {
+                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                text: Some("   ".into()),
+            }],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.whitespace() - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_whitespace_mixed() {
+        // "A B" = 1 whitespace / 3 chars = 0.333...
+        // "CD"  = 0 whitespace / 2 chars = 0.0
+        // average = (0.333... + 0.0) / 2 = 0.1666...
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A B".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("CD".into()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        let expected = (1.0 / 3.0 + 0.0) / 2.0;
+        assert!((table.whitespace() - expected).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_whitespace_skips_empty_cells() {
+        // Only cells with text contribute to the whitespace average
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("ABC".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: None,
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.whitespace()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_whitespace_no_text_cells() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: None,
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: None,
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        assert!((table.whitespace()).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_quality_combined() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("Hello".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: None,
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("World".into()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("Test".into()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+        let q = table.quality();
+        assert!((q.accuracy - 0.75).abs() < f64::EPSILON);
+        assert!((q.whitespace).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_min_accuracy_filtering() {
+        // Test that TableSettings::min_accuracy exists and defaults to None
+        let settings = TableSettings::default();
+        assert_eq!(settings.min_accuracy, None);
+
+        // Test that min_accuracy can be set
+        let settings = TableSettings {
+            min_accuracy: Some(0.5),
+            ..TableSettings::default()
+        };
+        assert_eq!(settings.min_accuracy, Some(0.5));
     }
 }
