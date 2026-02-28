@@ -575,3 +575,148 @@ fn info_json_empty_metadata_when_no_info() {
     );
     assert_eq!(meta.as_object().unwrap().len(), 0);
 }
+
+// --- Page box variant tests (US-059) ---
+
+/// Create a PDF with all five box types set on the page.
+fn pdf_with_all_boxes() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "CropBox" => vec![Object::Integer(10), Object::Integer(10), Object::Integer(602), Object::Integer(782)],
+        "TrimBox" => vec![Object::Integer(20), Object::Integer(20), Object::Integer(592), Object::Integer(772)],
+        "BleedBox" => vec![Object::Integer(5), Object::Integer(5), Object::Integer(607), Object::Integer(787)],
+        "ArtBox" => vec![Object::Integer(50), Object::Integer(50), Object::Integer(562), Object::Integer(742)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn info_text_shows_page_boxes() {
+    let pdf_bytes = pdf_with_all_boxes();
+    let f = write_temp_pdf(&pdf_bytes);
+
+    cmd()
+        .args(["info", f.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("MediaBox:"))
+        .stdout(predicate::str::contains("CropBox:"))
+        .stdout(predicate::str::contains("TrimBox:"))
+        .stdout(predicate::str::contains("BleedBox:"))
+        .stdout(predicate::str::contains("ArtBox:"));
+}
+
+#[test]
+fn info_text_no_optional_boxes_when_absent() {
+    let pdf_bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Test) Tj ET");
+    let f = write_temp_pdf(&pdf_bytes);
+
+    cmd()
+        .args(["info", f.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("MediaBox:"))
+        .stdout(predicate::str::contains("TrimBox:").not())
+        .stdout(predicate::str::contains("BleedBox:").not())
+        .stdout(predicate::str::contains("ArtBox:").not());
+}
+
+#[test]
+fn info_json_includes_page_boxes() {
+    let pdf_bytes = pdf_with_all_boxes();
+    let f = write_temp_pdf(&pdf_bytes);
+
+    let output = cmd()
+        .args(["info", f.path().to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let page = &v["page_info"][0];
+    assert!(page.get("media_box").is_some(), "missing media_box");
+    assert!(page.get("trim_box").is_some(), "missing trim_box");
+    assert!(page.get("bleed_box").is_some(), "missing bleed_box");
+    assert!(page.get("art_box").is_some(), "missing art_box");
+}
+
+#[test]
+fn info_json_no_optional_boxes_when_absent() {
+    let pdf_bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Test) Tj ET");
+    let f = write_temp_pdf(&pdf_bytes);
+
+    let output = cmd()
+        .args(["info", f.path().to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let page = &v["page_info"][0];
+    assert!(
+        page.get("media_box").is_some(),
+        "media_box should always be present"
+    );
+    assert!(
+        page.get("trim_box").is_none(),
+        "trim_box should be absent when not set"
+    );
+    assert!(
+        page.get("bleed_box").is_none(),
+        "bleed_box should be absent when not set"
+    );
+    assert!(
+        page.get("art_box").is_none(),
+        "art_box should be absent when not set"
+    );
+}

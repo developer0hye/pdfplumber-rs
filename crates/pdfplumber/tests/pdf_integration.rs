@@ -459,3 +459,214 @@ fn metadata_no_info_dictionary() {
     assert!(meta.is_empty());
     assert_eq!(*meta, DocumentMetadata::default());
 }
+
+// --- Page box variant tests (US-059) ---
+
+/// Create a PDF where the page has all five box types set.
+fn pdf_with_all_boxes() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "CropBox" => vec![Object::Integer(10), Object::Integer(10), Object::Integer(602), Object::Integer(782)],
+        "TrimBox" => vec![Object::Integer(20), Object::Integer(20), Object::Integer(592), Object::Integer(772)],
+        "BleedBox" => vec![Object::Integer(5), Object::Integer(5), Object::Integer(607), Object::Integer(787)],
+        "ArtBox" => vec![Object::Integer(50), Object::Integer(50), Object::Integer(562), Object::Integer(742)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+/// Create a PDF with only MediaBox (no optional boxes).
+fn pdf_with_only_media_box() -> Vec<u8> {
+    pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Test) Tj ET")
+}
+
+/// Create a PDF where boxes are inherited from the parent Pages tree node.
+fn pdf_with_inherited_boxes() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    // Page has NO boxes — they come from the parent Pages node
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    // Parent Pages node has MediaBox and TrimBox (both inheritable)
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "TrimBox" => vec![Object::Integer(25), Object::Integer(25), Object::Integer(587), Object::Integer(767)],
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn page_boxes_all_box_types() {
+    let bytes = pdf_with_all_boxes();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // MediaBox
+    let mb = page.media_box();
+    assert_eq!(mb.x0, 0.0);
+    assert_eq!(mb.top, 0.0);
+    assert_eq!(mb.x1, 612.0);
+    assert_eq!(mb.bottom, 792.0);
+
+    // CropBox
+    let cb = page.crop_box().expect("CropBox should be set");
+    assert_eq!(cb.x0, 10.0);
+    assert_eq!(cb.top, 10.0);
+    assert_eq!(cb.x1, 602.0);
+    assert_eq!(cb.bottom, 782.0);
+
+    // TrimBox
+    let tb = page.trim_box().expect("TrimBox should be set");
+    assert_eq!(tb.x0, 20.0);
+    assert_eq!(tb.top, 20.0);
+    assert_eq!(tb.x1, 592.0);
+    assert_eq!(tb.bottom, 772.0);
+
+    // BleedBox
+    let bb = page.bleed_box().expect("BleedBox should be set");
+    assert_eq!(bb.x0, 5.0);
+    assert_eq!(bb.top, 5.0);
+    assert_eq!(bb.x1, 607.0);
+    assert_eq!(bb.bottom, 787.0);
+
+    // ArtBox
+    let ab = page.art_box().expect("ArtBox should be set");
+    assert_eq!(ab.x0, 50.0);
+    assert_eq!(ab.top, 50.0);
+    assert_eq!(ab.x1, 562.0);
+    assert_eq!(ab.bottom, 742.0);
+}
+
+#[test]
+fn page_boxes_only_media_box() {
+    let bytes = pdf_with_only_media_box();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // MediaBox always present
+    let mb = page.media_box();
+    assert_eq!(mb.x0, 0.0);
+    assert_eq!(mb.top, 0.0);
+    assert_eq!(mb.x1, 612.0);
+    assert_eq!(mb.bottom, 792.0);
+
+    // All optional boxes should be None
+    assert!(page.crop_box().is_none());
+    assert!(page.trim_box().is_none());
+    assert!(page.bleed_box().is_none());
+    assert!(page.art_box().is_none());
+}
+
+#[test]
+fn page_boxes_inherited_from_parent() {
+    let bytes = pdf_with_inherited_boxes();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // MediaBox inherited from parent
+    let mb = page.media_box();
+    assert_eq!(mb.x0, 0.0);
+    assert_eq!(mb.top, 0.0);
+    assert_eq!(mb.x1, 612.0);
+    assert_eq!(mb.bottom, 792.0);
+
+    // TrimBox inherited from parent
+    let tb = page
+        .trim_box()
+        .expect("TrimBox should be inherited from parent");
+    assert_eq!(tb.x0, 25.0);
+    assert_eq!(tb.top, 25.0);
+    assert_eq!(tb.x1, 587.0);
+    assert_eq!(tb.bottom, 767.0);
+
+    // BleedBox and ArtBox not set anywhere
+    assert!(page.bleed_box().is_none());
+    assert!(page.art_box().is_none());
+}

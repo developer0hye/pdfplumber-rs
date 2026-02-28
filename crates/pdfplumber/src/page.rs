@@ -22,6 +22,16 @@ pub struct Page {
     height: f64,
     /// Page rotation in degrees (0, 90, 180, or 270).
     rotation: i32,
+    /// MediaBox — boundaries of the physical page.
+    media_box: BBox,
+    /// CropBox — visible region of the page (None = same as MediaBox).
+    crop_box: Option<BBox>,
+    /// TrimBox — intended finished page dimensions after trimming.
+    trim_box: Option<BBox>,
+    /// BleedBox — clipping region for production output.
+    bleed_box: Option<BBox>,
+    /// ArtBox — extent of meaningful content.
+    art_box: Option<BBox>,
     /// Characters extracted from this page.
     chars: Vec<Char>,
     /// Lines extracted from painted paths.
@@ -39,11 +49,17 @@ pub struct Page {
 impl Page {
     /// Create a new page with the given metadata and characters.
     pub fn new(page_number: usize, width: f64, height: f64, chars: Vec<Char>) -> Self {
+        let media_box = BBox::new(0.0, 0.0, width, height);
         Self {
             page_number,
             width,
             height,
             rotation: 0,
+            media_box,
+            crop_box: None,
+            trim_box: None,
+            bleed_box: None,
+            art_box: None,
             chars,
             lines: Vec::new(),
             rects: Vec::new(),
@@ -63,11 +79,17 @@ impl Page {
         rects: Vec<Rect>,
         curves: Vec<Curve>,
     ) -> Self {
+        let media_box = BBox::new(0.0, 0.0, width, height);
         Self {
             page_number,
             width,
             height,
             rotation: 0,
+            media_box,
+            crop_box: None,
+            trim_box: None,
+            bleed_box: None,
+            art_box: None,
             chars,
             lines,
             rects,
@@ -89,11 +111,17 @@ impl Page {
         curves: Vec<Curve>,
         images: Vec<Image>,
     ) -> Self {
+        let media_box = BBox::new(0.0, 0.0, width, height);
         Self {
             page_number,
             width,
             height,
             rotation: 0,
+            media_box,
+            crop_box: None,
+            trim_box: None,
+            bleed_box: None,
+            art_box: None,
             chars,
             lines,
             rects,
@@ -113,6 +141,11 @@ impl Page {
         width: f64,
         height: f64,
         rotation: i32,
+        media_box: BBox,
+        crop_box: Option<BBox>,
+        trim_box: Option<BBox>,
+        bleed_box: Option<BBox>,
+        art_box: Option<BBox>,
         chars: Vec<Char>,
         images: Vec<Image>,
         warnings: Vec<ExtractWarning>,
@@ -122,6 +155,11 @@ impl Page {
             width,
             height,
             rotation,
+            media_box,
+            crop_box,
+            trim_box,
+            bleed_box,
+            art_box,
             chars,
             lines: Vec::new(),
             rects: Vec::new(),
@@ -154,6 +192,40 @@ impl Page {
     /// Returns the page bounding box: `(0, 0, width, height)`.
     pub fn bbox(&self) -> BBox {
         BBox::new(0.0, 0.0, self.width, self.height)
+    }
+
+    /// Returns the page MediaBox (boundaries of the physical page).
+    pub fn media_box(&self) -> BBox {
+        self.media_box
+    }
+
+    /// Returns the page CropBox, if explicitly set.
+    pub fn crop_box(&self) -> Option<BBox> {
+        self.crop_box
+    }
+
+    /// Returns the page TrimBox, if set.
+    ///
+    /// TrimBox defines the intended dimensions of the finished page
+    /// after trimming. Important for print production workflows.
+    pub fn trim_box(&self) -> Option<BBox> {
+        self.trim_box
+    }
+
+    /// Returns the page BleedBox, if set.
+    ///
+    /// BleedBox defines the region to which page contents should be
+    /// clipped when output in a production environment.
+    pub fn bleed_box(&self) -> Option<BBox> {
+        self.bleed_box
+    }
+
+    /// Returns the page ArtBox, if set.
+    ///
+    /// ArtBox defines the extent of the page's meaningful content
+    /// as intended by the page's creator.
+    pub fn art_box(&self) -> Option<BBox> {
+        self.art_box
     }
 
     /// Returns the characters extracted from this page.
