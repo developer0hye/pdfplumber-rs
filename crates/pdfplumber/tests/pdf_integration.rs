@@ -1746,3 +1746,127 @@ fn pdf_with_two_fonts(content: &[u8]) -> Vec<u8> {
     doc.save_to(&mut buf).unwrap();
     buf
 }
+
+// --- US-097: Document-level resource budget tests ---
+
+#[test]
+fn resource_budget_max_input_bytes_rejects_oversized_pdf() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Hello) Tj ET");
+    let input_size = bytes.len();
+
+    // Set a limit smaller than the actual PDF size
+    let opts = ExtractOptions {
+        max_input_bytes: Some(10), // 10 bytes is way too small for any valid PDF
+        ..ExtractOptions::default()
+    };
+    let result = Pdf::open(&bytes, Some(opts));
+    match result {
+        Err(pdfplumber::PdfError::ResourceLimitExceeded {
+            limit_name,
+            limit_value,
+            actual_value,
+        }) => {
+            assert_eq!(limit_name, "max_input_bytes");
+            assert_eq!(limit_value, 10);
+            assert_eq!(actual_value, input_size);
+        }
+        Err(e) => panic!("expected ResourceLimitExceeded, got: {e:?}"),
+        Ok(_) => panic!("expected error, got Ok"),
+    }
+}
+
+#[test]
+fn resource_budget_max_input_bytes_allows_within_limit() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Hello) Tj ET");
+    let opts = ExtractOptions {
+        max_input_bytes: Some(bytes.len() + 1000), // generous limit
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    assert_eq!(pdf.page_count(), 1);
+}
+
+#[test]
+fn resource_budget_max_pages_rejects_over_limit() {
+    let bytes = pdf_with_pages(&["Page 1", "Page 2", "Page 3"]);
+    let opts = ExtractOptions {
+        max_pages: Some(2), // limit to 2 pages, but PDF has 3
+        ..ExtractOptions::default()
+    };
+    let result = Pdf::open(&bytes, Some(opts));
+    match result {
+        Err(pdfplumber::PdfError::ResourceLimitExceeded {
+            limit_name,
+            limit_value,
+            actual_value,
+        }) => {
+            assert_eq!(limit_name, "max_pages");
+            assert_eq!(limit_value, 2);
+            assert_eq!(actual_value, 3);
+        }
+        Err(e) => panic!("expected ResourceLimitExceeded, got: {e:?}"),
+        Ok(_) => panic!("expected error, got Ok"),
+    }
+}
+
+#[test]
+fn resource_budget_max_pages_allows_within_limit() {
+    let bytes = pdf_with_pages(&["Page 1", "Page 2"]);
+    let opts = ExtractOptions {
+        max_pages: Some(5), // generous limit
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    assert_eq!(pdf.page_count(), 2);
+}
+
+#[test]
+fn resource_budget_limits_disabled_by_default() {
+    // With default options (all limits None), any PDF should open fine
+    let bytes = pdf_with_pages(&["A", "B", "C", "D", "E"]);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    assert_eq!(pdf.page_count(), 5);
+    // Should be able to extract all pages
+    for i in 0..5 {
+        let page = pdf.page(i).unwrap();
+        assert!(!page.chars().is_empty());
+    }
+}
+
+#[test]
+fn resource_budget_max_total_objects_rejects_over_limit() {
+    // Create a multi-page PDF
+    let bytes = pdf_with_pages(&["Page 1 text content", "Page 2 text content"]);
+    let opts = ExtractOptions {
+        max_total_objects: Some(5), // very low limit - will be exceeded
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+
+    // First page might succeed, but eventually the limit should be hit
+    let mut hit_limit = false;
+    for i in 0..pdf.page_count() {
+        match pdf.page(i) {
+            Ok(_) => {}
+            Err(pdfplumber::PdfError::ResourceLimitExceeded { limit_name, .. }) => {
+                assert_eq!(limit_name, "max_total_objects");
+                hit_limit = true;
+                break;
+            }
+            Err(e) => panic!("unexpected error: {e:?}"),
+        }
+    }
+    assert!(hit_limit, "expected max_total_objects limit to be hit");
+}
+
+#[test]
+fn resource_budget_max_total_objects_allows_within_limit() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Hi) Tj ET");
+    let opts = ExtractOptions {
+        max_total_objects: Some(1_000_000), // very high limit
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+    assert_eq!(page.chars().len(), 2);
+}

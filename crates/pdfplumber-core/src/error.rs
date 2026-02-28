@@ -24,7 +24,14 @@ pub enum PdfError {
     /// Error during content stream interpretation.
     InterpreterError(String),
     /// A configured resource limit was exceeded.
-    ResourceLimitExceeded(String),
+    ResourceLimitExceeded {
+        /// Name of the limit that was exceeded (e.g., "max_input_bytes").
+        limit_name: String,
+        /// The configured limit value.
+        limit_value: usize,
+        /// The actual value that exceeded the limit.
+        actual_value: usize,
+    },
     /// The PDF is encrypted and requires a password to open.
     PasswordRequired,
     /// The supplied password is incorrect for this encrypted PDF.
@@ -40,7 +47,14 @@ impl fmt::Display for PdfError {
             PdfError::IoError(msg) => write!(f, "I/O error: {msg}"),
             PdfError::FontError(msg) => write!(f, "font error: {msg}"),
             PdfError::InterpreterError(msg) => write!(f, "interpreter error: {msg}"),
-            PdfError::ResourceLimitExceeded(msg) => write!(f, "resource limit exceeded: {msg}"),
+            PdfError::ResourceLimitExceeded {
+                limit_name,
+                limit_value,
+                actual_value,
+            } => write!(
+                f,
+                "resource limit exceeded: {limit_name} (limit: {limit_value}, actual: {actual_value})"
+            ),
             PdfError::PasswordRequired => write!(f, "PDF is encrypted and requires a password"),
             PdfError::InvalidPassword => write!(f, "the supplied password is incorrect"),
             PdfError::Other(msg) => write!(f, "{msg}"),
@@ -300,6 +314,14 @@ pub struct ExtractOptions {
     pub extract_image_data: bool,
     /// When true, any warning is escalated to an error (default: false).
     pub strict_mode: bool,
+    /// Maximum input PDF file size in bytes (default: None = no limit).
+    pub max_input_bytes: Option<usize>,
+    /// Maximum number of pages to process (default: None = no limit).
+    pub max_pages: Option<usize>,
+    /// Maximum total image bytes across all pages (default: None = no limit).
+    pub max_total_image_bytes: Option<usize>,
+    /// Maximum total extracted objects across all pages (default: None = no limit).
+    pub max_total_objects: Option<usize>,
 }
 
 impl Default for ExtractOptions {
@@ -312,6 +334,10 @@ impl Default for ExtractOptions {
             unicode_norm: UnicodeNorm::None,
             extract_image_data: false,
             strict_mode: false,
+            max_input_bytes: None,
+            max_pages: None,
+            max_total_image_bytes: None,
+            max_total_objects: None,
         }
     }
 }
@@ -349,8 +375,36 @@ mod tests {
 
     #[test]
     fn pdf_error_resource_limit_exceeded() {
-        let err = PdfError::ResourceLimitExceeded("too many objects".to_string());
-        assert_eq!(err.to_string(), "resource limit exceeded: too many objects");
+        let err = PdfError::ResourceLimitExceeded {
+            limit_name: "max_input_bytes".to_string(),
+            limit_value: 1024,
+            actual_value: 2048,
+        };
+        assert_eq!(
+            err.to_string(),
+            "resource limit exceeded: max_input_bytes (limit: 1024, actual: 2048)"
+        );
+    }
+
+    #[test]
+    fn pdf_error_resource_limit_exceeded_structured_fields() {
+        let err = PdfError::ResourceLimitExceeded {
+            limit_name: "max_pages".to_string(),
+            limit_value: 10,
+            actual_value: 25,
+        };
+        if let PdfError::ResourceLimitExceeded {
+            limit_name,
+            limit_value,
+            actual_value,
+        } = &err
+        {
+            assert_eq!(limit_name, "max_pages");
+            assert_eq!(*limit_value, 10);
+            assert_eq!(*actual_value, 25);
+        } else {
+            panic!("expected ResourceLimitExceeded");
+        }
     }
 
     #[test]
@@ -544,6 +598,10 @@ mod tests {
         assert!(opts.collect_warnings);
         assert_eq!(opts.unicode_norm, UnicodeNorm::None);
         assert!(!opts.extract_image_data);
+        assert!(opts.max_input_bytes.is_none());
+        assert!(opts.max_pages.is_none());
+        assert!(opts.max_total_image_bytes.is_none());
+        assert!(opts.max_total_objects.is_none());
     }
 
     #[test]
@@ -556,6 +614,10 @@ mod tests {
             unicode_norm: UnicodeNorm::None,
             extract_image_data: true,
             strict_mode: true,
+            max_input_bytes: Some(1024),
+            max_pages: Some(10),
+            max_total_image_bytes: Some(5 * 1024 * 1024),
+            max_total_objects: Some(100_000),
         };
         assert_eq!(opts.max_recursion_depth, 5);
         assert_eq!(opts.max_objects_per_page, 50_000);
@@ -563,6 +625,10 @@ mod tests {
         assert!(!opts.collect_warnings);
         assert!(opts.extract_image_data);
         assert!(opts.strict_mode);
+        assert_eq!(opts.max_input_bytes, Some(1024));
+        assert_eq!(opts.max_pages, Some(10));
+        assert_eq!(opts.max_total_image_bytes, Some(5 * 1024 * 1024));
+        assert_eq!(opts.max_total_objects, Some(100_000));
     }
 
     #[test]
@@ -718,5 +784,42 @@ mod tests {
             format!("{}", ExtractWarningCode::Other("x".into())),
             "OTHER"
         );
+    }
+
+    // --- US-097: Document-level resource budgets ---
+
+    #[test]
+    fn resource_budget_defaults_none() {
+        let opts = ExtractOptions::default();
+        assert!(opts.max_input_bytes.is_none());
+        assert!(opts.max_pages.is_none());
+        assert!(opts.max_total_image_bytes.is_none());
+        assert!(opts.max_total_objects.is_none());
+    }
+
+    #[test]
+    fn resource_budget_custom_values() {
+        let opts = ExtractOptions {
+            max_input_bytes: Some(1024 * 1024),
+            max_pages: Some(50),
+            max_total_image_bytes: Some(10 * 1024 * 1024),
+            max_total_objects: Some(500_000),
+            ..ExtractOptions::default()
+        };
+        assert_eq!(opts.max_input_bytes, Some(1024 * 1024));
+        assert_eq!(opts.max_pages, Some(50));
+        assert_eq!(opts.max_total_image_bytes, Some(10 * 1024 * 1024));
+        assert_eq!(opts.max_total_objects, Some(500_000));
+    }
+
+    #[test]
+    fn resource_limit_exceeded_clone_and_eq() {
+        let err1 = PdfError::ResourceLimitExceeded {
+            limit_name: "max_input_bytes".to_string(),
+            limit_value: 100,
+            actual_value: 200,
+        };
+        let err2 = err1.clone();
+        assert_eq!(err1, err2);
     }
 }

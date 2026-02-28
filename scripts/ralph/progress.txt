@@ -13,6 +13,10 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
 - serde support uses conditional derive: `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]`
 - All ExtractOptions struct literals in tests use `..ExtractOptions::default()` spread, so adding new fields with defaults is backward-compatible
 - pdfplumber-py tests fail in local env due to missing libpython3.11.dylib — pre-existing issue, skip with `-p` flags
+- PdfError::ResourceLimitExceeded is a struct variant: `{ limit_name: String, limit_value: usize, actual_value: usize }`
+- Document-level budgets are `Option<usize>` fields on ExtractOptions (None=no limit for backward compat)
+- max_input_bytes checked in Pdf::open before parsing; max_pages checked in from_doc after page_count
+- Accumulated counters (total_objects, total_image_bytes) use AtomicUsize in Pdf struct for thread safety with pages_parallel()
 
 ---
 
@@ -61,4 +65,26 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - Existing constructors (new, on_page, with_context, with_operator_context) default to Other code
   - Use set_code() builder pattern to override after construction
   - Existing tests check .description field, not Display output, so Display format changes don't break them
+---
+
+## 2026-03-01 - US-097 (Phase 13)
+- Implemented document-level resource budgets for production safety
+- PdfError::ResourceLimitExceeded changed from `(String)` to struct variant `{ limit_name, limit_value, actual_value }`
+- ExtractOptions gained 4 new `Option<usize>` fields: max_input_bytes, max_pages, max_total_image_bytes, max_total_objects
+- All default to None (no limit) for backward compatibility
+- max_input_bytes: checked in Pdf::open() before parsing
+- max_pages: checked in from_doc() after getting page_count
+- max_total_objects: AtomicUsize counter in Pdf, checked after each page() extraction (chars+lines+rects+curves+images)
+- max_total_image_bytes: AtomicUsize counter in Pdf, checked after each page() extraction (sum of image data bytes)
+- 10 new tests: 7 integration (rejects/allows/disabled), 3 unit (defaults, custom, clone)
+- Files changed:
+  - crates/pdfplumber-core/src/error.rs (struct variant + new fields + tests)
+  - crates/pdfplumber/src/pdf.rs (budget checks + AtomicUsize counters)
+  - crates/pdfplumber/tests/pdf_integration.rs (7 integration tests)
+  - crates/pdfplumber-parse/src/error.rs (updated test for struct variant)
+  - crates/pdfplumber-py/src/lib.rs (updated match arm + test)
+- **Learnings for future iterations:**
+  - Pdf doesn't implement Debug, so can't use unwrap_err() in tests — use match patterns instead
+  - AtomicUsize with Relaxed ordering is sufficient for counters since exact accuracy isn't critical
+  - fetch_add returns the *previous* value, so add page_object_count to get the new total
 ---
