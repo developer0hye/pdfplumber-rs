@@ -83,4 +83,21 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - Static methods in `#[wasm_bindgen] impl` blocks (no `&self`) become JS static class methods
   - `#[wasm_bindgen(getter, js_name = "camelCase")]` for JS-idiomatic property names
   - Rust 2024 edition: `ref mut` not allowed in implicitly-borrowing patterns (lopdf dictionary matching)
+- **npm packaging pattern**: wasm-pack auto-generates `package.json`, `.d.ts`, and `.js` in `pkg/` from Cargo.toml metadata. Create hand-crafted `.d.ts` with richer types alongside the crate for IDE consumers. wasm-pack also copies `README.md` from crate root into `pkg/`.
+---
+
+## 2026-02-28 - US-077
+- What was implemented: npm packaging for pdfplumber-wasm
+- Files changed:
+  - `crates/pdfplumber-wasm/pdfplumber-wasm.d.ts` — new hand-crafted TypeScript type definitions with rich interfaces (PdfChar, PdfWord, PdfTable, PdfSearchMatch, PdfMetadata, WasmPdf, WasmPage)
+  - `crates/pdfplumber-wasm/README.md` — new npm README with installation, browser/Node.js/bundler usage, API reference, comparison table
+  - `crates/pdfplumber-wasm/examples/browser-demo.html` — new browser demo with drag-and-drop PDF loading, text/word/table extraction
+  - `crates/pdfplumber-wasm/src/lib.rs` — added 10 packaging artifact tests
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - wasm-pack `--target bundler` generates `module` field in package.json (ES module), `--target nodejs` generates `main` (CommonJS)
+  - wasm-pack copies README.md from crate root into the `pkg/` output directory
+  - Hand-crafted `.d.ts` with proper interfaces is valuable since auto-generated types use `any` for `JsValue` returns
+  - The `pkg/` directory is gitignored (has `*` in `.gitignore`) — source artifacts go in the crate root
+  - File existence tests using `env!("CARGO_MANIFEST_DIR")` are reliable for verifying packaging artifacts
 ---

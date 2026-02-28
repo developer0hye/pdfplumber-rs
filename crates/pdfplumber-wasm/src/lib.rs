@@ -409,4 +409,152 @@ mod tests {
             "Expected no extracted tables in simple text PDF"
         );
     }
+
+    // ---- npm packaging artifact tests ----
+
+    #[test]
+    fn test_readme_exists() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let readme_path = std::path::Path::new(manifest_dir).join("README.md");
+        assert!(readme_path.exists(), "README.md must exist for npm package");
+    }
+
+    #[test]
+    fn test_readme_has_npm_install() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let readme = std::fs::read_to_string(std::path::Path::new(manifest_dir).join("README.md"))
+            .expect("README.md must be readable");
+        assert!(
+            readme.contains("npm install pdfplumber-wasm")
+                || readme.contains("npm i pdfplumber-wasm"),
+            "README must contain npm install instructions"
+        );
+    }
+
+    #[test]
+    fn test_readme_has_browser_usage() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let readme = std::fs::read_to_string(std::path::Path::new(manifest_dir).join("README.md"))
+            .expect("README.md must be readable");
+        assert!(
+            readme.contains("Browser") || readme.contains("browser"),
+            "README must contain browser usage section"
+        );
+    }
+
+    #[test]
+    fn test_readme_has_nodejs_usage() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let readme = std::fs::read_to_string(std::path::Path::new(manifest_dir).join("README.md"))
+            .expect("README.md must be readable");
+        assert!(
+            readme.contains("Node") || readme.contains("node"),
+            "README must contain Node.js usage section"
+        );
+    }
+
+    #[test]
+    fn test_browser_demo_exists() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let demo_path = std::path::Path::new(manifest_dir).join("examples/browser-demo.html");
+        assert!(
+            demo_path.exists(),
+            "Browser demo HTML must exist at examples/browser-demo.html"
+        );
+    }
+
+    #[test]
+    fn test_browser_demo_loads_pdf_and_extracts_tables() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let demo = std::fs::read_to_string(
+            std::path::Path::new(manifest_dir).join("examples/browser-demo.html"),
+        )
+        .expect("Browser demo must be readable");
+        assert!(
+            demo.contains("WasmPdf"),
+            "Browser demo must use WasmPdf class"
+        );
+        assert!(
+            demo.contains("extractTables") || demo.contains("extract_tables"),
+            "Browser demo must demonstrate table extraction"
+        );
+    }
+
+    #[test]
+    fn test_typescript_types_defined() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let types_path = std::path::Path::new(manifest_dir).join("pdfplumber-wasm.d.ts");
+        assert!(
+            types_path.exists(),
+            "TypeScript type definitions must exist at pdfplumber-wasm.d.ts"
+        );
+    }
+
+    #[test]
+    fn test_typescript_types_content() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let types = std::fs::read_to_string(
+            std::path::Path::new(manifest_dir).join("pdfplumber-wasm.d.ts"),
+        )
+        .expect("TypeScript types must be readable");
+        assert!(
+            types.contains("PdfChar"),
+            "TypeScript types must define PdfChar interface"
+        );
+        assert!(
+            types.contains("PdfWord"),
+            "TypeScript types must define PdfWord interface"
+        );
+        assert!(
+            types.contains("PdfSearchMatch"),
+            "TypeScript types must define PdfSearchMatch interface"
+        );
+        assert!(
+            types.contains("PdfMetadata"),
+            "TypeScript types must define PdfMetadata interface"
+        );
+        assert!(
+            types.contains("WasmPdf"),
+            "TypeScript types must define WasmPdf class"
+        );
+        assert!(
+            types.contains("WasmPage"),
+            "TypeScript types must define WasmPage class"
+        );
+    }
+
+    #[test]
+    fn test_cargo_toml_has_npm_metadata() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let cargo_toml =
+            std::fs::read_to_string(std::path::Path::new(manifest_dir).join("Cargo.toml"))
+                .expect("Cargo.toml must be readable");
+        assert!(
+            cargo_toml.contains("pdfplumber-wasm"),
+            "Cargo.toml must have package name pdfplumber-wasm"
+        );
+        assert!(
+            cargo_toml.contains("description"),
+            "Cargo.toml must have description"
+        );
+        assert!(
+            cargo_toml.contains("keywords"),
+            "Cargo.toml must have keywords"
+        );
+    }
+
+    #[test]
+    fn test_version_matches_workspace() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let version = env!("CARGO_PKG_VERSION");
+        assert!(!version.is_empty(), "Package version must be set");
+        // Verify we can read the version from Cargo.toml
+        let cargo_toml =
+            std::fs::read_to_string(std::path::Path::new(manifest_dir).join("Cargo.toml"))
+                .expect("Cargo.toml must be readable");
+        assert!(
+            cargo_toml.contains(&format!("version = \"{version}\"")),
+            "Cargo.toml version must match"
+        );
+    }
 }

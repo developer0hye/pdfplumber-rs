@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pdfplumber-wasm Browser Demo</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 900px; margin: 0 auto; padding: 2rem; color: #333; }
+        h1 { margin-bottom: 0.5rem; }
+        .subtitle { color: #666; margin-bottom: 2rem; }
+        .drop-zone { border: 2px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; margin-bottom: 1.5rem; transition: border-color 0.2s; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #0066cc; background: #f0f7ff; }
+        .drop-zone input { display: none; }
+        #results { display: none; }
+        .section { margin-bottom: 1.5rem; }
+        .section h2 { font-size: 1.1rem; margin-bottom: 0.5rem; border-bottom: 1px solid #eee; padding-bottom: 0.25rem; }
+        pre { background: #f5f5f5; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; white-space: pre-wrap; }
+        table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+        table th, table td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; font-size: 0.85rem; }
+        table th { background: #f0f0f0; }
+        .info { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+        .info-card { background: #f5f5f5; padding: 0.75rem 1rem; border-radius: 4px; flex: 1; min-width: 120px; }
+        .info-card .label { font-size: 0.75rem; color: #666; text-transform: uppercase; }
+        .info-card .value { font-size: 1.2rem; font-weight: 600; }
+        .error { color: #cc0000; background: #fff0f0; padding: 1rem; border-radius: 4px; }
+        .loading { color: #666; font-style: italic; }
+    </style>
+</head>
+<body>
+    <h1>pdfplumber-wasm Demo</h1>
+    <p class="subtitle">Extract text, words, and tables from PDFs in the browser using WebAssembly.</p>
+
+    <div class="drop-zone" id="dropZone">
+        <p>Drop a PDF file here or click to select</p>
+        <input type="file" id="fileInput" accept=".pdf">
+    </div>
+
+    <div id="results">
+        <div class="info" id="info"></div>
+
+        <div class="section">
+            <h2>Extracted Text</h2>
+            <pre id="textOutput"></pre>
+        </div>
+
+        <div class="section">
+            <h2>Words</h2>
+            <pre id="wordsOutput"></pre>
+        </div>
+
+        <div class="section" id="tablesSection" style="display:none">
+            <h2>Tables</h2>
+            <div id="tablesOutput"></div>
+        </div>
+    </div>
+
+    <!--
+      Build the WASM package first:
+        wasm-pack build - -target web crates/pdfplumber-wasm
+      Then serve this directory and load the page.
+    -->
+    <script type="module">
+        import init, { WasmPdf } from '../pkg/pdfplumber_wasm.js';
+
+        let wasmReady = false;
+
+        async function initialize() {
+            try {
+                await init();
+                wasmReady = true;
+            } catch (e) {
+                document.getElementById('dropZone').innerHTML =
+                    `<p class="error">Failed to load WASM module: ${e.message}<br>
+                    Make sure you built with: <code>wasm-pack build --target web crates/pdfplumber-wasm</code></p>`;
+            }
+        }
+
+        async function processPdf(bytes) {
+            if (!wasmReady) return;
+
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+            document.getElementById('textOutput').textContent = 'Processing...';
+            document.getElementById('wordsOutput').textContent = '';
+            document.getElementById('tablesSection').style.display = 'none';
+
+            try {
+                const pdf = WasmPdf.open(new Uint8Array(bytes));
+
+                // Show document info
+                const info = document.getElementById('info');
+                info.innerHTML = `
+                    <div class="info-card"><div class="label">Pages</div><div class="value">${pdf.pageCount}</div></div>
+                `;
+
+                // Process first page
+                const page = pdf.page(0);
+                info.innerHTML += `
+                    <div class="info-card"><div class="label">Page Size</div><div class="value">${Math.round(page.width)} x ${Math.round(page.height)}</div></div>
+                `;
+
+                // Extract text
+                const text = page.extractText();
+                document.getElementById('textOutput').textContent = text || '(no text found)';
+
+                // Extract words
+                const words = page.extractWords();
+                const wordSummary = words.slice(0, 50).map(w =>
+                    `"${w.text}" at (${w.x0.toFixed(1)}, ${w.top.toFixed(1)})`
+                ).join('\n');
+                document.getElementById('wordsOutput').textContent =
+                    `${words.length} words found${words.length > 50 ? ' (showing first 50)' : ''}:\n\n${wordSummary}`;
+
+                // Extract tables
+                const tables = page.extractTables();
+                if (tables.length > 0) {
+                    const tablesSection = document.getElementById('tablesSection');
+                    tablesSection.style.display = 'block';
+                    const tablesOutput = document.getElementById('tablesOutput');
+                    tablesOutput.innerHTML = '';
+
+                    tables.forEach((table, i) => {
+                        const tableEl = document.createElement('table');
+                        const caption = document.createElement('caption');
+                        caption.textContent = `Table ${i + 1}`;
+                        caption.style.cssText = 'text-align:left;font-weight:600;margin-bottom:0.25rem;';
+                        tableEl.appendChild(caption);
+
+                        table.forEach((row, ri) => {
+                            const tr = document.createElement('tr');
+                            row.forEach(cell => {
+                                const td = document.createElement(ri === 0 ? 'th' : 'td');
+                                td.textContent = cell ?? '';
+                                tr.appendChild(td);
+                            });
+                            tableEl.appendChild(tr);
+                        });
+
+                        tablesOutput.appendChild(tableEl);
+                    });
+                }
+
+                // Clean up
+                page.free();
+                pdf.free();
+            } catch (e) {
+                document.getElementById('textOutput').innerHTML =
+                    `<span class="error">Error: ${e.message}</span>`;
+            }
+        }
+
+        // File input handling
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type === 'application/pdf') {
+                file.arrayBuffer().then(processPdf);
+            }
+        });
+        fileInput.addEventListener('change', e => {
+            const file = e.target.files[0];
+            if (file) file.arrayBuffer().then(processPdf);
+        });
+
+        initialize();
+    </script>
+</body>
+</html>
