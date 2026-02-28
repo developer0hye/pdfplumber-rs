@@ -133,3 +133,22 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - lopdf's `nom_parser` feature is the minimal set needed; `chrono_time` and `rayon` defaults are unnecessary
   - `PdfError::IoError(String)` already existed, perfect for wrapping `std::fs::read` errors
 ---
+
+## 2026-02-28 - US-048
+- Created performance benchmark suite using criterion crate
+- New file: `crates/pdfplumber/benches/extraction.rs` — 8 benchmark groups: pdf_open, char_extraction, word_extraction, text_extraction, text_extraction_layout, table_detection_lattice, table_detection_stream, edge_computation
+- New file: `crates/pdfplumber/benches/README.md` — Documents benchmark suite, test PDF descriptions, and baseline Python pdfplumber comparison numbers
+- Modified: `crates/pdfplumber/Cargo.toml` — Added criterion 0.5 dev-dependency with html_reports feature, [[bench]] section
+- Test PDFs generated programmatically: simple (1-page, 10 lines), medium (10-page, 30 lines each), complex (10-page, mixed fonts + 5x4 table each), lattice table (20x5 grid), stream table (20x5 text grid)
+- Dependencies added: criterion 0.5 (dev-dependency only)
+- **Benchmark results (Apple M-series)**:
+  - Text extraction simple: ~0.12ms (vs Python ~5ms = ~40x faster)
+  - Text extraction medium 10-page: ~4.8ms (vs Python ~50ms = ~10x faster)
+  - Table detection lattice 20x5: ~0.12ms (vs Python ~15ms = ~125x faster)
+  - Table detection stream 20x5: ~0.20ms (vs Python ~20ms = ~100x faster)
+- **Learnings for future iterations:**
+  - criterion's `--test` flag runs each benchmark once for quick compile/sanity check without timing
+  - lopdf PDF generation helper pattern (build_pdf with content streams) is reusable for any test fixture
+  - PDF content stream text positioning uses Td operator (relative move) — much cleaner than absolute positioning for multi-line text
+  - Benchmark fixture functions should be separate from criterion groups for reusability
+---
