@@ -44,6 +44,41 @@ struct CachedFont {
     encoding: Option<FontEncoding>,
 }
 
+/// Entry on the marked content stack, tracking BMC/BDC nesting.
+#[derive(Debug, Clone)]
+struct MarkedContentEntry {
+    /// Tag name (e.g., "P", "Span", "Artifact").
+    tag: String,
+    /// Marked content identifier from BDC properties, if present.
+    mcid: Option<u32>,
+}
+
+/// Extract MCID from a BDC operator's properties operand (inline dictionary).
+fn extract_mcid_from_operands(op: &Operator) -> Option<u32> {
+    for operand in &op.operands {
+        if let Operand::Dictionary(entries) = operand {
+            for (key, value) in entries {
+                if key == "MCID" {
+                    return match value {
+                        Operand::Integer(i) => Some(*i as u32),
+                        Operand::Real(f) => Some(*f as u32),
+                        _ => None,
+                    };
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract the tag name from a BMC/BDC operator's operands.
+fn extract_tag_name(op: &Operator) -> Option<String> {
+    op.operands.first().and_then(|o| match o {
+        Operand::Name(name) => Some(name.clone()),
+        _ => None,
+    })
+}
+
 /// Interpret a content stream and emit events to the handler.
 ///
 /// Processes tokenized PDF operators, updates graphics/text state, and calls
@@ -81,6 +116,7 @@ pub(crate) fn interpret_content_stream(
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
     let mut path_builder = PathBuilder::new(*gstate.ctm());
+    let mut marked_content_stack: Vec<MarkedContentEntry> = Vec::new();
 
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
@@ -283,15 +319,36 @@ pub(crate) fn interpret_content_stream(
 
             // --- Text rendering operators ---
             "Tj" => {
-                handle_tj(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "TJ" => {
-                handle_tj_array(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj_array(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "'" => {
                 // T* then Tj
                 tstate.move_to_next_line();
-                handle_tj(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "\"" => {
                 // aw ac (string) "
@@ -305,7 +362,14 @@ pub(crate) fn interpret_content_stream(
                     tstate.move_to_next_line();
                     // Show the string (3rd operand)
                     let string_operands = vec![op.operands[2].clone()];
-                    handle_tj(tstate, gstate, handler, &string_operands, &font_cache);
+                    handle_tj(
+                        tstate,
+                        gstate,
+                        handler,
+                        &string_operands,
+                        &font_cache,
+                        &marked_content_stack,
+                    );
                 }
             }
 
@@ -459,7 +523,19 @@ pub(crate) fn interpret_content_stream(
             "W" | "W*" => {}
 
             // --- Marked content operators ---
-            "BMC" | "BDC" | "EMC" | "MP" | "DP" => {}
+            "BMC" => {
+                let tag = extract_tag_name(op).unwrap_or_default();
+                marked_content_stack.push(MarkedContentEntry { tag, mcid: None });
+            }
+            "BDC" => {
+                let tag = extract_tag_name(op).unwrap_or_default();
+                let mcid = extract_mcid_from_operands(op);
+                marked_content_stack.push(MarkedContentEntry { tag, mcid });
+            }
+            "EMC" => {
+                marked_content_stack.pop();
+            }
+            "MP" | "DP" => {}
 
             // --- Inline image operator ---
             "BI" => {
@@ -774,6 +850,7 @@ fn handle_tj(
     handler: &mut dyn ContentHandler,
     operands: &[Operand],
     font_cache: &HashMap<String, CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let string_bytes = match operands.first().and_then(operand_to_string_bytes) {
         Some(bytes) => bytes,
@@ -789,7 +866,14 @@ fn handle_tj(
         show_string(tstate, string_bytes, &*width_fn)
     };
 
-    emit_char_events(raw_chars, tstate, gstate, handler, cached);
+    emit_char_events(
+        raw_chars,
+        tstate,
+        gstate,
+        handler,
+        cached,
+        marked_content_stack,
+    );
 }
 
 fn handle_tj_array(
@@ -798,6 +882,7 @@ fn handle_tj_array(
     handler: &mut dyn ContentHandler,
     operands: &[Operand],
     font_cache: &HashMap<String, CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let array = match operands.first() {
         Some(Operand::Array(arr)) => arr,
@@ -820,7 +905,14 @@ fn handle_tj_array(
     let is_cid = cached.is_some_and(|c| c.is_cid_font);
     let raw_chars = show_string_with_positioning_mode(tstate, &elements, &*width_fn, is_cid);
 
-    emit_char_events(raw_chars, tstate, gstate, handler, cached);
+    emit_char_events(
+        raw_chars,
+        tstate,
+        gstate,
+        handler,
+        cached,
+        marked_content_stack,
+    );
 }
 
 fn emit_char_events(
@@ -829,6 +921,7 @@ fn emit_char_events(
     gstate: &InterpreterState,
     handler: &mut dyn ContentHandler,
     cached: Option<&CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let ctm = gstate.ctm_array();
     let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
@@ -881,6 +974,8 @@ fn emit_char_events(
             word_spacing: tstate.word_spacing,
             h_scaling: tstate.h_scaling_normalized(),
             rise: tstate.rise,
+            mcid: marked_content_stack.iter().rev().find_map(|mc| mc.mcid),
+            tag: marked_content_stack.last().map(|mc| mc.tag.clone()),
         });
     }
 }
@@ -2361,5 +2456,181 @@ mod tests {
                 "filter mismatch for /{abbrev}: expected {full_name}"
             );
         }
+    }
+
+    // --- Marked content (BMC/BDC/EMC) tests ---
+
+    #[test]
+    fn bdc_with_mcid_sets_char_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 5>> BDC BT /F1 12 Tf (Hi) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].mcid, Some(5));
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(5));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+    }
+
+    #[test]
+    fn bmc_sets_tag_without_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/Artifact BMC BT /F1 12 Tf (X) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("Artifact"));
+        assert_eq!(handler.chars[0].mcid, None);
+    }
+
+    #[test]
+    fn nested_bdc_maintains_correct_stack() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 1>> BDC BT /F1 12 Tf (A) Tj /Span <</MCID 2>> BDC (B) Tj EMC (C) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 3);
+        assert_eq!(handler.chars[0].mcid, Some(1));
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(2));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("Span"));
+        assert_eq!(handler.chars[2].mcid, Some(1));
+        assert_eq!(handler.chars[2].tag.as_deref(), Some("P"));
+    }
+
+    #[test]
+    fn emc_without_matching_bmc_handled_gracefully() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"EMC BT /F1 12 Tf (A) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        let result = interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].mcid, None);
+        assert_eq!(handler.chars[0].tag, None);
+    }
+
+    #[test]
+    fn chars_outside_marked_content_have_none() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"BT /F1 12 Tf (A) Tj /P <</MCID 3>> BDC (B) Tj EMC (C) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 3);
+        assert_eq!(handler.chars[0].mcid, None);
+        assert_eq!(handler.chars[0].tag, None);
+        assert_eq!(handler.chars[1].mcid, Some(3));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[2].mcid, None);
+        assert_eq!(handler.chars[2].tag, None);
+    }
+
+    #[test]
+    fn nested_bmc_inside_bdc_inherits_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 7>> BDC BT /F1 12 Tf /Artifact BMC (A) Tj EMC (B) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("Artifact"));
+        assert_eq!(handler.chars[0].mcid, Some(7));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(7));
     }
 }
