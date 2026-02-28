@@ -46,6 +46,10 @@ pub struct CharEvent {
     pub h_scaling: f64,
     /// Text rise value (Ts operator) for superscript/subscript.
     pub rise: f64,
+    /// Marked content identifier (MCID) from BDC operator, if inside a marked content sequence.
+    pub mcid: Option<u32>,
+    /// Structure tag name (e.g., "P", "Span", "H1") from BMC/BDC operator.
+    pub tag: Option<String>,
 }
 
 /// Information about a painted path.
@@ -91,6 +95,8 @@ pub struct ImageEvent {
     pub colorspace: Option<String>,
     /// Bits per component.
     pub bits_per_component: Option<u32>,
+    /// PDF stream filter name (e.g., "DCTDecode", "FlateDecode").
+    pub filter: Option<String>,
 }
 
 /// Callback handler for content stream interpretation.
@@ -197,6 +203,8 @@ mod tests {
             word_spacing: 0.0,
             h_scaling: 1.0,
             rise: 0.0,
+            mcid: None,
+            tag: None,
         }
     }
 
@@ -227,6 +235,7 @@ mod tests {
             height: 600,
             colorspace: Some("DeviceRGB".to_string()),
             bits_per_component: Some(8),
+            filter: None,
         }
     }
 
@@ -332,10 +341,21 @@ mod tests {
         let event = ImageEvent {
             colorspace: None,
             bits_per_component: None,
+            filter: None,
             ..sample_image_event()
         };
         assert_eq!(event.colorspace, None);
         assert_eq!(event.bits_per_component, None);
+        assert_eq!(event.filter, None);
+    }
+
+    #[test]
+    fn image_event_with_filter() {
+        let event = ImageEvent {
+            filter: Some("DCTDecode".to_string()),
+            ..sample_image_event()
+        };
+        assert_eq!(event.filter, Some("DCTDecode".to_string()));
     }
 
     // --- ContentHandler with CollectingHandler ---

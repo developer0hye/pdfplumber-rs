@@ -1,13 +1,72 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 06시 15분 41초 KST
----
+Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
 
 ## Codebase Patterns
-- Existing test fixtures: `crates/pdfplumber/tests/fixtures/pdfs/` (PDFs) and `crates/pdfplumber/tests/fixtures/golden/` (golden JSON)
-- Download scripts: `scripts/download_test_fixtures.sh` (new, modular with separate functions per source), `scripts/download_fixtures.sh` (old, hardcoded 4 files)
-- Golden data generation: `scripts/generate_golden.py` (currently flat, reads only top-level PDFs dir)
-- `pdfplumber-py` tests fail locally due to missing `libpython3.11.dylib` — this is pre-existing. Use `--exclude pdfplumber-py` for local testing.
-- gh api works for GitHub repos; poppler tests are on GitLab (use curl with raw URLs)
+- **TableFinder debug**: Use `find_tables_debug()` to get `TableFinderDebug` with intermediate pipeline results (edges, intersections, cells, tables).
+- **Golden data**: Located at `crates/pdfplumber/tests/fixtures/golden/*.json`. Use `serde::Deserialize` with matching struct fields.
+- **PDF fixtures**: Located at `crates/pdfplumber/tests/fixtures/pdfs/`.
+- **Edge pipeline**: Raw edges → filter (min_length) → snap → join → intersections → cells → tables.
+- **Pre-existing failure**: `pdfplumber-py` tests fail locally due to missing `libpython3.11.dylib` — not a code issue.
+- **Key function for US-107**: `intersections_to_cells` at table.rs:455 requires all 4 corners. The fix should use edge coverage instead.
+- **Download scripts**: `scripts/download_test_fixtures.sh` (modular with separate functions per source), `scripts/download_fixtures.sh` (old, hardcoded 4 files)
+- **Golden data generation**: `scripts/generate_golden.py` (currently flat, reads only top-level PDFs dir)
+- **gh api** works for GitHub repos; poppler tests are on GitLab (use curl with raw URLs)
+---
+
+## 2026-03-01 - US-106
+- Wrote diagnostic integration test: `crates/pdfplumber/tests/table_diagnostic.rs`
+- Test opens nics-background-checks-2015-11.pdf and analyzes the full table detection pipeline
+- Files changed: `crates/pdfplumber/tests/table_diagnostic.rs` (new), `scripts/ralph/prd.json`
+- Dependencies added: none
+
+### Diagnostic Findings:
+- Golden: 17 rows x 25 cols = 425 cells
+- Rust: 15 rows x 2 cols = 304 cells (in 1 table)
+- 5 y-positions have incomplete intersection coverage:
+  - y=24.0: 2/26 x-positions (outer border only — title row)
+  - y=61.5: 10/26 x-positions (header row — only major section dividers)
+  - y=489.9: 3/26 x-positions
+  - y=561.9: 3/26 x-positions
+  - y=569.3: 2/26 x-positions (outer border only — bottom)
+- Root cause: `intersections_to_cells` requires all 4 corner intersection points for a cell, but horizontal edges span the full table width at these y-positions (as single long edges) while vertical edges only exist at a subset of x-positions.
+- Fix approach (US-107): Check edge coverage instead of point intersections — if a horizontal edge spans [x0, x1] at a y-position and vertical edges exist at both x0 and x1 spanning [top, bottom], the cell is valid.
+
+### Learnings:
+- After snap+join, 1208 raw edges reduce to 46 processed edges (18H + 28V).
+- 26 unique x-positions and 18 unique y-positions after snapping.
+- The "2 cols" in Rust output is because most y-pairs only have 2 corners matching at the outer borders (x=33.1 and x=975.3).
+---
+
+## 2026-03-01 - US-107
+- Implemented `edges_to_cells` function with two-phase grid completion in `crates/pdfplumber-core/src/table.rs`
+- Phase 1: strict 4-edge coverage creates core cells, records established column boundaries
+- Phase 2: grid completion — for remaining positions, if H edges span [x0, x1] at top AND bottom, AND x0/x1 are established column boundaries from Phase 1, create the cell
+- Updated `find_tables()` and `find_tables_debug()` to call `edges_to_cells` instead of `intersections_to_cells`
+- Exported `edges_to_cells` from core and facade crates
+- Wrote 8 unit tests for `edges_to_cells` (complete grid, partial intersections, empty cases, tolerance, etc.)
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `scripts/ralph/prd.json`
+
+### Results:
+- nics table accuracy: 6.8% → 87.5% (372/425 cells match positionally)
+- Rust table dimensions: now 17 rows x 25 cols = 425 cells (matches golden exactly)
+- 53 unmatched cells are text extraction differences, not structural
+- All existing tests pass (0 regressions)
+---
+
+## 2026-03-01 - US-108
+- Modified Phase 2 in `edges_to_cells` to create merged cells between V-edge boundaries instead of narrow cells at every column
+- Added `normalize_table_columns` function: splits merged cells into uniform grid columns with text in first sub-cell only
+- Called `normalize_table_columns` in `Page::find_tables` and `CroppedPage::find_tables` after text extraction
+- Exported `normalize_table_columns` from core and facade crates
+- Updated `cross_validation.rs` to assert table rate >= TABLE_THRESHOLD (0.90) for nics-background-checks
+- Removed "needs investigation" comments
+- Wrote 3 unit tests for `normalize_table_columns` (uniform grid, merged header, empty table)
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber/src/page.rs`, `crates/pdfplumber/src/cropped_page.rs`, `crates/pdfplumber/tests/cross_validation.rs`, `scripts/ralph/prd.json`
+
+### Results:
+- nics table accuracy: 87.5% → 100% (425/425 cells match)
+- All other cross-validation metrics unchanged: chars=100%, words=100%, lines=100%, rects=100%
+- All existing tests pass (0 regressions)
 ---
 
 ## 2026-03-01 - US-109

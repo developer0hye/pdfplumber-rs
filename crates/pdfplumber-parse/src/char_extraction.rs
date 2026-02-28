@@ -116,8 +116,8 @@ pub fn char_from_event(
         non_stroking_color,
         ctm: event.ctm,
         char_code: event.char_code,
-        mcid: None,
-        tag: None,
+        mcid: event.mcid,
+        tag: event.tag.clone(),
     }
 }
 
@@ -146,6 +146,8 @@ mod tests {
             word_spacing: 0.0,
             h_scaling: 1.0,
             rise: 0.0,
+            mcid: None,
+            tag: None,
         }
     }
 
@@ -604,5 +606,27 @@ mod tests {
         // w_norm = 250/1000 = 0.25 (glyph width only)
         // Width = 12 * 0.25 = 3.0
         assert_approx(ch.bbox.width(), 3.0, "width unaffected by combined spacing");
+    }
+
+    #[test]
+    fn mcid_and_tag_propagated_from_event() {
+        let event = CharEvent {
+            mcid: Some(5),
+            tag: Some("P".to_string()),
+            ..default_event()
+        };
+        let metrics = default_metrics();
+        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        assert_eq!(ch.mcid, Some(5));
+        assert_eq!(ch.tag.as_deref(), Some("P"));
+    }
+
+    #[test]
+    fn mcid_none_when_not_in_marked_content() {
+        let event = default_event();
+        let metrics = default_metrics();
+        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        assert_eq!(ch.mcid, None);
+        assert_eq!(ch.tag, None);
     }
 }
