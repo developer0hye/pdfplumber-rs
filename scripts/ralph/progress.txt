@@ -32,6 +32,9 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `TableFinder::new_with_words(edges, words, settings)` constructor for Stream strategy; `new()` still works with empty words
 - `explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge>` converts coordinate lists to edges with `EdgeSource::Explicit`
 - Explicit strategy mixing: `find_tables()` computes bounding range from detected edges + explicit coordinates for edge span computation
+- `Page::find_tables(settings)` → Vec<Table> with populated cell text; uses TableFinder internally
+- `Page::extract_tables(settings)` → Vec<Vec<Vec<Option<String>>>> (tables→rows→cells as text)
+- `Page::extract_table(settings)` → Option<Vec<Vec<Option<String>>>> (largest table by cell count)
 
 ---
 
@@ -175,4 +178,21 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Mixing in `find_tables()`: computes bounding range from both detected edges AND explicit coordinates, so explicit horizontal lines span the full x-range including detected edges
   - All explicit edges have `EdgeSource::Explicit` for tracking provenance
   - 13 tests covering: basic conversion, empty lists (h/v/both), edge source, grid detection (3x3/2x2), no explicit_lines, mixing with detected edges, single line each, unsorted coordinates
+---
+
+## 2026-02-28 - US-039
+- Implemented Page table API: `find_tables()`, `extract_tables()`, `extract_table()`
+- `find_tables(&self, settings: &TableSettings) -> Vec<Table>` creates a TableFinder with page edges + words, runs pipeline, populates cell text
+- `extract_tables(&self, settings: &TableSettings) -> Vec<Vec<Vec<Option<String>>>>` returns 2D text arrays
+- `extract_table(&self, settings: &TableSettings) -> Option<Vec<Vec<Option<String>>>>` returns largest table by cell count (then area)
+- Text extraction populates cells, rows, and columns separately via `extract_text_for_cells()`
+- Files changed: `crates/pdfplumber/src/page.rs`, `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Page methods import `TableFinder`, `TableSettings`, `Table`, `extract_text_for_cells` from pdfplumber-core
+  - `TableFinder::new_with_words()` is used for all strategies (words are empty Vec for non-Stream strategies, no harm)
+  - Text extraction must be called on `table.cells`, `table.rows[*]`, and `table.columns[*]` separately since they are independent copies
+  - `extract_table()` picks the largest table: first by cell count, then by bbox area as tiebreaker
+  - Test helpers `hline(x0, y, x1)` and `vline(x, top, bottom)` simplify line creation in tests
+  - 16 tests covering: simple bordered table, cell text, 2x2 table, empty page, no lines, rects only, extract_tables simple/2x2/empty/empty-cells, extract_table largest/none, stream strategy, explicit strategy, multiple tables, lattice strict
 ---
