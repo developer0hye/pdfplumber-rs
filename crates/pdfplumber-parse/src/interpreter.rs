@@ -11,6 +11,7 @@ use crate::cid_font::{
     is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
 };
 use crate::cmap::CMap;
+use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
 use crate::handler::{CharEvent, ContentHandler, ImageEvent};
@@ -142,6 +143,20 @@ pub(crate) fn interpret_content_stream(
                     let y = get_f32(&op.operands, 2).unwrap_or(0.0);
                     let k = get_f32(&op.operands, 3).unwrap_or(0.0);
                     gstate.set_non_stroking_cmyk(c, m, y, k);
+                }
+            }
+            "CS" => {
+                if let Some(Operand::Name(name)) = op.operands.first() {
+                    if let Some(cs) = resolve_color_space_name(name, doc, resources) {
+                        gstate.set_stroking_color_space(cs);
+                    }
+                }
+            }
+            "cs" => {
+                if let Some(Operand::Name(name)) = op.operands.first() {
+                    if let Some(cs) = resolve_color_space_name(name, doc, resources) {
+                        gstate.set_non_stroking_color_space(cs);
+                    }
                 }
             }
             "SC" | "SCN" => {

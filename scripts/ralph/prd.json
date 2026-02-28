@@ -58,7 +58,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
     },
     {

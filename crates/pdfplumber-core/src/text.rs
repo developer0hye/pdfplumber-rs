@@ -35,6 +35,20 @@ pub struct Char {
     pub tag: Option<String>,
 }
 
+impl Char {
+    /// Resolve the non-stroking (fill) color to RGB.
+    ///
+    /// Converts the `non_stroking_color` to `Color::Rgb` if possible.
+    /// Returns `None` if no color is set or conversion is not possible
+    /// (e.g., `Color::Other` with unknown color space).
+    pub fn resolved_color(&self) -> Option<Color> {
+        self.non_stroking_color
+            .as_ref()
+            .and_then(|c| c.to_rgb())
+            .map(|(r, g, b)| Color::Rgb(r, g, b))
+    }
+}
+
 /// Text flow direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -213,5 +227,60 @@ mod tests {
         assert!(is_cjk_text("한글"));
         assert!(!is_cjk_text("Hello"));
         assert!(!is_cjk_text(""));
+    }
+
+    // --- Char::resolved_color tests ---
+
+    fn make_char(non_stroking: Option<Color>) -> Char {
+        Char {
+            text: "A".to_string(),
+            bbox: BBox::new(0.0, 0.0, 10.0, 10.0),
+            fontname: "Helvetica".to_string(),
+            size: 12.0,
+            doctop: 0.0,
+            upright: true,
+            direction: TextDirection::Ltr,
+            stroking_color: None,
+            non_stroking_color: non_stroking,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 65,
+            mcid: None,
+            tag: None,
+        }
+    }
+
+    #[test]
+    fn test_resolved_color_gray_to_rgb() {
+        let ch = make_char(Some(Color::Gray(0.5)));
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, Some(Color::Rgb(0.5, 0.5, 0.5)));
+    }
+
+    #[test]
+    fn test_resolved_color_rgb_identity() {
+        let ch = make_char(Some(Color::Rgb(1.0, 0.0, 0.0)));
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, Some(Color::Rgb(1.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_resolved_color_cmyk_to_rgb() {
+        let ch = make_char(Some(Color::Cmyk(0.0, 0.0, 0.0, 0.0)));
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, Some(Color::Rgb(1.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn test_resolved_color_none() {
+        let ch = make_char(None);
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, None);
+    }
+
+    #[test]
+    fn test_resolved_color_other_returns_none() {
+        let ch = make_char(Some(Color::Other(vec![0.1])));
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, None);
     }
 }
