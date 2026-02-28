@@ -10,7 +10,7 @@ pub fn run(file: &Path, format: &TextFormat, password: Option<&str>) -> Result<(
     let bookmarks = pdf.bookmarks();
 
     match format {
-        TextFormat::Text | TextFormat::Markdown => write_text(bookmarks),
+        TextFormat::Text | TextFormat::Markdown | TextFormat::Html => write_text(bookmarks),
         TextFormat::Json => write_json(bookmarks),
     }
 }

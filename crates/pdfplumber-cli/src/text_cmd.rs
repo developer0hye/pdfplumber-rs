@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use pdfplumber::{MarkdownOptions, TextOptions, UnicodeNorm};
+use pdfplumber::{HtmlOptions, MarkdownOptions, TextOptions, UnicodeNorm};
 
 use crate::cli::TextFormat;
 use crate::shared::{ProgressReporter, open_pdf_full, resolve_pages};
@@ -48,6 +48,11 @@ pub fn run(
                 let md = page.to_markdown(&MarkdownOptions::default());
                 println!("--- Page {} ---", idx + 1);
                 println!("{md}");
+            }
+            TextFormat::Html => {
+                let html = page.to_html(&HtmlOptions::default());
+                println!("--- Page {} ---", idx + 1);
+                println!("{html}");
             }
         }
     }

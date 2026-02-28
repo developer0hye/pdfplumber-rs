@@ -1,12 +1,12 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, Hyperlink, Image, Line,
-    MarkdownOptions, MarkdownRenderer, PageObject, Rect, SearchMatch, SearchOptions, Table,
-    TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    extract_text_for_cells, search_chars, sort_blocks_reading_order, split_lines_at_columns,
-    words_to_text,
+    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, HtmlOptions, HtmlRenderer,
+    Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect, SearchMatch,
+    SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
+    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, extract_text_for_cells, search_chars, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -352,6 +352,23 @@ impl Page {
     pub fn to_markdown(&self, options: &MarkdownOptions) -> String {
         let tables = self.find_tables(&TableSettings::default());
         MarkdownRenderer::render(&self.chars, &tables, options)
+    }
+
+    /// Render this page's content as semantic HTML.
+    ///
+    /// Detects headings from font size heuristics, wraps text in `<p>` elements,
+    /// converts tables to `<table>/<tr>/<td>` elements, detects bold (`<strong>`)
+    /// and italic (`<em>`) from font name analysis, and detects lists (`<ul>`/`<ol>`).
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let html = page.to_html(&HtmlOptions::default());
+    /// println!("{html}");
+    /// ```
+    pub fn to_html(&self, options: &HtmlOptions) -> String {
+        let tables = self.find_tables(&TableSettings::default());
+        HtmlRenderer::render(&self.chars, &tables, options)
     }
 
     /// Detect tables on this page and return them with cell text populated.
