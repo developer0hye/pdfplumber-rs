@@ -47,3 +47,19 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - `create_exception!` macro creates Python exception types that can be registered with `m.add()`
   - All Rust types can be converted to Python dicts via PyDict; complex nested types work well
 ---
+
+## 2026-02-28 - US-075
+- What was implemented: PyPI packaging for pdfplumber-py
+- Files changed:
+  - `crates/pdfplumber-py/pyproject.toml` — added full PyPI metadata: description, license, classifiers, authors, keywords, project URLs, readme
+  - `crates/pdfplumber-py/src/lib.rs` — added `VERSION` constant (`env!("CARGO_PKG_VERSION")`), `__version__` module attribute, 7 new tests for packaging
+  - `crates/pdfplumber-py/pdfplumber.pyi` — new Python type stubs for all classes (PDF, Page, Table, CroppedPage), exception types, and type aliases
+  - `crates/pdfplumber-py/README.md` — new PyPI README with installation, quick start, API reference, comparison table, performance notes
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - `env!("CARGO_PKG_VERSION")` provides compile-time version from Cargo.toml
+  - maturin auto-detects `.pyi` files in the crate directory and includes them in the wheel
+  - `dynamic = ["version"]` in pyproject.toml makes maturin read version from Cargo.toml
+  - `readme = "README.md"` in pyproject.toml includes the README in the PyPI listing
+  - Tests can verify packaging artifacts (file existence, content assertions) using `env!("CARGO_MANIFEST_DIR")`
+---

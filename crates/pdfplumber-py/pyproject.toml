@@ -4,13 +4,39 @@ build-backend = "maturin"
 
 [project]
 name = "pdfplumber-rs"
+description = "High-performance PDF text, table, and geometry extraction — Rust-powered Python bindings for pdfplumber-rs"
 requires-python = ">= 3.9"
+license = { text = "MIT OR Apache-2.0" }
+keywords = ["pdf", "table", "text-extraction", "pdfplumber", "document", "parsing"]
+authors = [
+    { name = "pdfplumber-rs contributors" },
+]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 dynamic = ["version"]
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://github.com/developer0hye/pdfplumber-rs"
+Repository = "https://github.com/developer0hye/pdfplumber-rs"
+Issues = "https://github.com/developer0hye/pdfplumber-rs/issues"
 
 [tool.maturin]
 features = ["extension-module"]

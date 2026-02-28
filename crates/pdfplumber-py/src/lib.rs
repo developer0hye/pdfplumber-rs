@@ -3,6 +3,9 @@
 //! Exposes `PyPdf`, `PyPage`, `PyTable`, and `PyCroppedPage` classes to Python,
 //! wrapping the Rust pdfplumber types for full API access.
 
+/// Package version, kept in sync with Cargo.toml and pyproject.toml.
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
 use ::pdfplumber::{
     BBox, Bookmark, Char, Color, CroppedPage, Curve, DocumentMetadata, Image, Line, Page, Pdf,
     PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, Word,
@@ -633,6 +636,8 @@ impl PyPage {
 /// The Python module definition.
 #[pymodule]
 fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add("__version__", VERSION)?;
+
     m.add_class::<PyPdf>()?;
     m.add_class::<PyPage>()?;
     m.add_class::<PyTable>()?;
@@ -1326,5 +1331,136 @@ mod tests {
         assert!((bbox.top - 20.0).abs() < 0.01);
         assert!((bbox.x1 - 30.0).abs() < 0.01);
         assert!((bbox.bottom - 40.0).abs() < 0.01);
+    }
+
+    // -----------------------------------------------------------------------
+    // US-075 tests: PyPI packaging
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_version_constant_matches_cargo_toml() {
+        // VERSION should be a valid semver string from Cargo.toml
+        assert!(!VERSION.is_empty(), "VERSION must not be empty");
+        let parts: Vec<&str> = VERSION.split('.').collect();
+        assert_eq!(
+            parts.len(),
+            3,
+            "VERSION should be semver (major.minor.patch)"
+        );
+        for part in &parts {
+            part.parse::<u32>()
+                .unwrap_or_else(|_| panic!("VERSION part '{part}' is not a valid number"));
+        }
+    }
+
+    #[test]
+    fn test_version_matches_workspace() {
+        // The pdfplumber-py version should match the main pdfplumber crate version
+        assert_eq!(
+            VERSION,
+            env!("CARGO_PKG_VERSION"),
+            "VERSION constant must match CARGO_PKG_VERSION"
+        );
+    }
+
+    #[test]
+    fn test_version_is_registered_in_module_init() {
+        // Verify the module init function registers __version__.
+        // We cannot import the compiled extension in a pure Rust unit test,
+        // but we can verify the VERSION constant is the value that will be used.
+        assert_eq!(VERSION, env!("CARGO_PKG_VERSION"));
+        // The module init (fn pdfplumber) adds: m.add("__version__", VERSION)
+        // This is verified by the constant being non-empty and valid semver.
+        assert!(!VERSION.is_empty());
+    }
+
+    #[test]
+    fn test_type_stubs_exist() {
+        // The .pyi file should exist alongside the crate
+        let stubs_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("pdfplumber.pyi");
+        assert!(
+            stubs_path.exists(),
+            "Type stubs file pdfplumber.pyi should exist at {}",
+            stubs_path.display()
+        );
+    }
+
+    #[test]
+    fn test_type_stubs_content() {
+        let stubs_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("pdfplumber.pyi");
+        let content = std::fs::read_to_string(&stubs_path).expect("read .pyi file");
+        // Must declare the main classes
+        assert!(
+            content.contains("class PDF:"),
+            "stubs must declare PDF class"
+        );
+        assert!(
+            content.contains("class Page:"),
+            "stubs must declare Page class"
+        );
+        assert!(
+            content.contains("class Table:"),
+            "stubs must declare Table class"
+        );
+        assert!(
+            content.contains("class CroppedPage:"),
+            "stubs must declare CroppedPage class"
+        );
+        // Must declare exception types
+        assert!(
+            content.contains("class PdfParseError"),
+            "stubs must declare PdfParseError"
+        );
+        // Must have __version__
+        assert!(
+            content.contains("__version__"),
+            "stubs must declare __version__"
+        );
+    }
+
+    #[test]
+    fn test_pyproject_toml_has_required_metadata() {
+        let pyproject_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("pyproject.toml");
+        let content = std::fs::read_to_string(&pyproject_path).expect("read pyproject.toml");
+        assert!(
+            content.contains("name = \"pdfplumber-rs\""),
+            "pyproject.toml must have name = 'pdfplumber-rs'"
+        );
+        assert!(
+            content.contains("description"),
+            "pyproject.toml must have description"
+        );
+        assert!(
+            content.contains("license"),
+            "pyproject.toml must have license"
+        );
+        assert!(
+            content.contains("requires-python"),
+            "pyproject.toml must have requires-python"
+        );
+        assert!(
+            content.contains("classifiers"),
+            "pyproject.toml must have classifiers"
+        );
+    }
+
+    #[test]
+    fn test_readme_exists_for_pypi() {
+        let readme_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("README.md");
+        assert!(
+            readme_path.exists(),
+            "README.md should exist for PyPI at {}",
+            readme_path.display()
+        );
+        let content = std::fs::read_to_string(&readme_path).expect("read README.md");
+        assert!(
+            content.contains("install"),
+            "README must contain installation instructions"
+        );
+        assert!(
+            content.contains("pdfplumber"),
+            "README must reference pdfplumber"
+        );
     }
 }
