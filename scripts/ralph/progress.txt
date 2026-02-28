@@ -132,3 +132,27 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
   - pdfplumber v0.11.9 used for golden generation — matches existing golden data version
   - 97 golden JSON files total (4 pre-existing overwritten + 93 new including subdirectories)
 ---
+
+## 2026-03-01 - US-113
+- Extended `crates/pdfplumber/tests/cross_validation.rs` with data-driven tests for all new fixture PDFs
+- Added `try_validate_pdf()` — graceful validation that returns errors instead of panicking
+- Added `discover_golden_pdfs()` + `scan_golden_dir()` — runtime discovery of all golden JSON files
+- Added `cross_validate_all_fixtures_summary` test — prints per-PDF accuracy table (run with --nocapture)
+- Created 3 macros: `cross_validate!` (passing tests), `cross_validate_ignored!` (failing/error), `cross_validate_no_panic!` (oss-fuzz)
+- Added 109 individual test functions: 49 pass, 60 ignored
+  - pdfplumber-python: 18 PASS (>=95%), 29 FAIL (#[ignore]), 9 ERROR (#[ignore])
+  - pdfjs: 1 PASS (issue14117), 14 FAIL (#[ignore]) — CJK/encoding gaps
+  - pdfbox: 2 PASS (hello3, pdfbox-4322), 8 FAIL (#[ignore]) — CJK/Bidi gaps
+  - poppler: 3 PASS (deseret, pdf20-utf8, russian) — all meet 80% threshold
+  - oss-fuzz: 19 no-panic tests (open+extract without crashing)
+- Existing 4 cross-validation tests unchanged (no regression)
+- Files changed: `crates/pdfplumber/tests/cross_validation.rs`, `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Most CJK/CID font PDFs score 0% — pdfplumber-rs lacks CIDFont ToUnicode/CMap support
+  - Tagged PDF structure files (figure_structure, pdf_structure, mcid_example) also 0% — structure tree not used for text extraction
+  - Rotated PDFs (annotations-rotated-*) fail with parse errors — rotation handling gap
+  - Duplicate char PDFs (issue-71-*) show word grouping degradation from char duplication
+  - WARN-Report at 91.5% chars — just below 95%, close to threshold
+  - poppler tests all pass at 80%+ — Cyrillic, Deseret (supplementary plane), PDF 2.0 UTF-8 work well
+---
