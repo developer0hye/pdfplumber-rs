@@ -197,6 +197,131 @@ where
     }
 }
 
+/// Merge overlapping or adjacent collinear edge segments.
+///
+/// Groups edges by orientation and collinear position, then merges segments
+/// within each group when their gap is within the join tolerance.
+/// For horizontal edges, segments on the same y-line merge when the gap along x
+/// is within `join_x_tolerance`. For vertical edges, segments on the same x-line
+/// merge when the gap along y is within `join_y_tolerance`.
+/// Diagonal edges pass through unchanged.
+pub fn join_edge_group(
+    edges: Vec<Edge>,
+    join_x_tolerance: f64,
+    join_y_tolerance: f64,
+) -> Vec<Edge> {
+    use crate::geometry::Orientation;
+
+    let mut result: Vec<Edge> = Vec::new();
+    let mut horizontals: Vec<Edge> = Vec::new();
+    let mut verticals: Vec<Edge> = Vec::new();
+
+    for edge in edges {
+        match edge.orientation {
+            Orientation::Horizontal => horizontals.push(edge),
+            Orientation::Vertical => verticals.push(edge),
+            Orientation::Diagonal => result.push(edge),
+        }
+    }
+
+    // Join horizontal edges: group by y-coordinate, merge along x-axis
+    result.extend(join_collinear(
+        horizontals,
+        |e| e.top,
+        |e| (e.x0, e.x1),
+        |proto, start, end| Edge {
+            x0: start,
+            top: proto.top,
+            x1: end,
+            bottom: proto.bottom,
+            orientation: proto.orientation,
+            source: proto.source,
+        },
+        join_x_tolerance,
+    ));
+
+    // Join vertical edges: group by x-coordinate, merge along y-axis
+    result.extend(join_collinear(
+        verticals,
+        |e| e.x0,
+        |e| (e.top, e.bottom),
+        |proto, start, end| Edge {
+            x0: proto.x0,
+            top: start,
+            x1: proto.x1,
+            bottom: end,
+            orientation: proto.orientation,
+            source: proto.source,
+        },
+        join_y_tolerance,
+    ));
+
+    result
+}
+
+/// Group edges by a collinear key, then merge overlapping/adjacent segments within each group.
+fn join_collinear<K, S, B>(
+    mut edges: Vec<Edge>,
+    key: K,
+    span: S,
+    build: B,
+    tolerance: f64,
+) -> Vec<Edge>
+where
+    K: Fn(&Edge) -> f64,
+    S: Fn(&Edge) -> (f64, f64),
+    B: Fn(&Edge, f64, f64) -> Edge,
+{
+    if edges.is_empty() {
+        return Vec::new();
+    }
+
+    // Sort by collinear key first, then by span start
+    edges.sort_by(|a, b| {
+        key(a)
+            .partial_cmp(&key(b))
+            .unwrap()
+            .then_with(|| span(a).0.partial_cmp(&span(b).0).unwrap())
+    });
+
+    let mut result = Vec::new();
+    let mut i = 0;
+
+    while i < edges.len() {
+        // Collect group of edges on the same collinear line (exact match after snapping)
+        let group_key = key(&edges[i]);
+        let mut j = i + 1;
+        while j < edges.len() && (key(&edges[j]) - group_key).abs() < 1e-9 {
+            j += 1;
+        }
+
+        // Merge segments within this collinear group
+        let (mut cur_start, mut cur_end) = span(&edges[i]);
+        let mut proto_idx = i;
+
+        for k in (i + 1)..j {
+            let (s, e) = span(&edges[k]);
+            if s <= cur_end + tolerance {
+                // Overlapping or within tolerance — extend
+                if e > cur_end {
+                    cur_end = e;
+                }
+            } else {
+                // Gap too large — emit current merged edge, start new one
+                result.push(build(&edges[proto_idx], cur_start, cur_end));
+                cur_start = s;
+                cur_end = e;
+                proto_idx = k;
+            }
+        }
+        result.push(build(&edges[proto_idx], cur_start, cur_end));
+
+        i = j;
+    }
+
+    result
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -800,6 +925,187 @@ mod tests {
         assert_approx(diagonals[0].x0, 0.0);
         assert_approx(diagonals[0].top, 0.0);
         assert_approx(diagonals[0].x1, 100.0);
+        assert_approx(diagonals[0].bottom, 100.0);
+    }
+
+    // --- join_edge_group tests ---
+
+    #[test]
+    fn test_join_edge_group_empty() {
+        let result = join_edge_group(Vec::new(), 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_join_edge_group_single_edge_unchanged() {
+        let edges = vec![make_h_edge(10.0, 50.0, 80.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].x0, 10.0);
+        assert_approx(result[0].x1, 80.0);
+    }
+
+    #[test]
+    fn test_join_two_overlapping_horizontal_edges() {
+        // Two horizontal edges at y=50 that overlap: [10..60] and [40..90]
+        // Should merge into [10..90]
+        let edges = vec![make_h_edge(10.0, 50.0, 60.0), make_h_edge(40.0, 50.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].x0, 10.0);
+        assert_approx(result[0].x1, 90.0);
+        assert_approx(result[0].top, 50.0);
+    }
+
+    #[test]
+    fn test_join_two_adjacent_horizontal_edges_within_tolerance() {
+        // Two horizontal edges at y=50: [10..50] and [52..90]
+        // Gap is 2.0, within join_x_tolerance=3.0 → merge to [10..90]
+        let edges = vec![make_h_edge(10.0, 50.0, 50.0), make_h_edge(52.0, 50.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].x0, 10.0);
+        assert_approx(result[0].x1, 90.0);
+    }
+
+    #[test]
+    fn test_join_distant_horizontal_edges_not_merged() {
+        // Two horizontal edges at y=50: [10..40] and [60..90]
+        // Gap is 20.0, beyond tolerance → remain separate
+        let edges = vec![make_h_edge(10.0, 50.0, 40.0), make_h_edge(60.0, 50.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_join_chain_of_three_horizontal_segments() {
+        // Three segments on y=50: [10..40], [38..70], [68..100]
+        // All overlap pairwise → chain merge to [10..100]
+        let edges = vec![
+            make_h_edge(10.0, 50.0, 40.0),
+            make_h_edge(38.0, 50.0, 70.0),
+            make_h_edge(68.0, 50.0, 100.0),
+        ];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].x0, 10.0);
+        assert_approx(result[0].x1, 100.0);
+    }
+
+    #[test]
+    fn test_join_two_overlapping_vertical_edges() {
+        // Two vertical edges at x=50: [10..60] and [40..90]
+        // Should merge into [10..90]
+        let edges = vec![make_v_edge(50.0, 10.0, 60.0), make_v_edge(50.0, 40.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].top, 10.0);
+        assert_approx(result[0].bottom, 90.0);
+        assert_approx(result[0].x0, 50.0);
+    }
+
+    #[test]
+    fn test_join_adjacent_vertical_edges_within_tolerance() {
+        // Two vertical edges at x=50: [10..50] and [52..90]
+        // Gap is 2.0, within join_y_tolerance=3.0 → merge
+        let edges = vec![make_v_edge(50.0, 10.0, 50.0), make_v_edge(50.0, 52.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_approx(result[0].top, 10.0);
+        assert_approx(result[0].bottom, 90.0);
+    }
+
+    #[test]
+    fn test_join_groups_by_collinear_position() {
+        // Two groups of horizontal edges at different y positions
+        // Group 1: y=50, [10..50] and [48..90] → merge to [10..90]
+        // Group 2: y=100, [10..40] and [60..90] → gap too big, stay separate
+        let edges = vec![
+            make_h_edge(10.0, 50.0, 50.0),
+            make_h_edge(48.0, 50.0, 90.0),
+            make_h_edge(10.0, 100.0, 40.0),
+            make_h_edge(60.0, 100.0, 90.0),
+        ];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 3);
+
+        let at_50: Vec<&Edge> = result
+            .iter()
+            .filter(|e| (e.top - 50.0).abs() < 1e-6)
+            .collect();
+        assert_eq!(at_50.len(), 1);
+        assert_approx(at_50[0].x0, 10.0);
+        assert_approx(at_50[0].x1, 90.0);
+
+        let at_100: Vec<&Edge> = result
+            .iter()
+            .filter(|e| (e.top - 100.0).abs() < 1e-6)
+            .collect();
+        assert_eq!(at_100.len(), 2);
+    }
+
+    #[test]
+    fn test_join_mixed_orientations() {
+        // Mix of horizontal and vertical edges: each group joins independently
+        let edges = vec![
+            make_h_edge(10.0, 50.0, 50.0),
+            make_h_edge(48.0, 50.0, 90.0),
+            make_v_edge(200.0, 10.0, 50.0),
+            make_v_edge(200.0, 48.0, 90.0),
+        ];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 2);
+
+        let horizontals: Vec<&Edge> = result
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        assert_eq!(horizontals.len(), 1);
+        assert_approx(horizontals[0].x0, 10.0);
+        assert_approx(horizontals[0].x1, 90.0);
+
+        let verticals: Vec<&Edge> = result
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert_eq!(verticals.len(), 1);
+        assert_approx(verticals[0].top, 10.0);
+        assert_approx(verticals[0].bottom, 90.0);
+    }
+
+    #[test]
+    fn test_join_separate_x_y_tolerance() {
+        // Horizontal edges: gap=4.0, join_x_tolerance=3.0 → NOT merged
+        let edges = vec![make_h_edge(10.0, 50.0, 40.0), make_h_edge(44.0, 50.0, 80.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 2);
+
+        // Vertical edges: gap=4.0, join_y_tolerance=5.0 → merged
+        let edges = vec![make_v_edge(50.0, 10.0, 40.0), make_v_edge(50.0, 44.0, 80.0)];
+        let result = join_edge_group(edges, 3.0, 5.0);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_join_diagonal_edges_pass_through() {
+        let diag = Edge {
+            x0: 0.0,
+            top: 0.0,
+            x1: 100.0,
+            bottom: 100.0,
+            orientation: Orientation::Diagonal,
+            source: crate::edges::EdgeSource::Curve,
+        };
+        let edges = vec![diag.clone(), make_h_edge(10.0, 50.0, 90.0)];
+        let result = join_edge_group(edges, 3.0, 3.0);
+        assert_eq!(result.len(), 2);
+
+        let diagonals: Vec<&Edge> = result
+            .iter()
+            .filter(|e| e.orientation == Orientation::Diagonal)
+            .collect();
+        assert_eq!(diagonals.len(), 1);
+        assert_approx(diagonals[0].x0, 0.0);
         assert_approx(diagonals[0].bottom, 100.0);
     }
 

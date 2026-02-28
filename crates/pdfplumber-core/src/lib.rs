@@ -29,6 +29,8 @@ pub use layout::{
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
-pub use table::{Cell, ExplicitLines, Strategy, Table, TableFinder, TableSettings, snap_edges};
+pub use table::{
+    Cell, ExplicitLines, Strategy, Table, TableFinder, TableSettings, join_edge_group, snap_edges,
+};
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};
