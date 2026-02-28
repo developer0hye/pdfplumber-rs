@@ -2,12 +2,12 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, FormField, HtmlOptions,
-    HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect,
-    SearchMatch, SearchOptions, StructElement, Table, TableFinder, TableSettings, TextOptions,
-    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, dedupe_chars, derive_edges, duplicate_merged_content_in_table,
-    extract_text_for_cells, search_chars, sort_blocks_reading_order, split_lines_at_columns,
-    words_to_text,
+    HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject,
+    PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
+    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
+    duplicate_merged_content_in_table, extract_text_for_cells, search_chars,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -374,6 +374,15 @@ impl Page {
         let mut blocks = cluster_lines_into_blocks(split, options.y_density);
         sort_blocks_reading_order(&mut blocks, options.x_density);
         blocks_to_text(&blocks)
+    }
+
+    /// Extract text from the body region of this page, excluding header and footer.
+    ///
+    /// Uses the provided [`PageRegions`] (from [`Pdf::detect_page_regions()`]) to
+    /// crop the page to the body area and extract text from it.
+    pub fn extract_text_body(&self, regions: &PageRegions) -> String {
+        let cropped = self.crop(regions.body);
+        cropped.extract_text(&TextOptions::default())
     }
 
     /// Render this page's content as Markdown text.

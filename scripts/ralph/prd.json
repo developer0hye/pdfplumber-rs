@@ -60,7 +60,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 88,
       "notes": "No major PDF library provides this built-in. Significant differentiation opportunity."
     },

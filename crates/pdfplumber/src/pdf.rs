@@ -1,10 +1,11 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, PaintedPath,
-    Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
-    StructElement, UnicodeNorm, ValidationIssue, extract_shapes, image_from_ctm, normalize_chars,
+    BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
+    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line,
+    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
+    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextOptions, UnicodeNorm,
+    ValidationIssue, detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -617,6 +618,45 @@ impl Pdf {
     /// Returns [`PdfError`] if the AcroForm exists but is malformed.
     pub fn signatures(&self) -> Result<Vec<SignatureInfo>, PdfError> {
         LopdfBackend::document_signatures(&self.doc).map_err(PdfError::from)
+    }
+
+    /// Detect repeating headers and footers across all pages.
+    ///
+    /// Extracts text from the top and bottom margins of each page, compares
+    /// across pages with fuzzy matching (masking digits for page numbers),
+    /// and returns [`PageRegions`] for each page indicating detected
+    /// header/footer regions and the body area.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if any page fails to extract.
+    pub fn detect_page_regions(
+        &self,
+        options: &PageRegionOptions,
+    ) -> Result<Vec<PageRegions>, PdfError> {
+        let text_options = TextOptions::default();
+        let mut page_data: Vec<(String, String, f64, f64)> = Vec::new();
+
+        for page_result in self.pages_iter() {
+            let page = page_result?;
+            let width = page.width();
+            let height = page.height();
+
+            let header_height = height * options.header_margin;
+            let header_bbox = BBox::new(0.0, 0.0, width, header_height);
+            let header_page = page.crop(header_bbox);
+            let header_text = header_page.extract_text(&text_options);
+
+            let footer_height = height * options.footer_margin;
+            let footer_top = height - footer_height;
+            let footer_bbox = BBox::new(0.0, footer_top, width, height);
+            let footer_page = page.crop(footer_bbox);
+            let footer_text = footer_page.extract_text(&text_options);
+
+            page_data.push((header_text, footer_text, width, height));
+        }
+
+        Ok(detect_page_regions(&page_data, options))
     }
 }
 
