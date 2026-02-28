@@ -13,6 +13,7 @@ pub mod layout;
 pub mod painting;
 pub mod path;
 pub mod shapes;
+pub mod table;
 pub mod text;
 pub mod words;
 
@@ -28,5 +29,6 @@ pub use layout::{
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
+pub use table::{Cell, ExplicitLines, Strategy, Table, TableFinder, TableSettings};
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};

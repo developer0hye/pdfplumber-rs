@@ -1,123 +1,26 @@
-## Codebase Patterns
-
-- **PDF test fixture creation**: Use lopdf programmatically to create minimal PDFs for testing. Pattern: create font → content stream → resources → page → pages tree → catalog → save to bytes. See `create_pdf_with_content()` in `crates/pdfplumber/src/pdf.rs`.
-- **ContentHandler collecting pattern**: Implement a `CollectingHandler` that stores `CharEvent`s and `ImageEvent`s during `interpret_page`, then convert them to `Char`s and `Image`s afterward using `char_from_event` and `image_from_ctm`.
-- **CharEvent → Char conversion**: Use `FontMetrics::default_metrics()` (ascent=750, descent=-250) when per-font metrics aren't available. The displacement (glyph width) in CharEvent already comes from actual font metrics in the interpreter.
-- **doctop calculation**: Accumulate display page heights (`PageGeometry::height()`) for pages before the current one. Offset each char's doctop by this sum.
-- **Page parent reference**: When building PDFs with lopdf, create the page first, then the pages tree, then update the page's Parent reference afterward (circular reference workaround).
-
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
+Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
+
+## Codebase Patterns
+- New modules go in `crates/pdfplumber-core/src/` with `pub mod` in `lib.rs` and re-exports at crate root
+- Facade crate (`crates/pdfplumber/src/lib.rs`) re-exports all public types from pdfplumber-core
+- Tests use inline `#[cfg(test)] mod tests` with `assert_approx` for f64 comparisons (tolerance 1e-6)
+- Helper constructors: `make_line()`, `make_rect()`, `make_curve()` in test modules
+- Coordinate system: top-left origin (x0, top, x1, bottom) where top < bottom
+- `BBox::union()` computes enclosing bbox of two bboxes
+- `Edge` struct has x0/top/x1/bottom/orientation/source fields
+- `derive_edges()` converts Lines+Rects+Curves to Vec<Edge>
+- Clippy: use `#[derive(Default)]` with `#[default]` variant instead of manual `impl Default` for enums
+
 ---
 
-# Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
-Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
----
-
-## 2026-02-28 - US-018: WordExtractor - tolerance-based character grouping
-- Implementation already existed from phase 1 (built alongside US-017 public API)
-- Verified all acceptance criteria against existing code:
-  - WordOptions struct with pdfplumber-compatible defaults (x_tolerance=3, y_tolerance=3)
-  - WordExtractor groups chars by spatial proximity (x/y tolerance)
-  - Line breaks → separate words, spaces → split (configurable via keep_blank_chars)
-  - Word.bbox = union of constituent Char bboxes
-  - 25+ unit tests covering: simple horizontal, multi-line, gaps, configurable tolerance, space handling, overlapping chars, text flow mode
-- Files: `crates/pdfplumber-core/src/words.rs` (WordOptions, Word, WordExtractor + tests)
-- No code changes needed — all quality checks pass (fmt, clippy, 337 tests)
+## 2026-02-28 - US-029
+- Implemented TableSettings, Strategy, TableFinder, Table, Cell, ExplicitLines
+- Files changed: `crates/pdfplumber-core/src/table.rs` (new), `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
 - **Learnings for future iterations:**
-  - Phase 1 built ahead: words, CJK, geometry, encoding, layout modules were all implemented in phase 1
-  - Subsequent US stories in phase 2 may also already be implemented — verify before writing new code
----
-
-## 2026-02-28 - US-019: Page::extract_words() API + Word type integration
-- Implementation already existed from phase 1 (built alongside US-017/US-018)
-- Verified all acceptance criteria against existing code:
-  - `Page::extract_words(options: &WordOptions) -> Vec<Word>` at `crates/pdfplumber/src/page.rs:185-187`
-  - Words contain constituent `Char`s via `Word.chars: Vec<Char>`
-  - Default WordOptions: x_tolerance=3.0, y_tolerance=3.0
-  - Integration test at `crates/pdfplumber/tests/page_api_integration.rs:181-185`
-  - Unit tests at `crates/pdfplumber/src/page.rs:302-423` covering: default options, text concatenation, bbox calculation, multiline, custom options, empty page, constituent chars
-- Files: `crates/pdfplumber/src/page.rs`, `crates/pdfplumber-core/src/words.rs`
-- No code changes needed — all quality checks pass (fmt, clippy, tests)
-- **Learnings for future iterations:**
-  - Confirmed phase 1 built ahead pattern continues
----
-
-## 2026-02-28 - US-020: CJK word grouping - character-width-based tolerance
-- Implementation already existed from phase 1
-- Verified all acceptance criteria against existing code:
-  - CJK detection by Unicode range: `is_cjk()` in `crates/pdfplumber-core/src/text.rs` covers CJK Unified Ideographs, Hiragana, Katakana, Hangul, and more
-  - Character width-based tolerance: `effective_x_tolerance()` in `crates/pdfplumber-core/src/words.rs` uses char width for CJK
-  - Mixed CJK + Latin: `test_japanese_mixed_text`, `test_mixed_cjk_latin_with_gap`, `test_cjk_transition_to_latin_uses_cjk_tolerance`
-  - Vertical writing mode: `test_vertical_text_chinese`, `test_vertical_text_two_columns`, `test_vertical_text_with_gap`
-  - Chinese: `test_chinese_text_grouping`, Japanese: `test_japanese_mixed_text`, Korean: `test_korean_text_grouping`
-- Files: `crates/pdfplumber-core/src/words.rs`, `crates/pdfplumber-core/src/text.rs`
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-021: Graphics path operators - m, l, c, v, y, h, re
-- Implementation already existed from phase 1
-- PathBuilder with all operators in `crates/pdfplumber-core/src/path.rs`
-- All 7 path operators implemented: move_to, line_to, curve_to, curve_to_v, curve_to_y, close_path, rectangle
-- CTM transformation applied to all coordinates
-- 25+ unit tests covering individual operators, combined paths, CTM transforms
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-022: Path painting operators - S, s, f, F, f*, B, B*, b, b*, n
-- Implementation already existed from phase 1
-- PaintedPath, FillRule, GraphicsState in `crates/pdfplumber-core/src/painting.rs`
-- All paint operators: stroke, close_and_stroke, fill, fill_even_odd, fill_and_stroke, fill_even_odd_and_stroke, close variants, end_path
-- 54 tests covering stroke-only, fill-only, both, clipping, graphics state
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-023: Line and Rect extraction from paths
-- Implementation already existed from phase 1
-- extract_shapes() in `crates/pdfplumber-core/src/shapes.rs`
-- Line/Rect/Curve structs, LineOrientation, axis-aligned rectangle detection
-- 32 tests covering horizontal/vertical/diagonal lines, rectangles from re and path segments
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-024: Curve extraction + Edge derivation
-- Implementation already existed from phase 1
-- Curve extraction in `crates/pdfplumber-core/src/shapes.rs`
-- Edge derivation in `crates/pdfplumber-core/src/edges.rs`: edge_from_line, edges_from_rect, edge_from_curve, derive_edges
-- EdgeSource enum tracks origin (Line, RectTop/Bottom/Left/Right, Curve)
-- 51 tests covering curve extraction, edge derivation from all sources
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-025: Page::lines()/rects()/curves()/edges()/images() API
-- Implementation already existed from phase 1
-- All accessors in `crates/pdfplumber/src/page.rs`: lines(), rects(), curves(), edges(), images()
-- Image struct with image_from_ctm() in `crates/pdfplumber-core/src/images.rs`
-- 34 tests covering all accessors and image extraction
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-026: Standard encodings - WinAnsi, MacRoman, Differences array
-- Implementation already existed from phase 1
-- EncodingResolver with 3-level resolution in `crates/pdfplumber-core/src/encoding.rs`
-- Full 256-entry tables: WinAnsi, MacRoman, MacExpert, Standard
-- FontEncoding with Differences array support
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-027: ExtGState (gs operator) - line width, dash pattern, opacity
-- Implementation already existed from phase 1
-- ExtGState, DashPattern, GraphicsState in `crates/pdfplumber-core/src/painting.rs`
-- apply_ext_gstate() and set_dash_pattern() methods
-- 54 tests covering gs/d operators with line width, dash pattern, opacity
-- No code changes needed — all quality checks pass
----
-
-## 2026-02-28 - US-028: extract_text(layout=true) - reading order with TextBlocks
-- Implementation already existed from phase 1 (capstone story)
-- Layout pipeline in `crates/pdfplumber-core/src/layout.rs`: cluster_words_into_lines → split_lines_at_columns → cluster_lines_into_blocks → sort_blocks_reading_order → blocks_to_text
-- TextBlock, TextLine, TextOptions structs
-- Page::extract_text() with layout flag in `crates/pdfplumber/src/page.rs`
-- 37 tests covering single column, two-column, mixed blocks, reading order
-- No code changes needed — all quality checks pass
+  - All table detection types live in `crates/pdfplumber-core/src/table.rs`
+  - Strategy defaults to Lattice, all tolerances default to 3.0
+  - TableFinder::find_tables() is a placeholder returning empty Vec, will be wired up in US-030 through US-036
+  - Clippy enforces `#[derive(Default)]` for enums on Rust edition 2024
 ---
