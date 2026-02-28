@@ -45,3 +45,20 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - Center-point containment (with epsilon tolerance) is used to match sub-grid positions to enclosing cells
   - `float_key()` function already existed for grouping cells into rows/columns — reused for the new function
 ---
+
+## 2026-03-01 - US-094
+- **What was implemented**: Added automatic header/footer detection and removal. Created `PageRegionOptions` (header_margin, footer_margin, min_pages) and `PageRegions` (header, footer, body BBox) structs. Implemented `detect_page_regions()` algorithm that extracts text from top/bottom margins of each page, masks variable elements (digits → #) for fuzzy matching, counts repeating patterns across pages, and supports odd/even page alternation. Added `Pdf::detect_page_regions()` and `Page::extract_text_body()` methods.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/page_regions.rs` — New module: PageRegionOptions, PageRegions, mask_variable_elements(), detect_page_regions(), detect_repeating_text(). 17 unit tests.
+  - `crates/pdfplumber-core/src/lib.rs` — Module registration and re-exports
+  - `crates/pdfplumber/src/pdf.rs` — Pdf::detect_page_regions() method
+  - `crates/pdfplumber/src/page.rs` — Page::extract_text_body() method
+  - `crates/pdfplumber/src/lib.rs` — Re-export PageRegionOptions, PageRegions
+  - `scripts/ralph/prd.json` — marked US-094 as passes: true
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Digit masking (`"Page 1"` → `"Page #"`) is simple and effective for detecting repeating text with variable page numbers/dates
+  - Odd/even page alternation requires checking each subsequence independently with ceil(min_pages/2) threshold
+  - `page.crop(bbox)` automatically adjusts coordinates relative to crop origin — perfect for extracting region text
+  - `detect_page_regions` is a pure function on text data, making it easy to unit test without PDF fixtures
+---

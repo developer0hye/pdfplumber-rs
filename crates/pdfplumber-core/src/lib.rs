@@ -54,6 +54,8 @@ pub mod markdown;
 pub mod metadata;
 /// PageObject enum for custom object filtering.
 pub mod page_object;
+/// Header/footer detection and page region classification.
+pub mod page_regions;
 /// Graphics state, colors, dash patterns, and painted paths.
 pub mod painting;
 /// PDF path construction (MoveTo, LineTo, CurveTo, ClosePath).
@@ -99,6 +101,9 @@ pub use layout::{
 pub use markdown::{MarkdownOptions, MarkdownRenderer};
 pub use metadata::DocumentMetadata;
 pub use page_object::PageObject;
+pub use page_regions::{
+    PageRegionOptions, PageRegions, detect_page_regions, mask_variable_elements,
+};
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use repair::{RepairOptions, RepairResult};
