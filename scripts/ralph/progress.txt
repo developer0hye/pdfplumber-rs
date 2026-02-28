@@ -33,3 +33,15 @@ Started: 2026년  3월  1일 일요일 02시 00분 49초 KST
   - The DashPattern import was no longer needed in interpreter.rs after switching to PaintedPath-based emit_path_event
   - `pdfplumber-py` tests fail with libpython3.11.dylib not found — pre-existing environment issue, not related to code changes
 ---
+
+## 2026-03-01 - US-087
+- What was implemented: Wired the gs operator in the interpreter to look up named ExtGState from page resources and apply values to the current graphics state. Handles /LW (line width), /D (dash pattern), /CA (stroke alpha), /ca (fill alpha), /Font (font array). Unknown keys are silently ignored.
+- Files changed:
+  - `crates/pdfplumber-parse/src/interpreter.rs` — Separated "gs" from the ignored operators group, added apply_ext_gstate() helper function, added 5 unit tests
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - ExtGState struct and GraphicsState::apply_ext_gstate() already existed in pdfplumber-core painting.rs — only the interpreter wiring was missing
+  - lopdf Object::Real stores as f32, causing precision loss (0.7 → 0.699999988079071) — use wider tolerance (1e-6) for float comparisons in tests instead of f64::EPSILON
+  - Resource lookup pattern: resources.get(b"ExtGState") → resolve_ref → as_dict() → get(name) → resolve_ref → as_dict()
+  - The /Font entry in ExtGState is an array [fontRef size], not a dictionary
+---
