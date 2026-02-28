@@ -77,7 +77,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "Simple computation on existing Table data. Add to pdfplumber-core Table struct."
     },
     {
