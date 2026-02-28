@@ -25,6 +25,10 @@ pub enum PdfError {
     InterpreterError(String),
     /// A configured resource limit was exceeded.
     ResourceLimitExceeded(String),
+    /// The PDF is encrypted and requires a password to open.
+    PasswordRequired,
+    /// The supplied password is incorrect for this encrypted PDF.
+    InvalidPassword,
     /// Any other error not covered by specific variants.
     Other(String),
 }
@@ -37,6 +41,8 @@ impl fmt::Display for PdfError {
             PdfError::FontError(msg) => write!(f, "font error: {msg}"),
             PdfError::InterpreterError(msg) => write!(f, "interpreter error: {msg}"),
             PdfError::ResourceLimitExceeded(msg) => write!(f, "resource limit exceeded: {msg}"),
+            PdfError::PasswordRequired => write!(f, "PDF is encrypted and requires a password"),
+            PdfError::InvalidPassword => write!(f, "the supplied password is incorrect"),
             PdfError::Other(msg) => write!(f, "{msg}"),
         }
     }
@@ -250,6 +256,32 @@ mod tests {
     fn pdf_error_resource_limit_exceeded() {
         let err = PdfError::ResourceLimitExceeded("too many objects".to_string());
         assert_eq!(err.to_string(), "resource limit exceeded: too many objects");
+    }
+
+    #[test]
+    fn pdf_error_password_required() {
+        let err = PdfError::PasswordRequired;
+        assert_eq!(err.to_string(), "PDF is encrypted and requires a password");
+    }
+
+    #[test]
+    fn pdf_error_invalid_password() {
+        let err = PdfError::InvalidPassword;
+        assert_eq!(err.to_string(), "the supplied password is incorrect");
+    }
+
+    #[test]
+    fn pdf_error_password_required_clone_and_eq() {
+        let err1 = PdfError::PasswordRequired;
+        let err2 = err1.clone();
+        assert_eq!(err1, err2);
+    }
+
+    #[test]
+    fn pdf_error_invalid_password_clone_and_eq() {
+        let err1 = PdfError::InvalidPassword;
+        let err2 = err1.clone();
+        assert_eq!(err1, err2);
     }
 
     #[test]

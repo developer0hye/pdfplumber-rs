@@ -45,7 +45,19 @@ pub trait PdfBackend {
     /// # Errors
     ///
     /// Returns an error if the bytes do not represent a valid PDF document.
+    /// If the document is encrypted, returns [`PdfError::PasswordRequired`].
     fn open(bytes: &[u8]) -> Result<Self::Document, Self::Error>;
+
+    /// Parse PDF bytes into a document, decrypting with the given password.
+    ///
+    /// Supports both user and owner passwords. If the PDF is not encrypted,
+    /// the password is ignored and the document opens normally.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError::InvalidPassword`] if the password is incorrect.
+    /// Returns other errors if the bytes are not a valid PDF document.
+    fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error>;
 
     /// Return the number of pages in the document.
     fn page_count(doc: &Self::Document) -> usize;
@@ -294,6 +306,14 @@ mod tests {
                 });
             }
             Ok(MockDocument { pages })
+        }
+
+        fn open_with_password(
+            bytes: &[u8],
+            _password: &[u8],
+        ) -> Result<Self::Document, Self::Error> {
+            // Mock: just delegates to open (no encryption support in mock)
+            Self::open(bytes)
         }
 
         fn page_count(doc: &Self::Document) -> usize {

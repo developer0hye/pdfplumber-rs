@@ -3,8 +3,9 @@ use std::path::Path;
 use pdfplumber::{Strategy, TableSettings};
 
 use crate::cli::{OutputFormat, TableStrategy};
-use crate::shared::{ProgressReporter, csv_escape, open_pdf, resolve_pages};
+use crate::shared::{ProgressReporter, csv_escape, open_pdf_full, resolve_pages};
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     file: &Path,
     pages: Option<&str>,
@@ -13,8 +14,9 @@ pub fn run(
     snap_tolerance: f64,
     join_tolerance: f64,
     text_tolerance: f64,
+    password: Option<&str>,
 ) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+    let pdf = open_pdf_full(file, None, password)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let progress = ProgressReporter::new(page_indices.len());
 

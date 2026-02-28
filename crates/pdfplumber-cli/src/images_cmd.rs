@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::cli::OutputFormat;
-use crate::shared::{ProgressReporter, open_pdf, resolve_pages};
+use crate::shared::{ProgressReporter, open_pdf_full, resolve_pages};
 
 pub fn run(
     file: &Path,
@@ -10,8 +10,9 @@ pub fn run(
     format: &OutputFormat,
     extract: bool,
     output_dir: Option<&Path>,
+    password: Option<&str>,
 ) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+    let pdf = open_pdf_full(file, None, password)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let reporter = ProgressReporter::new(page_indices.len());
 

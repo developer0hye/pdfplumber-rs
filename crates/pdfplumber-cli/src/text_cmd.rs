@@ -3,7 +3,7 @@ use std::path::Path;
 use pdfplumber::{TextOptions, UnicodeNorm};
 
 use crate::cli::TextFormat;
-use crate::shared::{ProgressReporter, open_pdf_with_norm, resolve_pages};
+use crate::shared::{ProgressReporter, open_pdf_full, resolve_pages};
 
 pub fn run(
     file: &Path,
@@ -11,8 +11,9 @@ pub fn run(
     format: &TextFormat,
     layout: bool,
     unicode_norm: Option<UnicodeNorm>,
+    password: Option<&str>,
 ) -> Result<(), i32> {
-    let pdf = open_pdf_with_norm(file, unicode_norm)?;
+    let pdf = open_pdf_full(file, unicode_norm, password)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let progress = ProgressReporter::new(page_indices.len());
 

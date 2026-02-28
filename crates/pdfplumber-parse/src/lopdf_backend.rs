@@ -125,7 +125,37 @@ impl PdfBackend for LopdfBackend {
         let inner = lopdf::Document::load_mem(bytes)
             .map_err(|e| BackendError::Parse(format!("failed to parse PDF: {e}")))?;
 
+        // Reject encrypted PDFs when no password is provided
+        if inner.is_encrypted() {
+            return Err(BackendError::Core(
+                pdfplumber_core::PdfError::PasswordRequired,
+            ));
+        }
+
         // Cache page IDs in order (get_pages returns BTreeMap<u32, ObjectId> with 1-based keys)
+        let pages_map = inner.get_pages();
+        let page_ids: Vec<lopdf::ObjectId> = pages_map.values().copied().collect();
+
+        Ok(LopdfDocument { inner, page_ids })
+    }
+
+    fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error> {
+        let mut inner = lopdf::Document::load_mem(bytes)
+            .map_err(|e| BackendError::Parse(format!("failed to parse PDF: {e}")))?;
+
+        // Decrypt if encrypted; ignore password if not encrypted
+        if inner.is_encrypted() {
+            inner.decrypt(password).map_err(|e| {
+                let msg = e.to_string();
+                if msg.contains("incorrect") || msg.contains("password") {
+                    BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
+                } else {
+                    BackendError::Parse(format!("decryption failed: {e}"))
+                }
+            })?;
+        }
+
+        // Cache page IDs in order
         let pages_map = inner.get_pages();
         let page_ids: Vec<lopdf::ObjectId> = pages_map.values().copied().collect();
 
@@ -2571,5 +2601,211 @@ mod tests {
 
         let result = LopdfBackend::extract_image_content(&doc, &page, "Im0");
         assert!(result.is_err());
+    }
+
+    // --- Encrypted PDF test helpers ---
+
+    /// PDF standard padding bytes used in encryption key derivation.
+    const PAD_BYTES: [u8; 32] = [
+        0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01,
+        0x08, 0x2E, 0x2E, 0x00, 0xB6, 0xD0, 0x68, 0x3E, 0x80, 0x2F, 0x0C, 0xA9, 0xFE, 0x64, 0x53,
+        0x69, 0x7A,
+    ];
+
+    /// Simple RC4 implementation for test encryption.
+    fn rc4_transform(key: &[u8], data: &[u8]) -> Vec<u8> {
+        // RC4 KSA
+        let mut s: Vec<u8> = (0..=255).collect();
+        let mut j: usize = 0;
+        for i in 0..256 {
+            j = (j + s[i] as usize + key[i % key.len()] as usize) & 0xFF;
+            s.swap(i, j);
+        }
+        // RC4 PRGA
+        let mut out = Vec::with_capacity(data.len());
+        let mut i: usize = 0;
+        j = 0;
+        for &byte in data {
+            i = (i + 1) & 0xFF;
+            j = (j + s[i] as usize) & 0xFF;
+            s.swap(i, j);
+            let k = s[(s[i] as usize + s[j] as usize) & 0xFF];
+            out.push(byte ^ k);
+        }
+        out
+    }
+
+    /// Create an encrypted PDF with the given user password (RC4, 40-bit, V=1, R=2).
+    fn create_encrypted_test_pdf(user_password: &[u8]) -> Vec<u8> {
+        use lopdf::{Document, Object, ObjectId, Stream, StringFormat, dictionary};
+
+        let file_id = b"testfileid123456"; // 16 bytes
+        let permissions: i32 = -4; // all permissions
+
+        // Pad password to 32 bytes
+        let mut padded_pw = Vec::with_capacity(32);
+        let pw_len = user_password.len().min(32);
+        padded_pw.extend_from_slice(&user_password[..pw_len]);
+        padded_pw.extend_from_slice(&PAD_BYTES[..32 - pw_len]);
+
+        // Algorithm 3.3: Compute /O value (owner password hash)
+        // Using same password for owner and user (simplification for tests)
+        let o_key_digest = md5::compute(&padded_pw);
+        let o_key = &o_key_digest[..5]; // 40-bit key = 5 bytes
+        let o_value = rc4_transform(o_key, &padded_pw);
+
+        // Algorithm 3.2: Compute encryption key
+        let mut key_input = Vec::with_capacity(128);
+        key_input.extend_from_slice(&padded_pw);
+        key_input.extend_from_slice(&o_value);
+        key_input.extend_from_slice(&(permissions as u32).to_le_bytes());
+        key_input.extend_from_slice(file_id);
+        let key_digest = md5::compute(&key_input);
+        let enc_key = key_digest[..5].to_vec(); // 40-bit key
+
+        // Algorithm 3.4: Compute /U value (R=2)
+        let u_value = rc4_transform(&enc_key, &PAD_BYTES);
+
+        // Build the PDF document
+        let mut doc = Document::with_version("1.5");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        // Create page with text content (will be encrypted)
+        let content_bytes = b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET";
+        let stream = Stream::new(dictionary! {}, content_bytes.to_vec());
+        let content_id = doc.add_object(Object::Stream(stream));
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => Object::Reference(content_id),
+            "Resources" => dictionary! {
+                "Font" => dictionary! {
+                    "F1" => Object::Reference(font_id),
+                },
+            },
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => 1_i64,
+            }),
+        );
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        // Now encrypt all string/stream objects
+        for (&obj_id, obj) in doc.objects.iter_mut() {
+            // Compute per-object key: MD5(enc_key + obj_num_le + gen_num_le)[:key_len+5]
+            let mut obj_key_input = Vec::with_capacity(10);
+            obj_key_input.extend_from_slice(&enc_key);
+            obj_key_input.extend_from_slice(&obj_id.0.to_le_bytes()[..3]);
+            obj_key_input.extend_from_slice(&obj_id.1.to_le_bytes()[..2]);
+            let obj_key_digest = md5::compute(&obj_key_input);
+            let obj_key_len = (enc_key.len() + 5).min(16);
+            let obj_key = &obj_key_digest[..obj_key_len];
+
+            match obj {
+                Object::Stream(stream) => {
+                    let encrypted = rc4_transform(obj_key, &stream.content);
+                    stream.set_content(encrypted);
+                }
+                Object::String(content, _) => {
+                    let encrypted = rc4_transform(obj_key, content);
+                    *content = encrypted;
+                }
+                _ => {}
+            }
+        }
+
+        // Add /Encrypt dictionary
+        let encrypt_id = doc.add_object(dictionary! {
+            "Filter" => "Standard",
+            "V" => 1_i64,
+            "R" => 2_i64,
+            "Length" => 40_i64,
+            "O" => Object::String(o_value, StringFormat::Literal),
+            "U" => Object::String(u_value, StringFormat::Literal),
+            "P" => permissions as i64,
+        });
+        doc.trailer.set("Encrypt", Object::Reference(encrypt_id));
+
+        // Add /ID array
+        doc.trailer.set(
+            "ID",
+            Object::Array(vec![
+                Object::String(file_id.to_vec(), StringFormat::Literal),
+                Object::String(file_id.to_vec(), StringFormat::Literal),
+            ]),
+        );
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf)
+            .expect("failed to save encrypted test PDF");
+        buf
+    }
+
+    // --- Encrypted PDF tests ---
+
+    #[test]
+    fn open_encrypted_pdf_without_password_returns_password_required() {
+        let pdf_bytes = create_encrypted_test_pdf(b"secret123");
+        let result = LopdfBackend::open(&pdf_bytes);
+        assert!(result.is_err());
+        let err: pdfplumber_core::PdfError = result.unwrap_err().into();
+        assert_eq!(err, pdfplumber_core::PdfError::PasswordRequired);
+    }
+
+    #[test]
+    fn open_encrypted_pdf_with_correct_password() {
+        let password = b"secret123";
+        let pdf_bytes = create_encrypted_test_pdf(password);
+        let result = LopdfBackend::open_with_password(&pdf_bytes, password);
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(LopdfBackend::page_count(&doc), 1);
+    }
+
+    #[test]
+    fn open_encrypted_pdf_with_wrong_password_returns_invalid_password() {
+        let pdf_bytes = create_encrypted_test_pdf(b"secret123");
+        let result = LopdfBackend::open_with_password(&pdf_bytes, b"wrongpassword");
+        assert!(result.is_err());
+        let err: pdfplumber_core::PdfError = result.unwrap_err().into();
+        assert_eq!(err, pdfplumber_core::PdfError::InvalidPassword);
+    }
+
+    #[test]
+    fn open_unencrypted_pdf_with_password_succeeds() {
+        // Password is ignored for unencrypted PDFs
+        let pdf_bytes = create_test_pdf(1);
+        let result = LopdfBackend::open_with_password(&pdf_bytes, b"anypassword");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(LopdfBackend::page_count(&doc), 1);
+    }
+
+    #[test]
+    fn open_encrypted_pdf_with_empty_password() {
+        // Encrypted with empty password — should be openable with empty password
+        let pdf_bytes = create_encrypted_test_pdf(b"");
+        let result = LopdfBackend::open_with_password(&pdf_bytes, b"");
+        assert!(result.is_ok());
+        let doc = result.unwrap();
+        assert_eq!(LopdfBackend::page_count(&doc), 1);
     }
 }

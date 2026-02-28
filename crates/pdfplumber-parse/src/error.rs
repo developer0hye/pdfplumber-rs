@@ -116,4 +116,18 @@ mod tests {
         let err: Box<dyn std::error::Error> = Box::new(BackendError::Parse("test".to_string()));
         assert!(err.to_string().contains("test"));
     }
+
+    #[test]
+    fn backend_error_core_password_required_passthrough() {
+        let backend = BackendError::Core(PdfError::PasswordRequired);
+        let pdf_err: PdfError = backend.into();
+        assert_eq!(pdf_err, PdfError::PasswordRequired);
+    }
+
+    #[test]
+    fn backend_error_core_invalid_password_passthrough() {
+        let backend = BackendError::Core(PdfError::InvalidPassword);
+        let pdf_err: PdfError = backend.into();
+        assert_eq!(pdf_err, PdfError::InvalidPassword);
+    }
 }
