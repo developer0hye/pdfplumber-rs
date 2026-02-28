@@ -1,0 +1,760 @@
+{
+  "source": "table_merged_cells.pdf",
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 595.28,
+      "height": 841.89,
+      "chars": [
+        {
+          "text": "Q",
+          "x0": 48.19,
+          "top": 96.134,
+          "x1": 57.526,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "u",
+          "x0": 57.526,
+          "top": 96.134,
+          "x1": 64.858,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "a",
+          "x0": 64.858,
+          "top": 96.134,
+          "x1": 71.53,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "r",
+          "x0": 71.53,
+          "top": 96.134,
+          "x1": 76.198,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "t",
+          "x0": 76.198,
+          "top": 96.134,
+          "x1": 80.194,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "e",
+          "x0": 80.194,
+          "top": 96.134,
+          "x1": 86.866,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "r",
+          "x0": 86.866,
+          "top": 96.134,
+          "x1": 91.534,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "l",
+          "x0": 91.534,
+          "top": 96.134,
+          "x1": 94.87,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "y",
+          "x0": 94.87,
+          "top": 96.134,
+          "x1": 101.542,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": " ",
+          "x0": 101.542,
+          "top": 96.134,
+          "x1": 104.878,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "R",
+          "x0": 104.878,
+          "top": 96.134,
+          "x1": 113.542,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "e",
+          "x0": 113.542,
+          "top": 96.134,
+          "x1": 120.214,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "p",
+          "x0": 120.214,
+          "top": 96.134,
+          "x1": 127.546,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "o",
+          "x0": 127.546,
+          "top": 96.134,
+          "x1": 134.878,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "r",
+          "x0": 134.878,
+          "top": 96.134,
+          "x1": 139.546,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "t",
+          "x0": 139.546,
+          "top": 96.134,
+          "x1": 143.542,
+          "bottom": 108.134,
+          "fontname": "Helvetica-Bold",
+          "size": 12.0
+        },
+        {
+          "text": "R",
+          "x0": 48.19,
+          "top": 131.13,
+          "x1": 55.41,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "e",
+          "x0": 55.41,
+          "top": 131.13,
+          "x1": 60.97,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "g",
+          "x0": 60.97,
+          "top": 131.13,
+          "x1": 67.08,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "i",
+          "x0": 67.08,
+          "top": 131.13,
+          "x1": 69.86,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "o",
+          "x0": 69.86,
+          "top": 131.13,
+          "x1": 75.97,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "n",
+          "x0": 75.97,
+          "top": 131.13,
+          "x1": 82.08,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "Q",
+          "x0": 161.57,
+          "top": 131.13,
+          "x1": 169.35,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 169.35,
+          "top": 131.13,
+          "x1": 174.91,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "Q",
+          "x0": 274.96,
+          "top": 131.13,
+          "x1": 282.74,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "2",
+          "x0": 282.74,
+          "top": 131.13,
+          "x1": 288.3,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "Q",
+          "x0": 388.35,
+          "top": 131.13,
+          "x1": 396.13,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "3",
+          "x0": 396.13,
+          "top": 131.13,
+          "x1": 401.69,
+          "bottom": 141.13,
+          "fontname": "Helvetica-Bold",
+          "size": 10.0
+        },
+        {
+          "text": "N",
+          "x0": 48.19,
+          "top": 165.15,
+          "x1": 55.41,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "o",
+          "x0": 55.41,
+          "top": 165.15,
+          "x1": 60.97,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "r",
+          "x0": 60.97,
+          "top": 165.15,
+          "x1": 64.3,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "t",
+          "x0": 64.3,
+          "top": 165.15,
+          "x1": 67.08,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "h",
+          "x0": 67.08,
+          "top": 165.15,
+          "x1": 72.64,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 161.57,
+          "top": 165.15,
+          "x1": 167.13,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 167.13,
+          "top": 165.15,
+          "x1": 172.69,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 172.69,
+          "top": 165.15,
+          "x1": 178.25,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 274.96,
+          "top": 165.15,
+          "x1": 280.52,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "5",
+          "x0": 280.52,
+          "top": 165.15,
+          "x1": 286.08,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 286.08,
+          "top": 165.15,
+          "x1": 291.64,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "2",
+          "x0": 388.35,
+          "top": 165.15,
+          "x1": 393.91,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 393.91,
+          "top": 165.15,
+          "x1": 399.47,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 399.47,
+          "top": 165.15,
+          "x1": 405.03,
+          "bottom": 175.15,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 161.57,
+          "top": 199.16,
+          "x1": 167.13,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 167.13,
+          "top": 199.16,
+          "x1": 172.69,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 172.69,
+          "top": 199.16,
+          "x1": 178.25,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 274.96,
+          "top": 199.16,
+          "x1": 280.52,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "6",
+          "x0": 280.52,
+          "top": 199.16,
+          "x1": 286.08,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 286.08,
+          "top": 199.16,
+          "x1": 291.64,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "2",
+          "x0": 388.35,
+          "top": 199.16,
+          "x1": 393.91,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "1",
+          "x0": 393.91,
+          "top": 199.16,
+          "x1": 399.47,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 399.47,
+          "top": 199.16,
+          "x1": 405.03,
+          "bottom": 209.16,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "S",
+          "x0": 48.19,
+          "top": 233.18,
+          "x1": 54.86,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "o",
+          "x0": 54.86,
+          "top": 233.18,
+          "x1": 60.42,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "u",
+          "x0": 60.42,
+          "top": 233.18,
+          "x1": 65.98,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "t",
+          "x0": 65.98,
+          "top": 233.18,
+          "x1": 68.76,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "h",
+          "x0": 68.76,
+          "top": 233.18,
+          "x1": 74.32,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "2",
+          "x0": 161.57,
+          "top": 233.18,
+          "x1": 167.13,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 167.13,
+          "top": 233.18,
+          "x1": 172.69,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 172.69,
+          "top": 233.18,
+          "x1": 178.25,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "2",
+          "x0": 274.96,
+          "top": 233.18,
+          "x1": 280.52,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "5",
+          "x0": 280.52,
+          "top": 233.18,
+          "x1": 286.08,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 286.08,
+          "top": 233.18,
+          "x1": 291.64,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "3",
+          "x0": 388.35,
+          "top": 233.18,
+          "x1": 393.91,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 393.91,
+          "top": 233.18,
+          "x1": 399.47,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        },
+        {
+          "text": "0",
+          "x0": 399.47,
+          "top": 233.18,
+          "x1": 405.03,
+          "bottom": 243.18,
+          "fontname": "Helvetica",
+          "size": 10.0
+        }
+      ],
+      "words": [
+        {
+          "text": "Quarterly",
+          "x0": 48.19,
+          "top": 96.134,
+          "x1": 101.542,
+          "bottom": 108.134
+        },
+        {
+          "text": "Report",
+          "x0": 104.878,
+          "top": 96.134,
+          "x1": 143.542,
+          "bottom": 108.134
+        },
+        {
+          "text": "Region",
+          "x0": 48.19,
+          "top": 131.13,
+          "x1": 82.08,
+          "bottom": 141.13
+        },
+        {
+          "text": "Q1",
+          "x0": 161.57,
+          "top": 131.13,
+          "x1": 174.91,
+          "bottom": 141.13
+        },
+        {
+          "text": "Q2",
+          "x0": 274.96,
+          "top": 131.13,
+          "x1": 288.3,
+          "bottom": 141.13
+        },
+        {
+          "text": "Q3",
+          "x0": 388.35,
+          "top": 131.13,
+          "x1": 401.69,
+          "bottom": 141.13
+        },
+        {
+          "text": "North",
+          "x0": 48.19,
+          "top": 165.15,
+          "x1": 72.64,
+          "bottom": 175.15
+        },
+        {
+          "text": "100",
+          "x0": 161.57,
+          "top": 165.15,
+          "x1": 178.25,
+          "bottom": 175.15
+        },
+        {
+          "text": "150",
+          "x0": 274.96,
+          "top": 165.15,
+          "x1": 291.64,
+          "bottom": 175.15
+        },
+        {
+          "text": "200",
+          "x0": 388.35,
+          "top": 165.15,
+          "x1": 405.03,
+          "bottom": 175.15
+        },
+        {
+          "text": "110",
+          "x0": 161.57,
+          "top": 199.16,
+          "x1": 178.25,
+          "bottom": 209.16
+        },
+        {
+          "text": "160",
+          "x0": 274.96,
+          "top": 199.16,
+          "x1": 291.64,
+          "bottom": 209.16
+        },
+        {
+          "text": "210",
+          "x0": 388.35,
+          "top": 199.16,
+          "x1": 405.03,
+          "bottom": 209.16
+        },
+        {
+          "text": "South",
+          "x0": 48.19,
+          "top": 233.18,
+          "x1": 74.32,
+          "bottom": 243.18
+        },
+        {
+          "text": "200",
+          "x0": 161.57,
+          "top": 233.18,
+          "x1": 178.25,
+          "bottom": 243.18
+        },
+        {
+          "text": "250",
+          "x0": 274.96,
+          "top": 233.18,
+          "x1": 291.64,
+          "bottom": 243.18
+        },
+        {
+          "text": "300",
+          "x0": 388.35,
+          "top": 233.18,
+          "x1": 405.03,
+          "bottom": 243.18
+        }
+      ],
+      "tables": [
+        {
+          "bbox": [
+            42.52,
+            85.04,
+            496.068,
+            255.12
+          ],
+          "rows": [
+            [
+              "Quarterly Report",
+              null,
+              null,
+              null
+            ],
+            [
+              "Region",
+              "Q1",
+              "Q2",
+              "Q3"
+            ],
+            [
+              "North",
+              "100",
+              "150",
+              "200"
+            ],
+            [
+              null,
+              "110",
+              "160",
+              "210"
+            ],
+            [
+              "South",
+              "200",
+              "250",
+              "300"
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
