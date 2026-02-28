@@ -60,7 +60,7 @@
         "Version matches workspace version"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-074. CI/CD for multi-platform wheel building may need GitHub Actions workflow."
     },
     {
