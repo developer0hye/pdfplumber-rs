@@ -6,8 +6,8 @@
 //! Test PDFs are created programmatically using lopdf.
 
 use pdfplumber::{
-    AnnotationType, Bookmark, DocumentMetadata, ExtractOptions, Pdf, SearchOptions, TextOptions,
-    WordOptions,
+    AnnotationType, Bookmark, DedupeOptions, DocumentMetadata, ExtractOptions, Pdf, SearchOptions,
+    TextOptions, WordOptions,
 };
 
 // --- Test PDF creation helpers ---
@@ -1370,4 +1370,134 @@ fn search_all_multi_page() {
     assert_eq!(matches.len(), 2);
     assert_eq!(matches[0].page_number, 0);
     assert_eq!(matches[1].page_number, 1);
+}
+
+// --- US-064: Duplicate character deduplication ---
+
+/// Create a PDF where "H" is rendered twice at the same position (simulating
+/// a bold-effect duplicate), followed by normal "i".
+fn pdf_with_duplicate_chars() -> Vec<u8> {
+    // Render "H" at (72, 700), then "H" again at (72.5, 700), then "i" at (82, 700)
+    let content = b"BT /F1 12 Tf 72 700 Td (H) Tj 0.5 0 Td (H) Tj 9.5 0 Td (i) Tj ET";
+    pdf_with_content(content)
+}
+
+/// Create a PDF where the same char is rendered with two different fonts at the same position.
+fn pdf_with_two_fonts_content() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font1_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+    let font2_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Courier",
+    });
+
+    // "A" in Helvetica at (72, 700), then "A" in Courier at same position
+    let content = b"BT /F1 12 Tf 72 700 Td (A) Tj /F2 12 Tf 0 0 Td (A) Tj ET";
+    let stream = Stream::new(dictionary! {}, content.to_vec());
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! {
+            "F1" => Object::Reference(font1_id),
+            "F2" => Object::Reference(font2_id),
+        },
+    };
+
+    let media_box = vec![
+        Object::Integer(0),
+        Object::Integer(0),
+        Object::Integer(612),
+        Object::Integer(792),
+    ];
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => media_box,
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn dedupe_overlapping_identical_chars() {
+    let bytes = pdf_with_duplicate_chars();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // Before dedupe: should have 3 chars (H, H, i)
+    assert_eq!(page.chars().len(), 3);
+    assert_eq!(page.chars()[0].text, "H");
+    assert_eq!(page.chars()[1].text, "H");
+    assert_eq!(page.chars()[2].text, "i");
+
+    // After dedupe: duplicate H removed → (H, i)
+    let deduped = page.dedupe_chars(&DedupeOptions::default());
+    assert_eq!(deduped.chars().len(), 2);
+    assert_eq!(deduped.chars()[0].text, "H");
+    assert_eq!(deduped.chars()[1].text, "i");
+}
+
+#[test]
+fn dedupe_preserves_non_overlapping() {
+    // "Hello" with no duplicates — all should be preserved
+    let content = b"BT /F1 12 Tf 72 700 Td (Hello) Tj ET";
+    let bytes = pdf_with_content(content);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let original_count = page.chars().len();
+    let deduped = page.dedupe_chars(&DedupeOptions::default());
+    assert_eq!(deduped.chars().len(), original_count);
+}
+
+#[test]
+fn dedupe_different_font_not_deduped() {
+    let bytes = pdf_with_two_fonts_content();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // Two "A" chars at same position but different fonts
+    assert_eq!(page.chars().len(), 2);
+
+    // With default extra_attrs (fontname, size) → NOT deduped (different fontname)
+    let deduped = page.dedupe_chars(&DedupeOptions::default());
+    assert_eq!(deduped.chars().len(), 2);
+
+    // With no extra_attrs → deduped (only position + text matter)
+    let deduped_no_attrs = page.dedupe_chars(&DedupeOptions {
+        tolerance: 1.0,
+        extra_attrs: vec![],
+    });
+    assert_eq!(deduped_no_attrs.chars().len(), 1);
 }

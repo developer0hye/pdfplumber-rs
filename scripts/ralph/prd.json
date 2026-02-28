@@ -135,7 +135,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Implement in pdfplumber-core as a character filter algorithm."
     },
     {
