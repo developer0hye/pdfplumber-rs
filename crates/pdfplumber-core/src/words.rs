@@ -30,6 +30,7 @@ impl Default for WordOptions {
 
 /// A word extracted from a PDF page.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Word {
     /// The text content of this word.
     pub text: String,

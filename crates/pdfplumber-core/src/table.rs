@@ -10,6 +10,7 @@ use crate::words::{Word, WordExtractor, WordOptions};
 
 /// Strategy for table detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Strategy {
     /// Detect tables using visible lines and rect edges.
     #[default]
@@ -26,6 +27,7 @@ pub enum Strategy {
 ///
 /// All tolerance values default to 3.0, matching Python pdfplumber defaults.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableSettings {
     /// Table detection strategy.
     pub strategy: Strategy,
@@ -89,6 +91,7 @@ impl Default for TableSettings {
 
 /// User-provided line coordinates for Explicit strategy.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExplicitLines {
     /// Y-coordinates for horizontal lines.
     pub horizontal_lines: Vec<f64>,
@@ -98,6 +101,7 @@ pub struct ExplicitLines {
 
 /// A detected table cell.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cell {
     /// Bounding box of the cell.
     pub bbox: BBox,
@@ -107,6 +111,7 @@ pub struct Cell {
 
 /// A detected table.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Table {
     /// Bounding box enclosing the entire table.
     pub bbox: BBox,
@@ -322,6 +327,7 @@ where
 
 /// An intersection point between horizontal and vertical edges.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Intersection {
     /// X coordinate of the intersection point.
     pub x: f64,
