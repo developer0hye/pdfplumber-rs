@@ -22,9 +22,9 @@ pub use pdfplumber_core::{
     StandardEncoding, Strategy, Table, TableFinder, TableSettings, TextBlock, TextDirection,
     TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cells_to_tables,
     cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, edge_from_curve,
-    edge_from_line, edges_from_rect, edges_to_intersections, extract_shapes,
-    extract_text_for_cells, image_from_ctm, intersections_to_cells, is_cjk, is_cjk_text,
-    join_edge_group, snap_edges, sort_blocks_reading_order, split_lines_at_columns,
+    edge_from_line, edges_from_rect, edges_to_intersections, explicit_lines_to_edges,
+    extract_shapes, extract_text_for_cells, image_from_ctm, intersections_to_cells, is_cjk,
+    is_cjk_text, join_edge_group, snap_edges, sort_blocks_reading_order, split_lines_at_columns,
     words_to_edges_stream, words_to_text,
 };
 pub use pdfplumber_parse::{

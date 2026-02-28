@@ -30,6 +30,8 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `words_to_edges_stream(words, text_x_tol, text_y_tol, min_words_v, min_words_h)` generates synthetic edges from word alignment
 - Stream strategy: cluster words by x0/x1 (vertical edges) and top/bottom (horizontal edges), filter by min_words threshold
 - `TableFinder::new_with_words(edges, words, settings)` constructor for Stream strategy; `new()` still works with empty words
+- `explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge>` converts coordinate lists to edges with `EdgeSource::Explicit`
+- Explicit strategy mixing: `find_tables()` computes bounding range from detected edges + explicit coordinates for edge span computation
 
 ---
 
@@ -156,4 +158,21 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - `TableFinder` now has a `words: Vec<Word>` field, empty by default for backward compatibility
   - Stream strategy uses text_x_tolerance/text_y_tolerance for clustering (not snap_tolerance)
   - 13 tests covering: empty words, x0/x1 vertical alignment, top/bottom horizontal alignment, threshold filtering, tolerance grouping, no grouping beyond tolerance, full pipeline, no words, edge source, min_words_horizontal default
+---
+
+## 2026-02-28 - US-038
+- Implemented Explicit strategy for user-provided line coordinates
+- Added `EdgeSource::Explicit` variant to edges.rs
+- Added `explicit_lines_to_edges()` standalone function that converts ExplicitLines (h/v coordinate lists) to Edge objects
+- Updated `TableFinder::find_tables()` with Explicit strategy handling including mixing support
+- Mixing: explicit edges are combined with detected edges, spans computed from both sources
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/edges.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge>` is a standalone function for pure explicit grids
+  - Horizontal edges span from min(vertical_lines) to max(vertical_lines); verticals span from min(horizontal_lines) to max(horizontal_lines)
+  - Returns empty Vec if either list is empty (can't form a grid without both)
+  - Mixing in `find_tables()`: computes bounding range from both detected edges AND explicit coordinates, so explicit horizontal lines span the full x-range including detected edges
+  - All explicit edges have `EdgeSource::Explicit` for tracking provenance
+  - 13 tests covering: basic conversion, empty lists (h/v/both), edge source, grid detection (3x3/2x2), no explicit_lines, mixing with detected edges, single line each, unsorted coordinates
 ---

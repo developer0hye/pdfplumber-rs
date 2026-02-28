@@ -23,6 +23,8 @@ pub enum EdgeSource {
     Curve,
     /// Synthetic edge generated from text alignment patterns (Stream strategy).
     Stream,
+    /// User-provided explicit line coordinate (Explicit strategy).
+    Explicit,
 }
 
 /// A line segment edge for table detection.
