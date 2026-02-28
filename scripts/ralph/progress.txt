@@ -1,40 +1,26 @@
 ## Codebase Patterns
-- New modules go in `crates/pdfplumber-core/src/` with `pub mod` in `lib.rs` and re-exports at crate root
-- Facade crate (`crates/pdfplumber/src/lib.rs`) re-exports all public types from pdfplumber-core
-- Tests use inline `#[cfg(test)] mod tests` with `assert_approx` for f64 comparisons (tolerance 1e-6)
-- Helper constructors: `make_line()`, `make_rect()`, `make_curve()` in test modules
-- Coordinate system: top-left origin (x0, top, x1, bottom) where top < bottom
-- `BBox::union()` computes enclosing bbox of two bboxes
-- `Edge` struct has x0/top/x1/bottom/orientation/source fields
-- `derive_edges()` converts Lines+Rects+Curves to Vec<Edge>
-- Clippy: use `#[derive(Default)]` with `#[default]` variant instead of manual `impl Default` for enums
-- `snap_edges()` function lives in `table.rs` as a public standalone function; uses `snap_group()` helper for clustering
-- Edge processing helpers: `make_h_edge(x0, y, x1)` and `make_v_edge(x, top, bottom)` in test module for concise test construction
-- `edges_to_intersections(edges, x_tolerance, y_tolerance)` takes `&[Edge]` and returns `Vec<Intersection>`
-- `Intersection` struct has `x: f64` and `y: f64` fields
-- Intersection detection: checks H-edge y within V-edge y-span and V-edge x within H-edge x-span (with tolerance)
-- Deduplication: intersections at the same point (within 1e-9) are deduplicated via sort+dedup_by
-- `intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell>` constructs cells from a grid of intersection points
-- Cell construction: collects unique x/y coords, sorts them, checks all 4 corners for each adjacent pair
-- `cells_to_tables(cells: Vec<Cell>) -> Vec<Table>` groups adjacent cells into tables using union-find
-- Table grouping: `cells_share_edge()` checks shared boundaries, `float_key()` converts f64→i64 for BTreeMap grouping
-- `edge_length(edge)` computes length via Euclidean distance (sqrt(dx²+dy²))
-- `TableFinder::find_tables()` runs full pipeline: filter by strategy → filter by min_length → snap → join → intersections → cells → tables
-- LatticeStrict filters edges by `EdgeSource::Line` only; Lattice uses all edge sources
-- `extract_text_for_cells(cells, chars)` populates cell text using center-point containment + WordExtractor
-- Center-point containment: char bbox center (cx, cy) must fall within cell bbox
-- Text assembly: chars → WordExtractor → group words into lines by y-tolerance → join with spaces/newlines
-- `words_to_edges_stream(words, text_x_tol, text_y_tol, min_words_v, min_words_h)` generates synthetic edges from word alignment
-- Stream strategy: cluster words by x0/x1 (vertical edges) and top/bottom (horizontal edges), filter by min_words threshold
-- `TableFinder::new_with_words(edges, words, settings)` constructor for Stream strategy; `new()` still works with empty words
-- `explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge>` converts coordinate lists to edges with `EdgeSource::Explicit`
-- Explicit strategy mixing: `find_tables()` computes bounding range from detected edges + explicit coordinates for edge span computation
-- `Page::find_tables(settings)` → Vec<Table> with populated cell text; uses TableFinder internally
-- `Page::extract_tables(settings)` → Vec<Vec<Vec<Option<String>>>> (tables→rows→cells as text)
-- `Page::extract_table(settings)` → Option<Vec<Vec<Option<String>>>> (largest table by cell count)
 
+- **Font handling architecture**: Fonts are cached in `CachedFont` struct in interpreter.rs. Simple fonts use `FontMetrics` (widths array indexed by char_code - first_char). CID fonts use `CidFontMetrics` (HashMap<u32, f64> for sparse widths + default_width).
+- **lopdf object resolution**: Always resolve indirect references via `resolve_object(doc, obj)` before accessing dictionaries or arrays.
+- **Width function pattern**: The interpreter creates a width closure `get_width_fn(cached)` that dispatches to CID or simple metrics.
+- **CMap types**: `CMap` maps char_code→Unicode string (for ToUnicode). `CidCMap` maps char_code→CID (for predefined CMaps).
+- **Type0 font loading flow**: `is_type0_font()` → `get_descendant_font()` → `extract_cid_font_metrics()` → stores in `CachedFont.cid_metrics`.
+
+# Ralph Progress Log
+Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
 ---
 
-# Ralph Progress Log - Phase 4: Polish - CID Fonts, Parallel, WASM, Benchmarks, Release
-Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
+## 2026-02-28 - US-040
+- Implemented CID font support: CID-to-GID mapping, predefined CMap parsing, /W and /DW width handling
+- New file: `crates/pdfplumber-parse/src/cid_font.rs` — CidFontMetrics, CidToGidMap, CidSystemInfo, PredefinedCMapInfo, W array parsing, Type0 font detection
+- Modified: `crates/pdfplumber-parse/src/cmap.rs` — Added CidCMap struct for begincidchar/begincidrange parsing, CMap name/WMode parsing
+- Modified: `crates/pdfplumber-parse/src/interpreter.rs` — CachedFont now holds cid_metrics, is_cid_font, writing_mode; load_font_if_needed detects Type0 fonts; width lookup uses CID metrics when available
+- Modified: `crates/pdfplumber-parse/src/lib.rs` — Exports new CID font types
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - /W array has two formats: `CID [w1 w2 ...]` (individual) and `CIDstart CIDend w` (range) — need to detect arrays vs integers
+  - CIDToGIDMap is most commonly /Identity; explicit mapping is a raw byte stream of big-endian u16 pairs
+  - Predefined CMap names follow patterns: Adobe-Japan1-*, UniJIS-UTF16-H, 90ms-RKSJ-H, etc.
+  - clippy requires `#[allow(clippy::too_many_arguments)]` for constructors with 8+ params
+  - Use `if let Ok(v) = x.parse()` not `if let Some(v) = x.parse().ok()` (clippy::match_result_ok)
 ---
