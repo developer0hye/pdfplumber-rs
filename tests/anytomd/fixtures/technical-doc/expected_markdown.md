@@ -1,8 +1,4 @@
-# API
-
-# Reference
-
-# Guide
+# API Reference Guide
 
 This document describes the REST API endpoints.
 All endpoints require authentication via Bearer token.

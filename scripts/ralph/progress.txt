@@ -8,6 +8,8 @@ Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
 - Width arrays use WinAnsiEncoding char code mapping (most common in modern PDFs)
 - Oblique variants share width data with upright: Helvetica-Oblique = Helvetica, Helvetica-BoldOblique = Helvetica-Bold
 - All Courier variants share one array (monospaced, all 600)
+- Standard font fallback: `lookup_standard_font(font_dict)` in `font_metrics.rs` — reads `/BaseFont`, strips subset prefix, looks up standard widths
+- When standard font matched: widths cover codes 0-255, `first_char=0`, `last_char=255`; descriptor values override standard defaults
 - pdfplumber-py tests SIGABRT on macOS (pre-existing, unrelated to standard font work)
 
 ---
@@ -24,4 +26,19 @@ Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
   - AFM files use StandardEncoding char codes; need WinAnsiEncoding mapping for modern PDFs
   - Codes 39 (quotesingle vs quoteright) and 96 (grave vs quoteleft) differ between encodings
   - Symbol and ZapfDingbats use their own built-in encodings, not WinAnsiEncoding
+---
+
+## 2026-03-01 - US-104
+- Integrated standard font fallback in `extract_font_metrics()` in `crates/pdfplumber-parse/src/font_metrics.rs`
+- When `/Widths` is absent and `/BaseFont` matches a Standard 14 font, uses standard widths instead of DEFAULT_WIDTH=600
+- Added `lookup_standard_font()` helper that reads `/BaseFont`, strips subset prefix, and calls `standard_fonts::lookup()`
+- Standard `font_bbox` used as fallback when `/FontDescriptor` lacks bbox; descriptor ascent/descent always takes precedence
+- 10 new unit tests covering: Helvetica/Courier/Times-Roman fallback, subset prefix handling, unknown font default, embedded widths unaffected, descriptor overrides, bbox fallback
+- Regenerated anytomd golden files (`business-report`, `technical-doc`) — headings now correctly group words (e.g., "# API Reference Guide" instead of separate "# API" "# Reference" "# Guide")
+- Files changed: `crates/pdfplumber-parse/src/font_metrics.rs`, `tests/anytomd/fixtures/business-report/expected_markdown.md`, `tests/anytomd/fixtures/technical-doc/expected_markdown.md`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Standard font fallback improves text grouping quality — proportional widths produce correct x-positions for word boundary detection
+  - `lopdf::Object::as_name()` returns `&[u8]`, needs `std::str::from_utf8()` conversion
+  - Existing tests may break when behavior changes are intentional improvements — update assertions to match new correct behavior
 ---
