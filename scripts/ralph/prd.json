@@ -88,7 +88,7 @@
         "No regression on existing 4 cross-validation tests (lorem, nics, pdffill, scotus)"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Current cross-validation test file: crates/pdfplumber/tests/cross_validation.rs. Existing golden data: issue-33-lorem-ipsum.json, nics-background-checks-2015-11.json, pdffill-demo.json, scotus-transcript-p1.json. Consider using a macro like `cross_validate!(pdf_name, threshold)` to reduce boilerplate. Some PDFs may not have golden data (failed during generation) - skip gracefully. The oss-fuzz PDFs should be tested only for 'no panic' (open + extract without crashing), not accuracy."
     }
   ]
