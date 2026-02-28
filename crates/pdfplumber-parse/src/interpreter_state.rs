@@ -7,12 +7,14 @@
 use pdfplumber_core::geometry::Ctm;
 use pdfplumber_core::painting::{Color, GraphicsState};
 
+use crate::color_space::ResolvedColorSpace;
+
 /// Full interpreter state that combines the CTM with the graphics state.
 ///
 /// This is the interpreter-level state that tracks everything needed
 /// during content stream processing. The `q` operator pushes a copy
 /// onto the stack; `Q` restores from the stack.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct InterpreterState {
     /// Current transformation matrix.
     ctm: Ctm,
@@ -20,13 +22,25 @@ pub struct InterpreterState {
     graphics_state: GraphicsState,
     /// Saved state stack for q/Q operators.
     stack: Vec<SavedState>,
+    /// Current stroking color space (set by CS operator).
+    stroking_color_space: Option<ResolvedColorSpace>,
+    /// Current non-stroking color space (set by cs operator).
+    non_stroking_color_space: Option<ResolvedColorSpace>,
+}
+
+impl PartialEq for InterpreterState {
+    fn eq(&self, other: &Self) -> bool {
+        self.ctm == other.ctm && self.graphics_state == other.graphics_state
+    }
 }
 
 /// A snapshot of the interpreter state saved by the `q` operator.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 struct SavedState {
     ctm: Ctm,
     graphics_state: GraphicsState,
+    stroking_color_space: Option<ResolvedColorSpace>,
+    non_stroking_color_space: Option<ResolvedColorSpace>,
 }
 
 impl Default for InterpreterState {
@@ -42,6 +56,8 @@ impl InterpreterState {
             ctm: Ctm::identity(),
             graphics_state: GraphicsState::default(),
             stack: Vec::new(),
+            stroking_color_space: None,
+            non_stroking_color_space: None,
         }
     }
 
@@ -79,6 +95,8 @@ impl InterpreterState {
         self.stack.push(SavedState {
             ctm: self.ctm,
             graphics_state: self.graphics_state.clone(),
+            stroking_color_space: self.stroking_color_space.clone(),
+            non_stroking_color_space: self.non_stroking_color_space.clone(),
         });
     }
 
@@ -89,6 +107,8 @@ impl InterpreterState {
         if let Some(saved) = self.stack.pop() {
             self.ctm = saved.ctm;
             self.graphics_state = saved.graphics_state;
+            self.stroking_color_space = saved.stroking_color_space;
+            self.non_stroking_color_space = saved.non_stroking_color_space;
             true
         } else {
             false
@@ -124,54 +144,72 @@ impl InterpreterState {
 
     /// `G` operator: set stroking color to DeviceGray.
     pub fn set_stroking_gray(&mut self, gray: f32) {
+        self.stroking_color_space = None;
         self.graphics_state.stroke_color = Color::Gray(gray);
     }
 
     /// `g` operator: set non-stroking color to DeviceGray.
     pub fn set_non_stroking_gray(&mut self, gray: f32) {
+        self.non_stroking_color_space = None;
         self.graphics_state.fill_color = Color::Gray(gray);
     }
 
     /// `RG` operator: set stroking color to DeviceRGB.
     pub fn set_stroking_rgb(&mut self, r: f32, g: f32, b: f32) {
+        self.stroking_color_space = None;
         self.graphics_state.stroke_color = Color::Rgb(r, g, b);
     }
 
     /// `rg` operator: set non-stroking color to DeviceRGB.
     pub fn set_non_stroking_rgb(&mut self, r: f32, g: f32, b: f32) {
+        self.non_stroking_color_space = None;
         self.graphics_state.fill_color = Color::Rgb(r, g, b);
     }
 
     /// `K` operator: set stroking color to DeviceCMYK.
     pub fn set_stroking_cmyk(&mut self, c: f32, m: f32, y: f32, k: f32) {
+        self.stroking_color_space = None;
         self.graphics_state.stroke_color = Color::Cmyk(c, m, y, k);
     }
 
     /// `k` operator: set non-stroking color to DeviceCMYK.
     pub fn set_non_stroking_cmyk(&mut self, c: f32, m: f32, y: f32, k: f32) {
+        self.non_stroking_color_space = None;
         self.graphics_state.fill_color = Color::Cmyk(c, m, y, k);
     }
 
     /// `SC`/`SCN` operator: set stroking color from components.
     ///
-    /// Interprets component count to determine color space:
-    /// - 1 component → Gray
-    /// - 3 components → RGB
-    /// - 4 components → CMYK
-    /// - other → Other
+    /// If a stroking color space has been set (via CS), uses it to resolve
+    /// the color. Otherwise falls back to inferring from component count.
     pub fn set_stroking_color(&mut self, components: &[f32]) {
-        self.graphics_state.stroke_color = color_from_components(components);
+        self.graphics_state.stroke_color = if let Some(ref cs) = self.stroking_color_space {
+            cs.resolve_color(components)
+        } else {
+            color_from_components(components)
+        };
     }
 
     /// `sc`/`scn` operator: set non-stroking color from components.
     ///
-    /// Interprets component count to determine color space:
-    /// - 1 component → Gray
-    /// - 3 components → RGB
-    /// - 4 components → CMYK
-    /// - other → Other
+    /// If a non-stroking color space has been set (via cs), uses it to resolve
+    /// the color. Otherwise falls back to inferring from component count.
     pub fn set_non_stroking_color(&mut self, components: &[f32]) {
-        self.graphics_state.fill_color = color_from_components(components);
+        self.graphics_state.fill_color = if let Some(ref cs) = self.non_stroking_color_space {
+            cs.resolve_color(components)
+        } else {
+            color_from_components(components)
+        };
+    }
+
+    /// `CS` operator: set the stroking color space.
+    pub fn set_stroking_color_space(&mut self, cs: ResolvedColorSpace) {
+        self.stroking_color_space = Some(cs);
+    }
+
+    /// `cs` operator: set the non-stroking color space.
+    pub fn set_non_stroking_color_space(&mut self, cs: ResolvedColorSpace) {
+        self.non_stroking_color_space = Some(cs);
     }
 }
 

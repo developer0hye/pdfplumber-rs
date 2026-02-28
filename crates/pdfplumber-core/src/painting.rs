@@ -29,6 +29,24 @@ impl Color {
     pub fn black() -> Self {
         Self::Gray(0.0)
     }
+
+    /// Convert this color to an RGB triple `(r, g, b)` with components in `[0.0, 1.0]`.
+    ///
+    /// Returns `None` for `Color::Other` since the color space is unknown.
+    pub fn to_rgb(&self) -> Option<(f32, f32, f32)> {
+        match self {
+            Color::Gray(g) => Some((*g, *g, *g)),
+            Color::Rgb(r, g, b) => Some((*r, *g, *b)),
+            Color::Cmyk(c, m, y, k) => {
+                // Standard CMYK to RGB conversion
+                let r = (1.0 - c) * (1.0 - k);
+                let g = (1.0 - m) * (1.0 - k);
+                let b = (1.0 - y) * (1.0 - k);
+                Some((r, g, b))
+            }
+            Color::Other(_) => None,
+        }
+    }
 }
 
 impl Default for Color {
@@ -312,6 +330,68 @@ mod tests {
 
     fn build_rectangle(builder: &mut PathBuilder) {
         builder.rectangle(10.0, 20.0, 100.0, 50.0);
+    }
+
+    // --- Color::to_rgb tests ---
+
+    #[test]
+    fn test_gray_to_rgb() {
+        let c = Color::Gray(0.5);
+        assert_eq!(c.to_rgb(), Some((0.5, 0.5, 0.5)));
+    }
+
+    #[test]
+    fn test_gray_black_to_rgb() {
+        let c = Color::Gray(0.0);
+        assert_eq!(c.to_rgb(), Some((0.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_gray_white_to_rgb() {
+        let c = Color::Gray(1.0);
+        assert_eq!(c.to_rgb(), Some((1.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn test_rgb_to_rgb_identity() {
+        let c = Color::Rgb(0.2, 0.4, 0.6);
+        assert_eq!(c.to_rgb(), Some((0.2, 0.4, 0.6)));
+    }
+
+    #[test]
+    fn test_cmyk_to_rgb() {
+        // Pure cyan: C=1, M=0, Y=0, K=0 → R=0, G=1, B=1
+        let c = Color::Cmyk(1.0, 0.0, 0.0, 0.0);
+        let (r, g, b) = c.to_rgb().unwrap();
+        assert!((r - 0.0).abs() < 0.01, "r={r}");
+        assert!((g - 1.0).abs() < 0.01, "g={g}");
+        assert!((b - 1.0).abs() < 0.01, "b={b}");
+    }
+
+    #[test]
+    fn test_cmyk_black_to_rgb() {
+        // K=1 → all black
+        let c = Color::Cmyk(0.0, 0.0, 0.0, 1.0);
+        let (r, g, b) = c.to_rgb().unwrap();
+        assert!((r - 0.0).abs() < 0.01, "r={r}");
+        assert!((g - 0.0).abs() < 0.01, "g={g}");
+        assert!((b - 0.0).abs() < 0.01, "b={b}");
+    }
+
+    #[test]
+    fn test_cmyk_white_to_rgb() {
+        // All zero → white
+        let c = Color::Cmyk(0.0, 0.0, 0.0, 0.0);
+        let (r, g, b) = c.to_rgb().unwrap();
+        assert!((r - 1.0).abs() < 0.01, "r={r}");
+        assert!((g - 1.0).abs() < 0.01, "g={g}");
+        assert!((b - 1.0).abs() < 0.01, "b={b}");
+    }
+
+    #[test]
+    fn test_other_to_rgb_returns_none() {
+        let c = Color::Other(vec![0.1, 0.2]);
+        assert_eq!(c.to_rgb(), None);
     }
 
     // --- Color tests ---

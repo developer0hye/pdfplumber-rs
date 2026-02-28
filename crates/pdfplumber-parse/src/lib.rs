@@ -19,6 +19,7 @@ pub mod backend;
 pub mod char_extraction;
 pub mod cid_font;
 pub mod cmap;
+pub mod color_space;
 pub mod error;
 pub mod font_metrics;
 pub mod handler;
