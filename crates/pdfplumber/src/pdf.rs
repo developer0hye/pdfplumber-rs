@@ -313,6 +313,10 @@ impl Pdf {
         let annotations =
             LopdfBackend::page_annotations(&self.doc, &lopdf_page).map_err(PdfError::from)?;
 
+        // Extract hyperlinks from the page
+        let hyperlinks =
+            LopdfBackend::page_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+
         Ok(Page::from_extraction(
             index,
             geometry.width(),
@@ -326,6 +330,7 @@ impl Pdf {
             chars,
             images,
             annotations,
+            hyperlinks,
             handler.warnings,
         ))
     }

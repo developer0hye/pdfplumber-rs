@@ -850,3 +850,188 @@ fn annotation_page_with_no_annotations() {
 
     assert!(page.annots().is_empty());
 }
+
+// --- Hyperlink tests (US-061) ---
+
+/// Create a PDF with a Link annotation that has a /URI action.
+fn pdf_with_uri_link() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Click here) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    // Create a Link annotation with /A /URI action
+    let annot_id = doc.add_object(dictionary! {
+        "Type" => "Annot",
+        "Subtype" => "Link",
+        "Rect" => vec![Object::Integer(72), Object::Integer(710), Object::Integer(200), Object::Integer(730)],
+        "A" => dictionary! {
+            "S" => "URI",
+            "URI" => Object::string_literal("https://example.com"),
+        },
+    });
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+        "Annots" => vec![Object::Reference(annot_id)],
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+/// Create a PDF with a Link annotation that has a /GoTo action (internal link).
+fn pdf_with_goto_link() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Go to page 2) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    // Create a second (empty) page as the GoTo target
+    let page2_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+    };
+    let page2_id = doc.add_object(page2_dict);
+
+    // Create a Link annotation with /A /GoTo action
+    let annot_id = doc.add_object(dictionary! {
+        "Type" => "Annot",
+        "Subtype" => "Link",
+        "Rect" => vec![Object::Integer(72), Object::Integer(710), Object::Integer(200), Object::Integer(730)],
+        "A" => dictionary! {
+            "S" => "GoTo",
+            "D" => vec![Object::Reference(page2_id), Object::Name(b"Fit".to_vec())],
+        },
+    });
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+        "Annots" => vec![Object::Reference(annot_id)],
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id), Object::Reference(page2_id)],
+        "Count" => Object::Integer(2),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    // Set parent for both pages
+    for &pid in &[page_id, page2_id] {
+        if let Ok(page_obj) = doc.get_object_mut(pid) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn hyperlink_uri_link() {
+    let bytes = pdf_with_uri_link();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let links = page.hyperlinks();
+    assert_eq!(links.len(), 1);
+
+    let link = &links[0];
+    assert_eq!(link.uri, "https://example.com");
+    assert_eq!(link.bbox.x0, 72.0);
+    assert_eq!(link.bbox.top, 710.0);
+    assert_eq!(link.bbox.x1, 200.0);
+    assert_eq!(link.bbox.bottom, 730.0);
+}
+
+#[test]
+fn hyperlink_goto_link() {
+    let bytes = pdf_with_goto_link();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let links = page.hyperlinks();
+    assert_eq!(links.len(), 1);
+
+    // GoTo links should have a destination string
+    let link = &links[0];
+    assert!(!link.uri.is_empty());
+}
+
+#[test]
+fn hyperlink_page_with_no_links() {
+    // Regular PDF without /Annots
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert!(page.hyperlinks().is_empty());
+}
