@@ -14,7 +14,8 @@
 - **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
 - **ExtractOptions pattern**: Document-level extraction settings go in ExtractOptions (set at Pdf::open() time, used during Pdf::page()). For text processing options (normalization, etc.), add field to ExtractOptions, apply in Pdf::page() after char creation. CLI: add separate clap ValueEnum arg type with conversion method, use open_pdf_with_norm() helper.
 - **Filter pattern**: Custom filtering follows: add PageObject enum in pdfplumber-core/page_object.rs → add Page::filter() and CroppedPage::filter() accepting Fn(&PageObject) -> bool → return CroppedPage with filtered objects (no coordinate adjustment). FilteredPage is a type alias for CroppedPage. Uses from_page_data() for Page, direct struct construction for CroppedPage.
-- **SVG overlay pattern**: SvgRenderer is a builder: `new(w,h)` → `draw_chars/rects/lines/edges/tables(&mut self, items, &DrawStyle)` → `to_svg(&SvgOptions) -> String`. DrawStyle has `fill`, `stroke`, `stroke_width`, `opacity` with per-object-type defaults. Elements accumulate in `Vec<String>` and render between page boundary and `</svg>`. No external SVG library needed.
+- **SVG overlay pattern**: SvgRenderer is a builder: `new(w,h)` → `draw_chars/rects/lines/edges/tables/intersections/cells(&mut self, items, &DrawStyle)` → `to_svg(&SvgOptions) -> String`. DrawStyle has `fill`, `stroke`, `stroke_width`, `opacity` with per-object-type defaults. Elements accumulate in `Vec<String>` and render between page boundary and `</svg>`. No external SVG library needed.
+- **Debug pipeline pattern**: For exposing intermediate pipeline results, add a `*_debug()` method returning a struct with all stages. `TableFinder::find_tables_debug()` returns `TableFinderDebug { edges, intersections, cells, tables }`. `Page::debug_tablefinder_svg()` runs the pipeline and renders each stage with distinct styles via `SvgDebugOptions` toggle flags.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -47,4 +48,22 @@ Started: 2026년  2월 28일 토요일 17시 04분 35초 KST
   - SvgRenderer uses builder pattern: accumulate elements via `draw_*` methods, then `to_svg()` renders header + page boundary + accumulated elements + close.
   - `DrawStyle::to_svg_style()` generates inline CSS `style` attribute. Opacity=1.0 is omitted for cleaner SVG.
   - CLI debug subcommand doesn't need output format variants (text/json/csv) — it only outputs SVG files.
+---
+
+## 2026-02-28 - US-069 - Visual debugging - debug_tablefinder SVG
+- Added `TableFinderDebug` struct in `pdfplumber-core/src/table.rs` holding intermediate pipeline results (edges, intersections, cells, tables)
+- Added `TableFinder::find_tables_debug()` method that returns `TableFinderDebug` with all pipeline stages
+- Added `SvgDebugOptions` struct in `pdfplumber-core/src/svg.rs` with `show_edges`, `show_intersections`, `show_cells`, `show_tables` flags (all default true)
+- Added `DrawStyle::intersections_default()` (red filled) and `DrawStyle::cells_default()` (magenta dashed)
+- Added `SvgRenderer::draw_intersections()` for circle elements and `SvgRenderer::draw_cells()` for dashed rect elements
+- Added `Page::debug_tablefinder_svg(settings, options)` in `pdfplumber/src/page.rs`
+- Added `--tables` flag to `pdfplumber debug` CLI subcommand
+- Re-exported `SvgDebugOptions` and `TableFinderDebug` from facade crate
+- Files changed: `crates/pdfplumber-core/src/svg.rs`, `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/page.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber-cli/src/cli.rs`, `crates/pdfplumber-cli/src/debug_cmd.rs`, `crates/pdfplumber-cli/src/main.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `find_tables_debug()` duplicates the pipeline logic from `find_tables()` to capture intermediates. Consider refactoring to shared internal pipeline if more debug methods are needed.
+  - SVG `stroke-dasharray` attribute goes directly on the element, not inside the `style` attribute.
+  - `Intersection` type from `table.rs` is used in `svg.rs` — import at module level so `use super::*` in tests brings it in.
+  - The Explicit strategy in `find_tables_debug()` must inline-build edges (not use `explicit_lines_to_edges()`) because it mixes detected + explicit edge bounds.
 ---
