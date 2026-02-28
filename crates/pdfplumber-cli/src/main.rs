@@ -3,6 +3,7 @@ mod bookmarks_cmd;
 mod chars_cmd;
 mod cli;
 mod debug_cmd;
+mod forms_cmd;
 mod images_cmd;
 mod info_cmd;
 mod links_cmd;
@@ -96,6 +97,12 @@ fn main() {
             ref format,
             ref password,
         } => annots_cmd::run(file, pages.as_deref(), format, password.as_deref()),
+        cli::Commands::Forms {
+            ref file,
+            ref pages,
+            ref format,
+            ref password,
+        } => forms_cmd::run(file, pages.as_deref(), format, password.as_deref()),
         cli::Commands::Links {
             ref file,
             ref pages,

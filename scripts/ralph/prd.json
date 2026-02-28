@@ -157,7 +157,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Add FormField type to pdfplumber-core, parsing to pdfplumber-parse."
     },
     {

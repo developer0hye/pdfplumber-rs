@@ -5,6 +5,8 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
 - **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
 - **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
 - **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
+- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
+- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
 - **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
 - **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
 - **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
@@ -142,4 +144,28 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - List grouping: consecutive ListItem elements of the same type (ordered/unordered) are grouped into `<ul>`/`<ol>` wrapper
   - Table HTML uses `<thead>` for first row and `<tbody>` for remaining rows, mirroring common HTML table semantics
   - When adding variants to shared enums (like TextFormat), must handle exhaustive matches in ALL commands (bookmarks_cmd, info_cmd, text_cmd)
+---
+
+## 2026-02-28 - US-080
+- What was implemented: Form field extraction (AcroForms) from PDF documents
+- Files changed:
+  - `crates/pdfplumber-core/src/form_field.rs` — new module: FormField struct, FieldType enum (Text/Button/Choice/Signature), Display impl, from_pdf_name/as_pdf_name methods, 14 unit tests
+  - `crates/pdfplumber-core/src/lib.rs` — registered form_field module, exported FormField and FieldType
+  - `crates/pdfplumber-parse/src/backend.rs` — added `document_form_fields()` to PdfBackend trait + mock impl
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — implemented AcroForm extraction: `extract_document_form_fields()`, `walk_field_tree()`, `extract_field_value()`, `decode_pdf_string()`, `extract_field_bbox()`, `extract_field_options()`, `resolve_field_page()`, 9 integration tests
+  - `crates/pdfplumber/src/lib.rs` — re-exported FormField and FieldType
+  - `crates/pdfplumber/src/pdf.rs` — added `Pdf::form_fields()` method, page-level field filtering in `page()`
+  - `crates/pdfplumber/src/page.rs` — added `form_fields` field to Page struct, `form_fields()` accessor, updated all constructors
+  - `crates/pdfplumber-cli/src/forms_cmd.rs` — new CLI subcommand: text/json/csv output for form fields
+  - `crates/pdfplumber-cli/src/cli.rs` — added `Forms` variant to Commands enum, 6 CLI parsing tests
+  - `crates/pdfplumber-cli/src/main.rs` — registered forms_cmd module and handler
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - AcroForm fields are document-level (in catalog), not page-level — filter by `/P` reference for per-page access
+  - Field tree is hierarchical: `/Kids` with `/T` entries are child fields, `/Kids` without `/T` are widget annotations
+  - Field type `/FT` can be inherited from parent nodes in the tree
+  - `/V` can be String, Name, or Array depending on field type — handle all variants
+  - `/Opt` for choice fields can contain simple strings or `[export_value, display_value]` pairs
+  - `decode_pdf_string` handles UTF-16 BE BOM (0xFE 0xFF) for internationalized field values
+  - pdfplumber-py test failure (libpython3.11.dylib not found) is pre-existing and unrelated to code changes
 ---
