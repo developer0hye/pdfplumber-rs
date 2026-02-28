@@ -1,0 +1,1802 @@
+{
+  "source": "cjk_mixed.pdf",
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 595.28,
+      "height": 841.89,
+      "chars": [
+        {
+          "text": "C",
+          "x0": 31.18,
+          "top": 35.618,
+          "x1": 41.288,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 41.288,
+          "top": 35.618,
+          "x1": 49.072,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 49.072,
+          "top": 35.618,
+          "x1": 52.18,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 52.18,
+          "top": 35.618,
+          "x1": 59.964,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 59.964,
+          "top": 35.618,
+          "x1": 67.748,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 67.748,
+          "top": 35.618,
+          "x1": 74.748,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 74.748,
+          "top": 35.618,
+          "x1": 82.532,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": ":",
+          "x0": 82.532,
+          "top": 35.618,
+          "x1": 86.424,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 86.424,
+          "top": 35.618,
+          "x1": 90.316,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "[",
+          "x0": 90.316,
+          "top": 35.618,
+          "x1": 94.208,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 94.208,
+          "top": 35.618,
+          "x1": 104.316,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 104.316,
+          "top": 35.618,
+          "x1": 111.316,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 111.316,
+          "top": 35.618,
+          "x1": 120.654,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 120.654,
+          "top": 35.618,
+          "x1": 125.316,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 125.316,
+          "top": 35.618,
+          "x1": 135.424,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 135.424,
+          "top": 35.618,
+          "x1": 143.208,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 143.208,
+          "top": 35.618,
+          "x1": 146.316,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 146.316,
+          "top": 35.618,
+          "x1": 154.1,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 154.1,
+          "top": 35.618,
+          "x1": 161.884,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 161.884,
+          "top": 35.618,
+          "x1": 168.884,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 168.884,
+          "top": 35.618,
+          "x1": 176.668,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 176.668,
+          "top": 35.618,
+          "x1": 181.33,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "P",
+          "x0": 181.33,
+          "top": 35.618,
+          "x1": 190.668,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 190.668,
+          "top": 35.618,
+          "x1": 193.776,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 193.776,
+          "top": 35.618,
+          "x1": 201.56,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 201.56,
+          "top": 35.618,
+          "x1": 208.56,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 208.56,
+          "top": 35.618,
+          "x1": 216.344,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 216.344,
+          "top": 35.618,
+          "x1": 224.128,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 224.128,
+          "top": 35.618,
+          "x1": 231.912,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 231.912,
+          "top": 35.618,
+          "x1": 235.02,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 235.02,
+          "top": 35.618,
+          "x1": 242.804,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 242.804,
+          "top": 35.618,
+          "x1": 250.588,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 250.588,
+          "top": 35.618,
+          "x1": 255.25,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "]",
+          "x0": 255.25,
+          "top": 35.618,
+          "x1": 259.142,
+          "bottom": 49.618,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 31.18,
+          "top": 63.968,
+          "x1": 38.18,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 38.18,
+          "top": 63.968,
+          "x1": 45.964,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "p",
+          "x0": 45.964,
+          "top": 63.968,
+          "x1": 53.748,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 53.748,
+          "top": 63.968,
+          "x1": 61.532,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 61.532,
+          "top": 63.968,
+          "x1": 69.316,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 69.316,
+          "top": 63.968,
+          "x1": 77.1,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 77.1,
+          "top": 63.968,
+          "x1": 84.1,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 84.1,
+          "top": 63.968,
+          "x1": 91.884,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": ":",
+          "x0": 91.884,
+          "top": 63.968,
+          "x1": 95.776,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 95.776,
+          "top": 63.968,
+          "x1": 99.668,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "[",
+          "x0": 99.668,
+          "top": 63.968,
+          "x1": 103.56,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 103.56,
+          "top": 63.968,
+          "x1": 113.668,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 113.668,
+          "top": 63.968,
+          "x1": 120.668,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 120.668,
+          "top": 63.968,
+          "x1": 130.006,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 130.006,
+          "top": 63.968,
+          "x1": 134.668,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 134.668,
+          "top": 63.968,
+          "x1": 141.668,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 141.668,
+          "top": 63.968,
+          "x1": 149.452,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "p",
+          "x0": 149.452,
+          "top": 63.968,
+          "x1": 157.236,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 157.236,
+          "top": 63.968,
+          "x1": 165.02,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 165.02,
+          "top": 63.968,
+          "x1": 172.804,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 172.804,
+          "top": 63.968,
+          "x1": 180.588,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 180.588,
+          "top": 63.968,
+          "x1": 187.588,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 187.588,
+          "top": 63.968,
+          "x1": 195.372,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 195.372,
+          "top": 63.968,
+          "x1": 200.034,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "P",
+          "x0": 200.034,
+          "top": 63.968,
+          "x1": 209.372,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 209.372,
+          "top": 63.968,
+          "x1": 212.48,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 212.48,
+          "top": 63.968,
+          "x1": 220.264,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 220.264,
+          "top": 63.968,
+          "x1": 227.264,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 227.264,
+          "top": 63.968,
+          "x1": 235.048,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 235.048,
+          "top": 63.968,
+          "x1": 242.832,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 242.832,
+          "top": 63.968,
+          "x1": 250.616,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 250.616,
+          "top": 63.968,
+          "x1": 253.724,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 253.724,
+          "top": 63.968,
+          "x1": 261.508,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 261.508,
+          "top": 63.968,
+          "x1": 269.292,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 269.292,
+          "top": 63.968,
+          "x1": 273.954,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "]",
+          "x0": 273.954,
+          "top": 63.968,
+          "x1": 277.846,
+          "bottom": 77.968,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 31.18,
+          "top": 92.308,
+          "x1": 40.518,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 40.518,
+          "top": 92.308,
+          "x1": 48.302,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 48.302,
+          "top": 92.308,
+          "x1": 52.964,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 52.964,
+          "top": 92.308,
+          "x1": 60.748,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 60.748,
+          "top": 92.308,
+          "x1": 68.532,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 68.532,
+          "top": 92.308,
+          "x1": 76.316,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": ":",
+          "x0": 76.316,
+          "top": 92.308,
+          "x1": 80.208,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 80.208,
+          "top": 92.308,
+          "x1": 84.1,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "[",
+          "x0": 84.1,
+          "top": 92.308,
+          "x1": 87.992,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 87.992,
+          "top": 92.308,
+          "x1": 98.1,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 98.1,
+          "top": 92.308,
+          "x1": 105.1,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 105.1,
+          "top": 92.308,
+          "x1": 114.438,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 114.438,
+          "top": 92.308,
+          "x1": 119.1,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 119.1,
+          "top": 92.308,
+          "x1": 128.438,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 128.438,
+          "top": 92.308,
+          "x1": 136.222,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 136.222,
+          "top": 92.308,
+          "x1": 140.884,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 140.884,
+          "top": 92.308,
+          "x1": 148.668,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 148.668,
+          "top": 92.308,
+          "x1": 156.452,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 156.452,
+          "top": 92.308,
+          "x1": 164.236,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 164.236,
+          "top": 92.308,
+          "x1": 168.898,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "P",
+          "x0": 168.898,
+          "top": 92.308,
+          "x1": 178.236,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 178.236,
+          "top": 92.308,
+          "x1": 181.344,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 181.344,
+          "top": 92.308,
+          "x1": 189.128,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 189.128,
+          "top": 92.308,
+          "x1": 196.128,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 196.128,
+          "top": 92.308,
+          "x1": 203.912,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 203.912,
+          "top": 92.308,
+          "x1": 211.696,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 211.696,
+          "top": 92.308,
+          "x1": 219.48,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 219.48,
+          "top": 92.308,
+          "x1": 222.588,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 222.588,
+          "top": 92.308,
+          "x1": 230.372,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 230.372,
+          "top": 92.308,
+          "x1": 238.156,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 238.156,
+          "top": 92.308,
+          "x1": 242.818,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "]",
+          "x0": 242.818,
+          "top": 92.308,
+          "x1": 246.71,
+          "bottom": 106.308,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "M",
+          "x0": 31.18,
+          "top": 120.658,
+          "x1": 42.842,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 42.842,
+          "top": 120.658,
+          "x1": 45.95,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "x",
+          "x0": 45.95,
+          "top": 120.658,
+          "x1": 52.95,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 52.95,
+          "top": 120.658,
+          "x1": 60.734,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 60.734,
+          "top": 120.658,
+          "x1": 68.518,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": ":",
+          "x0": 68.518,
+          "top": 120.658,
+          "x1": 72.41,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 72.41,
+          "top": 120.658,
+          "x1": 76.302,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "H",
+          "x0": 76.302,
+          "top": 120.658,
+          "x1": 86.41,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 86.41,
+          "top": 120.658,
+          "x1": 94.194,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 94.194,
+          "top": 120.658,
+          "x1": 97.302,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 97.302,
+          "top": 120.658,
+          "x1": 100.41,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 100.41,
+          "top": 120.658,
+          "x1": 108.194,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 108.194,
+          "top": 120.658,
+          "x1": 112.086,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "W",
+          "x0": 112.086,
+          "top": 120.658,
+          "x1": 125.302,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 125.302,
+          "top": 120.658,
+          "x1": 133.086,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 133.086,
+          "top": 120.658,
+          "x1": 137.748,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 137.748,
+          "top": 120.658,
+          "x1": 140.856,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 140.856,
+          "top": 120.658,
+          "x1": 148.64,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 148.64,
+          "top": 120.658,
+          "x1": 152.532,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 152.532,
+          "top": 120.658,
+          "x1": 162.64,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 162.64,
+          "top": 120.658,
+          "x1": 169.64,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 169.64,
+          "top": 120.658,
+          "x1": 178.978,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 178.978,
+          "top": 120.658,
+          "x1": 182.87,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "T",
+          "x0": 182.87,
+          "top": 120.658,
+          "x1": 191.424,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 191.424,
+          "top": 120.658,
+          "x1": 199.208,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 199.208,
+          "top": 120.658,
+          "x1": 206.208,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "t",
+          "x0": 206.208,
+          "top": 120.658,
+          "x1": 210.1,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 210.1,
+          "top": 120.658,
+          "x1": 213.992,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "1",
+          "x0": 213.992,
+          "top": 120.658,
+          "x1": 221.776,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "2",
+          "x0": 221.776,
+          "top": 120.658,
+          "x1": 229.56,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "3",
+          "x0": 229.56,
+          "top": 120.658,
+          "x1": 237.344,
+          "bottom": 134.658,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "C",
+          "x0": 31.18,
+          "top": 160.338,
+          "x1": 41.288,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "J",
+          "x0": 41.288,
+          "top": 160.338,
+          "x1": 48.288,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "K",
+          "x0": 48.288,
+          "top": 160.338,
+          "x1": 57.626,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 57.626,
+          "top": 160.338,
+          "x1": 61.518,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "p",
+          "x0": 61.518,
+          "top": 160.338,
+          "x1": 69.302,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 69.302,
+          "top": 160.338,
+          "x1": 72.41,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 72.41,
+          "top": 160.338,
+          "x1": 80.194,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 80.194,
+          "top": 160.338,
+          "x1": 87.194,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 87.194,
+          "top": 160.338,
+          "x1": 94.978,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "h",
+          "x0": 94.978,
+          "top": 160.338,
+          "x1": 102.762,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 102.762,
+          "top": 160.338,
+          "x1": 110.546,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 110.546,
+          "top": 160.338,
+          "x1": 113.654,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 113.654,
+          "top": 160.338,
+          "x1": 121.438,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 121.438,
+          "top": 160.338,
+          "x1": 129.222,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 129.222,
+          "top": 160.338,
+          "x1": 133.884,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 133.884,
+          "top": 160.338,
+          "x1": 137.776,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "-",
+          "x0": 137.776,
+          "top": 160.338,
+          "x1": 142.438,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 142.438,
+          "top": 160.338,
+          "x1": 146.33,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "t",
+          "x0": 146.33,
+          "top": 160.338,
+          "x1": 150.222,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 150.222,
+          "top": 160.338,
+          "x1": 158.006,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "s",
+          "x0": 158.006,
+          "top": 160.338,
+          "x1": 165.006,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "t",
+          "x0": 165.006,
+          "top": 160.338,
+          "x1": 168.898,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 168.898,
+          "top": 160.338,
+          "x1": 172.79,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "f",
+          "x0": 172.79,
+          "top": 160.338,
+          "x1": 176.682,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 176.682,
+          "top": 160.338,
+          "x1": 179.79,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "l",
+          "x0": 179.79,
+          "top": 160.338,
+          "x1": 182.898,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 182.898,
+          "top": 160.338,
+          "x1": 190.682,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 190.682,
+          "top": 160.338,
+          "x1": 194.574,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "f",
+          "x0": 194.574,
+          "top": 160.338,
+          "x1": 198.466,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 198.466,
+          "top": 160.338,
+          "x1": 206.25,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 206.25,
+          "top": 160.338,
+          "x1": 210.912,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 210.912,
+          "top": 160.338,
+          "x1": 214.804,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "U",
+          "x0": 214.804,
+          "top": 160.338,
+          "x1": 224.912,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 224.912,
+          "top": 160.338,
+          "x1": 232.696,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 232.696,
+          "top": 160.338,
+          "x1": 235.804,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 235.804,
+          "top": 160.338,
+          "x1": 242.804,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 242.804,
+          "top": 160.338,
+          "x1": 250.588,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "d",
+          "x0": 250.588,
+          "top": 160.338,
+          "x1": 258.372,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 258.372,
+          "top": 160.338,
+          "x1": 266.156,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": " ",
+          "x0": 266.156,
+          "top": 160.338,
+          "x1": 270.048,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "e",
+          "x0": 270.048,
+          "top": 160.338,
+          "x1": 277.832,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "x",
+          "x0": 277.832,
+          "top": 160.338,
+          "x1": 284.832,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "t",
+          "x0": 284.832,
+          "top": 160.338,
+          "x1": 288.724,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "r",
+          "x0": 288.724,
+          "top": 160.338,
+          "x1": 293.386,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "a",
+          "x0": 293.386,
+          "top": 160.338,
+          "x1": 301.17,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "c",
+          "x0": 301.17,
+          "top": 160.338,
+          "x1": 308.17,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "t",
+          "x0": 308.17,
+          "top": 160.338,
+          "x1": 312.062,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "i",
+          "x0": 312.062,
+          "top": 160.338,
+          "x1": 315.17,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "o",
+          "x0": 315.17,
+          "top": 160.338,
+          "x1": 322.954,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        },
+        {
+          "text": "n",
+          "x0": 322.954,
+          "top": 160.338,
+          "x1": 330.738,
+          "bottom": 174.338,
+          "fontname": "Helvetica",
+          "size": 14.0
+        }
+      ],
+      "words": [
+        {
+          "text": "Chinese:",
+          "x0": 31.18,
+          "top": 35.618,
+          "x1": 86.424,
+          "bottom": 49.618
+        },
+        {
+          "text": "[CJK-Chinese-Placeholder]",
+          "x0": 90.316,
+          "top": 35.618,
+          "x1": 259.142,
+          "bottom": 49.618
+        },
+        {
+          "text": "Japanese:",
+          "x0": 31.18,
+          "top": 63.968,
+          "x1": 95.776,
+          "bottom": 77.968
+        },
+        {
+          "text": "[CJK-Japanese-Placeholder]",
+          "x0": 99.668,
+          "top": 63.968,
+          "x1": 277.846,
+          "bottom": 77.968
+        },
+        {
+          "text": "Korean:",
+          "x0": 31.18,
+          "top": 92.308,
+          "x1": 80.208,
+          "bottom": 106.308
+        },
+        {
+          "text": "[CJK-Korean-Placeholder]",
+          "x0": 84.1,
+          "top": 92.308,
+          "x1": 246.71,
+          "bottom": 106.308
+        },
+        {
+          "text": "Mixed:",
+          "x0": 31.18,
+          "top": 120.658,
+          "x1": 72.41,
+          "bottom": 134.658
+        },
+        {
+          "text": "Hello",
+          "x0": 76.302,
+          "top": 120.658,
+          "x1": 108.194,
+          "bottom": 134.658
+        },
+        {
+          "text": "World",
+          "x0": 112.086,
+          "top": 120.658,
+          "x1": 148.64,
+          "bottom": 134.658
+        },
+        {
+          "text": "CJK",
+          "x0": 152.532,
+          "top": 120.658,
+          "x1": 178.978,
+          "bottom": 134.658
+        },
+        {
+          "text": "Test",
+          "x0": 182.87,
+          "top": 120.658,
+          "x1": 210.1,
+          "bottom": 134.658
+        },
+        {
+          "text": "123",
+          "x0": 213.992,
+          "top": 120.658,
+          "x1": 237.344,
+          "bottom": 134.658
+        },
+        {
+          "text": "CJK",
+          "x0": 31.18,
+          "top": 160.338,
+          "x1": 57.626,
+          "bottom": 174.338
+        },
+        {
+          "text": "placeholder",
+          "x0": 61.518,
+          "top": 160.338,
+          "x1": 133.884,
+          "bottom": 174.338
+        },
+        {
+          "text": "-",
+          "x0": 137.776,
+          "top": 160.338,
+          "x1": 142.438,
+          "bottom": 174.338
+        },
+        {
+          "text": "test",
+          "x0": 146.33,
+          "top": 160.338,
+          "x1": 168.898,
+          "bottom": 174.338
+        },
+        {
+          "text": "file",
+          "x0": 172.79,
+          "top": 160.338,
+          "x1": 190.682,
+          "bottom": 174.338
+        },
+        {
+          "text": "for",
+          "x0": 194.574,
+          "top": 160.338,
+          "x1": 210.912,
+          "bottom": 174.338
+        },
+        {
+          "text": "Unicode",
+          "x0": 214.804,
+          "top": 160.338,
+          "x1": 266.156,
+          "bottom": 174.338
+        },
+        {
+          "text": "extraction",
+          "x0": 270.048,
+          "top": 160.338,
+          "x1": 330.738,
+          "bottom": 174.338
+        }
+      ],
+      "tables": []
+    }
+  ]
+}
