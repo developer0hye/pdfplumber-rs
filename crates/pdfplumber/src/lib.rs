@@ -15,7 +15,7 @@ mod pdf;
 
 pub use cropped_page::CroppedPage;
 pub use page::Page;
-pub use pdf::Pdf;
+pub use pdf::{PagesIter, Pdf};
 pub use pdfplumber_core::{
     BBox, Cell, Char, Color, Ctm, Curve, DashPattern, Edge, EdgeSource, EncodingResolver,
     ExplicitLines, ExtGState, ExtractOptions, ExtractResult, ExtractWarning, FillRule,

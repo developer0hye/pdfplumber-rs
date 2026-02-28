@@ -10,6 +10,37 @@ use pdfplumber_parse::{
 
 use crate::Page;
 
+/// Iterator over pages of a PDF document, yielding each page on demand.
+///
+/// Created by [`Pdf::pages_iter()`]. Each call to [`next()`](Iterator::next)
+/// processes one page from the PDF content stream. Pages are not retained
+/// after being yielded — the caller owns the `Page` value.
+pub struct PagesIter<'a> {
+    pdf: &'a Pdf,
+    current: usize,
+    count: usize,
+}
+
+impl<'a> Iterator for PagesIter<'a> {
+    type Item = Result<Page, PdfError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current >= self.count {
+            return None;
+        }
+        let result = self.pdf.page(self.current);
+        self.current += 1;
+        Some(result)
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.count - self.current;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for PagesIter<'_> {}
+
 /// A PDF document opened for extraction.
 ///
 /// Wraps a parsed PDF and provides methods to access pages and extract content.
@@ -117,6 +148,30 @@ impl Pdf {
     /// Return the number of pages in the document.
     pub fn page_count(&self) -> usize {
         LopdfBackend::page_count(&self.doc)
+    }
+
+    /// Return a streaming iterator over all pages in the document.
+    ///
+    /// Each page is processed on demand when [`Iterator::next()`] is called.
+    /// Previously yielded pages are not retained by the iterator, so memory
+    /// usage stays bounded regardless of document size.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let pdf = Pdf::open(bytes, None)?;
+    /// for result in pdf.pages_iter() {
+    ///     let page = result?;
+    ///     println!("Page {}: {}", page.page_number(), page.extract_text(&TextOptions::default()));
+    ///     // page is dropped at end of loop body
+    /// }
+    /// ```
+    pub fn pages_iter(&self) -> PagesIter<'_> {
+        PagesIter {
+            pdf: self,
+            current: 0,
+            count: self.page_count(),
+        }
     }
 
     /// Process all pages in parallel using rayon, returning a Vec of Results.
@@ -880,5 +935,207 @@ mod tests {
         for w in page.warnings() {
             assert_eq!(w.page, Some(0), "warning should have page context");
         }
+    }
+
+    // --- US-046: Page-level memory management tests ---
+
+    #[test]
+    fn pages_iter_yields_all_pages() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(pages.len(), 2);
+        assert_eq!(pages[0].page_number(), 0);
+        assert_eq!(pages[1].page_number(), 1);
+    }
+
+    #[test]
+    fn pages_iter_yields_correct_content() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+
+        // Page 0 has "Hello"
+        let text0 = pages[0].extract_text(&TextOptions::default());
+        assert!(text0.contains("Hello"));
+
+        // Page 1 has "World"
+        let text1 = pages[1].extract_text(&TextOptions::default());
+        assert!(text1.contains("World"));
+    }
+
+    #[test]
+    fn pages_iter_matches_page_method() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        // Iterator results should match individual page() calls
+        for (iter_page, idx) in pdf.pages_iter().zip(0usize..) {
+            let iter_page = iter_page.unwrap();
+            let direct_page = pdf.page(idx).unwrap();
+
+            assert_eq!(iter_page.page_number(), direct_page.page_number());
+            assert_eq!(iter_page.width(), direct_page.width());
+            assert_eq!(iter_page.height(), direct_page.height());
+            assert_eq!(iter_page.chars().len(), direct_page.chars().len());
+
+            for (ic, dc) in iter_page.chars().iter().zip(direct_page.chars().iter()) {
+                assert_eq!(ic.text, dc.text);
+                assert!((ic.doctop - dc.doctop).abs() < 0.01);
+            }
+        }
+    }
+
+    #[test]
+    fn pages_iter_single_page() {
+        let bytes = create_pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Only) Tj ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+        assert_eq!(pages.len(), 1);
+        assert!(
+            pages[0]
+                .extract_text(&TextOptions::default())
+                .contains("Only")
+        );
+    }
+
+    #[test]
+    fn pages_iter_empty_after_exhaustion() {
+        let bytes = create_pdf_with_content(b"BT ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let mut iter = pdf.pages_iter();
+        assert!(iter.next().is_some()); // First page
+        assert!(iter.next().is_none()); // Exhausted
+        assert!(iter.next().is_none()); // Still exhausted
+    }
+
+    #[test]
+    fn pages_iter_size_hint() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let mut iter = pdf.pages_iter();
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+
+        let _ = iter.next();
+        assert_eq!(iter.size_hint(), (1, Some(1)));
+
+        let _ = iter.next();
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+    }
+
+    #[test]
+    fn pages_iter_preserves_doctop() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+
+        // Page 0: doctop == bbox.top
+        let c0 = &pages[0].chars()[0];
+        assert!((c0.doctop - c0.bbox.top).abs() < 0.01);
+
+        // Page 1: doctop == bbox.top + page0.height
+        let c1 = &pages[1].chars()[0];
+        let expected = c1.bbox.top + pages[0].height();
+        assert!(
+            (c1.doctop - expected).abs() < 0.01,
+            "page 1 doctop {} expected {}",
+            c1.doctop,
+            expected
+        );
+    }
+
+    #[test]
+    fn page_independence_no_shared_state() {
+        // Processing page 1 should not affect page 0's data
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let page0_first = pdf.page(0).unwrap();
+        let chars0_before = page0_first.chars().len();
+        let text0_before = page0_first.extract_text(&TextOptions::default());
+
+        // Process page 1
+        let _page1 = pdf.page(1).unwrap();
+
+        // Process page 0 again — should get identical results
+        let page0_second = pdf.page(0).unwrap();
+        assert_eq!(page0_second.chars().len(), chars0_before);
+        assert_eq!(
+            page0_second.extract_text(&TextOptions::default()),
+            text0_before
+        );
+    }
+
+    #[test]
+    fn page_data_released_on_drop() {
+        // Verify pages are independent owned values — dropping one doesn't
+        // affect subsequent page calls
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        {
+            let page0 = pdf.page(0).unwrap();
+            assert!(!page0.chars().is_empty());
+            // page0 dropped here
+        }
+
+        // Can still create a new page after the previous one is dropped
+        let page0_again = pdf.page(0).unwrap();
+        assert!(!page0_again.chars().is_empty());
+
+        let page1 = pdf.page(1).unwrap();
+        assert!(!page1.chars().is_empty());
+    }
+
+    #[test]
+    fn streaming_iteration_drops_previous_pages() {
+        // Simulates streaming: process one page at a time, dropping previous
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let mut last_page_number = None;
+        for result in pdf.pages_iter() {
+            let page = result.unwrap();
+            // Each page is independent — we can extract text
+            let _text = page.extract_text(&TextOptions::default());
+            last_page_number = Some(page.page_number());
+            // page is dropped at end of loop iteration
+        }
+
+        assert_eq!(last_page_number, Some(1));
+    }
+
+    #[test]
+    fn page_count_available_without_processing() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        // page_count should work without calling page() at all
+        assert_eq!(pdf.page_count(), 2);
+    }
+
+    #[test]
+    fn pages_iter_can_be_partially_consumed() {
+        let bytes = create_two_page_pdf();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        // Only consume first page from iterator
+        let mut iter = pdf.pages_iter();
+        let first = iter.next().unwrap().unwrap();
+        assert_eq!(first.page_number(), 0);
+
+        // Don't consume the rest — iterator is just dropped
+        // This should not cause any issues
+        drop(iter);
+
+        // Pdf is still usable
+        let page1 = pdf.page(1).unwrap();
+        assert!(!page1.chars().is_empty());
     }
 }

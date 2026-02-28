@@ -9,6 +9,7 @@
 - **CMap types**: `CMap` maps char_code→Unicode string (for ToUnicode). `CidCMap` maps char_code→CID (for predefined CMaps).
 - **Type0 font loading flow**: `is_type0_font()` → `get_descendant_font()` → `extract_cid_font_metrics()` → stores in `CachedFont.cid_metrics`.
 - **Spatial filtering pattern**: `PageData` trait provides shared access to page data (chars, lines, rects, curves, images). Both `Page` and `CroppedPage` implement it. `filter_and_build()` takes `&dyn PageData` + `BBox` + `FilterMode` to produce a `CroppedPage`. Coordinates adjusted by subtracting crop origin.
+- **Page-level memory pattern**: `Pdf::page(index)` processes pages on-demand (interprets content stream per call). Page data is fully owned by `Page` (released on drop). `Pdf::pages_iter()` returns `PagesIter` (borrows `&Pdf`) that yields `Result<Page, PdfError>` — implements `ExactSizeIterator`. No shared state between pages; each page call is independent.
 - **Serde feature flag pattern**: Use `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` on all public data types. Feature in pdfplumber-core, forwarded from pdfplumber via `pdfplumber-core/serde`. serde_json as dev-dependency for tests.
 - **Parallel feature pattern**: `parallel = ["dep:rayon"]` in pdfplumber Cargo.toml. Methods gated with `#[cfg(feature = "parallel")]`. `Pdf` is naturally `Sync` (lopdf::Document is Send+Sync), so `&Pdf` can be shared across rayon threads. Test helpers for parallel-only code also need `#[cfg(feature = "parallel")]`.
 - **Warning collection pattern**: `ExtractWarning` has `description`, `page`, `element`, `operator_index`, `font_name` fields. Interpreter emits warnings via `handler.on_warning()` gated by `options.collect_warnings`. The handler decorates warnings with page context. Page exposes `warnings()` accessor. Warnings are purely informational and never affect extraction output.
@@ -100,4 +101,19 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - `collect_warnings: false` gates at the interpreter level (skips on_warning call entirely) for zero overhead
   - ContentHandler's `on_warning` default no-op keeps backward compatibility with existing handler implementations
   - The handler-decorator pattern (handler adds page number) keeps the interpreter page-agnostic
+---
+
+## 2026-02-28 - US-046
+- Implemented page-level memory management: streaming iterator, page independence verification
+- New type: `PagesIter<'a>` in `crates/pdfplumber/src/pdf.rs` — borrows `&Pdf`, yields `Result<Page, PdfError>`, implements `Iterator + ExactSizeIterator`
+- New method: `Pdf::pages_iter()` — returns `PagesIter` for streaming page-by-page processing
+- Modified: `crates/pdfplumber/src/lib.rs` — Exported `PagesIter`
+- Added 12 new tests: pages_iter (yields all, correct content, matches page method, single page, exhaustion, size_hint, preserves doctop), page independence (no shared state, data released on drop), streaming iteration, page_count without processing, partial consumption
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - The existing `Pdf::page(index)` was already on-demand (content stream interpreted per call, not at open time)
+  - Only lightweight metadata (MediaBox/CropBox/rotation) is cached at open time for doctop calculation
+  - `Page` data is fully owned (Vec<Char>, Vec<Image>, etc.) — no shared references back to `Pdf`
+  - `ExactSizeIterator` can be derived trivially since page_count is known upfront
+  - Partial iteration (consuming only some pages) works cleanly — iterator drop is a no-op
 ---
