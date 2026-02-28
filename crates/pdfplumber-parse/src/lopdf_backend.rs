@@ -6,7 +6,7 @@
 use crate::backend::PdfBackend;
 use crate::error::BackendError;
 use crate::handler::ContentHandler;
-use pdfplumber_core::{BBox, DocumentMetadata, ExtractOptions};
+use pdfplumber_core::{Annotation, AnnotationType, BBox, DocumentMetadata, ExtractOptions};
 
 /// A parsed PDF document backed by lopdf.
 pub struct LopdfDocument {
@@ -229,6 +229,13 @@ impl PdfBackend for LopdfBackend {
         extract_document_metadata(&doc.inner)
     }
 
+    fn page_annotations(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Vec<Annotation>, Self::Error> {
+        extract_page_annotations(&doc.inner, page.object_id)
+    }
+
     fn interpret_page(
         doc: &Self::Document,
         page: &Self::Page,
@@ -423,6 +430,101 @@ fn extract_document_metadata(doc: &lopdf::Document) -> Result<DocumentMetadata, 
         creation_date: extract_string_from_dict(doc, info_dict, b"CreationDate"),
         mod_date: extract_string_from_dict(doc, info_dict, b"ModDate"),
     })
+}
+
+/// Extract annotations from a page's /Annots array.
+fn extract_page_annotations(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+) -> Result<Vec<Annotation>, BackendError> {
+    let page_dict = doc
+        .get_object(page_id)
+        .and_then(|o| o.as_dict())
+        .map_err(|e| BackendError::Parse(format!("failed to get page dictionary: {e}")))?;
+
+    // Get /Annots array (may be a direct array or indirect reference)
+    let annots_obj = match page_dict.get(b"Annots") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()), // No annotations on this page
+    };
+
+    // Resolve indirect reference to the array
+    let annots_obj = match annots_obj {
+        lopdf::Object::Reference(id) => doc
+            .get_object(*id)
+            .map_err(|e| BackendError::Parse(format!("failed to resolve /Annots ref: {e}")))?,
+        other => other,
+    };
+
+    let annots_array = annots_obj
+        .as_array()
+        .map_err(|e| BackendError::Parse(format!("/Annots is not an array: {e}")))?;
+
+    let mut annotations = Vec::new();
+
+    for annot_entry in annots_array {
+        // Each entry may be a direct dictionary or an indirect reference
+        let annot_obj = match annot_entry {
+            lopdf::Object::Reference(id) => match doc.get_object(*id) {
+                Ok(obj) => obj,
+                Err(_) => continue, // Skip unresolvable references
+            },
+            other => other,
+        };
+
+        let annot_dict = match annot_obj.as_dict() {
+            Ok(dict) => dict,
+            Err(_) => continue, // Skip non-dictionary entries
+        };
+
+        // Extract /Subtype (required for annotations)
+        let raw_subtype = match annot_dict.get(b"Subtype") {
+            Ok(obj) => match obj {
+                lopdf::Object::Name(name) => String::from_utf8_lossy(name).into_owned(),
+                _ => continue, // Skip if /Subtype is not a name
+            },
+            Err(_) => continue, // Skip annotations without /Subtype
+        };
+
+        let annot_type = AnnotationType::from_subtype(&raw_subtype);
+
+        // Extract /Rect (bounding box)
+        let bbox = match annot_dict.get(b"Rect") {
+            Ok(obj) => {
+                let obj = match obj {
+                    lopdf::Object::Reference(id) => match doc.get_object(*id) {
+                        Ok(resolved) => resolved,
+                        Err(_) => continue,
+                    },
+                    other => other,
+                };
+                match obj.as_array() {
+                    Ok(arr) => match extract_bbox_from_array(arr) {
+                        Ok(b) => b,
+                        Err(_) => continue,
+                    },
+                    Err(_) => continue,
+                }
+            }
+            Err(_) => continue, // Skip annotations without /Rect
+        };
+
+        // Extract optional fields
+        let contents = extract_string_from_dict(doc, annot_dict, b"Contents");
+        let author = extract_string_from_dict(doc, annot_dict, b"T");
+        let date = extract_string_from_dict(doc, annot_dict, b"M");
+
+        annotations.push(Annotation {
+            annot_type,
+            bbox,
+            contents,
+            author,
+            date,
+            raw_subtype,
+        });
+    }
+
+    Ok(annotations)
 }
 
 /// Create a minimal valid PDF document with the given number of pages.

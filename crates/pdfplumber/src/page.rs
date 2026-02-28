@@ -1,10 +1,10 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    BBox, Char, Curve, Edge, ExtractWarning, Image, Line, Rect, Table, TableFinder, TableSettings,
-    TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, derive_edges, extract_text_for_cells, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Image, Line, Rect, Table, TableFinder,
+    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, extract_text_for_cells,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build};
@@ -42,6 +42,8 @@ pub struct Page {
     curves: Vec<Curve>,
     /// Images extracted from Do operator (Image XObjects).
     images: Vec<Image>,
+    /// Annotations extracted from the page's /Annots array.
+    annotations: Vec<Annotation>,
     /// Non-fatal warnings collected during extraction.
     warnings: Vec<ExtractWarning>,
 }
@@ -65,6 +67,7 @@ impl Page {
             rects: Vec::new(),
             curves: Vec::new(),
             images: Vec::new(),
+            annotations: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -95,6 +98,7 @@ impl Page {
             rects,
             curves,
             images: Vec::new(),
+            annotations: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -127,6 +131,7 @@ impl Page {
             rects,
             curves,
             images,
+            annotations: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -148,6 +153,7 @@ impl Page {
         art_box: Option<BBox>,
         chars: Vec<Char>,
         images: Vec<Image>,
+        annotations: Vec<Annotation>,
         warnings: Vec<ExtractWarning>,
     ) -> Self {
         Self {
@@ -165,6 +171,7 @@ impl Page {
             rects: Vec::new(),
             curves: Vec::new(),
             images,
+            annotations,
             warnings,
         }
     }
@@ -251,6 +258,14 @@ impl Page {
     /// Returns the images extracted from this page.
     pub fn images(&self) -> &[Image] {
         &self.images
+    }
+
+    /// Returns the annotations extracted from this page.
+    ///
+    /// Annotations include text notes, links, highlights, stamps, and other
+    /// interactive elements defined in the page's /Annots array.
+    pub fn annots(&self) -> &[Annotation] {
+        &self.annotations
     }
 
     /// Returns non-fatal warnings collected during page extraction.

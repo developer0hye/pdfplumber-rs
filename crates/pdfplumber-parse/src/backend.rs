@@ -3,7 +3,7 @@
 //! Defines the [`PdfBackend`] trait that abstracts PDF parsing operations.
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
-use pdfplumber_core::{BBox, DocumentMetadata, ExtractOptions, PdfError};
+use pdfplumber_core::{Annotation, BBox, DocumentMetadata, ExtractOptions, PdfError};
 
 use crate::handler::ContentHandler;
 
@@ -130,6 +130,19 @@ pub trait PdfBackend {
     ///
     /// Returns an error if the /Info dictionary exists but is malformed.
     fn document_metadata(doc: &Self::Document) -> Result<DocumentMetadata, Self::Error>;
+
+    /// Extract annotations from a page.
+    ///
+    /// Returns a list of [`Annotation`]s found in the page's /Annots array.
+    /// Returns an empty Vec if the page has no annotations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the /Annots array exists but is malformed.
+    fn page_annotations(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Vec<Annotation>, Self::Error>;
 
     /// Interpret the page's content stream, calling back into the handler.
     ///
@@ -291,6 +304,13 @@ mod tests {
 
         fn document_metadata(_doc: &Self::Document) -> Result<DocumentMetadata, Self::Error> {
             Ok(DocumentMetadata::default())
+        }
+
+        fn page_annotations(
+            _doc: &Self::Document,
+            _page: &Self::Page,
+        ) -> Result<Vec<Annotation>, Self::Error> {
+            Ok(Vec::new())
         }
 
         fn interpret_page(
