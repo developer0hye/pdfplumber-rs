@@ -13,6 +13,7 @@
 - **Serde feature flag pattern**: Use `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` on all public data types. Feature in pdfplumber-core, forwarded from pdfplumber via `pdfplumber-core/serde`. serde_json as dev-dependency for tests.
 - **Parallel feature pattern**: `parallel = ["dep:rayon"]` in pdfplumber Cargo.toml. Methods gated with `#[cfg(feature = "parallel")]`. `Pdf` is naturally `Sync` (lopdf::Document is Send+Sync), so `&Pdf` can be shared across rayon threads. Test helpers for parallel-only code also need `#[cfg(feature = "parallel")]`.
 - **Warning collection pattern**: `ExtractWarning` has `description`, `page`, `element`, `operator_index`, `font_name` fields. Interpreter emits warnings via `handler.on_warning()` gated by `options.collect_warnings`. The handler decorates warnings with page context. Page exposes `warnings()` accessor. Warnings are purely informational and never affect extraction output.
+- **WASM/std feature pattern**: `std` feature (default) gates `Pdf::open_file()` behind `#[cfg(feature = "std")]`. Bytes-based `Pdf::open()` works everywhere. lopdf uses `default-features = false, features = ["nom_parser"]` to minimize deps. All three crates compile for `wasm32-unknown-unknown`.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
@@ -116,4 +117,19 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - `Page` data is fully owned (Vec<Char>, Vec<Image>, etc.) — no shared references back to `Pdf`
   - `ExactSizeIterator` can be derived trivially since page_count is known upfront
   - Partial iteration (consuming only some pages) works cleanly — iterator drop is a no-op
+---
+
+## 2026-02-28 - US-047
+- Implemented WASM build support: all three crates compile for wasm32-unknown-unknown
+- Modified: `crates/pdfplumber-parse/Cargo.toml` — lopdf with `default-features = false, features = ["nom_parser"]` to exclude chrono/rayon from dependency tree
+- Modified: `crates/pdfplumber/Cargo.toml` — Added `std` feature (default), `default = ["std"]`
+- Modified: `crates/pdfplumber/src/pdf.rs` — Added `Pdf::open_file()` behind `#[cfg(feature = "std")]`; 3 std-gated tests (open_file_reads_valid_pdf, open_file_nonexistent_returns_error, open_file_matches_open_bytes) + 1 bytes API test
+- Modified: `crates/pdfplumber/src/lib.rs` — Added WASM usage documentation and feature flags table to crate-level docs
+- Modified: `scripts/ralph/prd.json` — Set US-047 passes: true
+- Dependencies added: none (lopdf features trimmed)
+- **Learnings for future iterations:**
+  - lopdf 0.34 compiles for wasm32-unknown-unknown even with chrono (chrono uses `js-sys` for WASM). But disabling defaults reduces binary size.
+  - The codebase had no `std::fs`, `std::time::Instant`, or other WASM-incompatible APIs — pure bytes-based design from the start
+  - lopdf's `nom_parser` feature is the minimal set needed; `chrono_time` and `rayon` defaults are unnecessary
+  - `PdfError::IoError(String)` already existed, perfect for wrapping `std::fs::read` errors
 ---
