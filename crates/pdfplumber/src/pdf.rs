@@ -3,7 +3,7 @@
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
     ImageContent, ImageMetadata, PdfError, SearchMatch, SearchOptions, StructElement, UnicodeNorm,
-    image_from_ctm, normalize_chars,
+    ValidationIssue, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -522,6 +522,23 @@ impl Pdf {
             structure_tree,
             handler.warnings,
         ))
+    }
+
+    /// Validate the PDF document and report specification violations.
+    ///
+    /// Checks for common PDF issues such as missing required keys,
+    /// broken object references, invalid page tree structure, and
+    /// missing fonts referenced in content streams.
+    ///
+    /// Returns a list of [`ValidationIssue`]s describing any problems
+    /// found. An empty list indicates no issues were detected.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the document structure is too corrupted
+    /// to perform validation.
+    pub fn validate(&self) -> Result<Vec<ValidationIssue>, PdfError> {
+        LopdfBackend::validate(&self.doc).map_err(PdfError::from)
     }
 }
 

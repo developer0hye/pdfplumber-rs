@@ -12,6 +12,7 @@ mod search_cmd;
 mod shared;
 mod tables_cmd;
 mod text_cmd;
+mod validate_cmd;
 mod words_cmd;
 
 use clap::Parser;
@@ -153,6 +154,11 @@ fn main() {
             output_dir.as_deref(),
             password.as_deref(),
         ),
+        cli::Commands::Validate {
+            ref file,
+            ref format,
+            ref password,
+        } => validate_cmd::run(file, format, password.as_deref()),
     };
 
     if let Err(code) = result {

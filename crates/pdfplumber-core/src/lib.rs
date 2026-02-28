@@ -72,6 +72,8 @@ pub mod table;
 pub mod text;
 /// Unicode normalization for extracted text.
 pub mod unicode_norm;
+/// PDF validation types for detecting specification violations.
+pub mod validation;
 /// Word extraction from characters based on spatial proximity.
 pub mod words;
 
@@ -107,4 +109,5 @@ pub use table::{
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use unicode_norm::{UnicodeNorm, normalize_chars};
+pub use validation::{Severity, ValidationIssue};
 pub use words::{Word, WordExtractor, WordOptions};
