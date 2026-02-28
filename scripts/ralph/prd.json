@@ -1,183 +1,84 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase8-ecosystem",
-  "description": "Phase 8: Ecosystem Expansion - Python bindings (PyO3), WASM/JS bindings, Markdown/HTML output, forms, structure tree",
+  "branchName": "ralph/phase9-enterprise",
+  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
   "userStories": [
     {
-      "id": "US-073",
-      "title": "Python bindings - PyO3 crate scaffolding",
-      "description": "Create a new pdfplumber-py crate using PyO3/maturin that exposes the Rust library to Python. This is the single highest-impact feature for adoption — LangChain, LlamaIndex, and other LLM frameworks rely on Python PDF extraction.",
+      "id": "US-082",
+      "title": "PDF validation and error reporting",
+      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
       "acceptanceCriteria": [
-        "New crate at crates/pdfplumber-py with PyO3 + maturin setup",
-        "Add pdfplumber-py to workspace members",
-        "Cargo.toml: pyo3 dependency with extension-module feature, maturin build system",
-        "pyproject.toml with maturin build backend",
-        "Basic Python module: `import pdfplumber` works after `maturin develop`",
-        "PyPdf class wrapping Rust Pdf: open(path) and open_bytes(bytes) class methods",
-        "PyPage class wrapping Rust Page: page_number, width, height properties",
-        "PyPdf.pages property returning list of PyPage",
-        "maturin develop succeeds and Python import works",
-        "cargo check --workspace passes",
+        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
+        "Pdf::validate() -> Vec<ValidationIssue>",
+        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
+        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
+        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
+        "Report total error/warning counts in summary",
+        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
+        "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "PyO3 and maturin are new dependencies — justified as the standard Rust-Python bridge. This crate is excluded from WASM builds."
+      "passes": false,
+      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
     },
     {
-      "id": "US-074",
-      "title": "Python bindings - full API exposure",
-      "description": "Expose the complete pdfplumber API to Python: text extraction, word extraction, table extraction, geometry access, spatial filtering.",
+      "id": "US-083",
+      "title": "Best-effort PDF repair",
+      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
       "acceptanceCriteria": [
-        "PyPage.chars() -> list[dict] with all Char fields",
-        "PyPage.extract_text(layout=False) -> str",
-        "PyPage.extract_words(x_tolerance=3, y_tolerance=3) -> list[dict]",
-        "PyPage.find_tables(**settings) -> list[PyTable]",
-        "PyPage.extract_tables(**settings) -> list[list[list[str|None]]]",
-        "PyPage.lines() -> list[dict], rects() -> list[dict], curves() -> list[dict], images() -> list[dict]",
-        "PyPage.crop(bbox) / within_bbox(bbox) / outside_bbox(bbox)",
-        "PyPage.search(pattern, regex=True, case=True) -> list[dict]",
-        "PyPdf.metadata -> dict",
-        "PyPdf.bookmarks() -> list[dict]",
-        "Proper Python exception types for PdfError variants",
-        "Python unit tests using pytest",
-        "maturin develop + pytest passes"
+        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
+        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
+        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
+        "Fix stream lengths: recalculate /Length from actual stream data",
+        "Remove broken objects: skip unresolvable references with warnings",
+        "Return repair log as Vec<String> describing what was fixed",
+        "Add --repair flag to CLI subcommands",
+        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Depends on US-073. Mirror the Python pdfplumber API naming for easy migration."
+      "passes": false,
+      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
     },
     {
-      "id": "US-075",
-      "title": "Python bindings - PyPI packaging",
-      "description": "Prepare pdfplumber-py for PyPI publishing with proper metadata, README, wheels for major platforms.",
+      "id": "US-084",
+      "title": "Advanced color space handling",
+      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
       "acceptanceCriteria": [
-        "pyproject.toml: name='pdfplumber-rs', description, license, classifiers, requires-python >= 3.9",
-        "README.md for PyPI: installation, quick start, comparison with Python pdfplumber, performance benchmarks",
-        "maturin build produces wheels for: linux (x86_64, aarch64), macos (x86_64, aarch64), windows (x86_64)",
-        "maturin publish --dry-run succeeds",
-        "Python type stubs (.pyi file) for IDE autocomplete",
-        "Version matches workspace version"
+        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
+        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
+        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
+        "Resolve DeviceN color spaces: similar to Separation with multiple components",
+        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
+        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
+        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Depends on US-074. CI/CD for multi-platform wheel building may need GitHub Actions workflow."
+      "passes": false,
+      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
     },
     {
-      "id": "US-076",
-      "title": "WASM/JS bindings - wasm-bindgen crate",
-      "description": "Create first-class JavaScript bindings using wasm-bindgen. pdfplumber-rs already compiles to WASM — this adds ergonomic JS interop. No JS library currently offers pdfplumber-like table extraction in the browser.",
+      "id": "US-085",
+      "title": "Digital signature information extraction",
+      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
       "acceptanceCriteria": [
-        "New crate at crates/pdfplumber-wasm with wasm-bindgen setup",
-        "Add to workspace members (with appropriate target cfg)",
-        "WasmPdf class: open(bytes: Uint8Array) constructor",
-        "WasmPage class: chars(), extractText(), extractWords(), findTables(), extractTables()",
-        "WasmPage: search(), width, height, pageNumber properties",
-        "Return types as JsValue (serde_wasm_bindgen for complex types)",
-        "wasm-pack build succeeds",
-        "JavaScript test: load PDF bytes, extract text, extract tables",
-        "cargo check --workspace passes (non-WASM crates unaffected)"
+        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
+        "Parse signature form fields (/FT /Sig)",
+        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
+        "Pdf::signatures() -> Vec<SignatureInfo>",
+        "Add signature info to CLI `info` subcommand output",
+        "Handle unsigned signature fields (is_signed = false)",
+        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "wasm-bindgen and wasm-pack are new dependencies. This crate is excluded from non-WASM builds."
-    },
-    {
-      "id": "US-077",
-      "title": "WASM/JS bindings - npm packaging",
-      "description": "Package the WASM bindings for npm with TypeScript type definitions and usage examples.",
-      "acceptanceCriteria": [
-        "package.json: name='pdfplumber-wasm', description, main/module/types fields",
-        "TypeScript .d.ts type definitions for all public classes/methods",
-        "README.md: installation (npm install pdfplumber-wasm), browser usage example, Node.js usage example",
-        "wasm-pack build --target bundler produces valid npm package",
-        "wasm-pack build --target nodejs produces valid Node.js package",
-        "Example: browser demo HTML file that loads PDF and extracts tables",
-        "npm pack succeeds"
-      ],
-      "priority": 5,
-      "passes": true,
-      "notes": "Depends on US-076."
-    },
-    {
-      "id": "US-078",
-      "title": "Markdown output format",
-      "description": "Add Markdown as an output format for extracted content. As LLM/RAG pipelines become the primary consumer of PDF extraction, Markdown output is increasingly valuable. PyMuPDF supports Markdown export.",
-      "acceptanceCriteria": [
-        "MarkdownRenderer that converts page content to Markdown text",
-        "Headings: detect from font size heuristics (largest = H1, etc.) or structure tree if available",
-        "Paragraphs: group text blocks into paragraph elements",
-        "Tables: convert to GFM (GitHub Flavored Markdown) table syntax with | separators",
-        "Lists: detect bullet/numbered lists from text patterns and indentation",
-        "Page::to_markdown(options) -> String",
-        "Add --format markdown to CLI text subcommand",
-        "Unit tests: heading detection, paragraph grouping, table to GFM, list detection",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 6,
-      "passes": true,
-      "notes": "Heuristic-based — accuracy will depend on the PDF structure. Structure tree (US-081) improves accuracy significantly."
-    },
-    {
-      "id": "US-079",
-      "title": "HTML output format",
-      "description": "Add HTML as an output format preserving document structure and formatting.",
-      "acceptanceCriteria": [
-        "HtmlRenderer that converts page content to semantic HTML",
-        "Headings: <h1>-<h6> from font size heuristics or structure tree",
-        "Paragraphs: <p> elements",
-        "Tables: <table>/<tr>/<td> elements with proper structure",
-        "Text styling: <strong> for bold detection, <em> for italic (from font name analysis)",
-        "Page::to_html(options) -> String",
-        "Add --format html to CLI text subcommand",
-        "Unit tests: heading detection, paragraph wrapping, table HTML generation",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 7,
-      "passes": true,
-      "notes": "Similar approach to Markdown renderer but with HTML tags."
-    },
-    {
-      "id": "US-080",
-      "title": "Form field extraction - AcroForms",
-      "description": "Extract PDF form fields (AcroForms). PDF forms are widely used in government, legal, and business documents. PyMuPDF, PDFBox, iText, and pdfcpu provide form reading.",
-      "acceptanceCriteria": [
-        "FormField struct: name (String), field_type (FieldType), value (Option<String>), default_value (Option<String>), bbox (BBox), options (Vec<String> for choice fields), flags (u32)",
-        "FieldType enum: Text, Button, Choice, Signature",
-        "Parse /AcroForm from document catalog",
-        "Walk field tree: /Fields array, handle /Kids for hierarchical fields",
-        "Extract /T (name), /FT (type), /V (value), /DV (default), /Opt (options), /Rect (bbox), /Ff (flags)",
-        "Pdf::form_fields() -> Vec<FormField>",
-        "Page::form_fields() -> Vec<FormField> (filtered by page)",
-        "Add `forms` CLI subcommand with --format json/text/csv",
-        "Unit tests: text field, checkbox, radio button, dropdown, field with no value",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 8,
-      "passes": true,
-      "notes": "Add FormField type to pdfplumber-core, parsing to pdfplumber-parse."
-    },
-    {
-      "id": "US-081",
-      "title": "Structure tree / tagged PDF access",
-      "description": "Parse the PDF structure tree for tagged PDFs. Tagged PDFs contain logical structure (headings, paragraphs, tables, lists) that is critical for accessibility and increasingly important for AI/LLM document understanding. Python pdfplumber added this in v0.10.4.",
-      "acceptanceCriteria": [
-        "StructElement struct: element_type (String, e.g. 'H1', 'P', 'Table'), mcids (Vec<u32>), alt_text (Option<String>), actual_text (Option<String>), lang (Option<String>), bbox (Option<BBox>), children (Vec<StructElement>)",
-        "Parse /StructTreeRoot from document catalog",
-        "Walk structure tree recursively: /K (kids), /S (type), /Alt, /ActualText, /Lang",
-        "Resolve MCID references to connect structure elements to page content",
-        "Page::structure_tree() -> Option<Vec<StructElement>>",
-        "Add Char.mcid (Option<u32>) and Char.tag (Option<String>) fields for linking",
-        "Unit tests: tagged PDF with headings and paragraphs, PDF without structure tree (returns None)",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 9,
-      "passes": true,
-      "notes": "This enhances Markdown/HTML output accuracy when available. Reference: pdfplumber(Py) Page.structure_tree."
+      "passes": false,
+      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
     }
   ]
 }
