@@ -96,7 +96,7 @@
         "npm pack succeeds"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-076."
     },
     {
