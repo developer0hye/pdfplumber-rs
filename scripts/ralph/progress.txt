@@ -17,6 +17,8 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `Intersection` struct has `x: f64` and `y: f64` fields
 - Intersection detection: checks H-edge y within V-edge y-span and V-edge x within H-edge x-span (with tolerance)
 - Deduplication: intersections at the same point (within 1e-9) are deduplicated via sort+dedup_by
+- `intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell>` constructs cells from a grid of intersection points
+- Cell construction: collects unique x/y coords, sorts them, checks all 4 corners for each adjacent pair
 
 ---
 
@@ -65,4 +67,17 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Results are sorted by (x, y) and deduplicated for points at the same location (within 1e-9)
   - Diagonal edges are filtered out (only H×V crossings matter)
   - 13 tests covering: empty input, cross, T-intersection, L-corner, parallel (no intersection), tolerance-based, grid 2x2, diagonal ignored, multiple edges, separate x/y tolerance, deduplication
+---
+
+## 2026-02-28 - US-033
+- Implemented `intersections_to_cells()` for constructing rectangular cells from intersection points
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell>` takes borrowed slice
+  - Algorithm: collect unique x/y coords → sort → check all 4 corners for each adjacent (xi,xi+1)×(yi,yi+1) pair
+  - Deduplication of coordinates uses 1e-9 tolerance (same as intersection dedup)
+  - Missing corners are skipped gracefully (no panics)
+  - All cells have `text: None` — text extraction is a separate step (US-036)
+  - 10 tests covering: empty, 2x2 grid, 3x3 grid, missing corner, irregular grid, partial grid, single point, collinear points, 4x3 grid, text is None
 ---
