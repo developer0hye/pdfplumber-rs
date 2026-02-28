@@ -1,5 +1,6 @@
 /// A 2D point.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -21,6 +22,7 @@ impl Point {
 /// ```
 /// Point transformation: `(x', y') = (a*x + c*y + e, b*x + d*y + f)`
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ctm {
     pub a: f64,
     pub b: f64,
@@ -77,6 +79,7 @@ impl Ctm {
 
 /// Orientation of a geometric element.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Orientation {
     Horizontal,
     Vertical,
@@ -91,6 +94,7 @@ pub enum Orientation {
 /// - `x1`: right edge
 /// - `bottom`: bottom edge (distance from top of page)
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BBox {
     pub x0: f64,
     pub top: f64,

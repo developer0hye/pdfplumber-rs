@@ -14,6 +14,7 @@ pub type LineOrientation = Orientation;
 ///
 /// Coordinates use pdfplumber's top-left origin system.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Line {
     /// Left x coordinate.
     pub x0: f64,
@@ -35,6 +36,7 @@ pub struct Line {
 ///
 /// Coordinates use pdfplumber's top-left origin system.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Curve {
     /// Bounding box left x.
     pub x0: f64,
@@ -62,6 +64,7 @@ pub struct Curve {
 ///
 /// Coordinates use pdfplumber's top-left origin system.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Rect {
     /// Left x coordinate.
     pub x0: f64,

@@ -12,6 +12,7 @@ use crate::path::{Path, PathBuilder};
 /// Supports the standard PDF color spaces: DeviceGray, DeviceRGB,
 /// DeviceCMYK, and other (e.g., indexed, ICC-based) spaces.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Color {
     /// DeviceGray: single component in [0.0, 1.0].
     Gray(f32),
@@ -38,6 +39,7 @@ impl Default for Color {
 
 /// Fill rule for path painting.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FillRule {
     /// Nonzero winding number rule (default).
     #[default]
@@ -51,6 +53,7 @@ pub enum FillRule {
 /// Corresponds to the PDF `d` operator and `/D` entry in ExtGState.
 /// A solid line has an empty `dash_array` and `dash_phase` of 0.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DashPattern {
     /// Array of dash/gap lengths (alternating on/off).
     /// Empty array means a solid line.
@@ -90,6 +93,7 @@ impl Default for DashPattern {
 
 /// Graphics state relevant to path painting.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GraphicsState {
     /// Current line width (default: 1.0 per PDF spec).
     pub line_width: f64,
@@ -148,6 +152,7 @@ impl GraphicsState {
 /// Represents the parsed contents of an ExtGState dictionary.
 /// All fields are optional — only present entries override the current graphics state.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtGState {
     /// /LW — Line width override.
     pub line_width: Option<f64>,
@@ -163,6 +168,7 @@ pub struct ExtGState {
 
 /// A painted path — the result of a painting operator applied to a constructed path.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PaintedPath {
     /// The path segments.
     pub path: Path,

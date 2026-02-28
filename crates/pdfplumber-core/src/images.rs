@@ -8,6 +8,7 @@ use crate::geometry::{BBox, Ctm, Point};
 
 /// Metadata about an image XObject from the PDF resource dictionary.
 #[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ImageMetadata {
     /// Original pixel width of the image.
     pub src_width: Option<u32>,
@@ -23,6 +24,7 @@ pub struct ImageMetadata {
 ///
 /// Coordinates use pdfplumber's top-left origin system.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Image {
     /// Left x coordinate.
     pub x0: f64,

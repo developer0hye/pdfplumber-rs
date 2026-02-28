@@ -3,6 +3,7 @@ use crate::words::Word;
 
 /// A text line: a sequence of words on the same y-level.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextLine {
     /// Words in this line, sorted left-to-right.
     pub words: Vec<Word>,
@@ -12,6 +13,7 @@ pub struct TextLine {
 
 /// A text block: a group of lines forming a coherent paragraph or section.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextBlock {
     /// Lines in this block, sorted top-to-bottom.
     pub lines: Vec<TextLine>,

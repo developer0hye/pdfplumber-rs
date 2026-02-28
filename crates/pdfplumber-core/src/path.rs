@@ -2,6 +2,7 @@ use crate::geometry::{Ctm, Point};
 
 /// A segment of a PDF path.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PathSegment {
     /// Move to a new point (starts a new subpath).
     MoveTo(Point),
@@ -15,6 +16,7 @@ pub enum PathSegment {
 
 /// A complete path consisting of segments.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Path {
     pub segments: Vec<PathSegment>,
 }

@@ -3,6 +3,7 @@ use crate::painting::Color;
 
 /// A single character extracted from a PDF page.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Char {
     /// The text content of this character.
     pub text: String,
@@ -30,6 +31,7 @@ pub struct Char {
 
 /// Text flow direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TextDirection {
     /// Left-to-right (default for Latin, CJK horizontal).
     #[default]

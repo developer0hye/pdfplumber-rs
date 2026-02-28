@@ -8,6 +8,7 @@ use crate::shapes::{Curve, Line, Rect};
 
 /// Source of an edge, tracking which geometric primitive it came from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EdgeSource {
     /// Derived directly from a Line object.
     Line,
@@ -32,6 +33,7 @@ pub enum EdgeSource {
 /// Edges are derived from Lines, Rects, and Curves and are used
 /// by the table detection algorithm to find cell boundaries.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Edge {
     /// Left x coordinate.
     pub x0: f64,
