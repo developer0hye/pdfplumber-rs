@@ -10,6 +10,10 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
 - **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
 - **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
 - **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
+- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
+- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
+- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
+- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
 
 ---
 
@@ -62,4 +66,21 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - `dynamic = ["version"]` in pyproject.toml makes maturin read version from Cargo.toml
   - `readme = "README.md"` in pyproject.toml includes the README in the PyPI listing
   - Tests can verify packaging artifacts (file existence, content assertions) using `env!("CARGO_MANIFEST_DIR")`
+---
+
+## 2026-02-28 - US-076
+- What was implemented: WASM/JS bindings via wasm-bindgen
+- Files changed:
+  - `Cargo.toml` (workspace root) — added `crates/pdfplumber-wasm` to members
+  - `crates/pdfplumber-wasm/Cargo.toml` — new crate with wasm-bindgen, serde-wasm-bindgen, pdfplumber (serde feature)
+  - `crates/pdfplumber-wasm/src/lib.rs` — WasmPdf (open/pageCount/page/metadata) + WasmPage (pageNumber/width/height/chars/extractText/extractWords/findTables/extractTables/search) + 18 Rust tests
+  - `crates/pdfplumber-wasm/tests/test.mjs` — JavaScript test script for manual verification
+- Dependencies added: `wasm-bindgen 0.2`, `serde-wasm-bindgen 0.6`, `wasm-bindgen-test 0.3` (dev-dep)
+- **Learnings for future iterations:**
+  - `JsError::new()` panics on non-wasm targets — error path tests must use underlying Rust API
+  - `serde_wasm_bindgen::to_value()` also panics on non-wasm — test JsValue methods only in wasm-bindgen-test
+  - wasm-pack auto-generates TypeScript `.d.ts` files with proper types
+  - Static methods in `#[wasm_bindgen] impl` blocks (no `&self`) become JS static class methods
+  - `#[wasm_bindgen(getter, js_name = "camelCase")]` for JS-idiomatic property names
+  - Rust 2024 edition: `ref mut` not allowed in implicitly-borrowing patterns (lopdf dictionary matching)
 ---

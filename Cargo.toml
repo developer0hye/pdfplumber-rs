@@ -5,6 +5,7 @@ members = [
     "crates/pdfplumber",
     "crates/pdfplumber-cli",
     "crates/pdfplumber-py",
+    "crates/pdfplumber-wasm",
 ]
 resolver = "3"
 
