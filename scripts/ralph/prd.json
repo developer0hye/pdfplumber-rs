@@ -20,7 +20,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "clap is a new dependency - justified as the standard Rust CLI framework."
     },
     {

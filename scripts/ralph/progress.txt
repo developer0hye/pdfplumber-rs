@@ -1,24 +1,31 @@
 ## Codebase Patterns
-
-- **Font handling architecture**: Fonts are cached in `CachedFont` struct in interpreter.rs. Simple fonts use `FontMetrics` (widths array indexed by char_code - first_char). CID fonts use `CidFontMetrics` (HashMap<u32, f64> for sparse widths + default_width).
-- **CID font 2-byte char codes**: CID fonts use `show_string_cid()` which reads pairs of bytes as big-endian u16 character codes. Simple fonts use `show_string()` with single-byte codes. The `is_cid_font` flag on `CachedFont` controls dispatch.
-- **Subset font prefix**: PDF subset fonts use `ABCDEF+RealName` pattern. `strip_subset_prefix()` removes the 6-uppercase-letter prefix. Applied to all font `base_name` in the interpreter.
-- **TJ array CID mode**: `show_string_with_positioning_mode()` wraps `show_string_with_positioning` with a `cid_mode` flag to dispatch string elements to the CID 2-byte decoder.
-- **lopdf object resolution**: Always resolve indirect references via `resolve_object(doc, obj)` before accessing dictionaries or arrays.
-- **Width function pattern**: The interpreter creates a width closure `get_width_fn(cached)` that dispatches to CID or simple metrics.
-- **CMap types**: `CMap` maps char_code→Unicode string (for ToUnicode). `CidCMap` maps char_code→CID (for predefined CMaps).
-- **Type0 font loading flow**: `is_type0_font()` → `get_descendant_font()` → `extract_cid_font_metrics()` → stores in `CachedFont.cid_metrics`.
-- **Spatial filtering pattern**: `PageData` trait provides shared access to page data (chars, lines, rects, curves, images). Both `Page` and `CroppedPage` implement it. `filter_and_build()` takes `&dyn PageData` + `BBox` + `FilterMode` to produce a `CroppedPage`. Coordinates adjusted by subtracting crop origin.
-- **Page-level memory pattern**: `Pdf::page(index)` processes pages on-demand (interprets content stream per call). Page data is fully owned by `Page` (released on drop). `Pdf::pages_iter()` returns `PagesIter` (borrows `&Pdf`) that yields `Result<Page, PdfError>` — implements `ExactSizeIterator`. No shared state between pages; each page call is independent.
-- **Serde feature flag pattern**: Use `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` on all public data types. Feature in pdfplumber-core, forwarded from pdfplumber via `pdfplumber-core/serde`. serde_json as dev-dependency for tests.
-- **Parallel feature pattern**: `parallel = ["dep:rayon"]` in pdfplumber Cargo.toml. Methods gated with `#[cfg(feature = "parallel")]`. `Pdf` is naturally `Sync` (lopdf::Document is Send+Sync), so `&Pdf` can be shared across rayon threads. Test helpers for parallel-only code also need `#[cfg(feature = "parallel")]`.
-- **Warning collection pattern**: `ExtractWarning` has `description`, `page`, `element`, `operator_index`, `font_name` fields. Interpreter emits warnings via `handler.on_warning()` gated by `options.collect_warnings`. The handler decorates warnings with page context. Page exposes `warnings()` accessor. Warnings are purely informational and never affect extraction output.
-- **WASM/std feature pattern**: `std` feature (default) gates `Pdf::open_file()` behind `#[cfg(feature = "std")]`. Bytes-based `Pdf::open()` works everywhere. lopdf uses `default-features = false, features = ["nom_parser"]` to minimize deps. All three crates compile for `wasm32-unknown-unknown`.
+- Workspace root Cargo.toml has `members` array for all crates
+- Each crate uses `edition.workspace = true`, `rust-version.workspace = true`, `license.workspace = true`, `repository.workspace = true`
+- Facade crate (`pdfplumber`) re-exports from `pdfplumber-core` and `pdfplumber-parse`
+- Page API: `Pdf::open_file(path, None)`, `pdf.page(idx)`, `pdf.pages_iter()`, `pdf.page_count()`
+- Page methods: `page.chars()`, `page.extract_words(opts)`, `page.extract_text(opts)`, `page.find_tables(settings)`
+- Char fields: text, fontname, size, x0, top, x1, bottom, doctop, upright, direction
+- Word fields: text, x0, top, x1, bottom, doctop, direction
+- Table has `rows: Vec<Vec<Cell>>`, Cell has `text: Option<String>`
+- Integration tests in `crates/pdfplumber/tests/` use real PDFs from `tests/fixtures/`
+- CLI crate uses `assert_cmd` and `predicates` for integration tests
 
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
+Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
 ---
 
-# Ralph Progress Log - Phase 5: CLI - Command-line interface for pdfplumber-rs
-Started: 2026년  2월 28일 토요일 14시 03분 28초 KST
+## 2026-02-28 - US-050
+- Implemented CLI crate scaffolding with clap-based argument parsing
+- Created `crates/pdfplumber-cli` with `[[bin]] name = "pdfplumber"`
+- Added to workspace members in root Cargo.toml
+- Defined CLI struct with 4 subcommands: Text, Chars, Words, Tables
+- All subcommands accept positional FILE arg, --pages, --format options
+- Text subcommand has extra --layout flag; TextFormat (text/json) vs OutputFormat (text/json/csv)
+- 10 unit tests (clap parsing) + 7 integration tests (assert_cmd --help and error cases)
+- Files changed: Cargo.toml, crates/pdfplumber-cli/{Cargo.toml, src/main.rs, src/cli.rs, tests/cli_args.rs}
+- Dependencies added: clap (with derive), assert_cmd (dev), predicates (dev)
+- **Learnings for future iterations:**
+  - `assert_cmd::Command::cargo_bin` is deprecated in favor of `cargo::cargo_bin_cmd!` macro but still works
+  - clap derive requires `#[command(subcommand)]` on the enum field and `#[derive(Subcommand)]` on the enum
+  - Subcommand stubs use `eprintln!` + `std::process::exit(1)` for not-yet-implemented commands
 ---
