@@ -10,6 +10,7 @@
 - **Type0 font loading flow**: `is_type0_font()` → `get_descendant_font()` → `extract_cid_font_metrics()` → stores in `CachedFont.cid_metrics`.
 - **Spatial filtering pattern**: `PageData` trait provides shared access to page data (chars, lines, rects, curves, images). Both `Page` and `CroppedPage` implement it. `filter_and_build()` takes `&dyn PageData` + `BBox` + `FilterMode` to produce a `CroppedPage`. Coordinates adjusted by subtracting crop origin.
 - **Serde feature flag pattern**: Use `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` on all public data types. Feature in pdfplumber-core, forwarded from pdfplumber via `pdfplumber-core/serde`. serde_json as dev-dependency for tests.
+- **Parallel feature pattern**: `parallel = ["dep:rayon"]` in pdfplumber Cargo.toml. Methods gated with `#[cfg(feature = "parallel")]`. `Pdf` is naturally `Sync` (lopdf::Document is Send+Sync), so `&Pdf` can be shared across rayon threads. Test helpers for parallel-only code also need `#[cfg(feature = "parallel")]`.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
@@ -69,4 +70,17 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - serde_json dev-dependency is sufficient for testing; no runtime serde_json dependency needed
   - All types including nested ones (PathSegment→Point, Color→Vec<f32>) must have derives for parent derives to work
   - Feature forwarding: pdfplumber's `serde` feature enables `pdfplumber-core/serde` via Cargo dependency feature syntax
+---
+
+## 2026-02-28 - US-044
+- Added optional rayon-based parallel page processing behind `parallel` feature flag
+- Modified: `crates/pdfplumber/Cargo.toml` — Added `parallel` feature flag, rayon 1.10 as optional dep
+- Modified: `crates/pdfplumber/src/pdf.rs` — Added `Pdf::pages_parallel()` method (behind `#[cfg(feature = "parallel")]`), 5 parallel tests (returns all pages, matches sequential, single page, doctop preservation, Sync compile check), multi-page PDF test helper
+- Dependencies added: rayon 1.10 (optional, behind `parallel` feature)
+- **Learnings for future iterations:**
+  - `lopdf::Document` is `Send + Sync`, so `Pdf` is naturally `Sync` — no wrapper needed for `&Pdf` sharing across threads
+  - rayon's `into_par_iter().map().collect()` is a clean 1:1 replacement for sequential iteration
+  - `Pdf::page()` takes `&self` and all internal state (`doc`, `page_heights`, `raw_page_heights`, `options`) is read-only — inherently thread-safe
+  - Test helpers used only with a feature must be gated with `#[cfg(feature = "...")]` to avoid dead_code warnings
+  - `dep:rayon` syntax (not `rayon = ["rayon"]`) is the modern Cargo way to declare optional features
 ---

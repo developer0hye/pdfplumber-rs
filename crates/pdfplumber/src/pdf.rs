@@ -101,6 +101,30 @@ impl Pdf {
         LopdfBackend::page_count(&self.doc)
     }
 
+    /// Process all pages in parallel using rayon, returning a Vec of Results.
+    ///
+    /// Each page is extracted concurrently. The returned Vec is ordered by page
+    /// index (0-based). Page data (doctop offsets, etc.) is computed correctly
+    /// regardless of processing order.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let pdf = Pdf::open(bytes, None)?;
+    /// let pages: Vec<Page> = pdf.pages_parallel()
+    ///     .into_iter()
+    ///     .collect::<Result<Vec<_>, _>>()?;
+    /// ```
+    #[cfg(feature = "parallel")]
+    pub fn pages_parallel(&self) -> Vec<Result<Page, PdfError>> {
+        use rayon::prelude::*;
+
+        (0..self.page_count())
+            .into_par_iter()
+            .map(|i| self.page(i))
+            .collect()
+    }
+
     /// Access a page by 0-based index, extracting all content.
     ///
     /// Returns a [`Page`] with characters, images, and metadata extracted
@@ -562,5 +586,186 @@ mod tests {
             top1,
             page0.height()
         );
+    }
+
+    // --- Parallel page processing tests (US-044) ---
+
+    /// Helper: create a multi-page PDF with distinct text on each page.
+    #[cfg(feature = "parallel")]
+    fn create_multi_page_pdf(page_texts: &[&str]) -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let media_box = vec![
+            Object::Integer(0),
+            Object::Integer(0),
+            Object::Integer(612),
+            Object::Integer(792),
+        ];
+
+        let mut page_ids = Vec::new();
+        for text in page_texts {
+            let content = format!("BT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+            let stream = Stream::new(dictionary! {}, content.into_bytes());
+            let content_id = doc.add_object(stream);
+            let resources = dictionary! {
+                "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+            };
+            let page_dict = dictionary! {
+                "Type" => "Page",
+                "MediaBox" => media_box.clone(),
+                "Contents" => Object::Reference(content_id),
+                "Resources" => resources,
+            };
+            page_ids.push(doc.add_object(page_dict));
+        }
+
+        let kids: Vec<Object> = page_ids.iter().map(|id| Object::Reference(*id)).collect();
+        let pages_dict = dictionary! {
+            "Type" => "Pages",
+            "Kids" => kids,
+            "Count" => Object::Integer(page_ids.len() as i64),
+        };
+        let pages_id = doc.add_object(pages_dict);
+
+        for pid in &page_ids {
+            if let Ok(page_obj) = doc.get_object_mut(*pid) {
+                if let Ok(dict) = page_obj.as_dict_mut() {
+                    dict.set("Parent", Object::Reference(pages_id));
+                }
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => Object::Reference(pages_id),
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[cfg(feature = "parallel")]
+    mod parallel_tests {
+        use super::*;
+
+        #[test]
+        fn pages_parallel_returns_all_pages() {
+            let bytes = create_multi_page_pdf(&["Alpha", "Beta", "Gamma", "Delta"]);
+            let pdf = Pdf::open(&bytes, None).unwrap();
+            let results = pdf.pages_parallel();
+
+            assert_eq!(results.len(), 4);
+            for result in &results {
+                assert!(result.is_ok());
+            }
+        }
+
+        #[test]
+        fn pages_parallel_matches_sequential() {
+            let texts = &["Hello", "World", "Foo", "Bar"];
+            let bytes = create_multi_page_pdf(texts);
+            let pdf = Pdf::open(&bytes, None).unwrap();
+
+            // Sequential extraction
+            let sequential: Vec<_> = (0..pdf.page_count())
+                .map(|i| pdf.page(i).unwrap())
+                .collect();
+
+            // Parallel extraction
+            let parallel: Vec<_> = pdf
+                .pages_parallel()
+                .into_iter()
+                .map(|r| r.unwrap())
+                .collect();
+
+            assert_eq!(sequential.len(), parallel.len());
+
+            for (seq, par) in sequential.iter().zip(parallel.iter()) {
+                // Same page number
+                assert_eq!(seq.page_number(), par.page_number());
+                // Same dimensions
+                assert_eq!(seq.width(), par.width());
+                assert_eq!(seq.height(), par.height());
+                // Same number of chars
+                assert_eq!(seq.chars().len(), par.chars().len());
+                // Same char text content
+                for (sc, pc) in seq.chars().iter().zip(par.chars().iter()) {
+                    assert_eq!(sc.text, pc.text);
+                    assert_eq!(sc.char_code, pc.char_code);
+                    assert!((sc.bbox.x0 - pc.bbox.x0).abs() < 0.01);
+                    assert!((sc.bbox.top - pc.bbox.top).abs() < 0.01);
+                    assert!((sc.doctop - pc.doctop).abs() < 0.01);
+                }
+                // Same text extraction
+                let seq_text = seq.extract_text(&TextOptions::default());
+                let par_text = par.extract_text(&TextOptions::default());
+                assert_eq!(seq_text, par_text);
+            }
+        }
+
+        #[test]
+        fn pages_parallel_single_page() {
+            let bytes = create_multi_page_pdf(&["Only"]);
+            let pdf = Pdf::open(&bytes, None).unwrap();
+            let results = pdf.pages_parallel();
+
+            assert_eq!(results.len(), 1);
+            let page = results.into_iter().next().unwrap().unwrap();
+            assert_eq!(page.page_number(), 0);
+            let text = page.extract_text(&TextOptions::default());
+            assert!(text.contains("Only"));
+        }
+
+        #[test]
+        fn pages_parallel_preserves_doctop() {
+            let bytes = create_multi_page_pdf(&["Page0", "Page1", "Page2"]);
+            let pdf = Pdf::open(&bytes, None).unwrap();
+            let pages: Vec<_> = pdf
+                .pages_parallel()
+                .into_iter()
+                .map(|r| r.unwrap())
+                .collect();
+
+            // Page 0: doctop == bbox.top (no offset)
+            let c0 = &pages[0].chars()[0];
+            assert!((c0.doctop - c0.bbox.top).abs() < 0.01);
+
+            // Page 1: doctop == bbox.top + page0.height
+            let c1 = &pages[1].chars()[0];
+            let expected1 = c1.bbox.top + pages[0].height();
+            assert!(
+                (c1.doctop - expected1).abs() < 0.01,
+                "page 1 doctop {} expected {}",
+                c1.doctop,
+                expected1
+            );
+
+            // Page 2: doctop == bbox.top + page0.height + page1.height
+            let c2 = &pages[2].chars()[0];
+            let expected2 = c2.bbox.top + pages[0].height() + pages[1].height();
+            assert!(
+                (c2.doctop - expected2).abs() < 0.01,
+                "page 2 doctop {} expected {}",
+                c2.doctop,
+                expected2
+            );
+        }
+
+        #[test]
+        fn pdf_is_sync() {
+            // Compile-time assertion that Pdf can be shared across threads
+            fn assert_sync<T: Sync>() {}
+            assert_sync::<Pdf>();
+        }
     }
 }
