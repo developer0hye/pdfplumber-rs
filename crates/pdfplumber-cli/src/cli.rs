@@ -214,6 +214,29 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
     },
+
+    /// List or extract images from PDF pages
+    Images {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output format (for listing mode)
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+
+        /// Extract image content and save to disk
+        #[arg(long)]
+        extract: bool,
+
+        /// Output directory for extracted images (default: current directory)
+        #[arg(long, value_name = "DIR")]
+        output_dir: Option<PathBuf>,
+    },
 }
 
 /// Table detection strategy.
@@ -830,5 +853,71 @@ mod tests {
             UnicodeNormArg::Nfkd.to_unicode_norm(),
             pdfplumber::UnicodeNorm::Nfkd
         );
+    }
+
+    #[test]
+    fn parse_images_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "images", "test.pdf"]);
+        match cli.command {
+            Commands::Images {
+                ref file,
+                extract,
+                ref output_dir,
+                ..
+            } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+                assert!(!extract);
+                assert!(output_dir.is_none());
+            }
+            _ => panic!("expected Images subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_images_with_extract_and_output_dir() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "images",
+            "test.pdf",
+            "--extract",
+            "--output-dir",
+            "/tmp/images",
+        ]);
+        match cli.command {
+            Commands::Images {
+                extract,
+                ref output_dir,
+                ..
+            } => {
+                assert!(extract);
+                assert_eq!(
+                    output_dir.as_deref(),
+                    Some(std::path::Path::new("/tmp/images"))
+                );
+            }
+            _ => panic!("expected Images subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_images_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "images", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Images { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Json));
+            }
+            _ => panic!("expected Images subcommand"),
+        }
+    }
+
+    #[test]
+    fn images_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "images", "test.pdf"]);
+        match cli.command {
+            Commands::Images { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Text));
+            }
+            _ => panic!("expected Images subcommand"),
+        }
     }
 }

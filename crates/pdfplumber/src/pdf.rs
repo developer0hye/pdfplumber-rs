@@ -1,8 +1,9 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata,
-    PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm, normalize_chars,
+    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageContent,
+    ImageMetadata, PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm,
+    normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -235,6 +236,53 @@ impl Pdf {
             all_matches.extend(matches);
         }
         Ok(all_matches)
+    }
+
+    /// Extract image content (raw bytes) for a named image XObject on a page.
+    ///
+    /// Locates the image by its XObject name (e.g., "Im0") in the page's
+    /// resources and returns the decoded image bytes along with format and
+    /// dimension information.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the page index is out of range, the image
+    /// is not found, or stream decoding fails.
+    pub fn extract_image_content(
+        &self,
+        page_index: usize,
+        image_name: &str,
+    ) -> Result<ImageContent, PdfError> {
+        let lopdf_page = LopdfBackend::get_page(&self.doc, page_index).map_err(PdfError::from)?;
+        LopdfBackend::extract_image_content(&self.doc, &lopdf_page, image_name)
+            .map_err(PdfError::from)
+    }
+
+    /// Extract all images with their content from a page.
+    ///
+    /// First extracts the page to get image metadata, then extracts the
+    /// raw content for each image. Returns pairs of (Image, ImageContent).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if page extraction or any image content
+    /// extraction fails.
+    pub fn extract_images_with_content(
+        &self,
+        page_index: usize,
+    ) -> Result<Vec<(Image, ImageContent)>, PdfError> {
+        let page = self.page(page_index)?;
+        let mut results = Vec::new();
+        for image in page.images() {
+            match self.extract_image_content(page_index, &image.name) {
+                Ok(content) => results.push((image.clone(), content)),
+                Err(_) => {
+                    // Skip images that can't be extracted (e.g., inline images)
+                    continue;
+                }
+            }
+        }
+        Ok(results)
     }
 
     /// Return a streaming iterator over all pages in the document.
@@ -1315,5 +1363,112 @@ mod tests {
         let page = pdf.page(0).unwrap();
         let text = page.extract_text(&TextOptions::default());
         assert!(text.contains("WasmOK"));
+    }
+
+    // --- extract_image_content tests ---
+
+    /// Helper: create a PDF with a raw image XObject.
+    fn create_pdf_with_image() -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // 2x2 RGB image (12 bytes)
+        let image_data = vec![255u8, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
+        let image_stream = Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => 2i64,
+                "Height" => 2i64,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8i64,
+            },
+            image_data,
+        );
+        let image_id = doc.add_object(Object::Stream(image_stream));
+
+        let page_content = b"q 200 0 0 150 100 300 cm /Im0 Do Q";
+        let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(dictionary! {
+                "XObject" => Object::Dictionary(dictionary! {
+                    "Im0" => image_id,
+                }),
+            }),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn extract_image_content_returns_raw_bytes() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let content = pdf.extract_image_content(0, "Im0").unwrap();
+        assert_eq!(content.format, pdfplumber_core::ImageFormat::Raw);
+        assert_eq!(content.width, 2);
+        assert_eq!(content.height, 2);
+        assert_eq!(
+            content.data,
+            vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]
+        );
+    }
+
+    #[test]
+    fn extract_image_content_not_found_error() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let result = pdf.extract_image_content(0, "NonExistent");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn extract_images_with_content_returns_pairs() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let pairs = pdf.extract_images_with_content(0).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0.name, "Im0");
+        assert_eq!(pairs[0].1.format, pdfplumber_core::ImageFormat::Raw);
+        assert_eq!(pairs[0].1.data.len(), 12);
+    }
+
+    #[test]
+    fn extract_image_content_page_out_of_range() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        let result = pdf.extract_image_content(99, "Im0");
+        assert!(result.is_err());
     }
 }

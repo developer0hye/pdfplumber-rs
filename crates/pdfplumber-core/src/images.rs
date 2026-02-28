@@ -109,6 +109,49 @@ impl Image {
     }
 }
 
+/// Format of extracted image data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ImageFormat {
+    /// JPEG image (DCTDecode filter).
+    Jpeg,
+    /// PNG image.
+    Png,
+    /// Raw uncompressed pixel data.
+    Raw,
+    /// JBIG2 compressed image.
+    Jbig2,
+    /// CCITT fax compressed image.
+    CcittFax,
+}
+
+impl ImageFormat {
+    /// Returns the typical file extension for this image format.
+    pub fn extension(&self) -> &str {
+        match self {
+            ImageFormat::Jpeg => "jpg",
+            ImageFormat::Png => "png",
+            ImageFormat::Raw => "raw",
+            ImageFormat::Jbig2 => "jbig2",
+            ImageFormat::CcittFax => "ccitt",
+        }
+    }
+}
+
+/// Extracted image content (raw bytes) from a PDF image XObject.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ImageContent {
+    /// The image data bytes.
+    pub data: Vec<u8>,
+    /// The format of the image data.
+    pub format: ImageFormat,
+    /// Image width in pixels.
+    pub width: u32,
+    /// Image height in pixels.
+    pub height: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -297,5 +340,67 @@ mod tests {
         assert_eq!(meta.src_height, None);
         assert_eq!(meta.bits_per_component, None);
         assert_eq!(meta.color_space, None);
+    }
+
+    // --- ImageFormat ---
+
+    #[test]
+    fn test_image_format_extension() {
+        assert_eq!(ImageFormat::Jpeg.extension(), "jpg");
+        assert_eq!(ImageFormat::Png.extension(), "png");
+        assert_eq!(ImageFormat::Raw.extension(), "raw");
+        assert_eq!(ImageFormat::Jbig2.extension(), "jbig2");
+        assert_eq!(ImageFormat::CcittFax.extension(), "ccitt");
+    }
+
+    #[test]
+    fn test_image_format_clone_eq() {
+        let fmt = ImageFormat::Jpeg;
+        let fmt2 = fmt;
+        assert_eq!(fmt, fmt2);
+    }
+
+    // --- ImageContent ---
+
+    #[test]
+    fn test_image_content_construction() {
+        let content = ImageContent {
+            data: vec![0xFF, 0xD8, 0xFF, 0xE0],
+            format: ImageFormat::Jpeg,
+            width: 640,
+            height: 480,
+        };
+        assert_eq!(content.data.len(), 4);
+        assert_eq!(content.format, ImageFormat::Jpeg);
+        assert_eq!(content.width, 640);
+        assert_eq!(content.height, 480);
+    }
+
+    #[test]
+    fn test_image_content_raw_format() {
+        // 2x2 RGB image = 12 bytes
+        let data = vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
+        let content = ImageContent {
+            data: data.clone(),
+            format: ImageFormat::Raw,
+            width: 2,
+            height: 2,
+        };
+        assert_eq!(content.data, data);
+        assert_eq!(content.format, ImageFormat::Raw);
+        assert_eq!(content.width, 2);
+        assert_eq!(content.height, 2);
+    }
+
+    #[test]
+    fn test_image_content_clone_eq() {
+        let content = ImageContent {
+            data: vec![1, 2, 3],
+            format: ImageFormat::Png,
+            width: 10,
+            height: 10,
+        };
+        let content2 = content.clone();
+        assert_eq!(content, content2);
     }
 }
