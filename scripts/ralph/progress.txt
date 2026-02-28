@@ -1,165 +1,27 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
----
+Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
 
 ## Codebase Patterns
-- Text rendering operators (Tj, TJ, ', ") flow: interpret_content_stream → handle_tj/handle_tj_array → emit_char_events → handler.on_char(CharEvent)
-- The tokenizer's Operand enum now includes Dictionary(Vec<(String, Operand)>) for inline `<<...>>` dicts
-- Marked content state is NOT part of graphics state (q/Q don't save/restore it), so it's tracked as a local `Vec<MarkedContentEntry>` in interpret_content_stream
-- To thread new state through char emission: add parameter to handle_tj → handle_tj_array → emit_char_events chain
-- Warning types are in `crates/pdfplumber-core/src/error.rs` — ExtractWarning, ExtractWarningCode, ExtractOptions, PdfError
-- Re-exports from `crates/pdfplumber-core/src/lib.rs`
-- Warning emission sites are in `crates/pdfplumber-parse/src/interpreter.rs` (3 font-related sites)
-- serde support uses conditional derive: `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]`
-- All ExtractOptions struct literals in tests use `..ExtractOptions::default()` spread, so adding new fields with defaults is backward-compatible
-- pdfplumber-py tests fail in local env due to missing libpython3.11.dylib — pre-existing issue, skip with `-p` flags
-- PdfError::ResourceLimitExceeded is a struct variant: `{ limit_name: String, limit_value: usize, actual_value: usize }`
-- Document-level budgets are `Option<usize>` fields on ExtractOptions (None=no limit for backward compat)
-- max_input_bytes checked in Pdf::open before parsing; max_pages checked in from_doc after page_count
-- Accumulated counters (total_objects, total_image_bytes) use AtomicUsize in Pdf struct for thread safety with pages_parallel()
-- Document-level conversion pattern: iterate pages_iter(), render each page, collect warnings/images, combine with separator
-- Pure conversion types go in pdfplumber-core (markdown_conversion.rs), method implementation on Pdf in pdfplumber crate
+- Font metrics: `FontMetrics` struct in `crates/pdfplumber-parse/src/font_metrics.rs`, widths in glyph space (1/1000 em)
+- Standard font data: `StandardFontData` in `crates/pdfplumber-parse/src/standard_fonts.rs`, `lookup(name)` returns `Option<&'static StandardFontData>`
+- Subset prefix stripping: `crate::cid_font::strip_subset_prefix()` handles `ABCDEF+FontName` patterns
+- Width arrays use WinAnsiEncoding char code mapping (most common in modern PDFs)
+- Oblique variants share width data with upright: Helvetica-Oblique = Helvetica, Helvetica-BoldOblique = Helvetica-Bold
+- All Courier variants share one array (monospaced, all 600)
+- pdfplumber-py tests SIGABRT on macOS (pre-existing, unrelated to standard font work)
 
 ---
 
-## 2026-03-01 - US-092
-- **What was implemented**: Tagged PDF operators (BMC/BDC/EMC) wired in content stream interpreter
+## 2026-03-01 - US-103
+- Created `crates/pdfplumber-parse/src/standard_fonts.rs` with `StandardFontData` struct and `lookup()` function
+- Added static width arrays for all 14 standard Type1 fonts (9 unique arrays, shared via match arms)
+- Width data sourced from Adobe AFM specifications, indexed by WinAnsiEncoding char codes
+- Registered `pub mod standard_fonts;` in `crates/pdfplumber-parse/src/lib.rs`
+- 11 unit tests: known widths, all 14 fonts present, unknown returns None, Courier uniform 600, proportional checks
+- Files changed: `crates/pdfplumber-parse/src/standard_fonts.rs` (new), `crates/pdfplumber-parse/src/lib.rs`
+- Dependencies added: none
 - **Learnings for future iterations:**
-  - MCID inheritance in nested content uses `iter().rev().find_map()` to find nearest ancestor with MCID
-  - Tag always comes from the innermost (last) stack entry
-  - EMC on empty stack is gracefully ignored (no panic)
----
-
-## 2026-03-01 - US-093
-- **What was implemented**: Added `duplicate_merged_content: bool` to `TableSettings`
-- **Learnings for future iterations:**
-  - Merged cells create larger cells covering multiple grid positions
-  - Center-point containment (with epsilon tolerance) is used to match sub-grid positions
----
-
-## 2026-03-01 - US-094
-- **What was implemented**: Added automatic header/footer detection and removal
-- **Learnings for future iterations:**
-  - Digit masking is effective for detecting repeating text with variable page numbers
-  - `detect_page_regions` is a pure function on text data
----
-
-## 2026-03-01 - US-095
-- **What was implemented**: Multi-column layout reading order improvement
-- **Learnings for future iterations:**
-  - Column detection clusters inter-word gaps within lines
-  - Section-based approach handles heading-columns-footer patterns
----
-
-## 2026-03-01 - US-096 (Phase 13)
-- Implemented ExtractWarningCode enum: MissingFont, UnsupportedOperator, MalformedObject, ResourceLimitReached, EncodingFallback, Other(String)
-- ExtractWarning gained `code` field, Display format changed to `[CODE] message (page N)`
-- ExtractOptions gained `strict_mode` (bool, default false)
-- All 3 interpreter warning emission sites updated to use MissingFont code
-- Added set_code() builder and to_error() for strict mode escalation
-- serde serialization with tagged enum for ExtractWarningCode
-- 15 new tests, all passing (42 total in error module)
-- Files changed:
-  - crates/pdfplumber-core/src/error.rs (main implementation + tests)
-  - crates/pdfplumber-core/src/lib.rs (re-export ExtractWarningCode)
-  - crates/pdfplumber-parse/src/interpreter.rs (import + warning code updates)
-- **Learnings for future iterations:**
-  - Existing constructors (new, on_page, with_context, with_operator_context) default to Other code
-  - Use set_code() builder pattern to override after construction
-  - Existing tests check .description field, not Display output, so Display format changes don't break them
----
-
-## 2026-03-01 - US-097 (Phase 13)
-- Implemented document-level resource budgets for production safety
-- PdfError::ResourceLimitExceeded changed from `(String)` to struct variant `{ limit_name, limit_value, actual_value }`
-- ExtractOptions gained 4 new `Option<usize>` fields: max_input_bytes, max_pages, max_total_image_bytes, max_total_objects
-- All default to None (no limit) for backward compatibility
-- max_input_bytes: checked in Pdf::open() before parsing
-- max_pages: checked in from_doc() after getting page_count
-- max_total_objects: AtomicUsize counter in Pdf, checked after each page() extraction (chars+lines+rects+curves+images)
-- max_total_image_bytes: AtomicUsize counter in Pdf, checked after each page() extraction (sum of image data bytes)
-- 10 new tests: 7 integration (rejects/allows/disabled), 3 unit (defaults, custom, clone)
-- Files changed:
-  - crates/pdfplumber-core/src/error.rs (struct variant + new fields + tests)
-  - crates/pdfplumber/src/pdf.rs (budget checks + AtomicUsize counters)
-  - crates/pdfplumber/tests/pdf_integration.rs (7 integration tests)
-  - crates/pdfplumber-parse/src/error.rs (updated test for struct variant)
-  - crates/pdfplumber-py/src/lib.rs (updated match arm + test)
-- **Learnings for future iterations:**
-  - Pdf doesn't implement Debug, so can't use unwrap_err() in tests — use match patterns instead
-  - AtomicUsize with Relaxed ordering is sufficient for counters since exact accuracy isn't critical
-  - fetch_add returns the *previous* value, so add page_object_count to get the new total
----
-
-## 2026-03-01 - US-098 (Phase 13)
-- Implemented deterministic image naming and export contract
-- ImageExportOptions struct: pattern (String, default "page{page}_img{index}.{ext}"), deduplicate (bool, default false)
-- ExportedImage struct: filename, data, mime_type, page (1-indexed)
-- ImageFilter::extension() for normalized file extensions (DCTDecode->jpg, FlateDecode->png, JPXDecode->jp2, CCITTFaxDecode->tiff, others->bin)
-- content_hash_prefix() for deterministic SipHash-based content hashing (16 hex chars)
-- apply_export_pattern() for {page}, {index}, {ext}, {hash} variable substitution
-- export_image_set() core function handles deduplication via HashMap of hash->filename
-- Page::export_images(options) delegates to export_image_set with 1-indexed page number
-- 20 new tests: extension normalization, pattern substitution, deduplication, determinism, edge cases
-- Files changed:
-  - crates/pdfplumber-core/src/images.rs (new types + methods + tests)
-  - crates/pdfplumber-core/src/lib.rs (re-exports)
-  - crates/pdfplumber/src/page.rs (export_images method)
-  - crates/pdfplumber/src/lib.rs (re-exports)
-  - scripts/ralph/prd.json (US-098 passes: true)
-- **Learnings for future iterations:**
-  - Image.data is Option<Vec<u8>> — requires extract_image_data:true in ExtractOptions to be populated
-  - export_image_set is a pure function on &[Image] — easily testable without Page
-  - DefaultHasher::new() uses SipHash with keys (0,0) — deterministic within same Rust version
-  - ImageFilter::extension() is separate from ImageFormat::extension() — different enums for different contexts
-  - Deduplication uses seen_hashes HashMap to map content hash -> first-assigned filename
----
-
-## 2026-03-01 - US-099 (Phase 13)
-- Implemented document-level Markdown conversion API
-- MarkdownConversionOptions struct: page_separator, include_images, image_options, strict_mode
-- MarkdownConversionResult struct: markdown, plain_text, title, images, warnings, page_count
-- Pdf::convert_to_markdown(options) iterates all pages, renders markdown, collects warnings/images
-- Title: from PDF metadata /Title first, fallback to first # heading in markdown
-- Plain text: strip_markdown() removes headings, emphasis, horizontal rules
-- strict_mode: if any warnings collected, returns first as PdfError
-- Helper functions: strip_markdown(), strip_emphasis(), extract_title_from_markdown()
-- 14 unit tests (core), 10 integration tests (pdf), all passing
-- Files changed:
-  - crates/pdfplumber-core/src/markdown_conversion.rs (new — types + helpers + 14 tests)
-  - crates/pdfplumber-core/src/lib.rs (module + re-exports)
-  - crates/pdfplumber/src/pdf.rs (convert_to_markdown method + imports)
-  - crates/pdfplumber/src/lib.rs (re-exports)
-  - crates/pdfplumber/tests/pdf_integration.rs (10 integration tests)
-  - scripts/ralph/prd.json (US-099 passes: true)
-- **Learnings for future iterations:**
-  - Page::to_markdown already exists and uses MarkdownRenderer::render — just aggregate per page
-  - Page::warnings() returns &[ExtractWarning] — clone to collect across pages
-  - Page::export_images(options) handles 1-indexed page numbers automatically
-  - strip_markdown is a simple line-based approach — good enough for plain text generation
-  - extract_title_from_markdown looks for first `# ` (H1) line only
----
-
-## 2026-03-01 - US-100 (Phase 13)
-- Implemented anytomd compatibility test suite with golden fixtures
-- 3 fixture categories: technical-doc (2 pages), business-report (1 page), mixed-language (1 page)
-- Each fixture: input.pdf + expected_markdown.md + expected_metadata.json
-- Golden tests compare convert_to_markdown() output against expected files
-- UPDATE_GOLDEN=1 env var regenerates expected files (verified in test)
-- Warning collection test: verifies warnings emitted for missing font reference
-- Image contract test: deterministic filenames, same input → same output
-- Strict mode test: warnings-as-errors behavior verified
-- Plain text output test: verifies no markdown markers in plain text
-- 10 golden tests total, all passing
-- Files changed:
-  - crates/pdfplumber/tests/anytomd_golden.rs (new — 10 golden tests + helpers)
-  - tests/anytomd/fixtures/technical-doc/{input.pdf, expected_markdown.md, expected_metadata.json}
-  - tests/anytomd/fixtures/business-report/{input.pdf, expected_markdown.md, expected_metadata.json}
-  - tests/anytomd/fixtures/mixed-language/{input.pdf, expected_markdown.md, expected_metadata.json}
-  - scripts/ralph/prd.json (US-100 passes: true)
-- **Learnings for future iterations:**
-  - Programmatic PDF creation via lopdf works well for controlled test fixtures
-  - Markdown renderer may split large-font words into separate headings — test for content presence, not exact formatting
-  - Golden test pattern: generate → compare (or write if UPDATE_GOLDEN=1) is simple and effective
-  - serde_json is already a dev-dependency in pdfplumber crate — can use for metadata JSON files
+  - AFM files use StandardEncoding char codes; need WinAnsiEncoding mapping for modern PDFs
+  - Codes 39 (quotesingle vs quoteright) and 96 (grave vs quoteleft) differ between encodings
+  - Symbol and ZapfDingbats use their own built-in encodings, not WinAnsiEncoding
 ---
