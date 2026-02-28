@@ -8,6 +8,34 @@
 //! - **pdfplumber-core**: Backend-independent data types and algorithms
 //! - **pdfplumber-parse**: PDF parsing (Layer 1) and content stream interpreter (Layer 2)
 //! - **pdfplumber** (this crate): Public API that ties everything together
+//!
+//! # Feature Flags
+//!
+//! | Feature | Default | Description |
+//! |---------|---------|-------------|
+//! | `std` | Yes | Enables file-path APIs (`Pdf::open_file`). Disable for WASM. |
+//! | `serde` | No | Adds Serialize/Deserialize to all public data types. |
+//! | `parallel` | No | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible. |
+//!
+//! # WASM Support
+//!
+//! This crate compiles for `wasm32-unknown-unknown`. For WASM builds, disable
+//! the default `std` feature and use the bytes-based API:
+//!
+//! ```toml
+//! [dependencies]
+//! pdfplumber = { version = "0.1", default-features = false }
+//! ```
+//!
+//! Then use [`Pdf::open`] with a byte slice:
+//!
+//! ```ignore
+//! let pdf = Pdf::open(pdf_bytes, None)?;
+//! let page = pdf.page(0)?;
+//! let text = page.extract_text(&TextOptions::default());
+//! ```
+//!
+//! The `parallel` feature is not available for WASM targets (rayon requires OS threads).
 
 mod cropped_page;
 mod page;

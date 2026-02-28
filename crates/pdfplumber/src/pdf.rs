@@ -108,7 +108,34 @@ impl ContentHandler for CollectingHandler {
 }
 
 impl Pdf {
+    /// Open a PDF document from a file path.
+    ///
+    /// This is a convenience wrapper around [`Pdf::open`] that reads the file
+    /// into memory first. For WASM or no-filesystem environments, use
+    /// [`Pdf::open`] with a byte slice instead.
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - Path to the PDF file.
+    /// * `options` - Extraction options (resource limits, etc.). Uses defaults if `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the file cannot be read or is not a valid PDF.
+    #[cfg(feature = "std")]
+    pub fn open_file(
+        path: impl AsRef<std::path::Path>,
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        let bytes = std::fs::read(path.as_ref()).map_err(|e| PdfError::IoError(e.to_string()))?;
+        Self::open(&bytes, options)
+    }
+
     /// Open a PDF document from bytes.
+    ///
+    /// This is the primary API for opening PDFs and works in all environments,
+    /// including WASM. For file-path convenience, see [`Pdf::open_file`] (requires
+    /// the `std` feature, enabled by default).
     ///
     /// # Arguments
     ///
@@ -1137,5 +1164,71 @@ mod tests {
         // Pdf is still usable
         let page1 = pdf.page(1).unwrap();
         assert!(!page1.chars().is_empty());
+    }
+
+    // --- US-047: WASM build support tests ---
+
+    #[cfg(feature = "std")]
+    mod std_feature_tests {
+        use super::*;
+
+        #[test]
+        fn open_file_reads_valid_pdf() {
+            // Write a PDF to a temp file, then open via open_file
+            let bytes = create_pdf_with_content(b"BT /F1 12 Tf 72 720 Td (FileTest) Tj ET");
+            let dir = std::env::temp_dir();
+            let path = dir.join("pdfplumber_test_open_file.pdf");
+            std::fs::write(&path, &bytes).unwrap();
+
+            let pdf = Pdf::open_file(&path, None).unwrap();
+            assert_eq!(pdf.page_count(), 1);
+
+            let page = pdf.page(0).unwrap();
+            let text = page.extract_text(&TextOptions::default());
+            assert!(text.contains("FileTest"));
+
+            // Clean up
+            let _ = std::fs::remove_file(&path);
+        }
+
+        #[test]
+        fn open_file_nonexistent_returns_error() {
+            let result = Pdf::open_file("/nonexistent/path/to/file.pdf", None);
+            assert!(result.is_err());
+        }
+
+        #[test]
+        fn open_file_matches_open_bytes() {
+            let bytes = create_pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Match) Tj ET");
+            let dir = std::env::temp_dir();
+            let path = dir.join("pdfplumber_test_match.pdf");
+            std::fs::write(&path, &bytes).unwrap();
+
+            let pdf_bytes = Pdf::open(&bytes, None).unwrap();
+            let pdf_file = Pdf::open_file(&path, None).unwrap();
+
+            assert_eq!(pdf_bytes.page_count(), pdf_file.page_count());
+
+            let page_bytes = pdf_bytes.page(0).unwrap();
+            let page_file = pdf_file.page(0).unwrap();
+
+            assert_eq!(page_bytes.chars().len(), page_file.chars().len());
+            for (a, b) in page_bytes.chars().iter().zip(page_file.chars().iter()) {
+                assert_eq!(a.text, b.text);
+                assert_eq!(a.char_code, b.char_code);
+            }
+
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    fn bytes_api_works_without_filesystem() {
+        // Verify the bytes-based API works — this is the WASM-compatible path
+        let bytes = create_pdf_with_content(b"BT /F1 12 Tf 72 720 Td (WasmOK) Tj ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let text = page.extract_text(&TextOptions::default());
+        assert!(text.contains("WasmOK"));
     }
 }

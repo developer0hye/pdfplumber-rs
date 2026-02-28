@@ -7,6 +7,8 @@ license.workspace = true
 description = "Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates"
 
 [features]
+default = ["std"]
+std = []
 serde = ["pdfplumber-core/serde"]
 parallel = ["dep:rayon"]
 
