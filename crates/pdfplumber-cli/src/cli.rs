@@ -300,6 +300,21 @@ pub enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+
+    /// Validate PDF structure and report specification violations
+    Validate {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = ValidateFormat::Text)]
+        format: ValidateFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+    },
 }
 
 /// Table detection strategy.
@@ -333,6 +348,15 @@ pub enum OutputFormat {
     Json,
     /// CSV output
     Csv,
+}
+
+/// Output format for validate subcommand.
+#[derive(Debug, Clone, ValueEnum)]
+pub enum ValidateFormat {
+    /// Plain text output
+    Text,
+    /// JSON output
+    Json,
 }
 
 /// Unicode normalization form for CLI arguments.
@@ -1119,6 +1143,52 @@ mod tests {
                 assert_eq!(password.as_deref(), Some("secret"));
             }
             _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    // --- Validate subcommand tests ---
+
+    #[test]
+    fn parse_validate_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "validate", "test.pdf"]);
+        match cli.command {
+            Commands::Validate { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Validate subcommand"),
+        }
+    }
+
+    #[test]
+    fn validate_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "validate", "test.pdf"]);
+        match cli.command {
+            Commands::Validate { ref format, .. } => {
+                assert!(matches!(format, ValidateFormat::Text));
+            }
+            _ => panic!("expected Validate subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_validate_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "validate", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Validate { ref format, .. } => {
+                assert!(matches!(format, ValidateFormat::Json));
+            }
+            _ => panic!("expected Validate subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_validate_with_password() {
+        let cli = Cli::parse_from(["pdfplumber", "validate", "test.pdf", "--password", "secret"]);
+        match cli.command {
+            Commands::Validate { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("secret"));
+            }
+            _ => panic!("expected Validate subcommand"),
         }
     }
 }

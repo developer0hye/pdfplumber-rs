@@ -5,7 +5,7 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
-    ImageContent, PdfError, StructElement,
+    ImageContent, PdfError, StructElement, ValidationIssue,
 };
 
 use crate::handler::ContentHandler;
@@ -242,6 +242,24 @@ pub trait PdfBackend {
         page: &Self::Page,
         image_name: &str,
     ) -> Result<ImageContent, Self::Error>;
+
+    /// Validate the PDF document and report specification violations.
+    ///
+    /// Checks for common PDF specification issues such as missing required
+    /// keys, broken object references, invalid page tree structure, and
+    /// missing fonts. Returns a list of [`ValidationIssue`]s describing
+    /// any problems found.
+    ///
+    /// An empty result indicates no issues were detected.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the document structure is too corrupted to
+    /// perform validation.
+    fn validate(doc: &Self::Document) -> Result<Vec<ValidationIssue>, Self::Error> {
+        let _ = doc;
+        Ok(Vec::new())
+    }
 }
 
 #[cfg(test)]
