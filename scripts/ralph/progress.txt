@@ -13,3 +13,18 @@ Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
 # Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
 Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
 ---
+
+## 2026-02-28 - US-018: WordExtractor - tolerance-based character grouping
+- Implementation already existed from phase 1 (built alongside US-017 public API)
+- Verified all acceptance criteria against existing code:
+  - WordOptions struct with pdfplumber-compatible defaults (x_tolerance=3, y_tolerance=3)
+  - WordExtractor groups chars by spatial proximity (x/y tolerance)
+  - Line breaks → separate words, spaces → split (configurable via keep_blank_chars)
+  - Word.bbox = union of constituent Char bboxes
+  - 25+ unit tests covering: simple horizontal, multi-line, gaps, configurable tolerance, space handling, overlapping chars, text flow mode
+- Files: `crates/pdfplumber-core/src/words.rs` (WordOptions, Word, WordExtractor + tests)
+- No code changes needed — all quality checks pass (fmt, clippy, 337 tests)
+- **Learnings for future iterations:**
+  - Phase 1 built ahead: words, CJK, geometry, encoding, layout modules were all implemented in phase 1
+  - Subsequent US stories in phase 2 may also already be implemented — verify before writing new code
+---
