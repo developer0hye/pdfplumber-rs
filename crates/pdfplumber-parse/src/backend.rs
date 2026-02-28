@@ -4,7 +4,7 @@
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
 use pdfplumber_core::{
-    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink, PdfError,
+    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink, ImageContent, PdfError,
 };
 
 use crate::handler::ContentHandler;
@@ -188,13 +188,30 @@ pub trait PdfBackend {
         handler: &mut dyn ContentHandler,
         options: &ExtractOptions,
     ) -> Result<(), Self::Error>;
+
+    /// Extract image content (raw bytes) from a named image XObject on a page.
+    ///
+    /// Locates the image XObject by name in the page's `/Resources/XObject`
+    /// dictionary and extracts its stream data. For DCTDecode (JPEG) images,
+    /// returns the raw JPEG bytes. For FlateDecode images, decompresses and
+    /// returns raw pixel data. Handles chained filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the image XObject is not found or stream
+    /// decoding fails.
+    fn extract_image_content(
+        doc: &Self::Document,
+        page: &Self::Page,
+        image_name: &str,
+    ) -> Result<ImageContent, Self::Error>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::handler::{CharEvent, ImageEvent, PaintOp, PathEvent};
-    use pdfplumber_core::{Color, PathSegment, Point};
+    use pdfplumber_core::{Color, ImageFormat, PathSegment, Point};
 
     // --- Mock types ---
 
@@ -398,6 +415,25 @@ mod tests {
             });
 
             Ok(())
+        }
+
+        fn extract_image_content(
+            _doc: &Self::Document,
+            _page: &Self::Page,
+            image_name: &str,
+        ) -> Result<ImageContent, Self::Error> {
+            if image_name == "Im1" {
+                Ok(ImageContent {
+                    data: vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0],
+                    format: ImageFormat::Raw,
+                    width: 2,
+                    height: 2,
+                })
+            } else {
+                Err(PdfError::ParseError(format!(
+                    "image XObject /{image_name} not found"
+                )))
+            }
         }
     }
 

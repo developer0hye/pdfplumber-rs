@@ -75,7 +75,7 @@ pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use hyperlink::Hyperlink;
-pub use images::{Image, ImageMetadata, image_from_ctm};
+pub use images::{Image, ImageContent, ImageFormat, ImageMetadata, image_from_ctm};
 pub use layout::{
     TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,

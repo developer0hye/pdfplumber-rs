@@ -3,6 +3,7 @@ mod bookmarks_cmd;
 mod chars_cmd;
 mod cli;
 mod debug_cmd;
+mod images_cmd;
 mod info_cmd;
 mod links_cmd;
 mod page_range;
@@ -114,6 +115,19 @@ fn main() {
             case_insensitive,
             no_regex,
             format,
+        ),
+        cli::Commands::Images {
+            ref file,
+            ref pages,
+            ref format,
+            extract,
+            ref output_dir,
+        } => images_cmd::run(
+            file,
+            pages.as_deref(),
+            format,
+            extract,
+            output_dir.as_deref(),
         ),
     };
 

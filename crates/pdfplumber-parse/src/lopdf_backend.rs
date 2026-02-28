@@ -8,6 +8,7 @@ use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink,
+    ImageContent,
 };
 
 /// A parsed PDF document backed by lopdf.
@@ -284,6 +285,168 @@ impl PdfBackend for LopdfBackend {
             &mut gstate,
             &mut tstate,
         )
+    }
+
+    fn extract_image_content(
+        doc: &Self::Document,
+        page: &Self::Page,
+        image_name: &str,
+    ) -> Result<ImageContent, Self::Error> {
+        use pdfplumber_core::ImageFormat;
+
+        let inner = &doc.inner;
+
+        // Get page resources
+        let resources = get_page_resources(inner, page.object_id)?;
+
+        // Look up /Resources/XObject/<image_name>
+        let xobj_dict = resources.get(b"XObject").map_err(|_| {
+            BackendError::Parse(format!(
+                "no /XObject dictionary in page resources for image /{image_name}"
+            ))
+        })?;
+        let xobj_dict = resolve_ref(inner, xobj_dict);
+        let xobj_dict = xobj_dict.as_dict().map_err(|_| {
+            BackendError::Parse("/XObject resource is not a dictionary".to_string())
+        })?;
+
+        let xobj_entry = xobj_dict.get(image_name.as_bytes()).map_err(|_| {
+            BackendError::Parse(format!(
+                "image XObject /{image_name} not found in resources"
+            ))
+        })?;
+
+        let xobj_id = xobj_entry.as_reference().map_err(|_| {
+            BackendError::Parse(format!(
+                "image XObject /{image_name} is not an indirect reference"
+            ))
+        })?;
+
+        let xobj = inner.get_object(xobj_id).map_err(|e| {
+            BackendError::Parse(format!(
+                "failed to resolve image XObject /{image_name}: {e}"
+            ))
+        })?;
+
+        let stream = xobj.as_stream().map_err(|e| {
+            BackendError::Parse(format!("image XObject /{image_name} is not a stream: {e}"))
+        })?;
+
+        // Verify it's an Image subtype
+        let subtype = stream
+            .dict
+            .get(b"Subtype")
+            .ok()
+            .and_then(|o| o.as_name_str().ok())
+            .unwrap_or("");
+        if subtype != "Image" {
+            return Err(BackendError::Parse(format!(
+                "XObject /{image_name} is not an Image (subtype: {subtype})"
+            )));
+        }
+
+        let width = stream
+            .dict
+            .get(b"Width")
+            .ok()
+            .and_then(|o| o.as_i64().ok())
+            .unwrap_or(0) as u32;
+
+        let height = stream
+            .dict
+            .get(b"Height")
+            .ok()
+            .and_then(|o| o.as_i64().ok())
+            .unwrap_or(0) as u32;
+
+        // Determine the filter to decide image format
+        let filter = stream
+            .dict
+            .get(b"Filter")
+            .ok()
+            .and_then(|o| {
+                // Filter can be a single name or an array of names
+                if let Ok(name) = o.as_name_str() {
+                    Some(vec![name.to_string()])
+                } else if let Ok(arr) = o.as_array() {
+                    Some(
+                        arr.iter()
+                            .filter_map(|item| {
+                                let resolved = resolve_ref(inner, item);
+                                resolved.as_name_str().ok().map(|s| s.to_string())
+                            })
+                            .collect(),
+                    )
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
+
+        // Determine format from the last filter in the chain
+        let format = if filter.is_empty() {
+            ImageFormat::Raw
+        } else {
+            match filter.last().map(|s| s.as_str()) {
+                Some("DCTDecode") => ImageFormat::Jpeg,
+                Some("JBIG2Decode") => ImageFormat::Jbig2,
+                Some("CCITTFaxDecode") => ImageFormat::CcittFax,
+                _ => ImageFormat::Raw,
+            }
+        };
+
+        // Extract the image data
+        let data = match format {
+            ImageFormat::Jpeg => {
+                // For JPEG, return the raw stream content (the JPEG bytes)
+                // If there are filters before DCTDecode, we need partial decompression
+                if filter.len() == 1 {
+                    // Only DCTDecode — raw content is the JPEG
+                    stream.content.clone()
+                } else {
+                    // Chained filters: decompress everything (lopdf handles this)
+                    stream.decompressed_content().map_err(|e| {
+                        BackendError::Parse(format!(
+                            "failed to decompress image /{image_name}: {e}"
+                        ))
+                    })?
+                }
+            }
+            ImageFormat::Jbig2 | ImageFormat::CcittFax => {
+                // Return raw stream content for these specialized formats
+                stream.content.clone()
+            }
+            ImageFormat::Raw | ImageFormat::Png => {
+                // Decompress if filters present, otherwise return raw
+                if filter.is_empty() {
+                    stream.content.clone()
+                } else {
+                    stream.decompressed_content().map_err(|e| {
+                        BackendError::Parse(format!(
+                            "failed to decompress image /{image_name}: {e}"
+                        ))
+                    })?
+                }
+            }
+        };
+
+        Ok(ImageContent {
+            data,
+            format,
+            width,
+            height,
+        })
+    }
+}
+
+/// Resolve an indirect reference, returning the referenced object.
+///
+/// If the object is a `Reference`, resolves it via the document.
+/// Otherwise, returns the object as-is.
+fn resolve_ref<'a>(doc: &'a lopdf::Document, obj: &'a lopdf::Object) -> &'a lopdf::Object {
+    match obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).unwrap_or(obj),
+        _ => obj,
     }
 }
 
@@ -1659,6 +1822,77 @@ fn create_test_pdf_with_image_xobject() -> Vec<u8> {
     buf
 }
 
+/// Create a PDF with a JPEG (DCTDecode) image XObject.
+#[cfg(test)]
+fn create_test_pdf_with_jpeg_image() -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    // Minimal JPEG data (SOI + APP0 + EOI markers)
+    // A real JPEG starts with FF D8 and ends with FF D9
+    let jpeg_data = vec![
+        0xFF, 0xD8, 0xFF, 0xE0, // SOI + APP0 marker
+        0x00, 0x10, // Length of APP0
+        0x4A, 0x46, 0x49, 0x46, 0x00, // "JFIF\0"
+        0x01, 0x01, // Version
+        0x00, // Units
+        0x00, 0x01, 0x00, 0x01, // X/Y density
+        0x00, 0x00, // No thumbnail
+        0xFF, 0xD9, // EOI marker
+    ];
+
+    let image_stream = Stream::new(
+        dictionary! {
+            "Type" => "XObject",
+            "Subtype" => "Image",
+            "Width" => 2i64,
+            "Height" => 2i64,
+            "ColorSpace" => "DeviceRGB",
+            "BitsPerComponent" => 8i64,
+            "Filter" => "DCTDecode",
+        },
+        jpeg_data,
+    );
+    let image_id = doc.add_object(Object::Stream(image_stream));
+
+    let page_content = b"q 200 0 0 150 100 300 cm /Im0 Do Q";
+    let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+    let content_id = doc.add_object(Object::Stream(page_stream));
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        "Contents" => content_id,
+        "Resources" => Object::Dictionary(dictionary! {
+            "XObject" => Object::Dictionary(dictionary! {
+                "Im0" => image_id,
+            }),
+        }),
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
 /// Create a PDF with a page that has direct text content (no XObjects).
 #[cfg(test)]
 fn create_test_pdf_with_text_content() -> Vec<u8> {
@@ -2277,5 +2511,65 @@ mod tests {
         assert!(meta.is_empty());
         assert_eq!(meta.title, None);
         assert_eq!(meta.author, None);
+    }
+
+    // --- extract_image_content() tests ---
+
+    #[test]
+    fn extract_image_content_raw_data() {
+        let pdf_bytes = create_test_pdf_with_image_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        let content = LopdfBackend::extract_image_content(&doc, &page, "Im0").unwrap();
+
+        assert_eq!(content.format, pdfplumber_core::ImageFormat::Raw);
+        assert_eq!(content.width, 2);
+        assert_eq!(content.height, 2);
+        // 2x2 RGB image = 12 bytes
+        assert_eq!(content.data.len(), 12);
+        assert_eq!(
+            content.data,
+            vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]
+        );
+    }
+
+    #[test]
+    fn extract_image_content_not_found() {
+        let pdf_bytes = create_test_pdf_with_image_xobject();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        let result = LopdfBackend::extract_image_content(&doc, &page, "NonExistent");
+        assert!(result.is_err());
+        let err_msg = result.unwrap_err().to_string();
+        assert!(err_msg.contains("not found"));
+    }
+
+    #[test]
+    fn extract_image_content_jpeg() {
+        // Create a PDF with a JPEG (DCTDecode) image
+        let pdf_bytes = create_test_pdf_with_jpeg_image();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        let content = LopdfBackend::extract_image_content(&doc, &page, "Im0").unwrap();
+
+        assert_eq!(content.format, pdfplumber_core::ImageFormat::Jpeg);
+        assert_eq!(content.width, 2);
+        assert_eq!(content.height, 2);
+        // JPEG data should be returned as-is
+        assert!(content.data.starts_with(&[0xFF, 0xD8]));
+    }
+
+    #[test]
+    fn extract_image_content_no_xobject_resources() {
+        // A page without XObject resources
+        let pdf_bytes = create_test_pdf_with_text_content();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        let result = LopdfBackend::extract_image_content(&doc, &page, "Im0");
+        assert!(result.is_err());
     }
 }
