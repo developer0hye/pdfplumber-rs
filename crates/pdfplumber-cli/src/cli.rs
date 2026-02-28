@@ -60,6 +60,14 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Horizontal tolerance for word grouping (default: 3.0)
+        #[arg(long, default_value_t = 3.0)]
+        x_tolerance: f64,
+
+        /// Vertical tolerance for word grouping (default: 3.0)
+        #[arg(long, default_value_t = 3.0)]
+        y_tolerance: f64,
     },
 
     /// Detect and extract tables from PDF pages
@@ -180,6 +188,46 @@ mod tests {
         match cli.command {
             Commands::Words { ref file, .. } => {
                 assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Words subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_words_with_tolerance_options() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "words",
+            "test.pdf",
+            "--x-tolerance",
+            "5.0",
+            "--y-tolerance",
+            "2.5",
+        ]);
+        match cli.command {
+            Commands::Words {
+                x_tolerance,
+                y_tolerance,
+                ..
+            } => {
+                assert!((x_tolerance - 5.0).abs() < f64::EPSILON);
+                assert!((y_tolerance - 2.5).abs() < f64::EPSILON);
+            }
+            _ => panic!("expected Words subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_words_default_tolerances() {
+        let cli = Cli::parse_from(["pdfplumber", "words", "test.pdf"]);
+        match cli.command {
+            Commands::Words {
+                x_tolerance,
+                y_tolerance,
+                ..
+            } => {
+                assert!((x_tolerance - 3.0).abs() < f64::EPSILON);
+                assert!((y_tolerance - 3.0).abs() < f64::EPSILON);
             }
             _ => panic!("expected Words subcommand"),
         }
