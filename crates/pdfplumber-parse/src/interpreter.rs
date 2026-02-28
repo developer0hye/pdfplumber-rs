@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 use crate::cid_font::{
     CidFontMetrics, extract_cid_font_metrics, get_descendant_font, get_type0_encoding,
-    is_type0_font, parse_predefined_cmap_name,
+    is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
 };
 use crate::cmap::CMap;
 use crate::error::BackendError;
@@ -16,7 +16,9 @@ use crate::font_metrics::{FontMetrics, extract_font_metrics};
 use crate::handler::{CharEvent, ContentHandler, ImageEvent};
 use crate::interpreter_state::InterpreterState;
 use crate::lopdf_backend::object_to_f64;
-use crate::text_renderer::{TjElement, show_string, show_string_with_positioning};
+use crate::text_renderer::{
+    TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
+};
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
 use pdfplumber_core::ExtractOptions;
@@ -355,12 +357,12 @@ fn load_font_if_needed(
                 // Extract ToUnicode CMap if present
                 let cmap = extract_tounicode_cmap(doc, fd);
 
-                let base_name = fd
+                let raw_base_name = fd
                     .get(b"BaseFont")
                     .ok()
                     .and_then(|o| o.as_name_str().ok())
-                    .unwrap_or(font_name)
-                    .to_string();
+                    .unwrap_or(font_name);
+                let base_name = strip_subset_prefix(raw_base_name).to_string();
 
                 (metrics, cmap, base_name, cid_met, true, wm)
             } else {
@@ -368,12 +370,12 @@ fn load_font_if_needed(
                 let metrics = extract_font_metrics(doc, fd)
                     .unwrap_or_else(|_| FontMetrics::default_metrics());
                 let cmap = extract_tounicode_cmap(doc, fd);
-                let base_name = fd
+                let raw_base_name = fd
                     .get(b"BaseFont")
                     .ok()
                     .and_then(|o| o.as_name_str().ok())
-                    .unwrap_or(font_name)
-                    .to_string();
+                    .unwrap_or(font_name);
+                let base_name = strip_subset_prefix(raw_base_name).to_string();
 
                 (metrics, cmap, base_name, None, false, 0)
             }
@@ -463,7 +465,12 @@ fn handle_tj(
 
     let cached = font_cache.get(&tstate.font_name);
     let width_fn = get_width_fn(cached);
-    let raw_chars = show_string(tstate, string_bytes, &*width_fn);
+    let is_cid = cached.is_some_and(|c| c.is_cid_font);
+    let raw_chars = if is_cid {
+        show_string_cid(tstate, string_bytes, &*width_fn)
+    } else {
+        show_string(tstate, string_bytes, &*width_fn)
+    };
 
     emit_char_events(raw_chars, tstate, gstate, handler, cached);
 }
@@ -493,7 +500,8 @@ fn handle_tj_array(
 
     let cached = font_cache.get(&tstate.font_name);
     let width_fn = get_width_fn(cached);
-    let raw_chars = show_string_with_positioning(tstate, &elements, &*width_fn);
+    let is_cid = cached.is_some_and(|c| c.is_cid_font);
+    let raw_chars = show_string_with_positioning_mode(tstate, &elements, &*width_fn, is_cid);
 
     emit_char_events(raw_chars, tstate, gstate, handler, cached);
 }
@@ -960,5 +968,258 @@ mod tests {
             gstate.graphics_state().fill_color,
             pdfplumber_core::Color::Gray(0.5)
         );
+    }
+
+    // --- CID font / Identity-H tests ---
+
+    /// Build a resources dictionary containing a Type0 font with Identity-H encoding.
+    fn make_cid_font_resources(doc: &mut lopdf::Document) -> lopdf::Dictionary {
+        use lopdf::{Object, Stream, dictionary};
+
+        // ToUnicode CMap: map 0x4E2D → U+4E2D (中), 0x6587 → U+6587 (文)
+        let tounicode_data = b"\
+            /CIDInit /ProcSet findresource begin\n\
+            12 dict begin\n\
+            begincmap\n\
+            /CMapName /Adobe-Identity-UCS def\n\
+            /CMapType 2 def\n\
+            1 begincodespacerange\n\
+            <0000> <FFFF>\n\
+            endcodespacerange\n\
+            2 beginbfchar\n\
+            <4E2D> <4E2D>\n\
+            <6587> <6587>\n\
+            endbfchar\n\
+            endcmap\n";
+        let tounicode_stream = Stream::new(dictionary! {}, tounicode_data.to_vec());
+        let tounicode_id = doc.add_object(Object::Stream(tounicode_stream));
+
+        // CIDFont dictionary
+        let cid_font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "CIDFontType2",
+            "BaseFont" => "MSGothic",
+            "DW" => Object::Integer(1000),
+            "CIDToGIDMap" => "Identity",
+            "CIDSystemInfo" => Object::Dictionary(dictionary! {
+                "Registry" => Object::String("Adobe".as_bytes().to_vec(), lopdf::StringFormat::Literal),
+                "Ordering" => Object::String("Identity".as_bytes().to_vec(), lopdf::StringFormat::Literal),
+                "Supplement" => Object::Integer(0),
+            }),
+        };
+        let cid_font_id = doc.add_object(Object::Dictionary(cid_font_dict));
+
+        // Type0 font dictionary with Identity-H encoding
+        let type0_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "MSGothic",
+            "Encoding" => "Identity-H",
+            "DescendantFonts" => Object::Array(vec![Object::Reference(cid_font_id)]),
+            "ToUnicode" => Object::Reference(tounicode_id),
+        };
+        let type0_id = doc.add_object(Object::Dictionary(type0_dict));
+
+        // Resources with Font entry
+        dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(type0_id),
+            }),
+        }
+    }
+
+    #[test]
+    fn interpret_cid_font_identity_h_two_byte_codes() {
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_cid_font_resources(&mut doc);
+
+        // Content stream: use CID font F1 and show 2-byte character codes
+        // 0x4E2D = 中, 0x6587 = 文
+        let stream = b"BT /F1 12 Tf <4E2D6587> Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // Should produce 2 characters (2-byte codes), not 4 (1-byte)
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].char_code, 0x4E2D);
+        assert_eq!(handler.chars[1].char_code, 0x6587);
+        // Unicode should be resolved via ToUnicode CMap
+        assert_eq!(handler.chars[0].unicode, Some("中".to_string()));
+        assert_eq!(handler.chars[1].unicode, Some("文".to_string()));
+        assert_eq!(handler.chars[0].font_name, "MSGothic");
+    }
+
+    #[test]
+    fn interpret_cid_font_tj_array_two_byte_codes() {
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_cid_font_resources(&mut doc);
+
+        // TJ array with 2-byte CID strings and adjustments
+        let stream = b"BT /F1 12 Tf [<4E2D> -100 <6587>] TJ ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].char_code, 0x4E2D);
+        assert_eq!(handler.chars[1].char_code, 0x6587);
+    }
+
+    #[test]
+    fn interpret_subset_font_name_stripped() {
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        use lopdf::{Object, Stream, dictionary};
+
+        // Create a ToUnicode CMap
+        let tounicode_data = b"\
+            beginbfchar\n\
+            <4E2D> <4E2D>\n\
+            endbfchar\n";
+        let tounicode_stream = Stream::new(dictionary! {}, tounicode_data.to_vec());
+        let tounicode_id = doc.add_object(Object::Stream(tounicode_stream));
+
+        // CIDFont with subset prefix
+        let cid_font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "CIDFontType2",
+            "BaseFont" => "ABCDEF+MSGothic",
+            "DW" => Object::Integer(1000),
+            "CIDToGIDMap" => "Identity",
+        };
+        let cid_font_id = doc.add_object(Object::Dictionary(cid_font_dict));
+
+        // Type0 font with subset prefix in BaseFont
+        let type0_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "ABCDEF+MSGothic",
+            "Encoding" => "Identity-H",
+            "DescendantFonts" => Object::Array(vec![Object::Reference(cid_font_id)]),
+            "ToUnicode" => Object::Reference(tounicode_id),
+        };
+        let type0_id = doc.add_object(Object::Dictionary(type0_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(type0_id),
+            }),
+        };
+
+        let stream = b"BT /F1 12 Tf <4E2D> Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        // Subset prefix should be stripped
+        assert_eq!(handler.chars[0].font_name, "MSGothic");
+    }
+
+    /// Build resources for Identity-V (vertical writing mode).
+    fn make_cid_font_resources_identity_v(doc: &mut lopdf::Document) -> lopdf::Dictionary {
+        use lopdf::{Object, Stream, dictionary};
+
+        let tounicode_data = b"\
+            beginbfchar\n\
+            <4E2D> <4E2D>\n\
+            endbfchar\n";
+        let tounicode_stream = Stream::new(dictionary! {}, tounicode_data.to_vec());
+        let tounicode_id = doc.add_object(Object::Stream(tounicode_stream));
+
+        let cid_font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "CIDFontType2",
+            "BaseFont" => "MSGothic",
+            "DW" => Object::Integer(1000),
+            "CIDToGIDMap" => "Identity",
+        };
+        let cid_font_id = doc.add_object(Object::Dictionary(cid_font_dict));
+
+        let type0_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "MSGothic",
+            "Encoding" => "Identity-V",
+            "DescendantFonts" => Object::Array(vec![Object::Reference(cid_font_id)]),
+            "ToUnicode" => Object::Reference(tounicode_id),
+        };
+        let type0_id = doc.add_object(Object::Dictionary(type0_dict));
+
+        dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(type0_id),
+            }),
+        }
+    }
+
+    #[test]
+    fn interpret_cid_font_identity_v_detected() {
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_cid_font_resources_identity_v(&mut doc);
+
+        // Show a CID character with Identity-V encoding
+        let stream = b"BT /F1 12 Tf <4E2D> Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // Should still produce characters (Identity-V uses same CID=charcode mapping)
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].char_code, 0x4E2D);
+        assert_eq!(handler.chars[0].unicode, Some("中".to_string()));
     }
 }
