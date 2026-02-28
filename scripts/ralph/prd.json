@@ -43,7 +43,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 73,
       "notes": "ExtGState infrastructure exists — only interpreter wiring needed. Common in real-world PDFs for setting transparency and line styles."
     }
