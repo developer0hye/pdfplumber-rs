@@ -14,6 +14,7 @@
 - **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
 - **ExtractOptions pattern**: Document-level extraction settings go in ExtractOptions (set at Pdf::open() time, used during Pdf::page()). For text processing options (normalization, etc.), add field to ExtractOptions, apply in Pdf::page() after char creation. CLI: add separate clap ValueEnum arg type with conversion method, use open_pdf_with_norm() helper.
 - **Filter pattern**: Custom filtering follows: add PageObject enum in pdfplumber-core/page_object.rs → add Page::filter() and CroppedPage::filter() accepting Fn(&PageObject) -> bool → return CroppedPage with filtered objects (no coordinate adjustment). FilteredPage is a type alias for CroppedPage. Uses from_page_data() for Page, direct struct construction for CroppedPage.
+- **SVG overlay pattern**: SvgRenderer is a builder: `new(w,h)` → `draw_chars/rects/lines/edges/tables(&mut self, items, &DrawStyle)` → `to_svg(&SvgOptions) -> String`. DrawStyle has `fill`, `stroke`, `stroke_width`, `opacity` with per-object-type defaults. Elements accumulate in `Vec<String>` and render between page boundary and `</svg>`. No external SVG library needed.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -21,4 +22,29 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
 
 # Ralph Progress Log - Phase 7: Differentiation - Visual Debugging (SVG), Table Quality, Image Content, Encryption
 Started: 2026년  2월 28일 토요일 17시 04분 35초 KST
+---
+
+## 2026-02-28 - US-067 - Visual debugging - SVG page rendering foundation
+- Implemented `SvgRenderer` struct and `SvgOptions` in `pdfplumber-core/src/svg.rs`
+- Added `Page::to_svg(options)` convenience method in `pdfplumber/src/page.rs`
+- Re-exported `SvgRenderer` and `SvgOptions` from facade crate
+- Files changed: `crates/pdfplumber-core/src/svg.rs` (new), `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber/src/page.rs`
+- Dependencies added: none (pure string generation)
+- **Learnings for future iterations:**
+  - BBox fields (`x0`, `top`, `x1`, `bottom`) are public fields, not methods. `width()` and `height()` are methods.
+  - The `#![deny(missing_docs)]` lint is active on both `pdfplumber-core` and `pdfplumber` crates — all public items need doc comments.
+  - SVG pattern: `SvgRenderer::new(width, height)` → `renderer.to_svg(&SvgOptions)` → String. No external SVG library needed.
+---
+
+## 2026-02-28 - US-068 - Visual debugging - object overlay drawing
+- Added `DrawStyle` struct with `fill`, `stroke`, `stroke_width`, `opacity` fields and default style constructors (`chars_default`, `lines_default`, `rects_default`, `edges_default`, `tables_default`)
+- Added `draw_chars()`, `draw_rects()`, `draw_lines()`, `draw_edges()`, `draw_tables()` methods to `SvgRenderer` (accumulates SVG elements rendered by `to_svg()`)
+- Added `pdfplumber debug <FILE> --output <file.svg>` CLI subcommand that generates SVG with all extracted objects overlaid
+- Multi-page support: appends `_pageN` to output filename when multiple pages specified
+- Files changed: `crates/pdfplumber-core/src/svg.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber-cli/src/cli.rs`, `crates/pdfplumber-cli/src/main.rs`, `crates/pdfplumber-cli/src/debug_cmd.rs` (new)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - SvgRenderer uses builder pattern: accumulate elements via `draw_*` methods, then `to_svg()` renders header + page boundary + accumulated elements + close.
+  - `DrawStyle::to_svg_style()` generates inline CSS `style` attribute. Opacity=1.0 is omitted for cleaner SVG.
+  - CLI debug subcommand doesn't need output format variants (text/json/csv) — it only outputs SVG files.
 ---

@@ -86,7 +86,7 @@ pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, Paint
 pub use path::{Path, PathBuilder, PathSegment};
 pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
-pub use svg::{SvgOptions, SvgRenderer};
+pub use svg::{DrawStyle, SvgOptions, SvgRenderer};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableSettings,
     cells_to_tables, edges_to_intersections, explicit_lines_to_edges, extract_text_for_cells,
