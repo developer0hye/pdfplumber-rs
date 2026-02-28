@@ -1,5 +1,7 @@
 //! Top-level PDF document type for opening and extracting content.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line,
@@ -67,6 +69,10 @@ pub struct Pdf {
     metadata: DocumentMetadata,
     /// Cached document bookmarks (outline / table of contents).
     bookmarks: Vec<Bookmark>,
+    /// Accumulated total objects extracted across all pages (for max_total_objects budget).
+    total_objects: AtomicUsize,
+    /// Accumulated total image bytes extracted across all pages (for max_total_image_bytes budget).
+    total_image_bytes: AtomicUsize,
 }
 
 /// Internal handler that collects content stream events during interpretation.
@@ -156,6 +162,18 @@ impl Pdf {
     /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted.
     /// Returns [`PdfError`] if the bytes are not a valid PDF document.
     pub fn open(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
+        // Check max_input_bytes before parsing
+        if let Some(ref opts) = options {
+            if let Some(max_bytes) = opts.max_input_bytes {
+                if bytes.len() > max_bytes {
+                    return Err(PdfError::ResourceLimitExceeded {
+                        limit_name: "max_input_bytes".to_string(),
+                        limit_value: max_bytes,
+                        actual_value: bytes.len(),
+                    });
+                }
+            }
+        }
         let doc = LopdfBackend::open(bytes).map_err(PdfError::from)?;
         Self::from_doc(doc, options)
     }
@@ -242,6 +260,18 @@ impl Pdf {
 
         // Cache page heights for doctop calculation
         let page_count = LopdfBackend::page_count(&doc);
+
+        // Check max_pages before processing
+        if let Some(max_pages) = options.max_pages {
+            if page_count > max_pages {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_pages".to_string(),
+                    limit_value: max_pages,
+                    actual_value: page_count,
+                });
+            }
+        }
+
         let mut page_heights = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
@@ -268,6 +298,8 @@ impl Pdf {
             raw_page_heights,
             metadata,
             bookmarks,
+            total_objects: AtomicUsize::new(0),
+            total_image_bytes: AtomicUsize::new(0),
         })
     }
 
@@ -564,6 +596,41 @@ impl Pdf {
                 Some(page_elements)
             }
         };
+
+        // Check document-level resource budgets
+        let page_object_count =
+            chars.len() + all_lines.len() + all_rects.len() + all_curves.len() + images.len();
+        if let Some(max_total) = self.options.max_total_objects {
+            let new_total = self
+                .total_objects
+                .fetch_add(page_object_count, Ordering::Relaxed)
+                + page_object_count;
+            if new_total > max_total {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_total_objects".to_string(),
+                    limit_value: max_total,
+                    actual_value: new_total,
+                });
+            }
+        }
+
+        let page_image_bytes: usize = images
+            .iter()
+            .filter_map(|img| img.data.as_ref().map(|d| d.len()))
+            .sum();
+        if let Some(max_img_bytes) = self.options.max_total_image_bytes {
+            let new_total = self
+                .total_image_bytes
+                .fetch_add(page_image_bytes, Ordering::Relaxed)
+                + page_image_bytes;
+            if new_total > max_img_bytes {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_total_image_bytes".to_string(),
+                    limit_value: max_img_bytes,
+                    actual_value: new_total,
+                });
+            }
+        }
 
         Ok(Page::from_extraction(
             index,

@@ -105,7 +105,11 @@ mod tests {
 
     #[test]
     fn backend_error_to_pdf_error_core_passthrough() {
-        let original = PdfError::ResourceLimitExceeded("too large".to_string());
+        let original = PdfError::ResourceLimitExceeded {
+            limit_name: "max_input_bytes".to_string(),
+            limit_value: 1024,
+            actual_value: 2048,
+        };
         let backend = BackendError::Core(original.clone());
         let pdf_err: PdfError = backend.into();
         assert_eq!(pdf_err, original);
