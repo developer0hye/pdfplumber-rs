@@ -26,23 +26,27 @@ fn main() {
             ref format,
             layout,
             ref unicode_norm,
+            ref password,
         } => text_cmd::run(
             file,
             pages.as_deref(),
             format,
             layout,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
+            password.as_deref(),
         ),
         cli::Commands::Chars {
             ref file,
             ref pages,
             ref format,
             ref unicode_norm,
+            ref password,
         } => chars_cmd::run(
             file,
             pages.as_deref(),
             format,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
+            password.as_deref(),
         ),
         cli::Commands::Words {
             ref file,
@@ -51,6 +55,7 @@ fn main() {
             x_tolerance,
             y_tolerance,
             ref unicode_norm,
+            ref password,
         } => words_cmd::run(
             file,
             pages.as_deref(),
@@ -58,6 +63,7 @@ fn main() {
             x_tolerance,
             y_tolerance,
             unicode_norm.as_ref().map(|n| n.to_unicode_norm()),
+            password.as_deref(),
         ),
         cli::Commands::Tables {
             ref file,
@@ -67,6 +73,7 @@ fn main() {
             snap_tolerance,
             join_tolerance,
             text_tolerance,
+            ref password,
         } => tables_cmd::run(
             file,
             pages.as_deref(),
@@ -75,32 +82,38 @@ fn main() {
             snap_tolerance,
             join_tolerance,
             text_tolerance,
+            password.as_deref(),
         ),
         cli::Commands::Info {
             ref file,
             ref pages,
             ref format,
-        } => info_cmd::run(file, pages.as_deref(), format),
+            ref password,
+        } => info_cmd::run(file, pages.as_deref(), format, password.as_deref()),
         cli::Commands::Annots {
             ref file,
             ref pages,
             ref format,
-        } => annots_cmd::run(file, pages.as_deref(), format),
+            ref password,
+        } => annots_cmd::run(file, pages.as_deref(), format, password.as_deref()),
         cli::Commands::Links {
             ref file,
             ref pages,
             ref format,
-        } => links_cmd::run(file, pages.as_deref(), format),
+            ref password,
+        } => links_cmd::run(file, pages.as_deref(), format, password.as_deref()),
         cli::Commands::Bookmarks {
             ref file,
             ref format,
-        } => bookmarks_cmd::run(file, format),
+            ref password,
+        } => bookmarks_cmd::run(file, format, password.as_deref()),
         cli::Commands::Debug {
             ref file,
             ref pages,
             ref output,
             tables,
-        } => debug_cmd::run(file, pages.as_deref(), output, tables),
+            ref password,
+        } => debug_cmd::run(file, pages.as_deref(), output, tables, password.as_deref()),
         cli::Commands::Search {
             ref file,
             ref pattern,
@@ -108,6 +121,7 @@ fn main() {
             case_insensitive,
             no_regex,
             ref format,
+            ref password,
         } => search_cmd::run(
             file,
             pattern,
@@ -115,6 +129,7 @@ fn main() {
             case_insensitive,
             no_regex,
             format,
+            password.as_deref(),
         ),
         cli::Commands::Images {
             ref file,
@@ -122,12 +137,14 @@ fn main() {
             ref format,
             extract,
             ref output_dir,
+            ref password,
         } => images_cmd::run(
             file,
             pages.as_deref(),
             format,
             extract,
             output_dir.as_deref(),
+            password.as_deref(),
         ),
     };
 

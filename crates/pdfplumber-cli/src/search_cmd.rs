@@ -3,7 +3,7 @@ use std::path::Path;
 use pdfplumber::SearchOptions;
 
 use crate::cli::OutputFormat;
-use crate::shared::{ProgressReporter, csv_escape, open_pdf, resolve_pages};
+use crate::shared::{ProgressReporter, csv_escape, open_pdf_full, resolve_pages};
 
 pub fn run(
     file: &Path,
@@ -12,8 +12,9 @@ pub fn run(
     case_insensitive: bool,
     no_regex: bool,
     format: &OutputFormat,
+    password: Option<&str>,
 ) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+    let pdf = open_pdf_full(file, None, password)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let progress = ProgressReporter::new(page_indices.len());
 

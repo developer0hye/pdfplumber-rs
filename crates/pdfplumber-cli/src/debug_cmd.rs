@@ -3,10 +3,16 @@ use std::path::Path;
 
 use pdfplumber::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer, TableSettings};
 
-use crate::shared::{open_pdf, resolve_pages};
+use crate::shared::{open_pdf_full, resolve_pages};
 
-pub fn run(file: &Path, pages: Option<&str>, output: &Path, tables: bool) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+pub fn run(
+    file: &Path,
+    pages: Option<&str>,
+    output: &Path,
+    tables: bool,
+    password: Option<&str>,
+) -> Result<(), i32> {
+    let pdf = open_pdf_full(file, None, password)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
 
     // Generate SVG for each page; if multiple pages, append page number to filename

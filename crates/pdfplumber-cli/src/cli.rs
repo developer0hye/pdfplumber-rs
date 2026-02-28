@@ -34,6 +34,10 @@ pub enum Commands {
         /// Apply Unicode normalization to extracted text
         #[arg(long, value_enum)]
         unicode_norm: Option<UnicodeNormArg>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Extract individual characters with coordinates
@@ -53,6 +57,10 @@ pub enum Commands {
         /// Apply Unicode normalization to extracted text
         #[arg(long, value_enum)]
         unicode_norm: Option<UnicodeNormArg>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Extract words with bounding box coordinates
@@ -80,6 +88,10 @@ pub enum Commands {
         /// Apply Unicode normalization to extracted text
         #[arg(long, value_enum)]
         unicode_norm: Option<UnicodeNormArg>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Detect and extract tables from PDF pages
@@ -111,6 +123,10 @@ pub enum Commands {
         /// Text tolerance for assigning text to cells (default: 3.0)
         #[arg(long, default_value_t = 3.0)]
         text_tolerance: f64,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Display PDF metadata and page information
@@ -126,6 +142,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = TextFormat::Text)]
         format: TextFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Extract annotations from PDF pages
@@ -141,6 +161,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Extract hyperlinks from PDF pages
@@ -156,6 +180,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Extract bookmarks (outline / table of contents) from PDF
@@ -167,6 +195,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = TextFormat::Text)]
         format: TextFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Generate debug SVG with object overlays
@@ -186,6 +218,10 @@ pub enum Commands {
         /// Show table detection pipeline (edges, intersections, cells, tables)
         #[arg(long)]
         tables: bool,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// Search for text patterns with position information
@@ -213,6 +249,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 
     /// List or extract images from PDF pages
@@ -236,6 +276,10 @@ pub enum Commands {
         /// Output directory for extracted images (default: current directory)
         #[arg(long, value_name = "DIR")]
         output_dir: Option<PathBuf>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
     },
 }
 
@@ -460,6 +504,7 @@ mod tests {
                 snap_tolerance,
                 join_tolerance,
                 text_tolerance,
+                ..
             } => {
                 assert_eq!(file, &PathBuf::from("doc.pdf"));
                 assert_eq!(pages.as_deref(), Some("2-4"));
@@ -783,6 +828,7 @@ mod tests {
                 ref pages,
                 ref output,
                 tables,
+                ..
             } => {
                 assert_eq!(file, &PathBuf::from("test.pdf"));
                 assert!(pages.is_none());
@@ -918,6 +964,70 @@ mod tests {
                 assert!(matches!(format, OutputFormat::Text));
             }
             _ => panic!("expected Images subcommand"),
+        }
+    }
+
+    // --- Password flag tests ---
+
+    #[test]
+    fn parse_text_with_password() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf", "--password", "secret123"]);
+        match cli.command {
+            Commands::Text { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("secret123"));
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_text_without_password() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf"]);
+        match cli.command {
+            Commands::Text { ref password, .. } => {
+                assert!(password.is_none());
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_info_with_password() {
+        let cli = Cli::parse_from(["pdfplumber", "info", "test.pdf", "--password", "mypass"]);
+        match cli.command {
+            Commands::Info { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("mypass"));
+            }
+            _ => panic!("expected Info subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_tables_with_password() {
+        let cli = Cli::parse_from(["pdfplumber", "tables", "test.pdf", "--password", "pw"]);
+        match cli.command {
+            Commands::Tables { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("pw"));
+            }
+            _ => panic!("expected Tables subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_search_with_password() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "search",
+            "test.pdf",
+            "pattern",
+            "--password",
+            "pw",
+        ]);
+        match cli.command {
+            Commands::Search { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("pw"));
+            }
+            _ => panic!("expected Search subcommand"),
         }
     }
 }

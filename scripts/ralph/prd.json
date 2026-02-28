@@ -118,7 +118,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "lopdf has some encryption support. Check lopdf::Document::decrypt() capabilities. May need to add decryption crate as dependency if lopdf support is insufficient."
     }
   ]

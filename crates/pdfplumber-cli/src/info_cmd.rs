@@ -3,7 +3,7 @@ use std::path::Path;
 use pdfplumber::{BBox, TableSettings};
 
 use crate::cli::TextFormat;
-use crate::shared::{ProgressReporter, open_pdf, resolve_pages};
+use crate::shared::{ProgressReporter, open_pdf_full, resolve_pages};
 
 fn format_bbox(b: &BBox) -> String {
     format!("[{:.2}, {:.2}, {:.2}, {:.2}]", b.x0, b.top, b.x1, b.bottom)
@@ -13,8 +13,13 @@ fn bbox_to_json(b: &BBox) -> serde_json::Value {
     serde_json::json!([b.x0, b.top, b.x1, b.bottom])
 }
 
-pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+pub fn run(
+    file: &Path,
+    pages: Option<&str>,
+    format: &TextFormat,
+    password: Option<&str>,
+) -> Result<(), i32> {
+    let pdf = open_pdf_full(file, None, password)?;
     let page_count = pdf.page_count();
     let page_indices = resolve_pages(pages, page_count)?;
     let progress = ProgressReporter::new(page_indices.len());

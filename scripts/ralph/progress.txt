@@ -17,6 +17,7 @@
 - **SVG overlay pattern**: SvgRenderer is a builder: `new(w,h)` → `draw_chars/rects/lines/edges/tables/intersections/cells(&mut self, items, &DrawStyle)` → `to_svg(&SvgOptions) -> String`. DrawStyle has `fill`, `stroke`, `stroke_width`, `opacity` with per-object-type defaults. Elements accumulate in `Vec<String>` and render between page boundary and `</svg>`. No external SVG library needed.
 - **Debug pipeline pattern**: For exposing intermediate pipeline results, add a `*_debug()` method returning a struct with all stages. `TableFinder::find_tables_debug()` returns `TableFinderDebug { edges, intersections, cells, tables }`. `Page::debug_tablefinder_svg()` runs the pipeline and renders each stage with distinct styles via `SvgDebugOptions` toggle flags.
 - **Image content pattern**: Image content extraction follows: add `extract_image_content(doc, page, name)` to PdfBackend trait → implement in LopdfBackend (get XObject stream, check /Filter, decode accordingly) → add `Pdf::extract_image_content()` and `Pdf::extract_images_with_content()` facade methods. Filter detection: DCTDecode→Jpeg (raw bytes), FlateDecode→Raw (decompressed), JBIG2Decode→Jbig2, CCITTFaxDecode→CcittFax, no filter→Raw. Chained filters use lopdf `decompressed_content()`.
+- **Encryption pattern**: Encrypted PDF support follows: add `open_with_password(bytes, password)` to PdfBackend trait → implement in LopdfBackend (load → check `is_encrypted()` → call `decrypt(password)`) → add `Pdf::open_with_password()` and `Pdf::open_file_with_password()` facade methods. `open()` without password returns `PdfError::PasswordRequired` for encrypted PDFs. Wrong password returns `PdfError::InvalidPassword`. Unencrypted PDFs ignore the password. CLI: add `--password` flag to all subcommands, pass through `open_pdf_full(file, unicode_norm, password)`. Test encrypted PDFs created programmatically using RC4 + MD5 (PAD_BYTES padding, Algorithm 3.2-3.4 from PDF spec).
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -106,4 +107,25 @@ Started: 2026년  2월 28일 토요일 17시 04분 35초 KST
   - The `resolve_ref()` helper was duplicated from interpreter.rs into lopdf_backend.rs since it's a private function. Consider making it a shared utility.
   - `Pdf::extract_images_with_content()` silently skips images that can't be extracted (e.g., inline images) rather than erroring. This is intentional for robustness.
   - Filter detection: PDF image XObjects store filters as either a single `/Name` or an array of names. Both cases need handling.
+---
+
+## 2026-02-28 - US-072 - Encrypted PDF support - password-based decryption
+- Added `PdfError::PasswordRequired` and `PdfError::InvalidPassword` error variants to `pdfplumber-core/src/error.rs`
+- Added `open_with_password(bytes, password)` method to `PdfBackend` trait in `pdfplumber-parse/src/backend.rs`
+- Implemented `open_with_password` in `LopdfBackend`: loads doc → checks `is_encrypted()` → calls `document.decrypt(password)` → maps errors to `PasswordRequired`/`InvalidPassword`
+- Modified `LopdfBackend::open()` to return `PasswordRequired` when encrypted PDF opened without password
+- Added `Pdf::open_with_password()` and `Pdf::open_file_with_password()` facade methods; refactored shared logic into `from_doc()`
+- Added `--password` flag to all 11 CLI subcommands (Text, Chars, Words, Tables, Info, Annots, Links, Bookmarks, Debug, Search, Images)
+- Replaced `open_pdf`/`open_pdf_with_norm` with unified `open_pdf_full(file, unicode_norm, password)` in CLI shared.rs
+- Encryption support: RC4 40-bit (V=1, R=2) and 128-bit (V=2, R=3) via lopdf's built-in `Document::decrypt()`
+- AES encryption (V=4/5) not supported by lopdf 0.34 — returns parse error
+- Files changed: `crates/pdfplumber-core/src/error.rs`, `crates/pdfplumber-parse/src/backend.rs`, `crates/pdfplumber-parse/src/lopdf_backend.rs`, `crates/pdfplumber-parse/Cargo.toml`, `crates/pdfplumber/src/pdf.rs`, `crates/pdfplumber/Cargo.toml`, `crates/pdfplumber-cli/src/cli.rs`, `crates/pdfplumber-cli/src/main.rs`, `crates/pdfplumber-cli/src/shared.rs`, `crates/pdfplumber-cli/src/text_cmd.rs`, `crates/pdfplumber-cli/src/chars_cmd.rs`, `crates/pdfplumber-cli/src/words_cmd.rs`, `crates/pdfplumber-cli/src/tables_cmd.rs`, `crates/pdfplumber-cli/src/info_cmd.rs`, `crates/pdfplumber-cli/src/annots_cmd.rs`, `crates/pdfplumber-cli/src/links_cmd.rs`, `crates/pdfplumber-cli/src/bookmarks_cmd.rs`, `crates/pdfplumber-cli/src/debug_cmd.rs`, `crates/pdfplumber-cli/src/search_cmd.rs`, `crates/pdfplumber-cli/src/images_cmd.rs`
+- Dependencies added: `md5 = "0.7"` as dev-dependency for pdfplumber-parse and pdfplumber (test-only, for creating encrypted test PDFs)
+- **Learnings for future iterations:**
+  - lopdf 0.34 supports RC4 encryption (V=1,2, R=2,3) but NOT AES (V=4,5). `Document::decrypt()` modifies the document in-place, decrypting all String/Stream objects and removing the /Encrypt entry from trailer.
+  - `Document::is_encrypted()` simply checks if `/Encrypt` key exists in trailer. After successful `decrypt()`, the key is removed.
+  - For creating encrypted test PDFs programmatically: use PDF spec Algorithms 3.2-3.4. Compute /O via MD5(padded_password)→RC4_encrypt(padded_user_pw). Compute encryption key via MD5(padded_pw + /O + /P + file_id). Compute /U via RC4(enc_key, PAD_BYTES). Encrypt objects with per-object key MD5(enc_key + obj_num_LE + gen_num_LE).
+  - RC4 is symmetric — `encrypt(key, data)` and `decrypt(key, data)` are the same operation. lopdf's `rc4` module is NOT public, so tests need their own RC4 implementation.
+  - Rust 2024 edition disallows explicit `ref mut` in pattern matching on mutable references — use bare identifiers instead.
+  - `Pdf` struct doesn't implement `Debug`, so `assert_eq!(result.unwrap_err(), ...)` fails — use `match` for error assertions instead.
 ---

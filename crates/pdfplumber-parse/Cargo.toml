@@ -13,3 +13,6 @@ categories = ["parser-implementations"]
 pdfplumber-core = { version = "0.1.0", path = "../pdfplumber-core" }
 lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
 thiserror = "2"
+
+[dev-dependencies]
+md5 = "0.7"
