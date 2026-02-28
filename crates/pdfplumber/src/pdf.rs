@@ -2,8 +2,8 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
-    ImageContent, ImageMetadata, PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm,
-    normalize_chars,
+    ImageContent, ImageMetadata, PdfError, SearchMatch, SearchOptions, StructElement, UnicodeNorm,
+    image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -489,6 +489,21 @@ impl Pdf {
             .filter(|f| f.page_index == Some(index))
             .collect();
 
+        // Extract structure tree for this page (filtered from document StructTreeRoot)
+        let all_struct_elements =
+            LopdfBackend::document_structure_tree(&self.doc).map_err(PdfError::from)?;
+        let structure_tree = if all_struct_elements.is_empty() {
+            None
+        } else {
+            let page_elements: Vec<StructElement> =
+                filter_struct_elements_for_page(&all_struct_elements, index);
+            if page_elements.is_empty() {
+                None
+            } else {
+                Some(page_elements)
+            }
+        };
+
         Ok(Page::from_extraction(
             index,
             geometry.width(),
@@ -504,8 +519,55 @@ impl Pdf {
             annotations,
             hyperlinks,
             form_fields,
+            structure_tree,
             handler.warnings,
         ))
+    }
+}
+
+/// Filter structure tree elements to only include those belonging to a specific page.
+///
+/// Recursively walks the structure tree and includes elements whose `page_index`
+/// matches the target page. Elements without a page_index are included if any of
+/// their children belong to the page.
+fn filter_struct_elements_for_page(
+    elements: &[StructElement],
+    page_index: usize,
+) -> Vec<StructElement> {
+    elements
+        .iter()
+        .filter_map(|elem| filter_struct_element(elem, page_index))
+        .collect()
+}
+
+/// Filter a single structure element and its children for a specific page.
+fn filter_struct_element(elem: &StructElement, page_index: usize) -> Option<StructElement> {
+    // Recursively filter children
+    let filtered_children = filter_struct_elements_for_page(&elem.children, page_index);
+
+    // Include this element if:
+    // 1. It explicitly belongs to this page, OR
+    // 2. It has no page_index but has children that belong to this page
+    let belongs_to_page = elem.page_index == Some(page_index);
+    let has_page_children = !filtered_children.is_empty();
+
+    if belongs_to_page || has_page_children {
+        Some(StructElement {
+            element_type: elem.element_type.clone(),
+            mcids: if belongs_to_page {
+                elem.mcids.clone()
+            } else {
+                Vec::new()
+            },
+            alt_text: elem.alt_text.clone(),
+            actual_text: elem.actual_text.clone(),
+            lang: elem.lang.clone(),
+            bbox: elem.bbox,
+            children: filtered_children,
+            page_index: elem.page_index,
+        })
+    } else {
+        None
     }
 }
 

@@ -8,7 +8,7 @@ use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, FieldType,
-    FormField, Hyperlink, ImageContent,
+    FormField, Hyperlink, ImageContent, StructElement,
 };
 
 /// A parsed PDF document backed by lopdf.
@@ -268,6 +268,10 @@ impl PdfBackend for LopdfBackend {
 
     fn document_form_fields(doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
         extract_document_form_fields(&doc.inner)
+    }
+
+    fn document_structure_tree(doc: &Self::Document) -> Result<Vec<StructElement>, Self::Error> {
+        extract_document_structure_tree(&doc.inner)
     }
 
     fn page_annotations(
@@ -1421,6 +1425,329 @@ fn resolve_field_page(
             None
         }
     })
+}
+
+/// Extract the document structure tree from `/StructTreeRoot`.
+///
+/// Walks the structure tree recursively, extracting element types, MCIDs,
+/// alt text, actual text, language, and child elements. Returns an empty
+/// Vec for untagged PDFs (no `/StructTreeRoot`).
+fn extract_document_structure_tree(
+    doc: &lopdf::Document,
+) -> Result<Vec<StructElement>, BackendError> {
+    // Get the catalog dictionary
+    let catalog_ref = match doc.trailer.get(b"Root") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let catalog = match catalog_ref {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => match obj.as_dict() {
+                Ok(dict) => dict,
+                Err(_) => return Ok(Vec::new()),
+            },
+            Err(_) => return Ok(Vec::new()),
+        },
+        lopdf::Object::Dictionary(dict) => dict,
+        _ => return Ok(Vec::new()),
+    };
+
+    // Get /StructTreeRoot dictionary
+    let struct_tree_obj = match catalog.get(b"StructTreeRoot") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()), // Not a tagged PDF
+    };
+
+    let struct_tree_obj = resolve_object(doc, struct_tree_obj);
+    let struct_tree_dict = match struct_tree_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    // Build page map for resolving page references
+    let pages_map = doc.get_pages();
+
+    // Get /K (kids) — the children of the root structure element
+    let kids_obj = match struct_tree_dict.get(b"K") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()), // Empty structure tree
+    };
+
+    let max_depth = 64; // Prevent circular references
+    let elements = parse_struct_kids(doc, kids_obj, 0, max_depth, &pages_map);
+    Ok(elements)
+}
+
+/// Parse the /K (kids) entry of a structure element, which can be:
+/// - An integer MCID
+/// - A reference to a structure element dictionary
+/// - A dictionary (MCR or structure element)
+/// - An array of the above
+fn parse_struct_kids(
+    doc: &lopdf::Document,
+    kids_obj: &lopdf::Object,
+    depth: usize,
+    max_depth: usize,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) -> Vec<StructElement> {
+    if depth >= max_depth {
+        return Vec::new();
+    }
+
+    let kids_obj = resolve_object(doc, kids_obj);
+
+    match kids_obj {
+        lopdf::Object::Array(arr) => {
+            let mut elements = Vec::new();
+            for item in arr {
+                let item = resolve_object(doc, item);
+                match item {
+                    lopdf::Object::Dictionary(dict) => {
+                        if let Some(elem) =
+                            parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
+                        {
+                            elements.push(elem);
+                        }
+                    }
+                    lopdf::Object::Reference(id) => {
+                        if let Ok(obj) = doc.get_object(*id) {
+                            if let Ok(dict) = obj.as_dict() {
+                                if let Some(elem) =
+                                    parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
+                                {
+                                    elements.push(elem);
+                                }
+                            }
+                        }
+                    }
+                    // Integer MCID at root level — create a minimal element
+                    lopdf::Object::Integer(_) => {
+                        // MCIDs at root level without a structure element are unusual;
+                        // typically they appear inside a structure element's /K
+                    }
+                    _ => {}
+                }
+            }
+            elements
+        }
+        lopdf::Object::Dictionary(dict) => {
+            if let Some(elem) = parse_struct_element(doc, dict, depth + 1, max_depth, pages_map) {
+                vec![elem]
+            } else {
+                Vec::new()
+            }
+        }
+        lopdf::Object::Reference(id) => {
+            if let Ok(obj) = doc.get_object(*id) {
+                if let Ok(dict) = obj.as_dict() {
+                    if let Some(elem) =
+                        parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
+                    {
+                        return vec![elem];
+                    }
+                }
+            }
+            Vec::new()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// Parse a single structure element dictionary.
+///
+/// Extracts /S (type), /K (kids/MCIDs), /Alt, /ActualText, /Lang,
+/// and recurses into children.
+fn parse_struct_element(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    depth: usize,
+    max_depth: usize,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) -> Option<StructElement> {
+    // Check if this is a marked-content reference (MCR) dictionary
+    // MCR dicts have /Type /MCR and /MCID, but no /S
+    if dict.get(b"MCID").is_ok() && dict.get(b"S").is_err() {
+        return None; // MCR, not a structure element
+    }
+
+    // Get /S (structure type) — required for structure elements
+    let element_type = match dict.get(b"S") {
+        Ok(obj) => {
+            let obj = resolve_object(doc, obj);
+            match obj {
+                lopdf::Object::Name(name) => String::from_utf8_lossy(name).into_owned(),
+                _ => return None,
+            }
+        }
+        Err(_) => return None, // Not a structure element without /S
+    };
+
+    // Extract MCIDs and children from /K
+    let mut mcids = Vec::new();
+    let mut children = Vec::new();
+
+    if let Ok(k_obj) = dict.get(b"K") {
+        collect_mcids_and_children(
+            doc,
+            k_obj,
+            &mut mcids,
+            &mut children,
+            depth,
+            max_depth,
+            pages_map,
+        );
+    }
+
+    // Extract /Alt (alternative text)
+    let alt_text = extract_string_entry(doc, dict, b"Alt");
+
+    // Extract /ActualText
+    let actual_text = extract_string_entry(doc, dict, b"ActualText");
+
+    // Extract /Lang
+    let lang = extract_string_entry(doc, dict, b"Lang");
+
+    // Extract page index from /Pg (page reference for this element)
+    let page_index = resolve_struct_page(doc, dict, pages_map);
+
+    Some(StructElement {
+        element_type,
+        mcids,
+        alt_text,
+        actual_text,
+        lang,
+        bbox: None, // PDF structure elements don't always have explicit bbox
+        children,
+        page_index,
+    })
+}
+
+/// Collect MCIDs and child structure elements from a /K entry.
+///
+/// /K can be:
+/// - An integer (MCID)
+/// - A dictionary (MCR with /MCID, or a child structure element)
+/// - A reference to a dictionary
+/// - An array of the above
+fn collect_mcids_and_children(
+    doc: &lopdf::Document,
+    k_obj: &lopdf::Object,
+    mcids: &mut Vec<u32>,
+    children: &mut Vec<StructElement>,
+    depth: usize,
+    max_depth: usize,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) {
+    if depth >= max_depth {
+        return;
+    }
+
+    let k_obj = resolve_object(doc, k_obj);
+
+    match k_obj {
+        lopdf::Object::Integer(n) => {
+            // Direct MCID
+            if *n >= 0 {
+                mcids.push(*n as u32);
+            }
+        }
+        lopdf::Object::Dictionary(dict) => {
+            process_k_dict(doc, dict, mcids, children, depth, max_depth, pages_map);
+        }
+        lopdf::Object::Reference(id) => {
+            if let Ok(obj) = doc.get_object(*id) {
+                match obj {
+                    lopdf::Object::Dictionary(dict) => {
+                        process_k_dict(doc, dict, mcids, children, depth, max_depth, pages_map);
+                    }
+                    lopdf::Object::Integer(n) => {
+                        if *n >= 0 {
+                            mcids.push(*n as u32);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        lopdf::Object::Array(arr) => {
+            for item in arr {
+                collect_mcids_and_children(doc, item, mcids, children, depth, max_depth, pages_map);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Process a dictionary found in /K — it can be an MCR (with /MCID) or a child struct element.
+fn process_k_dict(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    mcids: &mut Vec<u32>,
+    children: &mut Vec<StructElement>,
+    depth: usize,
+    max_depth: usize,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) {
+    // Check if this is a marked-content reference (MCR)
+    if let Ok(mcid_obj) = dict.get(b"MCID") {
+        let mcid_obj = resolve_object(doc, mcid_obj);
+        if let lopdf::Object::Integer(n) = mcid_obj {
+            if *n >= 0 {
+                mcids.push(*n as u32);
+            }
+        }
+        return;
+    }
+
+    // Otherwise, treat as a child structure element
+    if let Some(elem) = parse_struct_element(doc, dict, depth + 1, max_depth, pages_map) {
+        children.push(elem);
+    }
+}
+
+/// Resolve a structure element's page index from /Pg reference.
+fn resolve_struct_page(
+    _doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) -> Option<usize> {
+    let page_ref = match dict.get(b"Pg") {
+        Ok(lopdf::Object::Reference(id)) => *id,
+        _ => return None,
+    };
+
+    // Find which page index this reference corresponds to
+    for (page_num, page_id) in pages_map {
+        if *page_id == page_ref {
+            return Some((*page_num - 1) as usize); // pages_map uses 1-based
+        }
+    }
+
+    None
+}
+
+/// Extract a string entry from a dictionary (handles both String and Name objects).
+fn extract_string_entry(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    key: &[u8],
+) -> Option<String> {
+    let obj = dict.get(key).ok()?;
+    let obj = resolve_object(doc, obj);
+    match obj {
+        lopdf::Object::String(bytes, _) => Some(decode_pdf_string(bytes)),
+        lopdf::Object::Name(name) => Some(String::from_utf8_lossy(name).into_owned()),
+        _ => None,
+    }
+}
+
+/// Resolve a potentially indirect object reference.
+fn resolve_object<'a>(doc: &'a lopdf::Document, obj: &'a lopdf::Object) -> &'a lopdf::Object {
+    match obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).unwrap_or(obj),
+        _ => obj,
+    }
 }
 
 /// Extract annotations from a page's /Annots array.
@@ -3380,5 +3707,415 @@ mod tests {
         for field in &fields {
             assert_eq!(field.page_index, Some(0));
         }
+    }
+
+    // --- Structure tree tests (US-081) ---
+
+    /// Create a test PDF with a structure tree (tagged PDF).
+    ///
+    /// Structure: Document -> H1 (MCID 0) -> P (MCID 1)
+    fn create_test_pdf_with_structure_tree() -> Vec<u8> {
+        use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+        let mut doc = Document::with_version("1.7");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        // Content stream with marked content
+        let content = b"BT /F1 24 Tf /H1 <</MCID 0>> BDC 72 700 Td (Chapter 1) Tj EMC /P <</MCID 1>> BDC /F1 12 Tf 72 670 Td (This is paragraph text.) Tj EMC ET";
+        let stream = Stream::new(dictionary! {}, content.to_vec());
+        let content_id = doc.add_object(Object::Stream(stream));
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => Object::Reference(content_id),
+            "Resources" => dictionary! {
+                "Font" => dictionary! {
+                    "F1" => Object::Reference(font_id),
+                },
+            },
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => Object::Integer(1),
+            }),
+        );
+
+        // Structure tree elements
+        // H1 element with MCID 0
+        let h1_elem_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "H1",
+            "K" => Object::Integer(0),
+            "Pg" => Object::Reference(page_id),
+        });
+
+        // P element with MCID 1
+        let p_elem_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "P",
+            "K" => Object::Integer(1),
+            "Pg" => Object::Reference(page_id),
+            "Lang" => Object::string_literal("en-US"),
+        });
+
+        // Document root element
+        let doc_elem_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "Document",
+            "K" => vec![
+                Object::Reference(h1_elem_id),
+                Object::Reference(p_elem_id),
+            ],
+        });
+
+        // StructTreeRoot
+        let struct_tree_id = doc.add_object(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Object::Reference(doc_elem_id),
+        });
+
+        // Mark document as tagged
+        let mark_info_id = doc.add_object(dictionary! {
+            "Marked" => Object::Boolean(true),
+        });
+
+        // Catalog
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+            "StructTreeRoot" => Object::Reference(struct_tree_id),
+            "MarkInfo" => Object::Reference(mark_info_id),
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf)
+            .expect("failed to save tagged test PDF");
+        buf
+    }
+
+    /// Create a test PDF with a structure tree containing a table.
+    fn create_test_pdf_with_table_structure() -> Vec<u8> {
+        use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+        let mut doc = Document::with_version("1.7");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        let content = b"BT /F1 12 Tf 72 700 Td (Cell 1) Tj ET";
+        let stream = Stream::new(dictionary! {}, content.to_vec());
+        let content_id = doc.add_object(Object::Stream(stream));
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => Object::Reference(content_id),
+            "Resources" => dictionary! {
+                "Font" => dictionary! {
+                    "F1" => Object::Reference(font_id),
+                },
+            },
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => Object::Integer(1),
+            }),
+        );
+
+        // Table structure: Table -> TR -> TD (MCID 0), TD (MCID 1)
+        let td1_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "TD",
+            "K" => Object::Integer(0),
+            "Pg" => Object::Reference(page_id),
+        });
+
+        let td2_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "TD",
+            "K" => Object::Integer(1),
+            "Pg" => Object::Reference(page_id),
+        });
+
+        let tr_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "TR",
+            "K" => vec![Object::Reference(td1_id), Object::Reference(td2_id)],
+        });
+
+        let table_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "Table",
+            "K" => Object::Reference(tr_id),
+            "Pg" => Object::Reference(page_id),
+        });
+
+        let struct_tree_id = doc.add_object(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Object::Reference(table_id),
+        });
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+            "StructTreeRoot" => Object::Reference(struct_tree_id),
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("failed to save test PDF");
+        buf
+    }
+
+    #[test]
+    fn structure_tree_tagged_pdf_has_elements() {
+        let pdf_bytes = create_test_pdf_with_structure_tree();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        assert!(!elements.is_empty());
+    }
+
+    #[test]
+    fn structure_tree_document_root_element() {
+        let pdf_bytes = create_test_pdf_with_structure_tree();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        // Root should be "Document" element
+        assert_eq!(elements.len(), 1);
+        assert_eq!(elements[0].element_type, "Document");
+        assert_eq!(elements[0].children.len(), 2);
+    }
+
+    #[test]
+    fn structure_tree_heading_element() {
+        let pdf_bytes = create_test_pdf_with_structure_tree();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        let doc_elem = &elements[0];
+        let h1 = &doc_elem.children[0];
+        assert_eq!(h1.element_type, "H1");
+        assert_eq!(h1.mcids, vec![0]);
+        assert_eq!(h1.page_index, Some(0));
+    }
+
+    #[test]
+    fn structure_tree_paragraph_element() {
+        let pdf_bytes = create_test_pdf_with_structure_tree();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        let doc_elem = &elements[0];
+        let p = &doc_elem.children[1];
+        assert_eq!(p.element_type, "P");
+        assert_eq!(p.mcids, vec![1]);
+        assert_eq!(p.page_index, Some(0));
+        assert_eq!(p.lang.as_deref(), Some("en-US"));
+    }
+
+    #[test]
+    fn structure_tree_untagged_pdf_returns_empty() {
+        // Use the basic test PDF helper (no structure tree)
+        let pdf_bytes = create_test_pdf_with_text_content();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        assert!(elements.is_empty());
+    }
+
+    #[test]
+    fn structure_tree_table_nested_structure() {
+        let pdf_bytes = create_test_pdf_with_table_structure();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        // Root is Table element
+        assert_eq!(elements.len(), 1);
+        let table = &elements[0];
+        assert_eq!(table.element_type, "Table");
+
+        // Table -> TR
+        assert_eq!(table.children.len(), 1);
+        let tr = &table.children[0];
+        assert_eq!(tr.element_type, "TR");
+
+        // TR -> TD, TD
+        assert_eq!(tr.children.len(), 2);
+        assert_eq!(tr.children[0].element_type, "TD");
+        assert_eq!(tr.children[0].mcids, vec![0]);
+        assert_eq!(tr.children[1].element_type, "TD");
+        assert_eq!(tr.children[1].mcids, vec![1]);
+    }
+
+    #[test]
+    fn structure_tree_mcr_dictionary_handling() {
+        // Test with MCR (marked content reference) dictionaries instead of integer MCIDs
+        use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+        let mut doc = Document::with_version("1.7");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        let content = b"BT /F1 12 Tf 72 700 Td (text) Tj ET";
+        let stream = Stream::new(dictionary! {}, content.to_vec());
+        let content_id = doc.add_object(Object::Stream(stream));
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => Object::Reference(content_id),
+            "Resources" => dictionary! {
+                "Font" => dictionary! {
+                    "F1" => Object::Reference(font_id),
+                },
+            },
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => Object::Integer(1),
+            }),
+        );
+
+        // Structure element with MCR dictionary in /K
+        let p_elem_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "P",
+            "K" => dictionary! {
+                "Type" => "MCR",
+                "MCID" => Object::Integer(5),
+                "Pg" => Object::Reference(page_id),
+            },
+            "Pg" => Object::Reference(page_id),
+        });
+
+        let struct_tree_id = doc.add_object(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Object::Reference(p_elem_id),
+        });
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+            "StructTreeRoot" => Object::Reference(struct_tree_id),
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("failed to save test PDF");
+
+        let doc = LopdfBackend::open(&buf).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        assert_eq!(elements.len(), 1);
+        let p = &elements[0];
+        assert_eq!(p.element_type, "P");
+        assert_eq!(p.mcids, vec![5]); // MCID from MCR dictionary
+    }
+
+    #[test]
+    fn structure_tree_alt_text() {
+        use lopdf::{Document, Object, ObjectId, Stream, dictionary};
+
+        let mut doc = Document::with_version("1.7");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        let content = b"BT /F1 12 Tf 72 700 Td (image) Tj ET";
+        let stream = Stream::new(dictionary! {}, content.to_vec());
+        let content_id = doc.add_object(Object::Stream(stream));
+
+        let font_id = doc.add_object(dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        });
+
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => Object::Reference(content_id),
+            "Resources" => dictionary! {
+                "Font" => dictionary! {
+                    "F1" => Object::Reference(font_id),
+                },
+            },
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => Object::Integer(1),
+            }),
+        );
+
+        // Figure element with /Alt and /ActualText
+        let fig_elem_id = doc.add_object(dictionary! {
+            "Type" => "StructElem",
+            "S" => "Figure",
+            "K" => Object::Integer(0),
+            "Pg" => Object::Reference(page_id),
+            "Alt" => Object::string_literal("A photo of a sunset"),
+            "ActualText" => Object::string_literal("Sunset photo"),
+        });
+
+        let struct_tree_id = doc.add_object(dictionary! {
+            "Type" => "StructTreeRoot",
+            "K" => Object::Reference(fig_elem_id),
+        });
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+            "StructTreeRoot" => Object::Reference(struct_tree_id),
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("failed to save test PDF");
+
+        let doc = LopdfBackend::open(&buf).unwrap();
+        let elements = LopdfBackend::document_structure_tree(&doc).unwrap();
+
+        assert_eq!(elements.len(), 1);
+        let fig = &elements[0];
+        assert_eq!(fig.element_type, "Figure");
+        assert_eq!(fig.alt_text.as_deref(), Some("A photo of a sunset"));
+        assert_eq!(fig.actual_text.as_deref(), Some("Sunset photo"));
     }
 }

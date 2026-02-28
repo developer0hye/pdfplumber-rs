@@ -471,6 +471,8 @@ mod tests {
             non_stroking_color: None,
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 0,
+            mcid: None,
+            tag: None,
         }
     }
 
@@ -502,6 +504,8 @@ mod tests {
                     non_stroking_color: None,
                     ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                     char_code: 0,
+                    mcid: None,
+                    tag: None,
                 }
             })
             .collect();

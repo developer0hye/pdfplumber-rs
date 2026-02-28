@@ -27,6 +27,12 @@ pub struct Char {
     pub ctm: [f64; 6],
     /// Raw character code from the PDF content stream.
     pub char_code: u32,
+    /// Marked content identifier linking this character to a structure tree element.
+    /// Set when the character is inside a marked-content sequence with an MCID.
+    pub mcid: Option<u32>,
+    /// Structure tag for this character (e.g., "P", "H1", "Span").
+    /// Derived from the structure tree element that references this character's MCID.
+    pub tag: Option<String>,
 }
 
 /// Text flow direction.
@@ -97,6 +103,8 @@ mod tests {
             non_stroking_color: Some(Color::Gray(0.0)),
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 65,
+            mcid: None,
+            tag: None,
         };
         assert_eq!(ch.text, "A");
         assert_eq!(ch.bbox.x0, 10.0);
@@ -109,6 +117,8 @@ mod tests {
         assert_eq!(ch.non_stroking_color, Some(Color::Gray(0.0)));
         assert_eq!(ch.ctm, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
         assert_eq!(ch.char_code, 65);
+        assert_eq!(ch.mcid, None);
+        assert_eq!(ch.tag, None);
     }
 
     #[test]
@@ -125,12 +135,16 @@ mod tests {
             non_stroking_color: Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)),
             ctm: [2.0, 0.0, 0.0, 2.0, 100.0, 200.0],
             char_code: 66,
+            mcid: Some(3),
+            tag: Some("P".to_string()),
         };
         assert_eq!(ch.stroking_color, Some(Color::Rgb(1.0, 0.0, 0.0)));
         assert_eq!(ch.non_stroking_color, Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)));
         assert_eq!(ch.ctm[4], 100.0);
         assert_eq!(ch.ctm[5], 200.0);
         assert_eq!(ch.doctop, 820.0);
+        assert_eq!(ch.mcid, Some(3));
+        assert_eq!(ch.tag.as_deref(), Some("P"));
     }
 
     #[test]
@@ -147,6 +161,8 @@ mod tests {
             non_stroking_color: Some(Color::Gray(0.0)),
             ctm: [0.0, 1.0, -1.0, 0.0, 50.0, 100.0],
             char_code: 82,
+            mcid: None,
+            tag: None,
         };
         assert!(!ch.upright);
         assert_eq!(ch.direction, TextDirection::Ttb);

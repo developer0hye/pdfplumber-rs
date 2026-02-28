@@ -124,6 +124,8 @@ pub fn char_from_event(
         non_stroking_color,
         ctm: event.ctm,
         char_code: event.char_code,
+        mcid: None,
+        tag: None,
     }
 }
 

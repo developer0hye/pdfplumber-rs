@@ -222,6 +222,8 @@ mod tests {
             non_stroking_color: None,
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 0,
+            mcid: None,
+            tag: None,
         }
     }
 
@@ -556,6 +558,8 @@ mod tests {
             non_stroking_color: None,
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 0,
+            mcid: None,
+            tag: None,
         }
     }
 
@@ -749,6 +753,8 @@ mod tests {
                 non_stroking_color: None,
                 ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 char_code: 32,
+                mcid: None,
+                tag: None,
             },
             make_cjk_char("国", 25.0, 100.0, 12.0, 12.0),
         ];
