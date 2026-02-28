@@ -8,6 +8,7 @@ repository.workspace = true
 description = "WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction"
 keywords = ["pdf", "wasm", "webassembly", "pdfplumber", "table-extraction"]
 categories = ["wasm", "parser-implementations"]
+publish = false
 
 [lib]
 crate-type = ["cdylib", "rlib"]

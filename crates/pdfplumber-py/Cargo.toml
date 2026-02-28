@@ -6,6 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Python bindings for pdfplumber-rs via PyO3"
+publish = false
 
 [lib]
 name = "pdfplumber"
