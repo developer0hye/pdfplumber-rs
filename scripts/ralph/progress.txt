@@ -12,6 +12,10 @@
 - CLI integration tests use `lopdf` + `tempfile` to create PDF fixtures on disk
 - Page range parsing: `parse_page_range("1,3-5", page_count)` → 0-indexed `Vec<usize>`
 - Text command pattern: `text_cmd::run(file, pages, format, layout) -> Result<(), i32>`
+- Chars command pattern: `chars_cmd::run(file, pages, format) -> Result<(), i32>`
+- Words command pattern: `words_cmd::run(file, pages, format, x_tolerance, y_tolerance) -> Result<(), i32>`
+- Char bbox accessed via `ch.bbox.x0`, `ch.bbox.top`, etc. (BBox struct wraps coordinates)
+- `page.chars()` returns `&[Char]` (reference to slice), iterate with `for ch in chars` not `&chars`
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
@@ -45,4 +49,34 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - Test PDF fixtures: use `lopdf` to create PDFs programmatically, `tempfile::NamedTempFile` to write to disk
   - Error pattern: return `Result<(), i32>` from subcommand handlers where i32 is the exit code
   - JSON output uses `serde_json::json!` macro with JSON Lines format (one JSON object per line)
+---
+
+## 2026-02-28 - US-052
+- Implemented `chars` subcommand for extracting individual characters with coordinates
+- Files changed: crates/pdfplumber-cli/{src/main.rs, src/chars_cmd.rs, tests/chars_cmd.rs}
+- New module: `chars_cmd` (character extraction logic with text/json/csv output)
+- No new dependencies
+- Features: text (TSV), JSON, CSV output formats; --pages filtering; all Char fields in output
+- 10 integration tests: text format, JSON validity/fields, CSV header/columns, page filtering, error handling
+- **Learnings for future iterations:**
+  - `page.chars()` returns `&[Char]`, not `Vec<Char>` — iterate directly, no extra `&`
+  - BBox fields accessed via `ch.bbox.x0` etc., not directly on Char
+  - TextDirection enum: Ltr, Rtl, Ttb, Btt — convert to lowercase string for output
+  - JSON output uses array format (not JSON Lines) for chars — different from text subcommand
+  - CSV header: `page,text,x0,top,x1,bottom,fontname,size` (8 columns)
+---
+
+## 2026-02-28 - US-053
+- Implemented `words` subcommand for extracting words with bounding box coordinates
+- Files changed: crates/pdfplumber-cli/{src/cli.rs, src/main.rs, src/words_cmd.rs, tests/words_cmd.rs}
+- New module: `words_cmd` (word extraction logic with text/json/csv output)
+- No new dependencies
+- Features: text (TSV), JSON, CSV output formats; --pages filtering; --x-tolerance and --y-tolerance options
+- Added 2 CLI parsing tests (tolerance options + defaults) + 11 integration tests
+- **Learnings for future iterations:**
+  - Words command pattern: `words_cmd::run(file, pages, format, x_tolerance, y_tolerance) -> Result<(), i32>`
+  - `page.extract_words(&opts)` returns `Vec<Word>` (owned), iterate with `for w in &words`
+  - Word fields: text, bbox (x0/top/x1/bottom), doctop, direction — no fontname/size (unlike Char)
+  - CSV header: `page,text,x0,top,x1,bottom` (6 columns, fewer than chars)
+  - Use struct init `WordOptions { x_tolerance, y_tolerance, ..WordOptions::default() }` to avoid clippy field_reassign_with_default
 ---
