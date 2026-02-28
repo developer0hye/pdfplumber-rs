@@ -1,6 +1,7 @@
 mod chars_cmd;
 mod cli;
 mod page_range;
+mod shared;
 mod tables_cmd;
 mod text_cmd;
 mod words_cmd;

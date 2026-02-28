@@ -119,7 +119,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "This story may retroactively refactor utilities extracted from earlier subcommand stories."
     },
     {

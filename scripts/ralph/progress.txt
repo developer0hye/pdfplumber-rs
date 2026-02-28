@@ -20,6 +20,9 @@
 - `page.find_tables(&settings)` returns `Vec<Table>`, Table has `bbox`, `rows`, `cells`, `columns`
 - Table.rows is `Vec<Vec<Cell>>`, Cell has `text: Option<String>` and `bbox: BBox`
 - Strategy/TableSettings re-exported from pdfplumber facade crate
+- Shared utilities in `shared.rs`: `open_pdf`, `resolve_pages`, `direction_str`, `csv_escape`, `ProgressReporter`
+- ProgressReporter: `new(total)`, `report(current)`, `finish()` — only prints to stderr when TTY
+- `Pdf` doesn't implement `Debug` — can't use `unwrap_err()` on `Result<Pdf, i32>`
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
@@ -103,4 +106,19 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - JSON output: array of table objects with page, bbox, and rows (2D array of optional strings)
   - CSV output: tables separated by blank lines, CSV escaping for commas/quotes/newlines
   - Summary line format: `--- Table N (page M, bbox: [x0, top, x1, bottom]) ---`
+---
+
+## 2026-02-28 - US-055
+- Extracted duplicated utilities into new `shared.rs` module: `open_pdf`, `resolve_pages`, `direction_str`, `csv_escape`, `ProgressReporter`
+- Refactored all 4 subcommands (text, chars, words, tables) to use shared module
+- Added `ProgressReporter` struct: prints "Processing page N/M..." to stderr only when TTY
+- Added 14 new page_range edge case tests: empty string, reversed range, single-page range, trailing comma, non-numeric input, range-with-non-numeric, page-0-in-range-start/end, range-end-exceeds, exact error messages, all-pages-via-range, overlapping-ranges-deduped
+- Added 16 unit tests for shared module: direction_str (4), csv_escape (5), open_pdf (1), resolve_pages (3), progress_reporter (1), and 2 existing page_range exact-message tests
+- Files changed: src/main.rs (added shared mod), src/shared.rs (new), src/page_range.rs (14 new tests), src/text_cmd.rs, src/chars_cmd.rs, src/words_cmd.rs, src/tables_cmd.rs (all refactored)
+- No new dependencies
+- **Learnings for future iterations:**
+  - `Pdf` doesn't implement `Debug`, so can't use `unwrap_err()` on `Result<Pdf, i32>` — use pattern matching instead
+  - Rust import ordering: rustfmt sorts identifiers alphabetically, so `ProgressReporter` comes before `direction_str`
+  - `std::io::IsTerminal` trait provides `is_terminal()` method for TTY detection (stabilized in Rust 1.70)
+  - Shared module pattern: extract common functions into `shared.rs`, import with `use crate::shared::{...}`
 ---
