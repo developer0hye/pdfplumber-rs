@@ -30,3 +30,18 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - EMC on empty stack is gracefully ignored (no panic)
   - Dictionary parsing in tokenizer was already added in phase 11 (no need to add Dictionary variant again)
 ---
+
+## 2026-03-01 - US-093
+- **What was implemented**: Added `duplicate_merged_content: bool` (default false) to `TableSettings`. Implemented `duplicate_merged_content_in_table()` function that normalizes merged/spanning cells by building a full grid from all unique x/y coordinates, finding the enclosing cell for each grid position, and creating sub-cells with the same text. Integrated into `Page::find_tables()` when the option is enabled.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/table.rs` — `duplicate_merged_content` field on TableSettings, `duplicate_merged_content_in_table()` function, 7 unit tests (horizontal merge, vertical merge, 2x2 merge, no merge unchanged, disabled option, empty table, default false)
+  - `crates/pdfplumber-core/src/lib.rs` — Re-export `duplicate_merged_content_in_table`
+  - `crates/pdfplumber/src/page.rs` — Apply duplication in `find_tables()` when option enabled
+  - `scripts/ralph/prd.json` — marked US-093 as passes: true
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Merged cells in PDF tables create larger cells covering multiple grid positions (internal borders are missing, so intersections don't exist for sub-grid positions)
+  - The grid is determined from all unique x/y coordinates across all cells — this handles any combination of horizontal, vertical, and 2D merges
+  - Center-point containment (with epsilon tolerance) is used to match sub-grid positions to enclosing cells
+  - `float_key()` function already existed for grouping cells into rows/columns — reused for the new function
+---

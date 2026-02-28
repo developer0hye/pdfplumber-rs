@@ -66,6 +66,10 @@ pub struct TableSettings {
     /// Minimum accuracy threshold for auto-filtering low-quality tables (0.0 to 1.0).
     /// Tables with accuracy below this threshold are discarded. Default: None (no filtering).
     pub min_accuracy: Option<f64>,
+    /// When true, cells spanning multiple grid positions have their text duplicated
+    /// to all sub-cells. This normalizes merged/spanning cells so every row has the
+    /// same number of columns. Default: false.
+    pub duplicate_merged_content: bool,
 }
 
 impl Default for TableSettings {
@@ -89,6 +93,7 @@ impl Default for TableSettings {
             intersection_y_tolerance: 3.0,
             explicit_lines: None,
             min_accuracy: None,
+            duplicate_merged_content: false,
         }
     }
 }
@@ -639,6 +644,106 @@ fn cells_share_edge(a: &Cell, b: &Cell) -> bool {
         && b.bbox.x0 < a.bbox.x1 + eps;
 
     shared_vertical || shared_horizontal
+}
+
+/// Normalize a table by splitting merged cells into sub-cells with duplicated content.
+///
+/// Determines the full grid from all unique x-coordinates and y-coordinates across
+/// all cells in the table. Cells that span multiple grid positions (merged cells) are
+/// split into individual sub-cells, each receiving the text of the original merged cell.
+///
+/// This ensures every row has the same number of columns, which is useful for data
+/// pipeline consumers that expect uniform table structures.
+pub fn duplicate_merged_content_in_table(table: &Table) -> Table {
+    if table.cells.is_empty() {
+        return table.clone();
+    }
+
+    // Collect all unique x-coordinates and y-coordinates from cell boundaries
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for cell in &table.cells {
+        if !xs.iter().any(|&x| (x - cell.bbox.x0).abs() < 1e-6) {
+            xs.push(cell.bbox.x0);
+        }
+        if !xs.iter().any(|&x| (x - cell.bbox.x1).abs() < 1e-6) {
+            xs.push(cell.bbox.x1);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.top).abs() < 1e-6) {
+            ys.push(cell.bbox.top);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.bottom).abs() < 1e-6) {
+            ys.push(cell.bbox.bottom);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // For each grid position, find the enclosing cell and create a sub-cell
+    let mut new_cells: Vec<Cell> = Vec::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let sub_x0 = xs[xi];
+            let sub_x1 = xs[xi + 1];
+            let sub_top = ys[yi];
+            let sub_bottom = ys[yi + 1];
+            let sub_cx = (sub_x0 + sub_x1) / 2.0;
+            let sub_cy = (sub_top + sub_bottom) / 2.0;
+
+            // Find which existing cell contains this grid position's center
+            let enclosing_cell = table.cells.iter().find(|c| {
+                sub_cx >= c.bbox.x0 - 1e-6
+                    && sub_cx <= c.bbox.x1 + 1e-6
+                    && sub_cy >= c.bbox.top - 1e-6
+                    && sub_cy <= c.bbox.bottom + 1e-6
+            });
+
+            if let Some(cell) = enclosing_cell {
+                new_cells.push(Cell {
+                    bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
+                    text: cell.text.clone(),
+                });
+            }
+        }
+    }
+
+    // Organize into rows (group by top, sort by x0)
+    let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.top);
+        row_map.entry(key).or_default().push(cell.clone());
+    }
+    let rows: Vec<Vec<Cell>> = row_map
+        .into_values()
+        .map(|mut row| {
+            row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+            row
+        })
+        .collect();
+
+    // Organize into columns (group by x0, sort by top)
+    let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.x0);
+        col_map.entry(key).or_default().push(cell.clone());
+    }
+    let columns: Vec<Vec<Cell>> = col_map
+        .into_values()
+        .map(|mut col| {
+            col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
+            col
+        })
+        .collect();
+
+    Table {
+        bbox: table.bbox,
+        cells: new_cells,
+        rows,
+        columns,
+    }
 }
 
 /// Convert a float to an integer key for grouping (multiply by 1000 to preserve 3 decimal places).
@@ -3907,5 +4012,375 @@ mod tests {
             ..TableSettings::default()
         };
         assert_eq!(settings.min_accuracy, Some(0.5));
+    }
+
+    // --- duplicate_merged_content tests ---
+
+    #[test]
+    fn test_duplicate_merged_content_default_false() {
+        let settings = TableSettings::default();
+        assert!(!settings.duplicate_merged_content);
+    }
+
+    #[test]
+    fn test_horizontal_merge_duplicated() {
+        // Table: 2 rows x 3 columns, row 0 has a cell spanning columns 0-1
+        // +------ merged ------+-----+
+        // |      "AB"          | "C" |
+        // +----------+---------+-----+
+        // |   "D"    |  "E"   | "F" |
+        // +----------+---------+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                        text: Some("AB".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                        text: Some("C".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // After duplication, row 0 should have 3 cells, with the merged cell's text in both
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0].len(), 3);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("AB")); // duplicated
+        assert_eq!(result.rows[0][2].text.as_deref(), Some("C"));
+
+        // Row 1 unchanged
+        assert_eq!(result.rows[1].len(), 3);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("D"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("E"));
+        assert_eq!(result.rows[1][2].text.as_deref(), Some("F"));
+    }
+
+    #[test]
+    fn test_vertical_merge_duplicated() {
+        // Table: 3 rows x 2 columns, column 0 rows 0-1 merged vertically
+        // +-----+-----+
+        // | "A" | "B" |
+        // |     +-----+
+        // |     | "D" |
+        // +-----+-----+
+        // | "E" | "F" |
+        // +-----+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 90.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 60.0),
+                    text: Some("A".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("B".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 50.0, 60.0),
+                        text: Some("A".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                        text: Some("B".to_string()),
+                    },
+                ],
+                vec![Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                }],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // After duplication, should have 3 rows x 2 columns
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows[0].len(), 2);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("B"));
+
+        assert_eq!(result.rows[1].len(), 2);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("A")); // duplicated from vertical merge
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("D"));
+
+        assert_eq!(result.rows[2].len(), 2);
+        assert_eq!(result.rows[2][0].text.as_deref(), Some("E"));
+        assert_eq!(result.rows[2][1].text.as_deref(), Some("F"));
+    }
+
+    #[test]
+    fn test_2x2_merge_duplicated() {
+        // Table: 2 rows x 2 columns, top-left 2x2 block is merged
+        // +---- merged ----+-----+
+        // |                | "C" |
+        // |    "AB"        +-----+
+        // |                | "F" |
+        // +-------+--------+-----+
+        // | "G"   | "H"   | "I" |
+        // +-------+--------+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 90.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                    text: Some("G".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                    text: Some("H".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 60.0, 150.0, 90.0),
+                    text: Some("I".to_string()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // Row 0: AB duplicated to 2 positions, plus C
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows[0].len(), 3);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][2].text.as_deref(), Some("C"));
+
+        // Row 1: AB duplicated to 2 positions, plus F
+        assert_eq!(result.rows[1].len(), 3);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[1][2].text.as_deref(), Some("F"));
+
+        // Row 2: normal
+        assert_eq!(result.rows[2].len(), 3);
+        assert_eq!(result.rows[2][0].text.as_deref(), Some("G"));
+        assert_eq!(result.rows[2][1].text.as_deref(), Some("H"));
+        assert_eq!(result.rows[2][2].text.as_deref(), Some("I"));
+    }
+
+    #[test]
+    fn test_no_merge_table_unchanged() {
+        // Regular 2x2 table with no merges
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("B".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                        text: Some("A".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                        text: Some("B".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("C".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // Structure unchanged - 2 rows x 2 columns
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0].len(), 2);
+        assert_eq!(result.rows[1].len(), 2);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("B"));
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_disabled_option_returns_none_for_merged() {
+        // When duplicate_merged_content is false (default), merged cells
+        // are left as-is — the wide cell has text, but no sub-cells are created
+        let settings = TableSettings::default();
+        assert!(!settings.duplicate_merged_content);
+
+        // A table with a horizontal merge: row 0 has 2 cells, row 1 has 3 cells
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                        text: Some("AB".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                        text: Some("C".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        // Without duplicate_merged_content, the table stays as-is
+        // Row 0 has 2 cells (the wide merged cell + C), Row 1 has 3 cells
+        assert_eq!(table.rows[0].len(), 2);
+        assert_eq!(table.rows[1].len(), 3);
+    }
+
+    #[test]
+    fn test_empty_table_duplicate() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 0.0, 0.0),
+            cells: vec![],
+            rows: vec![],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+        assert!(result.cells.is_empty());
+        assert!(result.rows.is_empty());
     }
 }
