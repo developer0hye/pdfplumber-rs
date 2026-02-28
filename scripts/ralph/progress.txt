@@ -10,25 +10,6 @@
 Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
 ---
 
-## 2026-02-28 - US-017
-- What was implemented: Public API facade wiring the full extraction pipeline
-  - `Pdf` struct with `open()`, `page_count()`, `page()` methods
-  - `Page::rotation()`, `Page::bbox()` accessors
-  - `CollectingHandler` for content stream event collection
-  - `CharEvent` → `Char` conversion via `char_from_event`
-  - `ImageEvent` → `Image` conversion via `image_from_ctm`
-  - `doctop` calculation across multiple pages
-  - 20 unit tests + 10 integration tests with programmatic PDF fixtures
-- Files changed:
-  - `crates/pdfplumber/src/pdf.rs` (new - Pdf struct, CollectingHandler, tests)
-  - `crates/pdfplumber/src/page.rs` (added rotation field, bbox(), from_extraction())
-  - `crates/pdfplumber/src/lib.rs` (added mod pdf, pub use Pdf)
-  - `crates/pdfplumber/Cargo.toml` (added lopdf dev-dependency)
-  - `crates/pdfplumber/tests/pdf_integration.rs` (new - end-to-end tests)
-- Dependencies added: lopdf 0.34 (dev-dependency only, for test PDF creation)
-- **Learnings for future iterations:**
-  - CharEvent doesn't carry color info or font ascent/descent. Colors are set to None for now. Font metrics use defaults. These could be enhanced by adding fields to CharEvent.
-  - Path operators (m, l, re, S, f, etc.) are not yet implemented in the interpreter, so Page.lines/rects/curves are empty when extracted via Pdf::page().
-  - The raw PDF MediaBox height must be used for char_from_event y-flip (not the display height after rotation/crop).
-  - lopdf's Document::save_to() handles xref table and trailer automatically.
+# Ralph Progress Log - Phase 2: Words & Geometry - Word Grouping, Path Extraction, Reading Order
+Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
 ---
