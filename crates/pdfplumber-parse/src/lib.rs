@@ -6,6 +6,7 @@
 
 pub mod backend;
 pub mod char_extraction;
+pub mod cid_font;
 pub mod cmap;
 pub mod error;
 pub mod font_metrics;
@@ -20,7 +21,12 @@ pub mod tokenizer;
 
 pub use backend::PdfBackend;
 pub use char_extraction::char_from_event;
-pub use cmap::CMap;
+pub use cid_font::{
+    CidFontMetrics, CidFontType, CidSystemInfo, CidToGidMap, PredefinedCMapInfo,
+    extract_cid_font_metrics, get_descendant_font, get_type0_encoding, is_type0_font,
+    parse_predefined_cmap_name, parse_w_array,
+};
+pub use cmap::{CMap, CidCMap};
 pub use error::BackendError;
 pub use font_metrics::{FontMetrics, extract_font_metrics};
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
