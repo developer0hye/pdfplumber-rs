@@ -116,7 +116,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "Heuristic-based — accuracy will depend on the PDF structure. Structure tree (US-081) improves accuracy significantly."
     },
     {

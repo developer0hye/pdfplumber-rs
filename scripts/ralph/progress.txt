@@ -101,3 +101,25 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - The `pkg/` directory is gitignored (has `*` in `.gitignore`) — source artifacts go in the crate root
   - File existence tests using `env!("CARGO_MANIFEST_DIR")` are reliable for verifying packaging artifacts
 ---
+
+## 2026-02-28 - US-078
+- What was implemented: Markdown output format for PDF page content
+- Files changed:
+  - `crates/pdfplumber-core/src/markdown.rs` — new module: MarkdownRenderer, MarkdownOptions, heading detection (font size heuristics), paragraph grouping, GFM table conversion, list detection (bullet/numbered), bold/italic emphasis from font names
+  - `crates/pdfplumber-core/src/lib.rs` — registered markdown module, exported MarkdownRenderer and MarkdownOptions
+  - `crates/pdfplumber/src/lib.rs` — re-exported MarkdownRenderer and MarkdownOptions
+  - `crates/pdfplumber/src/page.rs` — added `Page::to_markdown(options)` method
+  - `crates/pdfplumber-cli/src/cli.rs` — added `Markdown` variant to `TextFormat` enum
+  - `crates/pdfplumber-cli/src/text_cmd.rs` — added `--format markdown` handling using `page.to_markdown()`
+  - `crates/pdfplumber-cli/src/bookmarks_cmd.rs` — handle Markdown variant (fallback to Text)
+  - `crates/pdfplumber-cli/src/info_cmd.rs` — handle Markdown variant (fallback to Text)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - Heading detection uses font size ratio relative to median: H1 >= 2.0x, H2 >= 1.6x, H3 >= 1.3x, H4 >= 1.2x
+  - GFM table: first row is header, separator row with `---`, pipe characters escaped with `\|`, newlines in cells replaced with spaces
+  - List detection: supports `- `, `* `, `• `, `– `, `— ` bullets and `N. ` / `N) ` numbered patterns
+  - Bold/italic detection: font name analysis (contains "Bold"/"Heavy"/"Black" or "Italic"/"Oblique")
+  - Clippy: prefer `strip_prefix()` over `starts_with()` + manual slicing; use function references instead of closures
+  - When adding variants to shared enums (like TextFormat), must handle exhaustive matches in ALL commands that use them
+  - `split_lines_at_columns` uses `x_density` threshold — test character gaps must be smaller than `x_density` to stay in same line
+---
