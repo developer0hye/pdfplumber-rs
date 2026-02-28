@@ -19,6 +19,7 @@
 //! - [`path`] — Path construction: [`Path`], [`PathBuilder`], [`PathSegment`]
 //! - [`encoding`] — Font encoding: [`FontEncoding`], [`EncodingResolver`]
 //! - [`error`] — Errors and warnings: [`PdfError`], [`ExtractWarning`], [`ExtractOptions`]
+//! - [`search`] — Text search: [`SearchMatch`], [`SearchOptions`], [`search_chars`]
 
 #![deny(missing_docs)]
 
@@ -46,6 +47,8 @@ pub mod metadata;
 pub mod painting;
 /// PDF path construction (MoveTo, LineTo, CurveTo, ClosePath).
 pub mod path;
+/// Text search with position — find text patterns and return matches with bounding boxes.
+pub mod search;
 /// Shape extraction: Lines, Rects, Curves from painted paths.
 pub mod shapes;
 /// Table detection: lattice, stream, and explicit strategies.
@@ -70,6 +73,7 @@ pub use layout::{
 pub use metadata::DocumentMetadata;
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
+pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableSettings,

@@ -2,7 +2,7 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata,
-    PdfError, image_from_ctm,
+    PdfError, SearchMatch, SearchOptions, image_from_ctm,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -206,6 +206,35 @@ impl Pdf {
     /// Returns an empty slice if the document has no outlines.
     pub fn bookmarks(&self) -> &[Bookmark] {
         &self.bookmarks
+    }
+
+    /// Search all pages for a text pattern and return matches with bounding boxes.
+    ///
+    /// Iterates through every page in the document, searches each page's
+    /// characters for the given pattern, and collects all matches. Each match
+    /// includes the page number, matched text, and a bounding box computed as
+    /// the union of the matched characters' bounding boxes.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - The search pattern (regex or literal, depending on options).
+    /// * `options` - Controls regex vs. literal mode and case sensitivity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if any page fails to load.
+    pub fn search_all(
+        &self,
+        pattern: &str,
+        options: &SearchOptions,
+    ) -> Result<Vec<SearchMatch>, PdfError> {
+        let mut all_matches = Vec::new();
+        for i in 0..self.page_count() {
+            let page = self.page(i)?;
+            let matches = page.search(pattern, options);
+            all_matches.extend(matches);
+        }
+        Ok(all_matches)
     }
 
     /// Return a streaming iterator over all pages in the document.

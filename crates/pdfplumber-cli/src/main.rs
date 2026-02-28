@@ -5,6 +5,7 @@ mod cli;
 mod info_cmd;
 mod links_cmd;
 mod page_range;
+mod search_cmd;
 mod shared;
 mod tables_cmd;
 mod text_cmd;
@@ -71,6 +72,21 @@ fn main() {
             ref file,
             ref format,
         } => bookmarks_cmd::run(file, format),
+        cli::Commands::Search {
+            ref file,
+            ref pattern,
+            ref pages,
+            case_insensitive,
+            no_regex,
+            ref format,
+        } => search_cmd::run(
+            file,
+            pattern,
+            pages.as_deref(),
+            case_insensitive,
+            no_regex,
+            format,
+        ),
     };
 
     if let Err(code) = result {

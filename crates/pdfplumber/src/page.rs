@@ -1,10 +1,11 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Hyperlink, Image, Line, Rect, Table,
-    TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, extract_text_for_cells,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Hyperlink, Image, Line, Rect, SearchMatch,
+    SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
+    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
+    extract_text_for_cells, search_chars, sort_blocks_reading_order, split_lines_at_columns,
+    words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build};
@@ -387,6 +388,29 @@ impl Page {
     /// Returns the table with the most cells. If multiple tables have the same
     /// number of cells, returns the one with the largest bounding box area.
     /// Returns `None` if no tables are found.
+    /// Search for a text pattern on this page and return matches with bounding boxes.
+    ///
+    /// Concatenates all character texts and matches the pattern against the full
+    /// text. Each match's bounding box is the union of its constituent character
+    /// bounding boxes, allowing precise highlighting.
+    ///
+    /// # Arguments
+    ///
+    /// * `pattern` - The search pattern (regex or literal, depending on options).
+    /// * `options` - Controls regex vs. literal mode and case sensitivity.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// let matches = page.search("Hello", &SearchOptions { regex: false, ..Default::default() });
+    /// for m in &matches {
+    ///     println!("{}: ({:.0}, {:.0})", m.text, m.bbox.x0, m.bbox.top);
+    /// }
+    /// ```
+    pub fn search(&self, pattern: &str, options: &SearchOptions) -> Vec<SearchMatch> {
+        search_chars(&self.chars, pattern, options, self.page_number)
+    }
+
     /// Return a [`CroppedPage`] with objects whose centers fall within `bbox`.
     ///
     /// Coordinates in the returned page are adjusted relative to the crop origin.
