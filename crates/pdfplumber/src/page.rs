@@ -5,8 +5,9 @@ use pdfplumber_core::{
     HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect,
     SearchMatch, SearchOptions, StructElement, Table, TableFinder, TableSettings, TextOptions,
     Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    cluster_words_into_lines, dedupe_chars, derive_edges, duplicate_merged_content_in_table,
+    extract_text_for_cells, search_chars, sort_blocks_reading_order, split_lines_at_columns,
+    words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -434,6 +435,14 @@ impl Page {
             for col in &mut table.columns {
                 extract_text_for_cells(col, &self.chars);
             }
+        }
+
+        // Duplicate merged cell content if configured
+        if settings.duplicate_merged_content {
+            tables = tables
+                .into_iter()
+                .map(|t| duplicate_merged_content_in_table(&t))
+                .collect();
         }
 
         // Filter by minimum accuracy if configured
