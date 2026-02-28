@@ -1,21 +1,71 @@
-//! pdfplumber: Extract chars, words, lines, rects, and tables from PDF documents.
+//! Extract chars, words, lines, rects, and tables from PDF documents
+//! with precise coordinates.
 //!
-//! This is the public API facade crate for pdfplumber-rs. It re-exports types from
-//! pdfplumber-core and uses pdfplumber-parse for PDF reading and interpretation.
+//! **pdfplumber** is a Rust library for extracting structured content from PDF
+//! files. It is a Rust port of Python's
+//! [pdfplumber](https://github.com/jsvine/pdfplumber), providing the same
+//! coordinate-accurate extraction of characters, words, lines, rectangles,
+//! curves, images, and tables.
+//!
+//! # Quick Start
+//!
+//! ```no_run
+//! use pdfplumber::{Pdf, TextOptions};
+//!
+//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
+//! for page_result in pdf.pages_iter() {
+//!     let page = page_result.unwrap();
+//!     let text = page.extract_text(&TextOptions::default());
+//!     println!("Page {}: {}", page.page_number(), text);
+//! }
+//! ```
 //!
 //! # Architecture
 //!
+//! The library is split into three crates:
+//!
 //! - **pdfplumber-core**: Backend-independent data types and algorithms
 //! - **pdfplumber-parse**: PDF parsing (Layer 1) and content stream interpreter (Layer 2)
-//! - **pdfplumber** (this crate): Public API that ties everything together
+//! - **pdfplumber** (this crate): Public API facade that ties everything together
 //!
 //! # Feature Flags
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
-//! | `std` | Yes | Enables file-path APIs (`Pdf::open_file`). Disable for WASM. |
-//! | `serde` | No | Adds Serialize/Deserialize to all public data types. |
+//! | `std` | Yes | Enables file-path APIs ([`Pdf::open_file`]). Disable for WASM. |
+//! | `serde` | No | Adds `Serialize`/`Deserialize` to all public data types. |
 //! | `parallel` | No | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible. |
+//!
+//! # Extracting Text
+//!
+//! ```no_run
+//! # use pdfplumber::{Pdf, TextOptions};
+//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
+//! let page = pdf.page(0).unwrap();
+//!
+//! // Simple text extraction
+//! let text = page.extract_text(&TextOptions::default());
+//!
+//! // Layout-preserving text extraction
+//! let text = page.extract_text(&TextOptions { layout: true, ..Default::default() });
+//! ```
+//!
+//! # Extracting Tables
+//!
+//! ```no_run
+//! # use pdfplumber::{Pdf, TableSettings};
+//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
+//! let page = pdf.page(0).unwrap();
+//! let tables = page.find_tables(&TableSettings::default());
+//! for table in &tables {
+//!     for row in &table.rows {
+//!         let cells: Vec<&str> = row.iter()
+//!             .map(|c| c.text.as_deref().unwrap_or(""))
+//!             .collect();
+//!         println!("{:?}", cells);
+//!     }
+//! }
+//! ```
 //!
 //! # WASM Support
 //!
@@ -36,6 +86,8 @@
 //! ```
 //!
 //! The `parallel` feature is not available for WASM targets (rayon requires OS threads).
+
+#![deny(missing_docs)]
 
 mod cropped_page;
 mod page;

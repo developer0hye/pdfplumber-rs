@@ -1,8 +1,19 @@
-//! pdfplumber-parse: PDF parsing backend and content stream interpreter.
+//! PDF parsing backend and content stream interpreter for pdfplumber-rs.
 //!
 //! This crate implements Layer 1 (PDF parsing via pluggable backends) and
 //! Layer 2 (content stream interpretation) of the pdfplumber-rs architecture.
 //! It depends on pdfplumber-core for shared data types.
+//!
+//! # Key types
+//!
+//! - [`PdfBackend`] — Trait for pluggable PDF parsing backends
+//! - [`LopdfBackend`] — Default backend using the `lopdf` crate
+//! - [`ContentHandler`] — Trait for receiving events from content stream interpretation
+//! - [`TextState`] — PDF text state machine (fonts, matrices, positioning)
+//! - [`CMap`] — Character code to Unicode mapping (ToUnicode CMaps)
+//! - [`FontMetrics`] — Font width metrics for character positioning
+
+#![deny(missing_docs)]
 
 pub mod backend;
 pub mod char_extraction;

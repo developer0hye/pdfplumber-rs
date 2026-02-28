@@ -13,7 +13,7 @@ use pdfplumber_core::{
 
 /// A spatially filtered view of a PDF page.
 ///
-/// Created by [`Page::crop`], [`Page::within_bbox`], or [`Page::outside_bbox`].
+/// Created by [`crate::Page::crop`], [`crate::Page::within_bbox`], or [`crate::Page::outside_bbox`].
 /// Contains only the objects matching the spatial filter criterion, with
 /// coordinates adjusted relative to the crop origin.
 pub struct CroppedPage {

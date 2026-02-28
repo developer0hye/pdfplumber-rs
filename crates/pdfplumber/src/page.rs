@@ -187,7 +187,7 @@ impl Page {
     /// of extracted content. They indicate best-effort degradation such as
     /// missing font metrics or unresolvable resources.
     ///
-    /// Warning collection is controlled by [`ExtractOptions::collect_warnings`].
+    /// Warning collection is controlled by [`crate::ExtractOptions::collect_warnings`].
     /// When disabled, this returns an empty slice.
     pub fn warnings(&self) -> &[ExtractWarning] {
         &self.warnings
@@ -308,6 +308,10 @@ impl Page {
         filter_and_build(self, bbox, FilterMode::Outside)
     }
 
+    /// Extract the largest table from this page as a 2D grid of cell text.
+    ///
+    /// Returns `None` if no tables are found. If multiple tables exist,
+    /// returns the one with the most cells (breaking ties by area).
     pub fn extract_table(&self, settings: &TableSettings) -> Option<Vec<Vec<Option<String>>>> {
         let tables = self.find_tables(settings);
         tables
