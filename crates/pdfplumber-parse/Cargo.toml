@@ -10,6 +10,6 @@ keywords = ["pdf", "parser", "content-stream", "pdfplumber"]
 categories = ["parser-implementations"]
 
 [dependencies]
-pdfplumber-core = { path = "../pdfplumber-core" }
+pdfplumber-core = { version = "0.1.0", path = "../pdfplumber-core" }
 lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
 thiserror = "2"
