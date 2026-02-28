@@ -30,6 +30,10 @@ pub enum Commands {
         /// Use layout-preserving text extraction
         #[arg(long)]
         layout: bool,
+
+        /// Apply Unicode normalization to extracted text
+        #[arg(long, value_enum)]
+        unicode_norm: Option<UnicodeNormArg>,
     },
 
     /// Extract individual characters with coordinates
@@ -45,6 +49,10 @@ pub enum Commands {
         /// Output format
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
+
+        /// Apply Unicode normalization to extracted text
+        #[arg(long, value_enum)]
+        unicode_norm: Option<UnicodeNormArg>,
     },
 
     /// Extract words with bounding box coordinates
@@ -68,6 +76,10 @@ pub enum Commands {
         /// Vertical tolerance for word grouping (default: 3.0)
         #[arg(long, default_value_t = 3.0)]
         y_tolerance: f64,
+
+        /// Apply Unicode normalization to extracted text
+        #[arg(long, value_enum)]
+        unicode_norm: Option<UnicodeNormArg>,
     },
 
     /// Detect and extract tables from PDF pages
@@ -214,6 +226,31 @@ pub enum OutputFormat {
     Csv,
 }
 
+/// Unicode normalization form for CLI arguments.
+#[derive(Debug, Clone, ValueEnum)]
+pub enum UnicodeNormArg {
+    /// Canonical Decomposition, followed by Canonical Composition
+    Nfc,
+    /// Canonical Decomposition
+    Nfd,
+    /// Compatibility Decomposition, followed by Canonical Composition
+    Nfkc,
+    /// Compatibility Decomposition
+    Nfkd,
+}
+
+impl UnicodeNormArg {
+    /// Convert to the core library's `UnicodeNorm` enum.
+    pub fn to_unicode_norm(&self) -> pdfplumber::UnicodeNorm {
+        match self {
+            UnicodeNormArg::Nfc => pdfplumber::UnicodeNorm::Nfc,
+            UnicodeNormArg::Nfd => pdfplumber::UnicodeNorm::Nfd,
+            UnicodeNormArg::Nfkc => pdfplumber::UnicodeNorm::Nfkc,
+            UnicodeNormArg::Nfkd => pdfplumber::UnicodeNorm::Nfkd,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -247,6 +284,7 @@ mod tests {
                 ref pages,
                 ref format,
                 layout,
+                ..
             } => {
                 assert_eq!(file, &PathBuf::from("test.pdf"));
                 assert_eq!(pages.as_deref(), Some("1,3-5"));
@@ -640,5 +678,77 @@ mod tests {
             }
             _ => panic!("expected Search subcommand"),
         }
+    }
+
+    #[test]
+    fn parse_text_with_unicode_norm_nfc() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf", "--unicode-norm", "nfc"]);
+        match cli.command {
+            Commands::Text {
+                ref unicode_norm, ..
+            } => {
+                assert!(matches!(unicode_norm, Some(UnicodeNormArg::Nfc)));
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_text_without_unicode_norm() {
+        let cli = Cli::parse_from(["pdfplumber", "text", "test.pdf"]);
+        match cli.command {
+            Commands::Text {
+                ref unicode_norm, ..
+            } => {
+                assert!(unicode_norm.is_none());
+            }
+            _ => panic!("expected Text subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_chars_with_unicode_norm_nfkc() {
+        let cli = Cli::parse_from(["pdfplumber", "chars", "test.pdf", "--unicode-norm", "nfkc"]);
+        match cli.command {
+            Commands::Chars {
+                ref unicode_norm, ..
+            } => {
+                assert!(matches!(unicode_norm, Some(UnicodeNormArg::Nfkc)));
+            }
+            _ => panic!("expected Chars subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_words_with_unicode_norm_nfkd() {
+        let cli = Cli::parse_from(["pdfplumber", "words", "test.pdf", "--unicode-norm", "nfkd"]);
+        match cli.command {
+            Commands::Words {
+                ref unicode_norm, ..
+            } => {
+                assert!(matches!(unicode_norm, Some(UnicodeNormArg::Nfkd)));
+            }
+            _ => panic!("expected Words subcommand"),
+        }
+    }
+
+    #[test]
+    fn unicode_norm_arg_to_unicode_norm_all_variants() {
+        assert_eq!(
+            UnicodeNormArg::Nfc.to_unicode_norm(),
+            pdfplumber::UnicodeNorm::Nfc
+        );
+        assert_eq!(
+            UnicodeNormArg::Nfd.to_unicode_norm(),
+            pdfplumber::UnicodeNorm::Nfd
+        );
+        assert_eq!(
+            UnicodeNormArg::Nfkc.to_unicode_norm(),
+            pdfplumber::UnicodeNorm::Nfkc
+        );
+        assert_eq!(
+            UnicodeNormArg::Nfkd.to_unicode_norm(),
+            pdfplumber::UnicodeNorm::Nfkd
+        );
     }
 }

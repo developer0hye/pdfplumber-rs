@@ -2,7 +2,7 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata,
-    PdfError, SearchMatch, SearchOptions, image_from_ctm,
+    PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -320,7 +320,7 @@ impl Pdf {
         let default_metrics = FontMetrics::default_metrics();
         let doctop_offset: f64 = self.page_heights[..index].iter().sum();
 
-        let chars: Vec<Char> = handler
+        let mut chars: Vec<Char> = handler
             .chars
             .iter()
             .map(|event| {
@@ -329,6 +329,11 @@ impl Pdf {
                 ch
             })
             .collect();
+
+        // Apply Unicode normalization if configured
+        if self.options.unicode_norm != UnicodeNorm::None {
+            chars = normalize_chars(&chars, &self.options.unicode_norm);
+        }
 
         // Convert ImageEvents to Images
         let images: Vec<Image> = handler

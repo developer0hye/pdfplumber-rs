@@ -1,12 +1,17 @@
 use std::path::Path;
 
-use pdfplumber::Char;
+use pdfplumber::{Char, UnicodeNorm};
 
 use crate::cli::OutputFormat;
-use crate::shared::{ProgressReporter, direction_str, open_pdf, resolve_pages};
+use crate::shared::{ProgressReporter, direction_str, open_pdf_with_norm, resolve_pages};
 
-pub fn run(file: &Path, pages: Option<&str>, format: &OutputFormat) -> Result<(), i32> {
-    let pdf = open_pdf(file)?;
+pub fn run(
+    file: &Path,
+    pages: Option<&str>,
+    format: &OutputFormat,
+    unicode_norm: Option<UnicodeNorm>,
+) -> Result<(), i32> {
+    let pdf = open_pdf_with_norm(file, unicode_norm)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let progress = ProgressReporter::new(page_indices.len());
 

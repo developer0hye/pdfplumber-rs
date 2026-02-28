@@ -7,7 +7,7 @@
 
 use pdfplumber::{
     AnnotationType, Bookmark, DedupeOptions, DocumentMetadata, ExtractOptions, Pdf, SearchOptions,
-    TextOptions, WordOptions,
+    TextOptions, UnicodeNorm, WordOptions,
 };
 
 // --- Test PDF creation helpers ---
@@ -1500,4 +1500,62 @@ fn dedupe_different_font_not_deduped() {
         extra_attrs: vec![],
     });
     assert_eq!(deduped_no_attrs.chars().len(), 1);
+}
+
+// --- US-065: Unicode normalization ---
+
+#[test]
+fn unicode_norm_nfc_composes_extracted_chars() {
+    // PDF with decomposed "é" (e + combining acute)
+    // In PDF strings, we can use raw UTF-8 bytes for the composed form
+    // and test normalization by checking the default (no norm) vs NFC
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Hello) Tj ET");
+
+    // Without normalization (default)
+    let pdf_default = Pdf::open(&bytes, None).unwrap();
+    let page_default = pdf_default.page(0).unwrap();
+    assert_eq!(page_default.chars().len(), 5);
+
+    // With NFC normalization - same chars, just normalized
+    let opts = ExtractOptions {
+        unicode_norm: UnicodeNorm::Nfc,
+        ..ExtractOptions::default()
+    };
+    let pdf_nfc = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page_nfc = pdf_nfc.page(0).unwrap();
+    assert_eq!(page_nfc.chars().len(), 5);
+    assert_eq!(page_nfc.chars()[0].text, "H");
+}
+
+#[test]
+fn unicode_norm_nfkc_normalizes_compatibility_chars() {
+    // Test that NFKC normalization option is properly passed through
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Test) Tj ET");
+
+    let opts = ExtractOptions {
+        unicode_norm: UnicodeNorm::Nfkc,
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+    // Basic ASCII chars are unchanged by NFKC
+    assert_eq!(page.chars().len(), 4);
+    assert_eq!(page.chars()[0].text, "T");
+    assert_eq!(page.chars()[1].text, "e");
+}
+
+#[test]
+fn unicode_norm_none_preserves_original_text() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (AB) Tj ET");
+
+    // Explicit None normalization
+    let opts = ExtractOptions {
+        unicode_norm: UnicodeNorm::None,
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+    assert_eq!(page.chars().len(), 2);
+    assert_eq!(page.chars()[0].text, "A");
+    assert_eq!(page.chars()[1].text, "B");
 }

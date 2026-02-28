@@ -12,6 +12,7 @@
 - **Bookmark/outline pattern**: Document-level outlines follow: add `document_bookmarks()` to PdfBackend trait → implement in LopdfBackend walking outline tree via /First, /Next sibling links → cache in Pdf struct on open → expose via `Pdf::bookmarks()`. Resolve destinations using `doc.get_pages()` (1-indexed page map). Handle circular references with visited set + max depth limit.
 - **Search pattern**: Text search follows: add types (SearchMatch, SearchOptions) + algorithm (search_chars) in pdfplumber-core/search.rs → add Page::search() delegating to search_chars → add Pdf::search_all() iterating pages. Algorithm: concatenate char texts, map byte offsets→char indices, run regex, compute union bbox from matched chars.
 - **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
+- **ExtractOptions pattern**: Document-level extraction settings go in ExtractOptions (set at Pdf::open() time, used during Pdf::page()). For text processing options (normalization, etc.), add field to ExtractOptions, apply in Pdf::page() after char creation. CLI: add separate clap ValueEnum arg type with conversion method, use open_pdf_with_norm() helper.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -173,4 +174,29 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - DedupeOptions uses Vec<String> for extra_attrs to match Python's flexible attribute matching
   - Position comparison uses x0 and top within tolerance (not full bbox overlap)
   - Different text content at same position is NOT deduped (e.g., overlapping "A" and "B")
+---
+
+## 2026-02-28 - US-065
+- Implemented Unicode normalization option for extracted text
+- Files changed:
+  - `crates/pdfplumber-core/src/unicode_norm.rs` (NEW) — UnicodeNorm enum, normalize() method, normalize_chars() function
+  - `crates/pdfplumber-core/src/lib.rs` — Added unicode_norm module and exports
+  - `crates/pdfplumber-core/src/error.rs` — Added unicode_norm field to ExtractOptions
+  - `crates/pdfplumber-core/Cargo.toml` — Added `unicode-normalization = "0.1"` dependency
+  - `crates/pdfplumber/src/pdf.rs` — Apply normalization after char extraction in Pdf::page()
+  - `crates/pdfplumber/src/lib.rs` — Re-exported UnicodeNorm
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (NFC, NFKC, None)
+  - `crates/pdfplumber-cli/src/cli.rs` — Added UnicodeNormArg enum, --unicode-norm flag to Text/Chars/Words subcommands, 6 CLI tests
+  - `crates/pdfplumber-cli/src/shared.rs` — Added open_pdf_with_norm() helper
+  - `crates/pdfplumber-cli/src/text_cmd.rs` — Accept unicode_norm parameter
+  - `crates/pdfplumber-cli/src/chars_cmd.rs` — Accept unicode_norm parameter
+  - `crates/pdfplumber-cli/src/words_cmd.rs` — Accept unicode_norm parameter
+  - `crates/pdfplumber-cli/src/main.rs` — Wire up unicode_norm for Text/Chars/Words commands
+- Dependencies added: `unicode-normalization = "0.1"` (standard Rust unicode normalization crate)
+- **Learnings for future iterations:**
+  - Unicode normalization is best applied at extraction time in Pdf::page(), after chars are created — all downstream consumers get normalized text automatically
+  - UnicodeNorm enum added to ExtractOptions (document-level setting), set at Pdf::open() time
+  - CLI uses a separate UnicodeNormArg enum for clap ValueEnum, with to_unicode_norm() conversion method
+  - open_pdf_with_norm() helper avoids modifying the existing open_pdf() signature
+  - NFC composes decomposed chars (e + combining accent → é), NFKC additionally decomposes ligatures (ﬁ → fi) and fullwidth chars (Ａ → A)
 ---
