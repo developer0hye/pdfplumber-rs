@@ -13,6 +13,10 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - Clippy: use `#[derive(Default)]` with `#[default]` variant instead of manual `impl Default` for enums
 - `snap_edges()` function lives in `table.rs` as a public standalone function; uses `snap_group()` helper for clustering
 - Edge processing helpers: `make_h_edge(x0, y, x1)` and `make_v_edge(x, top, bottom)` in test module for concise test construction
+- `edges_to_intersections(edges, x_tolerance, y_tolerance)` takes `&[Edge]` and returns `Vec<Intersection>`
+- `Intersection` struct has `x: f64` and `y: f64` fields
+- Intersection detection: checks H-edge y within V-edge y-span and V-edge x within H-edge x-span (with tolerance)
+- Deduplication: intersections at the same point (within 1e-9) are deduplicated via sort+dedup_by
 
 ---
 
@@ -48,4 +52,17 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Uses `join_collinear()` helper: groups by collinear key (y for horizontal, x for vertical), sorts by span start, merges when gap ≤ tolerance
   - Chain merging works naturally: sorted segments extend current span greedily
   - Diagonal edges pass through unchanged (consistent with snap_edges)
+---
+
+## 2026-02-28 - US-032
+- Implemented `edges_to_intersections()` for finding intersection points between horizontal and vertical edges
+- Added `Intersection` struct with x/y coordinates
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `edges_to_intersections(edges, x_tolerance, y_tolerance)` takes `&[Edge]` (borrows) unlike snap/join which take owned
+  - Intersection detection checks that V-edge x is within H-edge x-span ± x_tolerance AND H-edge y is within V-edge y-span ± y_tolerance
+  - Results are sorted by (x, y) and deduplicated for points at the same location (within 1e-9)
+  - Diagonal edges are filtered out (only H×V crossings matter)
+  - 13 tests covering: empty input, cross, T-intersection, L-corner, parallel (no intersection), tolerance-based, grid 2x2, diagonal ignored, multiple edges, separate x/y tolerance, deduplication
 ---
