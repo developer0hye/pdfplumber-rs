@@ -9,11 +9,16 @@ description = "Python bindings for pdfplumber-rs via PyO3"
 
 [lib]
 name = "pdfplumber"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
+doctest = false
 
 [dependencies]
-pyo3 = { version = "0.24", features = ["extension-module"] }
+pyo3 = { version = "0.24" }
 pdfplumber = { path = "../pdfplumber" }
+
+[features]
+extension-module = ["pyo3/extension-module"]
 
 [dev-dependencies]
 lopdf = "0.34"
+pyo3 = { version = "0.24", features = ["auto-initialize"] }
