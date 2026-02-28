@@ -18,5 +18,10 @@ pdfplumber-parse = { path = "../pdfplumber-parse" }
 rayon = { version = "1.10", optional = true }
 
 [dev-dependencies]
+criterion = { version = "0.5", features = ["html_reports"] }
 lopdf = "0.34"
 serde_json = "1.0"
+
+[[bench]]
+name = "extraction"
+harness = false
