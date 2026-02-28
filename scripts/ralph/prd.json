@@ -61,7 +61,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 104,
       "notes": "Ensures re-running conversion on same input produces identical filenames for stable diffs and caching."
     },

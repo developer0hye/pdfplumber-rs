@@ -1,13 +1,14 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExtractWarning, FormField,
-    HtmlOptions, HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer,
-    PageObject, PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
-    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, duplicate_merged_content_in_table, extract_text_for_cells, search_chars,
-    sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
+    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line,
+    MarkdownOptions, MarkdownRenderer, PageObject, PageRegions, Rect, SearchMatch, SearchOptions,
+    StructElement, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
+    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
+    extract_text_for_cells, search_chars, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -285,6 +286,17 @@ impl Page {
     /// Returns the images extracted from this page.
     pub fn images(&self) -> &[Image] {
         &self.images
+    }
+
+    /// Export images with deterministic filenames.
+    ///
+    /// Produces [`ExportedImage`] entries for each image on this page that
+    /// has data populated (requires `extract_image_data: true` in
+    /// [`ExtractOptions`]). Images without data are skipped.
+    ///
+    /// Page number in filenames is 1-indexed.
+    pub fn export_images(&self, options: &ImageExportOptions) -> Vec<ExportedImage> {
+        export_image_set(&self.images, self.page_number + 1, options)
     }
 
     /// Returns the annotations extracted from this page.
