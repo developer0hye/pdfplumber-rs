@@ -301,6 +301,8 @@ pub enum TextFormat {
     Json,
     /// Markdown output (headings, paragraphs, GFM tables, lists)
     Markdown,
+    /// HTML output (semantic HTML with headings, paragraphs, tables, emphasis)
+    Html,
 }
 
 /// Output format for chars/words/tables subcommands.

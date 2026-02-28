@@ -136,7 +136,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "Similar approach to Markdown renderer but with HTML tags."
     },
     {

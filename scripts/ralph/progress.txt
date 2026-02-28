@@ -123,3 +123,23 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - When adding variants to shared enums (like TextFormat), must handle exhaustive matches in ALL commands that use them
   - `split_lines_at_columns` uses `x_density` threshold — test character gaps must be smaller than `x_density` to stay in same line
 ---
+
+## 2026-02-28 - US-079
+- What was implemented: HTML output format for PDF page content
+- Files changed:
+  - `crates/pdfplumber-core/src/html.rs` — new module: HtmlRenderer, HtmlOptions, heading detection, paragraph wrapping (`<p>`), HTML table conversion (`<table>/<thead>/<tbody>/<tr>/<th>/<td>`), list detection (`<ul>`/`<ol>`/`<li>`), bold/italic emphasis (`<strong>`/`<em>`), HTML escaping
+  - `crates/pdfplumber-core/src/lib.rs` — registered html module, exported HtmlRenderer and HtmlOptions
+  - `crates/pdfplumber/src/lib.rs` — re-exported HtmlRenderer and HtmlOptions
+  - `crates/pdfplumber/src/page.rs` — added `Page::to_html(options)` method
+  - `crates/pdfplumber-cli/src/cli.rs` — added `Html` variant to `TextFormat` enum
+  - `crates/pdfplumber-cli/src/text_cmd.rs` — added `--format html` handling using `page.to_html()`
+  - `crates/pdfplumber-cli/src/bookmarks_cmd.rs` — handle Html variant (fallback to Text)
+  - `crates/pdfplumber-cli/src/info_cmd.rs` — handle Html variant (fallback to Text)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - HTML renderer follows same architecture as Markdown renderer: classify_blocks → render_elements
+  - HTML escaping (`&amp;`, `&lt;`, `&gt;`, `&quot;`) is essential for all user-facing text in HTML output
+  - List grouping: consecutive ListItem elements of the same type (ordered/unordered) are grouped into `<ul>`/`<ol>` wrapper
+  - Table HTML uses `<thead>` for first row and `<tbody>` for remaining rows, mirroring common HTML table semantics
+  - When adding variants to shared enums (like TextFormat), must handle exhaustive matches in ALL commands (bookmarks_cmd, info_cmd, text_cmd)
+---

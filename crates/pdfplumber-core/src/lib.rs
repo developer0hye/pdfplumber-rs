@@ -38,6 +38,8 @@ pub mod encoding;
 pub mod error;
 /// Geometric primitives: Point, BBox, CTM, Orientation.
 pub mod geometry;
+/// HTML rendering for PDF page content.
+pub mod html;
 /// PDF hyperlink types.
 pub mod hyperlink;
 /// Image extraction and metadata.
@@ -76,6 +78,7 @@ pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line,
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
 pub use geometry::{BBox, Ctm, Orientation, Point};
+pub use html::{HtmlOptions, HtmlRenderer};
 pub use hyperlink::Hyperlink;
 pub use images::{Image, ImageContent, ImageFormat, ImageMetadata, image_from_ctm};
 pub use layout::{
