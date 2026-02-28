@@ -445,6 +445,146 @@ pub fn intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell> {
     cells
 }
 
+/// Group adjacent cells into distinct tables.
+///
+/// Cells that share an edge (same x-boundary or y-boundary) are grouped into
+/// the same table using a union-find algorithm. Each table receives:
+/// - A `bbox` that is the union of all its cells' bounding boxes
+/// - `rows`: cells organized by y-coordinate (top-to-bottom), sorted left-to-right within each row
+/// - `columns`: cells organized by x-coordinate (left-to-right), sorted top-to-bottom within each column
+pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
+    if cells.is_empty() {
+        return Vec::new();
+    }
+
+    let n = cells.len();
+
+    // Union-Find to group cells sharing edges
+    let mut parent: Vec<usize> = (0..n).collect();
+
+    fn find(parent: &mut [usize], mut i: usize) -> usize {
+        while parent[i] != i {
+            parent[i] = parent[parent[i]]; // path compression
+            i = parent[i];
+        }
+        i
+    }
+
+    fn union(parent: &mut [usize], a: usize, b: usize) {
+        let ra = find(parent, a);
+        let rb = find(parent, b);
+        if ra != rb {
+            parent[rb] = ra;
+        }
+    }
+
+    // Two cells share an edge if they have a common boundary segment:
+    // - Same x0/x1 boundary AND overlapping y-ranges, or
+    // - Same top/bottom boundary AND overlapping x-ranges
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if cells_share_edge(&cells[i], &cells[j]) {
+                union(&mut parent, i, j);
+            }
+        }
+    }
+
+    // Group cells by their root
+    let mut groups: std::collections::HashMap<usize, Vec<usize>> = std::collections::HashMap::new();
+    for i in 0..n {
+        let root = find(&mut parent, i);
+        groups.entry(root).or_default().push(i);
+    }
+
+    // Build a Table from each group
+    let mut tables: Vec<Table> = groups
+        .into_values()
+        .map(|indices| {
+            let group_cells: Vec<Cell> = indices.iter().map(|&i| cells[i].clone()).collect();
+
+            // Compute union bbox
+            let mut bbox = group_cells[0].bbox;
+            for cell in &group_cells[1..] {
+                bbox = bbox.union(&cell.bbox);
+            }
+
+            // Organize into rows: group by top coordinate, sort left-to-right
+            let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> =
+                std::collections::BTreeMap::new();
+            for cell in &group_cells {
+                let key = float_key(cell.bbox.top);
+                row_map.entry(key).or_default().push(cell.clone());
+            }
+            let rows: Vec<Vec<Cell>> = row_map
+                .into_values()
+                .map(|mut row| {
+                    row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+                    row
+                })
+                .collect();
+
+            // Organize into columns: group by x0 coordinate, sort top-to-bottom
+            let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> =
+                std::collections::BTreeMap::new();
+            for cell in &group_cells {
+                let key = float_key(cell.bbox.x0);
+                col_map.entry(key).or_default().push(cell.clone());
+            }
+            let columns: Vec<Vec<Cell>> = col_map
+                .into_values()
+                .map(|mut col| {
+                    col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
+                    col
+                })
+                .collect();
+
+            Table {
+                bbox,
+                cells: group_cells,
+                rows,
+                columns,
+            }
+        })
+        .collect();
+
+    // Sort tables by position for deterministic output (top-to-bottom, left-to-right)
+    tables.sort_by(|a, b| {
+        a.bbox
+            .top
+            .partial_cmp(&b.bbox.top)
+            .unwrap()
+            .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
+    });
+
+    tables
+}
+
+/// Check if two cells share an edge (a common boundary segment).
+fn cells_share_edge(a: &Cell, b: &Cell) -> bool {
+    let eps = 1e-6;
+
+    // Check for shared vertical boundary (one cell's x1 == other's x0 or vice versa)
+    // with overlapping y-ranges
+    let shared_vertical = ((a.bbox.x1 - b.bbox.x0).abs() < eps
+        || (a.bbox.x0 - b.bbox.x1).abs() < eps)
+        && a.bbox.top < b.bbox.bottom + eps
+        && b.bbox.top < a.bbox.bottom + eps;
+
+    // Check for shared horizontal boundary (one cell's bottom == other's top or vice versa)
+    // with overlapping x-ranges
+    let shared_horizontal = ((a.bbox.bottom - b.bbox.top).abs() < eps
+        || (a.bbox.top - b.bbox.bottom).abs() < eps)
+        && a.bbox.x0 < b.bbox.x1 + eps
+        && b.bbox.x0 < a.bbox.x1 + eps;
+
+    shared_vertical || shared_horizontal
+}
+
+/// Convert a float to an integer key for grouping (multiply by 1000 to preserve 3 decimal places).
+fn float_key(v: f64) -> i64 {
+    (v * 1000.0).round() as i64
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -1645,5 +1785,200 @@ mod tests {
         for cell in &cells {
             assert!(cell.text.is_none());
         }
+    }
+
+    // --- cells_to_tables tests ---
+
+    fn make_cell(x0: f64, top: f64, x1: f64, bottom: f64) -> Cell {
+        Cell {
+            bbox: BBox::new(x0, top, x1, bottom),
+            text: None,
+        }
+    }
+
+    #[test]
+    fn test_cells_to_tables_empty() {
+        let tables = cells_to_tables(Vec::new());
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_cell() {
+        // A single cell forms a single table
+        let cells = vec![make_cell(0.0, 0.0, 50.0, 30.0)];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        assert_approx(tables[0].bbox.x0, 0.0);
+        assert_approx(tables[0].bbox.top, 0.0);
+        assert_approx(tables[0].bbox.x1, 50.0);
+        assert_approx(tables[0].bbox.bottom, 30.0);
+        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].rows.len(), 1);
+        assert_eq!(tables[0].rows[0].len(), 1);
+        assert_eq!(tables[0].columns.len(), 1);
+        assert_eq!(tables[0].columns[0].len(), 1);
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_table_2x2() {
+        // 2x2 grid: 4 cells sharing edges → 1 table
+        let cells = vec![
+            make_cell(0.0, 0.0, 50.0, 30.0),
+            make_cell(50.0, 0.0, 100.0, 30.0),
+            make_cell(0.0, 30.0, 50.0, 60.0),
+            make_cell(50.0, 30.0, 100.0, 60.0),
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        assert_approx(tables[0].bbox.x0, 0.0);
+        assert_approx(tables[0].bbox.top, 0.0);
+        assert_approx(tables[0].bbox.x1, 100.0);
+        assert_approx(tables[0].bbox.bottom, 60.0);
+        assert_eq!(tables[0].cells.len(), 4);
+        // 2 rows, each with 2 cells
+        assert_eq!(tables[0].rows.len(), 2);
+        assert_eq!(tables[0].rows[0].len(), 2);
+        assert_eq!(tables[0].rows[1].len(), 2);
+        // 2 columns, each with 2 cells
+        assert_eq!(tables[0].columns.len(), 2);
+        assert_eq!(tables[0].columns[0].len(), 2);
+        assert_eq!(tables[0].columns[1].len(), 2);
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_table_rows_ordered() {
+        // Verify rows are ordered top-to-bottom, left-to-right
+        let cells = vec![
+            make_cell(50.0, 30.0, 100.0, 60.0), // bottom-right (given first to test ordering)
+            make_cell(0.0, 0.0, 50.0, 30.0),    // top-left
+            make_cell(50.0, 0.0, 100.0, 30.0),  // top-right
+            make_cell(0.0, 30.0, 50.0, 60.0),   // bottom-left
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        // Row 0 (top): left then right
+        assert_approx(tables[0].rows[0][0].bbox.x0, 0.0);
+        assert_approx(tables[0].rows[0][1].bbox.x0, 50.0);
+        // Row 1 (bottom): left then right
+        assert_approx(tables[0].rows[1][0].bbox.x0, 0.0);
+        assert_approx(tables[0].rows[1][1].bbox.x0, 50.0);
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_table_columns_ordered() {
+        // Verify columns are ordered left-to-right, top-to-bottom
+        let cells = vec![
+            make_cell(0.0, 0.0, 50.0, 30.0),
+            make_cell(50.0, 0.0, 100.0, 30.0),
+            make_cell(0.0, 30.0, 50.0, 60.0),
+            make_cell(50.0, 30.0, 100.0, 60.0),
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        // Column 0 (left): top then bottom
+        assert_approx(tables[0].columns[0][0].bbox.top, 0.0);
+        assert_approx(tables[0].columns[0][1].bbox.top, 30.0);
+        // Column 1 (right): top then bottom
+        assert_approx(tables[0].columns[1][0].bbox.top, 0.0);
+        assert_approx(tables[0].columns[1][1].bbox.top, 30.0);
+    }
+
+    #[test]
+    fn test_cells_to_tables_two_separate_tables() {
+        // Two tables far apart on the same page
+        // Table 1: top-left area
+        // Table 2: bottom-right area (no shared edges)
+        let cells = vec![
+            // Table 1
+            make_cell(0.0, 0.0, 50.0, 30.0),
+            make_cell(50.0, 0.0, 100.0, 30.0),
+            // Table 2
+            make_cell(200.0, 200.0, 250.0, 230.0),
+            make_cell(250.0, 200.0, 300.0, 230.0),
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 2);
+
+        // Sort tables by x0 to get deterministic order
+        let mut tables = tables;
+        tables.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+
+        // Table 1
+        assert_approx(tables[0].bbox.x0, 0.0);
+        assert_approx(tables[0].bbox.x1, 100.0);
+        assert_eq!(tables[0].cells.len(), 2);
+        assert_eq!(tables[0].rows.len(), 1);
+        assert_eq!(tables[0].columns.len(), 2);
+
+        // Table 2
+        assert_approx(tables[1].bbox.x0, 200.0);
+        assert_approx(tables[1].bbox.x1, 300.0);
+        assert_eq!(tables[1].cells.len(), 2);
+        assert_eq!(tables[1].rows.len(), 1);
+        assert_eq!(tables[1].columns.len(), 2);
+    }
+
+    #[test]
+    fn test_cells_to_tables_3x3_grid() {
+        // 3 cols × 3 rows = 9 cells, all connected → 1 table
+        let mut cells = Vec::new();
+        for row in 0..3 {
+            for col in 0..3 {
+                let x0 = col as f64 * 40.0;
+                let top = row as f64 * 30.0;
+                cells.push(make_cell(x0, top, x0 + 40.0, top + 30.0));
+            }
+        }
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 9);
+        assert_eq!(tables[0].rows.len(), 3);
+        for row in &tables[0].rows {
+            assert_eq!(row.len(), 3);
+        }
+        assert_eq!(tables[0].columns.len(), 3);
+        for col in &tables[0].columns {
+            assert_eq!(col.len(), 3);
+        }
+        assert_approx(tables[0].bbox.x0, 0.0);
+        assert_approx(tables[0].bbox.top, 0.0);
+        assert_approx(tables[0].bbox.x1, 120.0);
+        assert_approx(tables[0].bbox.bottom, 90.0);
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_row() {
+        // 3 cells in a single row → 1 table with 1 row, 3 columns
+        let cells = vec![
+            make_cell(0.0, 0.0, 40.0, 30.0),
+            make_cell(40.0, 0.0, 80.0, 30.0),
+            make_cell(80.0, 0.0, 120.0, 30.0),
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].rows.len(), 1);
+        assert_eq!(tables[0].rows[0].len(), 3);
+        assert_eq!(tables[0].columns.len(), 3);
+        for col in &tables[0].columns {
+            assert_eq!(col.len(), 1);
+        }
+    }
+
+    #[test]
+    fn test_cells_to_tables_single_column() {
+        // 3 cells in a single column → 1 table with 3 rows, 1 column
+        let cells = vec![
+            make_cell(0.0, 0.0, 50.0, 30.0),
+            make_cell(0.0, 30.0, 50.0, 60.0),
+            make_cell(0.0, 60.0, 50.0, 90.0),
+        ];
+        let tables = cells_to_tables(cells);
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].rows.len(), 3);
+        for row in &tables[0].rows {
+            assert_eq!(row.len(), 1);
+        }
+        assert_eq!(tables[0].columns.len(), 1);
+        assert_eq!(tables[0].columns[0].len(), 3);
     }
 }

@@ -31,7 +31,7 @@ pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableSettings,
-    edges_to_intersections, intersections_to_cells, join_edge_group, snap_edges,
+    cells_to_tables, edges_to_intersections, intersections_to_cells, join_edge_group, snap_edges,
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};
