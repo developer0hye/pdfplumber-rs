@@ -459,11 +459,12 @@ pub fn edges_to_intersections(
 /// y-pair from intersection grid), check all 4 edges: horizontal edges span \[x0, x1\]
 /// at top and bottom y, AND vertical edges span \[top, bottom\] at left and right x.
 ///
-/// **Phase 2 (grid completion):** For cells rejected by phase 1, check if horizontal edges
-/// span \[x0, x1\] at both top and bottom y, AND the column boundaries (x0, x1) are
-/// established by at least one phase-1 cell. This handles tables with merged header rows
-/// or partial column dividers, where vertical edges exist only in the data area but
-/// horizontal edges span the full width.
+/// **Phase 2 (merged cell completion):** For rows not fully covered by Phase 1, identify
+/// x-positions that have vertical edge coverage at the current y-range. Between consecutive
+/// such x-positions, create one merged cell if horizontal edges span the range at both
+/// top and bottom y. This produces wider cells for merged header/footer rows (matching
+/// Python pdfplumber behavior). Use [`normalize_table_columns`] after text extraction
+/// to split merged cells into uniform grid columns.
 pub fn edges_to_cells(
     intersections: &[Intersection],
     edges: &[Edge],
@@ -545,34 +546,55 @@ pub fn edges_to_cells(
         }
     }
 
-    // Phase 2: grid completion — fill in rows with horizontal edges but missing verticals,
-    // only where column positions are established by phase-1 cells
+    // Phase 2: grid completion with merged cells — for rows with missing vertical edges,
+    // create merged cells spanning between consecutive x-positions that have vertical
+    // edge coverage at the current y-range. This produces wider cells for merged header/
+    // footer rows (matching Python pdfplumber behavior) instead of narrow cells that
+    // fragment text.
     let is_established_x =
         |x: f64| -> bool { established_xs.contains(&((x * 1000.0).round() as i64)) };
 
     for yi in 0..ys.len().saturating_sub(1) {
-        for xi in 0..xs.len().saturating_sub(1) {
-            let x0 = xs[xi];
-            let x1 = xs[xi + 1];
-            let top = ys[yi];
-            let bottom = ys[yi + 1];
+        let top = ys[yi];
+        let bottom = ys[yi + 1];
 
-            // Skip if already created in phase 1
-            if cells
-                .iter()
-                .any(|c| (c.bbox.x0 - x0).abs() < 1e-9 && (c.bbox.top - top).abs() < 1e-9)
-            {
+        // Check if this row is already fully covered by Phase 1
+        let phase1_count = cells
+            .iter()
+            .filter(|c| (c.bbox.top - top).abs() < 1e-9)
+            .count();
+        let max_cells = xs.len().saturating_sub(1);
+        if phase1_count >= max_cells {
+            continue;
+        }
+
+        // Find x-positions with vertical edge coverage at this y-range
+        let v_xs: Vec<f64> = xs
+            .iter()
+            .filter(|&&x| is_established_x(x) && has_v_coverage(x, top, bottom))
+            .copied()
+            .collect();
+
+        // Create merged cells between consecutive V-boundary positions
+        for vi in 0..v_xs.len().saturating_sub(1) {
+            let cell_x0 = v_xs[vi];
+            let cell_x1 = v_xs[vi + 1];
+
+            // Skip if Phase 1 already created a matching cell
+            let already_exists = cells.iter().any(|c| {
+                (c.bbox.x0 - cell_x0).abs() < 1e-9
+                    && (c.bbox.top - top).abs() < 1e-9
+                    && (c.bbox.x1 - cell_x1).abs() < 1e-9
+                    && (c.bbox.bottom - bottom).abs() < 1e-9
+            });
+            if already_exists {
                 continue;
             }
 
-            // Grid completion: H edges at top & bottom, column positions established
-            if has_h_coverage(x0, x1, top)
-                && has_h_coverage(x0, x1, bottom)
-                && is_established_x(x0)
-                && is_established_x(x1)
-            {
+            // Check H edge coverage at top and bottom
+            if has_h_coverage(cell_x0, cell_x1, top) && has_h_coverage(cell_x0, cell_x1, bottom) {
                 cells.push(Cell {
-                    bbox: BBox::new(x0, top, x1, bottom),
+                    bbox: BBox::new(cell_x0, top, cell_x1, bottom),
                     text: None,
                 });
             }
@@ -836,6 +858,110 @@ pub fn duplicate_merged_content_in_table(table: &Table) -> Table {
                 new_cells.push(Cell {
                     bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
                     text: cell.text.clone(),
+                });
+            }
+        }
+    }
+
+    // Organize into rows (group by top, sort by x0)
+    let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.top);
+        row_map.entry(key).or_default().push(cell.clone());
+    }
+    let rows: Vec<Vec<Cell>> = row_map
+        .into_values()
+        .map(|mut row| {
+            row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+            row
+        })
+        .collect();
+
+    // Organize into columns (group by x0, sort by top)
+    let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.x0);
+        col_map.entry(key).or_default().push(cell.clone());
+    }
+    let columns: Vec<Vec<Cell>> = col_map
+        .into_values()
+        .map(|mut col| {
+            col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
+            col
+        })
+        .collect();
+
+    Table {
+        bbox: table.bbox,
+        cells: new_cells,
+        rows,
+        columns,
+    }
+}
+
+/// Normalize a table so all rows have equal column count by splitting merged cells.
+///
+/// Similar to [`duplicate_merged_content_in_table`], but text is placed only in the
+/// first sub-cell of each merged group (top-left corner) instead of being duplicated
+/// to all sub-cells. This matches Python pdfplumber's behavior where merged header
+/// cells have text in the first column position and empty strings in the rest.
+///
+/// Should be called after [`extract_text_for_cells`] so merged cells already have
+/// their text content populated.
+pub fn normalize_table_columns(table: &Table) -> Table {
+    if table.cells.is_empty() {
+        return table.clone();
+    }
+
+    // Collect all unique x-coordinates and y-coordinates from cell boundaries
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for cell in &table.cells {
+        if !xs.iter().any(|&x| (x - cell.bbox.x0).abs() < 1e-6) {
+            xs.push(cell.bbox.x0);
+        }
+        if !xs.iter().any(|&x| (x - cell.bbox.x1).abs() < 1e-6) {
+            xs.push(cell.bbox.x1);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.top).abs() < 1e-6) {
+            ys.push(cell.bbox.top);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.bottom).abs() < 1e-6) {
+            ys.push(cell.bbox.bottom);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // For each grid position, find the enclosing cell and create a sub-cell
+    let mut new_cells: Vec<Cell> = Vec::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let sub_x0 = xs[xi];
+            let sub_x1 = xs[xi + 1];
+            let sub_top = ys[yi];
+            let sub_bottom = ys[yi + 1];
+            let sub_cx = (sub_x0 + sub_x1) / 2.0;
+            let sub_cy = (sub_top + sub_bottom) / 2.0;
+
+            // Find which existing cell contains this grid position's center
+            let enclosing_cell = table.cells.iter().find(|c| {
+                sub_cx >= c.bbox.x0 - 1e-6
+                    && sub_cx <= c.bbox.x1 + 1e-6
+                    && sub_cy >= c.bbox.top - 1e-6
+                    && sub_cy <= c.bbox.bottom + 1e-6
+            });
+
+            if let Some(cell) = enclosing_cell {
+                // Text goes in first sub-cell only (top-left corner of the enclosing cell)
+                let is_first =
+                    (sub_x0 - cell.bbox.x0).abs() < 1e-6 && (sub_top - cell.bbox.top).abs() < 1e-6;
+                new_cells.push(Cell {
+                    bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
+                    text: if is_first { cell.text.clone() } else { None },
                 });
             }
         }
@@ -2830,6 +2956,86 @@ mod tests {
         for cell in &cells {
             assert!(cell.text.is_none());
         }
+    }
+
+    // --- normalize_table_columns tests ---
+
+    #[test]
+    fn test_normalize_table_columns_uniform_grid() {
+        // 2x2 uniform grid: no merged cells → should be unchanged
+        let cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                text: Some("A".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                text: Some("B".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                text: Some("C".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                text: Some("D".to_string()),
+            },
+        ];
+        let table = cells_to_tables(cells);
+        assert_eq!(table.len(), 1);
+        let normalized = normalize_table_columns(&table[0]);
+        assert_eq!(normalized.rows.len(), 2);
+        assert_eq!(normalized.rows[0].len(), 2);
+        assert_eq!(normalized.rows[1].len(), 2);
+        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(normalized.rows[0][1].text.as_deref(), Some("B"));
+        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_normalize_table_columns_merged_header() {
+        // Row 0: 1 wide cell spanning full width (merged header)
+        // Row 1: 2 normal cells
+        // After normalization: row 0 should have 2 cells (text in first, None in second)
+        let cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                text: Some("Title".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                text: Some("C".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                text: Some("D".to_string()),
+            },
+        ];
+        let table = cells_to_tables(cells);
+        assert_eq!(table.len(), 1);
+        let normalized = normalize_table_columns(&table[0]);
+        assert_eq!(normalized.rows.len(), 2);
+        // Row 0: merged cell split into 2, text in first only
+        assert_eq!(normalized.rows[0].len(), 2);
+        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("Title"));
+        assert!(normalized.rows[0][1].text.is_none());
+        // Row 1: unchanged
+        assert_eq!(normalized.rows[1].len(), 2);
+        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_normalize_table_columns_empty_table() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 100.0),
+            cells: vec![],
+            rows: vec![],
+            columns: vec![],
+        };
+        let normalized = normalize_table_columns(&table);
+        assert!(normalized.cells.is_empty());
     }
 
     // --- cells_to_tables tests ---

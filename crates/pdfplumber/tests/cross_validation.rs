@@ -6,7 +6,7 @@
 //!
 //! All char/word/line/rect metrics at or above PRD targets (95%+).
 //! - **scotus-transcript**: 1 char gap (synthetic `\n` from Python layout analysis).
-//! - **nics-background-checks tables**: Table cell accuracy ~6.8% (needs investigation).
+//! - **nics-background-checks tables**: Table cell accuracy 100% after grid completion fix.
 
 #![allow(dead_code)]
 
@@ -592,7 +592,7 @@ fn cross_validate_scotus_transcript() {
 }
 
 /// nics-background-checks-2015-11.pdf: complex lattice table.
-/// Chars/words/lines/rects at 100%. Table accuracy ~6.8% (needs investigation).
+/// All metrics at 100% including table cell accuracy.
 #[test]
 fn cross_validate_nics_background_checks() {
     let result = validate_pdf("nics-background-checks-2015-11.pdf");
@@ -618,6 +618,12 @@ fn cross_validate_nics_background_checks() {
         result.total_rect_rate() >= 1.0,
         "rect rate {:.1}% < 100%",
         result.total_rect_rate() * 100.0,
+    );
+    assert!(
+        result.total_table_rate() >= TABLE_THRESHOLD,
+        "table rate {:.1}% < {:.1}%",
+        result.total_table_rate() * 100.0,
+        TABLE_THRESHOLD * 100.0,
     );
 }
 

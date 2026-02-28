@@ -126,7 +126,8 @@ pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableFinderDebug,
     TableQuality, TableSettings, cells_to_tables, duplicate_merged_content_in_table,
     edges_to_cells, edges_to_intersections, explicit_lines_to_edges, extract_text_for_cells,
-    intersections_to_cells, join_edge_group, snap_edges, words_to_edges_stream,
+    intersections_to_cells, join_edge_group, normalize_table_columns, snap_edges,
+    words_to_edges_stream,
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use unicode_norm::{UnicodeNorm, normalize_chars};

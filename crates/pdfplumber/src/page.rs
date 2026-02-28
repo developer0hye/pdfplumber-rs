@@ -7,8 +7,8 @@ use pdfplumber_core::{
     StructElement, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
     WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
     derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
-    extract_text_for_cells, search_chars, sort_blocks_column_order, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    extract_text_for_cells, normalize_table_columns, search_chars, sort_blocks_column_order,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -471,6 +471,13 @@ impl Page {
                 extract_text_for_cells(col, &self.chars);
             }
         }
+
+        // Normalize merged cells: split wide cells into uniform grid columns,
+        // text in first sub-cell only (matching Python pdfplumber behavior)
+        tables = tables
+            .into_iter()
+            .map(|t| normalize_table_columns(&t))
+            .collect();
 
         // Duplicate merged cell content if configured
         if settings.duplicate_merged_content {
