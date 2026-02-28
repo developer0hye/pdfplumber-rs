@@ -32,7 +32,7 @@ pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableSettings,
     cells_to_tables, edges_to_intersections, extract_text_for_cells, intersections_to_cells,
-    join_edge_group, snap_edges,
+    join_edge_group, snap_edges, words_to_edges_stream,
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use words::{Word, WordExtractor, WordOptions};

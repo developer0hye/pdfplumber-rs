@@ -21,6 +21,8 @@ pub enum EdgeSource {
     RectRight,
     /// Approximated from a Curve (chord from start to end).
     Curve,
+    /// Synthetic edge generated from text alignment patterns (Stream strategy).
+    Stream,
 }
 
 /// A line segment edge for table detection.
