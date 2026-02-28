@@ -2,8 +2,8 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageMetadata, Line, PaintedPath, Path,
-    PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
+    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, PaintedPath,
+    Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
     StructElement, UnicodeNorm, ValidationIssue, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
@@ -511,7 +511,25 @@ impl Pdf {
                     bits_per_component: event.bits_per_component,
                     color_space: event.colorspace.clone(),
                 };
-                image_from_ctm(&ctm, &event.name, page_height, &meta)
+                let mut img = image_from_ctm(&ctm, &event.name, page_height, &meta);
+
+                // Set filter and mime_type from the event
+                if let Some(ref filter_name) = event.filter {
+                    let filter = ImageFilter::from_pdf_name(filter_name);
+                    img.mime_type = Some(filter.mime_type().to_string());
+                    img.filter = Some(filter);
+                }
+
+                // Optionally extract image data
+                if self.options.extract_image_data {
+                    if let Ok(content) =
+                        LopdfBackend::extract_image_content(&self.doc, &lopdf_page, &event.name)
+                    {
+                        img.data = Some(content.data);
+                    }
+                }
+
+                img
             })
             .collect();
 
@@ -1712,6 +1730,137 @@ mod tests {
 
         let result = pdf.extract_image_content(99, "Im0");
         assert!(result.is_err());
+    }
+
+    // --- Image data opt-in tests ---
+
+    fn create_pdf_with_jpeg_image() -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Minimal JPEG-like data (starts with SOI marker)
+        let jpeg_data = vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+        ];
+        let image_stream = Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => 2i64,
+                "Height" => 2i64,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8i64,
+                "Filter" => "DCTDecode",
+            },
+            jpeg_data,
+        );
+        let image_id = doc.add_object(Object::Stream(image_stream));
+
+        let page_content = b"q 200 0 0 150 100 300 cm /Im0 Do Q";
+        let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(dictionary! {
+                "XObject" => Object::Dictionary(dictionary! {
+                    "Im0" => image_id,
+                }),
+            }),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn image_data_not_extracted_by_default() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].data, None);
+        // Filter and mime_type should still be set (no filter = no filter info)
+        assert_eq!(images[0].filter, None);
+        assert_eq!(images[0].mime_type, None);
+    }
+
+    #[test]
+    fn image_data_extracted_when_opt_in() {
+        let bytes = create_pdf_with_image();
+        let opts = ExtractOptions {
+            extract_image_data: true,
+            ..ExtractOptions::default()
+        };
+        let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert!(images[0].data.is_some());
+        let data = images[0].data.as_ref().unwrap();
+        // 2x2 RGB image = 12 bytes
+        assert_eq!(data.len(), 12);
+        assert_eq!(data, &[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]);
+    }
+
+    #[test]
+    fn jpeg_image_filter_and_mime_type() {
+        let bytes = create_pdf_with_jpeg_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].filter, Some(ImageFilter::DCTDecode));
+        assert_eq!(images[0].mime_type, Some("image/jpeg".to_string()));
+        // Data not extracted by default
+        assert_eq!(images[0].data, None);
+    }
+
+    #[test]
+    fn jpeg_image_data_extracted_as_is() {
+        let bytes = create_pdf_with_jpeg_image();
+        let opts = ExtractOptions {
+            extract_image_data: true,
+            ..ExtractOptions::default()
+        };
+        let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert!(images[0].data.is_some());
+        let data = images[0].data.as_ref().unwrap();
+        // JPEG data starts with SOI marker
+        assert!(data.starts_with(&[0xFF, 0xD8]));
+        assert_eq!(images[0].filter, Some(ImageFilter::DCTDecode));
+        assert_eq!(images[0].mime_type, Some("image/jpeg".to_string()));
     }
 
     // --- Encrypted PDF facade tests ---

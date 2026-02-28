@@ -1186,6 +1186,20 @@ fn handle_image_xobject(
         .and_then(|o| o.as_i64().ok())
         .map(|v| v as u32);
 
+    // Extract the primary filter name from the stream dictionary
+    let filter = stream.dict.get(b"Filter").ok().and_then(|o| {
+        if let Ok(name) = o.as_name_str() {
+            Some(name.to_string())
+        } else if let Ok(arr) = o.as_array() {
+            // For filter arrays, use the last filter (the one that determines the format)
+            arr.last()
+                .and_then(|item| item.as_name_str().ok())
+                .map(|s| s.to_string())
+        } else {
+            None
+        }
+    });
+
     handler.on_image(ImageEvent {
         name: name.to_string(),
         ctm: gstate.ctm_array(),
@@ -1193,6 +1207,7 @@ fn handle_image_xobject(
         height,
         colorspace,
         bits_per_component,
+        filter,
     });
 }
 

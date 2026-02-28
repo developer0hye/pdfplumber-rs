@@ -108,7 +108,7 @@ pub use pdfplumber_core::{
     DedupeOptions, DocumentMetadata, DrawStyle, Edge, EdgeSource, EncodingResolver, ExplicitLines,
     ExtGState, ExtractOptions, ExtractResult, ExtractWarning, FieldType, FillRule, FontEncoding,
     FormField, GraphicsState, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageContent,
-    ImageFormat, ImageMetadata, Intersection, Line, LineOrientation, MarkdownOptions,
+    ImageFilter, ImageFormat, ImageMetadata, Intersection, Line, LineOrientation, MarkdownOptions,
     MarkdownRenderer, Orientation, PageObject, PaintedPath, Path, PathBuilder, PathSegment,
     PdfError, Point, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, Severity,
     SignatureInfo, StandardEncoding, Strategy, StructElement, SvgDebugOptions, SvgOptions,

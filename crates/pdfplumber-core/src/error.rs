@@ -207,6 +207,12 @@ pub struct ExtractOptions {
     pub collect_warnings: bool,
     /// Unicode normalization form to apply to extracted character text (default: None).
     pub unicode_norm: UnicodeNorm,
+    /// Whether to extract image stream data into Image structs (default: false).
+    ///
+    /// When enabled, each `Image` will have its `data`, `filter`, and `mime_type`
+    /// fields populated with the raw stream bytes and encoding information.
+    /// Disabled by default to avoid memory overhead for large images.
+    pub extract_image_data: bool,
 }
 
 impl Default for ExtractOptions {
@@ -217,6 +223,7 @@ impl Default for ExtractOptions {
             max_stream_bytes: 100 * 1024 * 1024,
             collect_warnings: true,
             unicode_norm: UnicodeNorm::None,
+            extract_image_data: false,
         }
     }
 }
@@ -443,6 +450,7 @@ mod tests {
         assert_eq!(opts.max_stream_bytes, 100 * 1024 * 1024);
         assert!(opts.collect_warnings);
         assert_eq!(opts.unicode_norm, UnicodeNorm::None);
+        assert!(!opts.extract_image_data);
     }
 
     #[test]
@@ -453,11 +461,13 @@ mod tests {
             max_stream_bytes: 10 * 1024 * 1024,
             collect_warnings: false,
             unicode_norm: UnicodeNorm::None,
+            extract_image_data: true,
         };
         assert_eq!(opts.max_recursion_depth, 5);
         assert_eq!(opts.max_objects_per_page, 50_000);
         assert_eq!(opts.max_stream_bytes, 10 * 1024 * 1024);
         assert!(!opts.collect_warnings);
+        assert!(opts.extract_image_data);
     }
 
     #[test]
