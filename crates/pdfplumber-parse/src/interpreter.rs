@@ -23,8 +23,8 @@ use crate::text_renderer::{
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
 use pdfplumber_core::{
-    DashPattern, ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder,
-    StandardEncoding, glyph_name_to_char,
+    ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder, StandardEncoding,
+    glyph_name_to_char,
 };
 
 /// Cached font information for the interpreter.
@@ -314,7 +314,7 @@ pub(crate) fn interpret_content_stream(
 
             // --- Path construction operators ---
             "m" => {
-                // moveto
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 2 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -322,7 +322,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "l" => {
-                // lineto
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 2 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -330,7 +330,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "c" => {
-                // curveto (6 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 6 {
                     let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -342,7 +342,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "v" => {
-                // curveto variant: first CP = current point (4 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x2 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y2 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -352,7 +352,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "y" => {
-                // curveto variant: last CP = endpoint (4 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -362,7 +362,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "re" => {
-                // rectangle
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -378,97 +378,84 @@ pub(crate) fn interpret_content_stream(
 
             // --- Path painting operators ---
             "S" => {
-                // Stroke
-                emit_path_event(
-                    &mut path_builder,
-                    gstate,
-                    handler,
-                    PaintOp::Stroke,
-                    FillRule::NonZeroWinding,
-                );
+                let painted = path_builder.stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
             }
             "s" => {
-                // Close and stroke
-                path_builder.close_path();
-                emit_path_event(
-                    &mut path_builder,
-                    gstate,
-                    handler,
-                    PaintOp::Stroke,
-                    FillRule::NonZeroWinding,
-                );
+                let painted = path_builder.close_and_stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
             }
             "f" | "F" => {
-                // Fill (nonzero winding)
+                let painted = path_builder.fill(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::Fill,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "f*" => {
-                // Fill (even-odd rule)
+                let painted = path_builder.fill_even_odd(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::Fill,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "B" => {
-                // Fill and stroke (nonzero winding)
+                let painted = path_builder.fill_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "B*" => {
-                // Fill and stroke (even-odd rule)
+                let painted = path_builder.fill_even_odd_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "b" => {
-                // Close, fill, and stroke (nonzero winding)
-                path_builder.close_path();
+                let painted = path_builder.close_fill_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "b*" => {
-                // Close, fill, and stroke (even-odd rule)
-                path_builder.close_path();
+                let painted = path_builder.close_fill_even_odd_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "n" => {
-                // End path without painting (no-op, used with clipping)
-                path_builder.take_and_reset();
-            }
-            "W" | "W*" => {
-                // Clipping path — no-op for extraction purposes
+                path_builder.end_path();
             }
 
-            // Other operators not yet handled
+            // --- Clipping operators (no-op for extraction) ---
+            "W" | "W*" => {}
+
+            // --- Marked content operators ---
+            "BMC" | "BDC" | "EMC" | "MP" | "DP" => {}
+
+            // Other operators — silently ignore
             _ => {}
         }
     }
@@ -889,34 +876,30 @@ fn emit_char_events(
 
 // --- Path painting ---
 
+/// Emit a PathEvent from a PaintedPath produced by the PathBuilder.
 fn emit_path_event(
-    path_builder: &mut PathBuilder,
-    gstate: &InterpreterState,
     handler: &mut dyn ContentHandler,
+    gstate: &InterpreterState,
+    painted: &pdfplumber_core::PaintedPath,
     paint_op: PaintOp,
-    fill_rule: FillRule,
+    fill_rule: Option<FillRule>,
 ) {
-    let path = path_builder.take_and_reset();
-    if path.segments.is_empty() {
+    if painted.path.segments.is_empty() {
         return;
     }
-
-    let gs = gstate.graphics_state();
-    let dp = &gs.dash_pattern;
-
     handler.on_path_painted(PathEvent {
-        segments: path.segments,
+        segments: painted.path.segments.clone(),
         paint_op,
-        line_width: gs.line_width,
-        stroking_color: Some(gs.stroke_color.clone()),
-        non_stroking_color: Some(gs.fill_color.clone()),
+        line_width: painted.line_width,
+        stroking_color: Some(painted.stroke_color.clone()),
+        non_stroking_color: Some(painted.fill_color.clone()),
         ctm: gstate.ctm_array(),
-        dash_pattern: if dp.is_solid() {
+        dash_pattern: if painted.dash_pattern.is_solid() {
             None
         } else {
-            Some(DashPattern::new(dp.dash_array.clone(), dp.dash_phase))
+            Some(painted.dash_pattern.clone())
         },
-        fill_rule: Some(fill_rule),
+        fill_rule,
     });
 }
 
