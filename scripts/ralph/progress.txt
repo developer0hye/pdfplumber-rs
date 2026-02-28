@@ -88,3 +88,27 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - AtomicUsize with Relaxed ordering is sufficient for counters since exact accuracy isn't critical
   - fetch_add returns the *previous* value, so add page_object_count to get the new total
 ---
+
+## 2026-03-01 - US-098 (Phase 13)
+- Implemented deterministic image naming and export contract
+- ImageExportOptions struct: pattern (String, default "page{page}_img{index}.{ext}"), deduplicate (bool, default false)
+- ExportedImage struct: filename, data, mime_type, page (1-indexed)
+- ImageFilter::extension() for normalized file extensions (DCTDecode->jpg, FlateDecode->png, JPXDecode->jp2, CCITTFaxDecode->tiff, others->bin)
+- content_hash_prefix() for deterministic SipHash-based content hashing (16 hex chars)
+- apply_export_pattern() for {page}, {index}, {ext}, {hash} variable substitution
+- export_image_set() core function handles deduplication via HashMap of hash->filename
+- Page::export_images(options) delegates to export_image_set with 1-indexed page number
+- 20 new tests: extension normalization, pattern substitution, deduplication, determinism, edge cases
+- Files changed:
+  - crates/pdfplumber-core/src/images.rs (new types + methods + tests)
+  - crates/pdfplumber-core/src/lib.rs (re-exports)
+  - crates/pdfplumber/src/page.rs (export_images method)
+  - crates/pdfplumber/src/lib.rs (re-exports)
+  - scripts/ralph/prd.json (US-098 passes: true)
+- **Learnings for future iterations:**
+  - Image.data is Option<Vec<u8>> — requires extract_image_data:true in ExtractOptions to be populated
+  - export_image_set is a pure function on &[Image] — easily testable without Page
+  - DefaultHasher::new() uses SipHash with keys (0,0) — deterministic within same Rust version
+  - ImageFilter::extension() is separate from ImageFormat::extension() — different enums for different contexts
+  - Deduplication uses seen_hashes HashMap to map content hash -> first-assigned filename
+---

@@ -93,7 +93,10 @@ pub use form_field::{FieldType, FormField};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use html::{HtmlOptions, HtmlRenderer};
 pub use hyperlink::Hyperlink;
-pub use images::{Image, ImageContent, ImageFilter, ImageFormat, ImageMetadata, image_from_ctm};
+pub use images::{
+    ExportedImage, Image, ImageContent, ImageExportOptions, ImageFilter, ImageFormat,
+    ImageMetadata, apply_export_pattern, content_hash_prefix, export_image_set, image_from_ctm,
+};
 pub use layout::{
     ColumnMode, TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, detect_columns, sort_blocks_column_order, sort_blocks_reading_order,
