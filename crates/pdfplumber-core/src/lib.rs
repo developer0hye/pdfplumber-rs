@@ -50,10 +50,14 @@ pub mod images;
 pub mod layout;
 /// Markdown rendering for PDF page content.
 pub mod markdown;
+/// Document-level Markdown conversion types.
+pub mod markdown_conversion;
 /// Document-level metadata types.
 pub mod metadata;
 /// PageObject enum for custom object filtering.
 pub mod page_object;
+/// Header/footer detection and page region classification.
+pub mod page_regions;
 /// Graphics state, colors, dash patterns, and painted paths.
 pub mod painting;
 /// PDF path construction (MoveTo, LineTo, CurveTo, ClosePath).
@@ -86,19 +90,30 @@ pub use bookmark::Bookmark;
 pub use dedupe::{DedupeOptions, dedupe_chars};
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding, glyph_name_to_char};
-pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
+pub use error::{ExtractOptions, ExtractResult, ExtractWarning, ExtractWarningCode, PdfError};
 pub use form_field::{FieldType, FormField};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use html::{HtmlOptions, HtmlRenderer};
 pub use hyperlink::Hyperlink;
-pub use images::{Image, ImageContent, ImageFormat, ImageMetadata, image_from_ctm};
+pub use images::{
+    ExportedImage, Image, ImageContent, ImageExportOptions, ImageFilter, ImageFormat,
+    ImageMetadata, apply_export_pattern, content_hash_prefix, export_image_set, image_from_ctm,
+};
 pub use layout::{
-    TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    ColumnMode, TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, detect_columns, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 pub use markdown::{MarkdownOptions, MarkdownRenderer};
+pub use markdown_conversion::{
+    MarkdownConversionOptions, MarkdownConversionResult, extract_title_from_markdown,
+    strip_markdown,
+};
 pub use metadata::DocumentMetadata;
 pub use page_object::PageObject;
+pub use page_regions::{
+    PageRegionOptions, PageRegions, detect_page_regions, mask_variable_elements,
+};
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use repair::{RepairOptions, RepairResult};
@@ -109,9 +124,9 @@ pub use struct_tree::StructElement;
 pub use svg::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableFinderDebug,
-    TableQuality, TableSettings, cells_to_tables, edges_to_intersections, explicit_lines_to_edges,
-    extract_text_for_cells, intersections_to_cells, join_edge_group, snap_edges,
-    words_to_edges_stream,
+    TableQuality, TableSettings, cells_to_tables, duplicate_merged_content_in_table,
+    edges_to_intersections, explicit_lines_to_edges, extract_text_for_cells,
+    intersections_to_cells, join_edge_group, snap_edges, words_to_edges_stream,
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use unicode_norm::{UnicodeNorm, normalize_chars};

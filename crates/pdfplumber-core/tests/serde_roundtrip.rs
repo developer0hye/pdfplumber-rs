@@ -231,6 +231,9 @@ fn test_serde_image() {
         src_height: Some(1080),
         bits_per_component: Some(8),
         color_space: Some("DeviceRGB".to_string()),
+        data: None,
+        filter: None,
+        mime_type: None,
     };
     roundtrip(&img);
 }

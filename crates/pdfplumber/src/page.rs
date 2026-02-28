@@ -1,12 +1,14 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, FormField, HtmlOptions,
-    HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect,
-    SearchMatch, SearchOptions, StructElement, Table, TableFinder, TableSettings, TextOptions,
-    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
+    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line,
+    MarkdownOptions, MarkdownRenderer, PageObject, PageRegions, Rect, SearchMatch, SearchOptions,
+    StructElement, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
+    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
+    extract_text_for_cells, search_chars, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -286,6 +288,17 @@ impl Page {
         &self.images
     }
 
+    /// Export images with deterministic filenames.
+    ///
+    /// Produces [`ExportedImage`] entries for each image on this page that
+    /// has data populated (requires `extract_image_data: true` in
+    /// [`ExtractOptions`]). Images without data are skipped.
+    ///
+    /// Page number in filenames is 1-indexed.
+    pub fn export_images(&self, options: &ImageExportOptions) -> Vec<ExportedImage> {
+        export_image_set(&self.images, self.page_number + 1, options)
+    }
+
     /// Returns the annotations extracted from this page.
     ///
     /// Annotations include text notes, links, highlights, stamps, and other
@@ -360,6 +373,7 @@ impl Page {
     pub fn extract_text(&self, options: &TextOptions) -> String {
         let words = self.extract_words(&WordOptions {
             y_tolerance: options.y_tolerance,
+            expand_ligatures: options.expand_ligatures,
             ..WordOptions::default()
         });
 
@@ -370,8 +384,31 @@ impl Page {
         let lines = cluster_words_into_lines(&words, options.y_tolerance);
         let split = split_lines_at_columns(lines, options.x_density);
         let mut blocks = cluster_lines_into_blocks(split, options.y_density);
-        sort_blocks_reading_order(&mut blocks, options.x_density);
+
+        match &options.column_mode {
+            ColumnMode::None => {
+                sort_blocks_reading_order(&mut blocks, options.x_density);
+            }
+            ColumnMode::Auto => {
+                let boundaries =
+                    detect_columns(&words, options.min_column_gap, options.max_columns);
+                sort_blocks_column_order(&mut blocks, &boundaries);
+            }
+            ColumnMode::Explicit(boundaries) => {
+                sort_blocks_column_order(&mut blocks, boundaries);
+            }
+        }
+
         blocks_to_text(&blocks)
+    }
+
+    /// Extract text from the body region of this page, excluding header and footer.
+    ///
+    /// Uses the provided [`PageRegions`] (from [`Pdf::detect_page_regions()`]) to
+    /// crop the page to the body area and extract text from it.
+    pub fn extract_text_body(&self, regions: &PageRegions) -> String {
+        let cropped = self.crop(regions.body);
+        cropped.extract_text(&TextOptions::default())
     }
 
     /// Render this page's content as Markdown text.
@@ -433,6 +470,14 @@ impl Page {
             for col in &mut table.columns {
                 extract_text_for_cells(col, &self.chars);
             }
+        }
+
+        // Duplicate merged cell content if configured
+        if settings.duplicate_merged_content {
+            tables = tables
+                .into_iter()
+                .map(|t| duplicate_merged_content_in_table(&t))
+                .collect();
         }
 
         // Filter by minimum accuracy if configured
@@ -1006,6 +1051,9 @@ mod tests {
             src_height: Some(480),
             bits_per_component: Some(8),
             color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
         }
     }
 
