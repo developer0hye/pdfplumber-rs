@@ -77,16 +77,18 @@ jobs:
             runner: ubuntu-latest
             target: x86_64
             manylinux: auto
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
           - os: linux
             runner: ubuntu-latest
             target: aarch64
             manylinux: auto
-          # ── macOS ──
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          # ── macOS (both targets cross-compile on Apple Silicon) ──
           - os: macos
-            runner: macos-13
+            runner: macos-latest
             target: x86_64
           - os: macos
-            runner: macos-14
+            runner: macos-latest
             target: aarch64
           # ── Windows ──
           - os: windows
@@ -112,7 +114,7 @@ jobs:
           args: >-
             --release
             --out dist
-            --find-interpreter
+            ${{ matrix.interpreter && format('--interpreter {0}', matrix.interpreter) || '--find-interpreter' }}
             --manifest-path crates/pdfplumber-py/Cargo.toml
           manylinux: ${{ matrix.manylinux || 'auto' }}
 
