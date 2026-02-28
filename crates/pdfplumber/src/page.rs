@@ -511,6 +511,24 @@ impl Page {
         )
     }
 
+    /// Generate an SVG representation of this page.
+    ///
+    /// The SVG includes the page boundary rectangle and uses the same
+    /// top-left origin coordinate system as pdfplumber.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use pdfplumber::{Page, SvgOptions};
+    /// let page = Page::new(0, 612.0, 792.0, vec![]);
+    /// let svg = page.to_svg(&SvgOptions::default());
+    /// assert!(svg.contains("<svg"));
+    /// ```
+    pub fn to_svg(&self, options: &pdfplumber_core::SvgOptions) -> String {
+        let renderer = pdfplumber_core::SvgRenderer::new(self.width, self.height);
+        renderer.to_svg(options)
+    }
+
     /// Extract the largest table from this page as a 2D grid of cell text.
     ///
     /// Returns `None` if no tables are found. If multiple tables exist,

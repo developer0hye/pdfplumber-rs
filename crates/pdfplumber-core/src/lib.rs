@@ -56,6 +56,8 @@ pub mod path;
 pub mod search;
 /// Shape extraction: Lines, Rects, Curves from painted paths.
 pub mod shapes;
+/// SVG rendering for visual debugging of PDF pages.
+pub mod svg;
 /// Table detection: lattice, stream, and explicit strategies.
 pub mod table;
 /// Character data types and CJK detection.
@@ -84,6 +86,7 @@ pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, Paint
 pub use path::{Path, PathBuilder, PathSegment};
 pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
+pub use svg::{SvgOptions, SvgRenderer};
 pub use table::{
     Cell, ExplicitLines, Intersection, Strategy, Table, TableFinder, TableSettings,
     cells_to_tables, edges_to_intersections, explicit_lines_to_edges, extract_text_for_cells,
