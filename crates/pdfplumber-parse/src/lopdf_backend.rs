@@ -8,7 +8,7 @@ use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, FieldType,
-    FormField, Hyperlink, ImageContent, RepairOptions, RepairResult, StructElement,
+    FormField, Hyperlink, ImageContent, RepairOptions, RepairResult, SignatureInfo, StructElement,
     ValidationIssue,
 };
 
@@ -269,6 +269,10 @@ impl PdfBackend for LopdfBackend {
 
     fn document_form_fields(doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
         extract_document_form_fields(&doc.inner)
+    }
+
+    fn document_signatures(doc: &Self::Document) -> Result<Vec<SignatureInfo>, Self::Error> {
+        extract_document_signatures(&doc.inner)
     }
 
     fn document_structure_tree(doc: &Self::Document) -> Result<Vec<StructElement>, Self::Error> {
@@ -1915,6 +1919,192 @@ fn resolve_field_page(
             None
         }
     })
+}
+
+/// Extract digital signature information from the document's `/AcroForm`.
+///
+/// Walks the field tree and collects signature fields (`/FT /Sig`).
+/// For signed fields (those with `/V`), extracts signer name, date,
+/// reason, location, and contact info from the signature value dictionary.
+fn extract_document_signatures(doc: &lopdf::Document) -> Result<Vec<SignatureInfo>, BackendError> {
+    // Get the catalog dictionary
+    let catalog_ref = match doc.trailer.get(b"Root") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let catalog = match catalog_ref {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => match obj.as_dict() {
+                Ok(dict) => dict,
+                Err(_) => return Ok(Vec::new()),
+            },
+            Err(_) => return Ok(Vec::new()),
+        },
+        lopdf::Object::Dictionary(dict) => dict,
+        _ => return Ok(Vec::new()),
+    };
+
+    // Get /AcroForm dictionary
+    let acroform_obj = match catalog.get(b"AcroForm") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let acroform_obj = match acroform_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+
+    let acroform_dict = match acroform_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    // Get /Fields array
+    let fields_obj = match acroform_dict.get(b"Fields") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let fields_obj = match fields_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+
+    let fields_array = match fields_obj.as_array() {
+        Ok(arr) => arr,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut signatures = Vec::new();
+    let max_depth = 64;
+
+    for field_entry in fields_array {
+        let field_ref = match field_entry {
+            lopdf::Object::Reference(id) => *id,
+            _ => continue,
+        };
+        walk_signature_tree(doc, field_ref, None, 0, max_depth, &mut signatures);
+    }
+
+    Ok(signatures)
+}
+
+/// Recursively walk the form field tree, collecting signature fields.
+///
+/// Similar to `walk_field_tree` but only collects `/FT /Sig` fields
+/// and extracts signature-specific metadata from `/V`.
+fn walk_signature_tree(
+    doc: &lopdf::Document,
+    field_id: lopdf::ObjectId,
+    inherited_ft: Option<&[u8]>,
+    depth: usize,
+    max_depth: usize,
+    signatures: &mut Vec<SignatureInfo>,
+) {
+    if depth >= max_depth {
+        return;
+    }
+
+    let field_obj = match doc.get_object(field_id) {
+        Ok(obj) => obj,
+        Err(_) => return,
+    };
+
+    let field_dict = match field_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return,
+    };
+
+    // Extract /FT — may be inherited from parent
+    let field_type = match field_dict.get(b"FT") {
+        Ok(lopdf::Object::Name(name)) => Some(name.as_slice()),
+        _ => inherited_ft,
+    };
+
+    // Check for /Kids — if present, this may be an intermediate node
+    if let Ok(kids_obj) = field_dict.get(b"Kids") {
+        let kids_obj = match kids_obj {
+            lopdf::Object::Reference(id) => match doc.get_object(*id) {
+                Ok(obj) => obj,
+                Err(_) => return,
+            },
+            other => other,
+        };
+
+        if let Ok(kids_array) = kids_obj.as_array() {
+            // Check if /Kids contains child fields (with /T) or widget annotations
+            let has_child_fields = kids_array.iter().any(|kid| {
+                let kid_obj = match kid {
+                    lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+                    _ => Some(kid),
+                };
+                kid_obj
+                    .and_then(|o| o.as_dict().ok())
+                    .is_some_and(|d| d.get(b"T").is_ok())
+            });
+
+            if has_child_fields {
+                for kid in kids_array {
+                    if let lopdf::Object::Reference(kid_id) = kid {
+                        walk_signature_tree(
+                            doc,
+                            *kid_id,
+                            field_type,
+                            depth + 1,
+                            max_depth,
+                            signatures,
+                        );
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    // Terminal field — check if it's a signature field
+    let is_sig = field_type.is_some_and(|ft| ft == b"Sig");
+    if !is_sig {
+        return;
+    }
+
+    // Check for /V (signature value dictionary)
+    let sig_dict = field_dict
+        .get(b"V")
+        .ok()
+        .and_then(|obj| match obj {
+            lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+            other => Some(other),
+        })
+        .and_then(|obj| obj.as_dict().ok());
+
+    let info = match sig_dict {
+        Some(v_dict) => SignatureInfo {
+            signer_name: extract_string_from_dict(doc, v_dict, b"Name"),
+            sign_date: extract_string_from_dict(doc, v_dict, b"M"),
+            reason: extract_string_from_dict(doc, v_dict, b"Reason"),
+            location: extract_string_from_dict(doc, v_dict, b"Location"),
+            contact_info: extract_string_from_dict(doc, v_dict, b"ContactInfo"),
+            is_signed: true,
+        },
+        None => SignatureInfo {
+            signer_name: None,
+            sign_date: None,
+            reason: None,
+            location: None,
+            contact_info: None,
+            is_signed: false,
+        },
+    };
+
+    signatures.push(info);
 }
 
 /// Extract the document structure tree from `/StructTreeRoot`.

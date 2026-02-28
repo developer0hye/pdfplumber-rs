@@ -106,6 +106,9 @@ pub fn run(
 
     progress.finish();
 
+    // Collect signature info
+    let signatures = pdf.signatures().unwrap_or_default();
+
     match format {
         TextFormat::Text | TextFormat::Markdown | TextFormat::Html => {
             if !metadata.is_empty() {
@@ -134,6 +137,32 @@ pub fn run(
                 }
                 if let Some(ref v) = metadata.mod_date {
                     println!("  ModDate: {v}");
+                }
+            }
+            if !signatures.is_empty() {
+                println!();
+                println!("Signatures:");
+                for (i, sig) in signatures.iter().enumerate() {
+                    println!(
+                        "  [{}] {}",
+                        i + 1,
+                        if sig.is_signed { "Signed" } else { "Unsigned" }
+                    );
+                    if let Some(ref name) = sig.signer_name {
+                        println!("    Signer: {name}");
+                    }
+                    if let Some(ref date) = sig.sign_date {
+                        println!("    Date: {date}");
+                    }
+                    if let Some(ref reason) = sig.reason {
+                        println!("    Reason: {reason}");
+                    }
+                    if let Some(ref location) = sig.location {
+                        println!("    Location: {location}");
+                    }
+                    if let Some(ref contact) = sig.contact_info {
+                        println!("    Contact: {contact}");
+                    }
                 }
             }
             println!();
@@ -170,10 +199,36 @@ pub fn run(
                 metadata_json.insert("mod_date".to_string(), serde_json::json!(v));
             }
 
+            let sig_json: Vec<serde_json::Value> = signatures
+                .iter()
+                .map(|sig| {
+                    let mut obj = serde_json::json!({
+                        "is_signed": sig.is_signed,
+                    });
+                    if let Some(ref v) = sig.signer_name {
+                        obj["signer_name"] = serde_json::json!(v);
+                    }
+                    if let Some(ref v) = sig.sign_date {
+                        obj["sign_date"] = serde_json::json!(v);
+                    }
+                    if let Some(ref v) = sig.reason {
+                        obj["reason"] = serde_json::json!(v);
+                    }
+                    if let Some(ref v) = sig.location {
+                        obj["location"] = serde_json::json!(v);
+                    }
+                    if let Some(ref v) = sig.contact_info {
+                        obj["contact_info"] = serde_json::json!(v);
+                    }
+                    obj
+                })
+                .collect();
+
             let output = serde_json::json!({
                 "metadata": metadata_json,
                 "pages": page_count,
                 "page_info": page_infos,
+                "signatures": sig_json,
                 "summary": {
                     "total_chars": total_chars,
                     "total_tables": total_tables,
