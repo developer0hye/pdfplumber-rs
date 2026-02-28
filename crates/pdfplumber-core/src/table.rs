@@ -820,6 +820,68 @@ where
     edges
 }
 
+/// Convert user-provided explicit line coordinates into edges.
+///
+/// Horizontal lines (y-coordinates) become horizontal edges spanning the full
+/// x-range of the vertical lines. Vertical lines (x-coordinates) become
+/// vertical edges spanning the full y-range of the horizontal lines.
+///
+/// Returns an empty Vec if either list is empty (a grid requires both).
+pub fn explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge> {
+    if explicit.horizontal_lines.is_empty() || explicit.vertical_lines.is_empty() {
+        return Vec::new();
+    }
+
+    let min_x = explicit
+        .vertical_lines
+        .iter()
+        .copied()
+        .fold(f64::INFINITY, f64::min);
+    let max_x = explicit
+        .vertical_lines
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_y = explicit
+        .horizontal_lines
+        .iter()
+        .copied()
+        .fold(f64::INFINITY, f64::min);
+    let max_y = explicit
+        .horizontal_lines
+        .iter()
+        .copied()
+        .fold(f64::NEG_INFINITY, f64::max);
+
+    let mut edges = Vec::new();
+
+    // Horizontal edges: each y-coordinate spans from min_x to max_x
+    for &y in &explicit.horizontal_lines {
+        edges.push(Edge {
+            x0: min_x,
+            top: y,
+            x1: max_x,
+            bottom: y,
+            orientation: Orientation::Horizontal,
+            source: EdgeSource::Explicit,
+        });
+    }
+
+    // Vertical edges: each x-coordinate spans from min_y to max_y
+    for &x in &explicit.vertical_lines {
+        edges.push(Edge {
+            x0: x,
+            top: min_y,
+            x1: x,
+            bottom: max_y,
+            orientation: Orientation::Vertical,
+            source: EdgeSource::Explicit,
+        });
+    }
+
+    edges
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -872,6 +934,8 @@ impl TableFinder {
     /// For **Lattice** strategy, all edges (lines + rect edges) are used.
     /// For **LatticeStrict** strategy, only line-sourced edges are used (no rect edges).
     /// For **Stream** strategy, synthetic edges are generated from word alignment patterns.
+    /// For **Explicit** strategy, edges from user-provided coordinates are used,
+    /// combined with any detected edges passed to the finder (mixing).
     pub fn find_tables(&self) -> Vec<Table> {
         // Step 1: Select edges based on strategy
         let edges: Vec<Edge> = match self.settings.strategy {
@@ -891,8 +955,60 @@ impl TableFinder {
                     self.settings.min_words_horizontal,
                 )
             }
-            // Lattice (default), Explicit: use all edges
-            _ => self.edges.clone(),
+            Strategy::Explicit => {
+                // Start with detected edges (for mixing)
+                let mut edges = self.edges.clone();
+
+                if let Some(ref explicit) = self.settings.explicit_lines {
+                    // Compute the overall bounding range from detected edges + explicit coords
+                    let mut min_x = f64::INFINITY;
+                    let mut max_x = f64::NEG_INFINITY;
+                    let mut min_y = f64::INFINITY;
+                    let mut max_y = f64::NEG_INFINITY;
+
+                    for e in &edges {
+                        min_x = min_x.min(e.x0);
+                        max_x = max_x.max(e.x1);
+                        min_y = min_y.min(e.top);
+                        max_y = max_y.max(e.bottom);
+                    }
+                    for &x in &explicit.vertical_lines {
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                    }
+                    for &y in &explicit.horizontal_lines {
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
+                    }
+
+                    if min_x <= max_x && min_y <= max_y {
+                        for &y in &explicit.horizontal_lines {
+                            edges.push(Edge {
+                                x0: min_x,
+                                top: y,
+                                x1: max_x,
+                                bottom: y,
+                                orientation: Orientation::Horizontal,
+                                source: EdgeSource::Explicit,
+                            });
+                        }
+                        for &x in &explicit.vertical_lines {
+                            edges.push(Edge {
+                                x0: x,
+                                top: min_y,
+                                x1: x,
+                                bottom: max_y,
+                                orientation: Orientation::Vertical,
+                                source: EdgeSource::Explicit,
+                            });
+                        }
+                    }
+                }
+
+                edges
+            }
+            // Lattice (default): use all edges
+            Strategy::Lattice => self.edges.clone(),
         };
 
         // Step 2: Filter edges by minimum length
@@ -3020,5 +3136,203 @@ mod tests {
             !h_edges.is_empty(),
             "min_words_horizontal=1 should produce horizontal edges for 3 aligned words"
         );
+    }
+
+    // --- US-038: Explicit strategy tests ---
+
+    #[test]
+    fn test_explicit_lines_to_edges_basic() {
+        // A 3x3 grid (3 horizontal + 3 vertical lines) should produce edges
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![10.0, 30.0, 50.0],
+            vertical_lines: vec![100.0, 200.0, 300.0],
+        };
+        let edges = explicit_lines_to_edges(&explicit);
+
+        // 3 horizontal + 3 vertical = 6 edges
+        assert_eq!(edges.len(), 6);
+
+        let h_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert_eq!(h_edges.len(), 3);
+        assert_eq!(v_edges.len(), 3);
+
+        // Horizontal edges span from min_x to max_x of vertical lines
+        for h in &h_edges {
+            assert_eq!(h.x0, 100.0);
+            assert_eq!(h.x1, 300.0);
+        }
+        // Vertical edges span from min_y to max_y of horizontal lines
+        for v in &v_edges {
+            assert_eq!(v.top, 10.0);
+            assert_eq!(v.bottom, 50.0);
+        }
+    }
+
+    #[test]
+    fn test_explicit_lines_to_edges_empty_horizontal() {
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![],
+            vertical_lines: vec![100.0, 200.0],
+        };
+        let edges = explicit_lines_to_edges(&explicit);
+        // No horizontal lines means no span for verticals either → no edges
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_explicit_lines_to_edges_empty_vertical() {
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![10.0, 20.0],
+            vertical_lines: vec![],
+        };
+        let edges = explicit_lines_to_edges(&explicit);
+        // No vertical lines means no span for horizontals either → no edges
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_explicit_lines_to_edges_both_empty() {
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![],
+            vertical_lines: vec![],
+        };
+        let edges = explicit_lines_to_edges(&explicit);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_explicit_edge_source_is_explicit() {
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![10.0, 50.0],
+            vertical_lines: vec![100.0, 200.0],
+        };
+        let edges = explicit_lines_to_edges(&explicit);
+        for edge in &edges {
+            assert_eq!(edge.source, EdgeSource::Explicit);
+        }
+    }
+
+    #[test]
+    fn test_explicit_grid_detection() {
+        // A 3x3 grid should produce 4 cells
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![0.0, 20.0, 40.0],
+            vertical_lines: vec![0.0, 50.0, 100.0],
+        };
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(explicit),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(vec![], settings);
+        let tables = finder.find_tables();
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 4);
+        assert_eq!(tables[0].rows.len(), 2);
+        assert_eq!(tables[0].columns.len(), 2);
+    }
+
+    #[test]
+    fn test_explicit_2x2_grid() {
+        // A 2x2 grid (2 horizontal + 2 vertical) → 1 cell
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![10.0, 50.0],
+            vertical_lines: vec![100.0, 300.0],
+        };
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(explicit),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(vec![], settings);
+        let tables = finder.find_tables();
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+        let cell = &tables[0].cells[0];
+        assert_eq!(cell.bbox.x0, 100.0);
+        assert_eq!(cell.bbox.top, 10.0);
+        assert_eq!(cell.bbox.x1, 300.0);
+        assert_eq!(cell.bbox.bottom, 50.0);
+    }
+
+    #[test]
+    fn test_explicit_strategy_no_explicit_lines() {
+        // Explicit strategy with no explicit_lines should return no tables
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: None,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(vec![], settings);
+        let tables = finder.find_tables();
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_explicit_mixing_with_detected_edges() {
+        // Detected edges form partial grid; explicit lines complete it
+        // Detected: two vertical edges at x=0 and x=100
+        let detected_edges = vec![make_v_edge(0.0, 0.0, 40.0), make_v_edge(100.0, 0.0, 40.0)];
+        // Explicit: add horizontal lines at y=0 and y=40
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![0.0, 40.0],
+            vertical_lines: vec![], // no explicit verticals
+        };
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(explicit),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(detected_edges, settings);
+        let tables = finder.find_tables();
+
+        // The explicit horizontal lines + detected vertical edges form a complete grid → 1 cell
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_explicit_single_line_each() {
+        // Only 1 horizontal + 1 vertical → no cells (need at least 2×2 grid)
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![10.0],
+            vertical_lines: vec![100.0],
+        };
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(explicit),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(vec![], settings);
+        let tables = finder.find_tables();
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_explicit_unsorted_coordinates() {
+        // Coordinates provided in unsorted order should still work
+        let explicit = ExplicitLines {
+            horizontal_lines: vec![40.0, 0.0, 20.0],
+            vertical_lines: vec![100.0, 0.0, 50.0],
+        };
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(explicit),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(vec![], settings);
+        let tables = finder.find_tables();
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 4); // 3x3 grid → 4 cells
     }
 }
