@@ -148,11 +148,6 @@ jobs:
     name: Publish to PyPI
     needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pdfplumber-rs
-    permissions:
-      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -190,7 +185,7 @@ jobs:
 
       - name: Publish to npm
         run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
           npm publish crates/pdfplumber-wasm/pkg --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
