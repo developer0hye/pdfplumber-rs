@@ -319,7 +319,9 @@ fn fixtures_dir() -> PathBuf {
 }
 
 fn load_golden(pdf_stem: &str) -> GoldenData {
-    let path = fixtures_dir().join("golden").join(format!("{pdf_stem}.json"));
+    let path = fixtures_dir()
+        .join("golden")
+        .join(format!("{pdf_stem}.json"));
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Failed to read golden file {}: {}", path.display(), e));
     serde_json::from_str(&content)
@@ -511,11 +513,7 @@ fn accuracy_multicolumn() {
     print_text_summary("multicolumn.pdf", &cf1, &wf1);
     // Baseline: chars F1~0.22
     // PRD target: >= 0.95
-    assert!(
-        cf1.f1 >= 0.15,
-        "multicolumn chars F1 {:.3} < 0.15",
-        cf1.f1
-    );
+    assert!(cf1.f1 >= 0.15, "multicolumn chars F1 {:.3} < 0.15", cf1.f1);
 }
 
 #[test]
@@ -578,11 +576,7 @@ fn accuracy_multi_font() {
     print_text_summary("multi_font.pdf", &cf1, &wf1);
     // Baseline: chars F1~0.09
     // PRD target: >= 0.95
-    assert!(
-        cf1.f1 >= 0.05,
-        "multi_font chars F1 {:.3} < 0.05",
-        cf1.f1
-    );
+    assert!(cf1.f1 >= 0.05, "multi_font chars F1 {:.3} < 0.05", cf1.f1);
 }
 
 #[test]
@@ -602,11 +596,7 @@ fn accuracy_cjk_mixed() {
     print_text_summary("cjk_mixed.pdf", &cf1, &wf1);
     // Baseline: chars F1~0.08
     // PRD target: >= 0.95
-    assert!(
-        cf1.f1 >= 0.05,
-        "cjk_mixed chars F1 {:.3} < 0.05",
-        cf1.f1
-    );
+    assert!(cf1.f1 >= 0.05, "cjk_mixed chars F1 {:.3} < 0.05", cf1.f1);
 }
 
 #[test]
@@ -707,16 +697,8 @@ fn accuracy_pdffill_demo() {
     print_text_summary("pdffill-demo.pdf", &cf1, &wf1);
     // Baseline: chars F1=1.000, words F1=0.958 — meets PRD target
     // PRD target: chars/words F1 >= 0.95
-    assert!(
-        cf1.f1 >= 0.95,
-        "pdffill-demo chars F1 {:.3} < 0.95",
-        cf1.f1
-    );
-    assert!(
-        wf1.f1 >= 0.90,
-        "pdffill-demo words F1 {:.3} < 0.90",
-        wf1.f1
-    );
+    assert!(cf1.f1 >= 0.95, "pdffill-demo chars F1 {:.3} < 0.95", cf1.f1);
+    assert!(wf1.f1 >= 0.90, "pdffill-demo words F1 {:.3} < 0.90", wf1.f1);
 }
 
 // ---------------------------------------------------------------------------
@@ -734,11 +716,7 @@ fn accuracy_aggregate_summary() {
         ("generated", "multicolumn.pdf", "multicolumn"),
         ("generated", "table_lattice.pdf", "table_lattice"),
         ("generated", "table_borderless.pdf", "table_borderless"),
-        (
-            "generated",
-            "table_merged_cells.pdf",
-            "table_merged_cells",
-        ),
+        ("generated", "table_merged_cells.pdf", "table_merged_cells"),
         ("generated", "multi_font.pdf", "multi_font"),
         ("generated", "cjk_mixed.pdf", "cjk_mixed"),
         ("generated", "long_document.pdf", "long_document"),
