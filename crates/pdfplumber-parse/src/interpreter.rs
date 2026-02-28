@@ -124,8 +124,14 @@ pub(crate) fn interpret_content_stream(
                     }
                 }
             }
-            "J" | "j" | "M" | "i" | "gs" | "ri" => {
-                // Line cap, line join, miter limit, flatness, ExtGState, rendering intent
+            "gs" => {
+                // Extended Graphics State
+                if let Some(Operand::Name(name)) = op.operands.first() {
+                    apply_ext_gstate(doc, resources, gstate, name);
+                }
+            }
+            "J" | "j" | "M" | "i" | "ri" => {
+                // Line cap, line join, miter limit, flatness, rendering intent
                 // Not yet fully implemented — ignore
             }
 
@@ -903,6 +909,105 @@ fn emit_path_event(
     });
 }
 
+// --- gs operator: Extended Graphics State ---
+
+/// Look up the named ExtGState from page resources and apply it to the current
+/// graphics state. Unknown keys are silently ignored. If the name is not found
+/// in resources, this is a no-op (graceful degradation).
+fn apply_ext_gstate(
+    doc: &lopdf::Document,
+    resources: &lopdf::Dictionary,
+    gstate: &mut InterpreterState,
+    name: &str,
+) {
+    let ext_dict = (|| -> Option<&lopdf::Dictionary> {
+        let egs_obj = resources.get(b"ExtGState").ok()?;
+        let egs_obj = resolve_ref(doc, egs_obj);
+        let egs_dict = egs_obj.as_dict().ok()?;
+        let entry = egs_dict.get(name.as_bytes()).ok()?;
+        let entry = resolve_ref(doc, entry);
+        entry.as_dict().ok()
+    })();
+
+    let Some(ext_dict) = ext_dict else {
+        return;
+    };
+
+    let mut ext = pdfplumber_core::ExtGState::default();
+
+    // /LW — Line width
+    if let Ok(obj) = ext_dict.get(b"LW") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.line_width = Some(v);
+        }
+    }
+
+    // /D — Dash pattern: [dash_array phase]
+    if let Ok(obj) = ext_dict.get(b"D") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(arr) = obj.as_array() {
+            if arr.len() >= 2 {
+                if let Ok(dash_arr) = arr[0].as_array() {
+                    let dash_array: Vec<f64> = dash_arr
+                        .iter()
+                        .filter_map(|o| match o {
+                            lopdf::Object::Integer(i) => Some(*i as f64),
+                            lopdf::Object::Real(f) => Some(*f as f64),
+                            _ => None,
+                        })
+                        .collect();
+                    let phase = match &arr[1] {
+                        lopdf::Object::Integer(i) => *i as f64,
+                        lopdf::Object::Real(f) => *f as f64,
+                        _ => 0.0,
+                    };
+                    ext.dash_pattern = Some(pdfplumber_core::DashPattern::new(dash_array, phase));
+                }
+            }
+        }
+    }
+
+    // /CA — Stroking alpha
+    if let Ok(obj) = ext_dict.get(b"CA") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.stroke_alpha = Some(v);
+        }
+    }
+
+    // /ca — Non-stroking alpha
+    if let Ok(obj) = ext_dict.get(b"ca") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.fill_alpha = Some(v);
+        }
+    }
+
+    // /Font — Font array [fontRef size]
+    if let Ok(obj) = ext_dict.get(b"Font") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(arr) = obj.as_array() {
+            if arr.len() >= 2 {
+                let font_name = match &arr[0] {
+                    lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).to_string()),
+                    _ => None,
+                };
+                let font_size = match &arr[1] {
+                    lopdf::Object::Integer(i) => Some(*i as f64),
+                    lopdf::Object::Real(f) => Some(*f as f64),
+                    _ => None,
+                };
+                if let (Some(name), Some(size)) = (font_name, font_size) {
+                    ext.font = Some((name, size));
+                }
+            }
+        }
+    }
+
+    gstate.graphics_state_mut().apply_ext_gstate(&ext);
+}
+
 // --- Do operator: XObject handling ---
 
 #[allow(clippy::too_many_arguments)]
@@ -1118,6 +1223,7 @@ fn decode_stream(stream: &lopdf::Stream) -> Result<Vec<u8>, BackendError> {
 mod tests {
     use super::*;
     use crate::handler::{CharEvent, ContentHandler, ImageEvent};
+    use lopdf::Object;
 
     // --- Collecting handler ---
 
@@ -1746,5 +1852,196 @@ mod tests {
             handler.warnings
         );
         assert_eq!(handler.chars.len(), 1);
+    }
+
+    // --- ExtGState (gs operator) tests ---
+
+    /// Helper to create resources with an ExtGState dictionary.
+    fn resources_with_ext_gstate(
+        name: &str,
+        ext_gstate_dict: lopdf::Dictionary,
+    ) -> lopdf::Dictionary {
+        use lopdf::dictionary;
+        dictionary! {
+            "ExtGState" => Object::Dictionary(dictionary! {
+                name => Object::Dictionary(ext_gstate_dict),
+            }),
+        }
+    }
+
+    #[test]
+    fn gs_applies_line_width() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "LW" => Object::Real(2.5),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert!(
+            (gstate.graphics_state().line_width - 2.5).abs() < f64::EPSILON,
+            "expected line_width 2.5, got {}",
+            gstate.graphics_state().line_width
+        );
+    }
+
+    #[test]
+    fn gs_applies_dash_pattern() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        // /D [[3 5] 6] — dash array [3, 5] with phase 6
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "D" => Object::Array(vec![
+                    Object::Array(vec![Object::Integer(3), Object::Integer(5)]),
+                    Object::Integer(6),
+                ]),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        let dp = &gstate.graphics_state().dash_pattern;
+        assert_eq!(dp.dash_array, vec![3.0, 5.0]);
+        assert!((dp.dash_phase - 6.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn gs_applies_alpha() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "CA" => Object::Real(0.7),
+                "ca" => Object::Real(0.3),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert!(
+            (gstate.graphics_state().stroke_alpha - 0.7).abs() < 1e-6,
+            "expected stroke_alpha ~0.7, got {}",
+            gstate.graphics_state().stroke_alpha
+        );
+        assert!(
+            (gstate.graphics_state().fill_alpha - 0.3).abs() < 1e-6,
+            "expected fill_alpha ~0.3, got {}",
+            gstate.graphics_state().fill_alpha
+        );
+    }
+
+    #[test]
+    fn gs_missing_name_produces_no_error() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // gs with a name that doesn't exist in resources — should not error
+        let stream = b"/GS_nonexistent gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        // Should not return an error
+        let result = interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        );
+        assert!(result.is_ok(), "missing ExtGState should not produce error");
+    }
+
+    #[test]
+    fn gs_unknown_keys_silently_ignored() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "LW" => Object::Real(3.0),
+                "BM" => "Normal",  // blend mode — not handled
+                "SM" => Object::Real(0.01),  // smoothness — not handled
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // LW should be applied, unknown keys silently ignored
+        assert!(
+            (gstate.graphics_state().line_width - 3.0).abs() < f64::EPSILON,
+            "expected line_width 3.0, got {}",
+            gstate.graphics_state().line_width
+        );
     }
 }
