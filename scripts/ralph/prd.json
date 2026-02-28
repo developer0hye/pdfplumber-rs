@@ -79,7 +79,7 @@
         "cargo check --workspace passes (non-WASM crates unaffected)"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "wasm-bindgen and wasm-pack are new dependencies. This crate is excluded from non-WASM builds."
     },
     {
