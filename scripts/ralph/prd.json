@@ -82,7 +82,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 100,
       "notes": "Top-level API for anytomd-rs integration. Depends on page-level markdown already being implemented."
     },

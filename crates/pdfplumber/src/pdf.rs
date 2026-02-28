@@ -5,9 +5,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextOptions, UnicodeNorm,
-    ValidationIssue, detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
+    MarkdownConversionOptions, MarkdownConversionResult, MarkdownOptions, PageRegionOptions,
+    PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch,
+    SearchOptions, SignatureInfo, StructElement, TextOptions, UnicodeNorm, ValidationIssue,
+    detect_page_regions, extract_shapes, extract_title_from_markdown, image_from_ctm,
+    normalize_chars, strip_markdown,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -365,6 +367,80 @@ impl Pdf {
             all_matches.extend(matches);
         }
         Ok(all_matches)
+    }
+
+    /// Convert the entire PDF document to Markdown.
+    ///
+    /// Iterates over all pages, renders each to Markdown using
+    /// [`Page::to_markdown`], and combines them with the configured
+    /// page separator. Optionally extracts images and collects warnings.
+    ///
+    /// Title is extracted from PDF metadata `/Title` first. If not present,
+    /// falls back to the first `# ` heading found in the Markdown output.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Controls page separator, image inclusion, and strict mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if page extraction fails, or if `strict_mode` is
+    /// enabled and any warnings are encountered.
+    pub fn convert_to_markdown(
+        &self,
+        options: &MarkdownConversionOptions,
+    ) -> Result<MarkdownConversionResult, PdfError> {
+        let md_options = MarkdownOptions::default();
+        let page_count = self.page_count();
+        let mut page_markdowns: Vec<String> = Vec::with_capacity(page_count);
+        let mut all_images = Vec::new();
+        let mut all_warnings: Vec<ExtractWarning> = Vec::new();
+
+        for i in 0..page_count {
+            let page = self.page(i)?;
+
+            // Render page to markdown
+            let page_md = page.to_markdown(&md_options);
+            page_markdowns.push(page_md);
+
+            // Collect warnings from the page
+            all_warnings.extend(page.warnings().iter().cloned());
+
+            // Collect images if requested
+            if options.include_images {
+                let exported = page.export_images(&options.image_options);
+                all_images.extend(exported);
+            }
+        }
+
+        // Check strict mode: escalate warnings to errors
+        if options.strict_mode {
+            if let Some(warning) = all_warnings.first() {
+                return Err(warning.to_error());
+            }
+        }
+
+        // Combine page markdowns with separator
+        let markdown = page_markdowns.join(&options.page_separator);
+
+        // Extract title: prefer PDF metadata, fall back to first heading
+        let title = self
+            .metadata()
+            .title
+            .clone()
+            .or_else(|| extract_title_from_markdown(&markdown));
+
+        // Generate plain text by stripping markdown formatting
+        let plain_text = strip_markdown(&markdown);
+
+        Ok(MarkdownConversionResult {
+            markdown,
+            plain_text,
+            title,
+            images: all_images,
+            warnings: all_warnings,
+            page_count,
+        })
     }
 
     /// Extract image content (raw bytes) for a named image XObject on a page.

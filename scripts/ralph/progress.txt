@@ -17,6 +17,8 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
 - Document-level budgets are `Option<usize>` fields on ExtractOptions (None=no limit for backward compat)
 - max_input_bytes checked in Pdf::open before parsing; max_pages checked in from_doc after page_count
 - Accumulated counters (total_objects, total_image_bytes) use AtomicUsize in Pdf struct for thread safety with pages_parallel()
+- Document-level conversion pattern: iterate pages_iter(), render each page, collect warnings/images, combine with separator
+- Pure conversion types go in pdfplumber-core (markdown_conversion.rs), method implementation on Pdf in pdfplumber crate
 
 ---
 
@@ -111,4 +113,29 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - DefaultHasher::new() uses SipHash with keys (0,0) — deterministic within same Rust version
   - ImageFilter::extension() is separate from ImageFormat::extension() — different enums for different contexts
   - Deduplication uses seen_hashes HashMap to map content hash -> first-assigned filename
+---
+
+## 2026-03-01 - US-099 (Phase 13)
+- Implemented document-level Markdown conversion API
+- MarkdownConversionOptions struct: page_separator, include_images, image_options, strict_mode
+- MarkdownConversionResult struct: markdown, plain_text, title, images, warnings, page_count
+- Pdf::convert_to_markdown(options) iterates all pages, renders markdown, collects warnings/images
+- Title: from PDF metadata /Title first, fallback to first # heading in markdown
+- Plain text: strip_markdown() removes headings, emphasis, horizontal rules
+- strict_mode: if any warnings collected, returns first as PdfError
+- Helper functions: strip_markdown(), strip_emphasis(), extract_title_from_markdown()
+- 14 unit tests (core), 10 integration tests (pdf), all passing
+- Files changed:
+  - crates/pdfplumber-core/src/markdown_conversion.rs (new — types + helpers + 14 tests)
+  - crates/pdfplumber-core/src/lib.rs (module + re-exports)
+  - crates/pdfplumber/src/pdf.rs (convert_to_markdown method + imports)
+  - crates/pdfplumber/src/lib.rs (re-exports)
+  - crates/pdfplumber/tests/pdf_integration.rs (10 integration tests)
+  - scripts/ralph/prd.json (US-099 passes: true)
+- **Learnings for future iterations:**
+  - Page::to_markdown already exists and uses MarkdownRenderer::render — just aggregate per page
+  - Page::warnings() returns &[ExtractWarning] — clone to collect across pages
+  - Page::export_images(options) handles 1-indexed page numbers automatically
+  - strip_markdown is a simple line-based approach — good enough for plain text generation
+  - extract_title_from_markdown looks for first `# ` (H1) line only
 ---
