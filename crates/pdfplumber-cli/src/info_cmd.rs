@@ -1,9 +1,17 @@
 use std::path::Path;
 
-use pdfplumber::TableSettings;
+use pdfplumber::{BBox, TableSettings};
 
 use crate::cli::TextFormat;
 use crate::shared::{ProgressReporter, open_pdf, resolve_pages};
+
+fn format_bbox(b: &BBox) -> String {
+    format!("[{:.2}, {:.2}, {:.2}, {:.2}]", b.x0, b.top, b.x1, b.bottom)
+}
+
+fn bbox_to_json(b: &BBox) -> serde_json::Value {
+    serde_json::json!([b.x0, b.top, b.x1, b.bottom])
+}
 
 pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), i32> {
     let pdf = open_pdf(file)?;
@@ -41,6 +49,19 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), 
                 println!("Page {}:", idx + 1);
                 println!("  Dimensions: {:.2} x {:.2}", page.width(), page.height());
                 println!("  Rotation: {}°", page.rotation());
+                println!("  MediaBox: {}", format_bbox(&page.media_box()));
+                if let Some(ref cb) = page.crop_box() {
+                    println!("  CropBox: {}", format_bbox(cb));
+                }
+                if let Some(ref tb) = page.trim_box() {
+                    println!("  TrimBox: {}", format_bbox(tb));
+                }
+                if let Some(ref bb) = page.bleed_box() {
+                    println!("  BleedBox: {}", format_bbox(bb));
+                }
+                if let Some(ref ab) = page.art_box() {
+                    println!("  ArtBox: {}", format_bbox(ab));
+                }
                 println!("  Chars: {chars_count}");
                 println!("  Lines: {lines_count}");
                 println!("  Rects: {rects_count}");
@@ -48,17 +69,31 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), 
                 println!("  Images: {images_count}");
             }
             TextFormat::Json => {
-                page_infos.push(serde_json::json!({
+                let mut page_json = serde_json::json!({
                     "page": idx + 1,
                     "width": page.width(),
                     "height": page.height(),
                     "rotation": page.rotation(),
+                    "media_box": bbox_to_json(&page.media_box()),
                     "chars": chars_count,
                     "lines": lines_count,
                     "rects": rects_count,
                     "curves": curves_count,
                     "images": images_count,
-                }));
+                });
+                if let Some(ref cb) = page.crop_box() {
+                    page_json["crop_box"] = bbox_to_json(cb);
+                }
+                if let Some(ref tb) = page.trim_box() {
+                    page_json["trim_box"] = bbox_to_json(tb);
+                }
+                if let Some(ref bb) = page.bleed_box() {
+                    page_json["bleed_box"] = bbox_to_json(bb);
+                }
+                if let Some(ref ab) = page.art_box() {
+                    page_json["art_box"] = bbox_to_json(ab);
+                }
+                page_infos.push(page_json);
             }
         }
     }

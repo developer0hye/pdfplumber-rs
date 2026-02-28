@@ -174,6 +174,45 @@ impl PdfBackend for LopdfBackend {
         }
     }
 
+    fn page_trim_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error> {
+        match resolve_inherited(&doc.inner, page.object_id, b"TrimBox")? {
+            Some(obj) => {
+                let array = obj
+                    .as_array()
+                    .map_err(|e| BackendError::Parse(format!("TrimBox is not an array: {e}")))?;
+                Ok(Some(extract_bbox_from_array(array)?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn page_bleed_box(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Option<BBox>, Self::Error> {
+        match resolve_inherited(&doc.inner, page.object_id, b"BleedBox")? {
+            Some(obj) => {
+                let array = obj
+                    .as_array()
+                    .map_err(|e| BackendError::Parse(format!("BleedBox is not an array: {e}")))?;
+                Ok(Some(extract_bbox_from_array(array)?))
+            }
+            None => Ok(None),
+        }
+    }
+
+    fn page_art_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error> {
+        match resolve_inherited(&doc.inner, page.object_id, b"ArtBox")? {
+            Some(obj) => {
+                let array = obj
+                    .as_array()
+                    .map_err(|e| BackendError::Parse(format!("ArtBox is not an array: {e}")))?;
+                Ok(Some(extract_bbox_from_array(array)?))
+            }
+            None => Ok(None),
+        }
+    }
+
     fn page_rotate(doc: &Self::Document, page: &Self::Page) -> Result<i32, Self::Error> {
         match resolve_inherited(&doc.inner, page.object_id, b"Rotate")? {
             Some(obj) => {

@@ -258,6 +258,11 @@ impl Pdf {
             LopdfBackend::page_media_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
         let crop_box =
             LopdfBackend::page_crop_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let trim_box =
+            LopdfBackend::page_trim_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let bleed_box =
+            LopdfBackend::page_bleed_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let art_box = LopdfBackend::page_art_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
         let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page).map_err(PdfError::from)?;
         let geometry = PageGeometry::new(media_box, crop_box, rotation);
 
@@ -309,6 +314,11 @@ impl Pdf {
             geometry.width(),
             geometry.height(),
             rotation,
+            media_box,
+            crop_box,
+            trim_box,
+            bleed_box,
+            art_box,
             chars,
             images,
             handler.warnings,

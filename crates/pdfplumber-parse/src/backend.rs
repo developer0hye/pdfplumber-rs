@@ -77,6 +77,40 @@ pub trait PdfBackend {
     /// Returns an error if the CropBox entry exists but is malformed.
     fn page_crop_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error>;
 
+    /// Get the TrimBox for a page, if explicitly set.
+    ///
+    /// TrimBox defines the intended dimensions of the finished page after
+    /// trimming. Returns `None` if not set. Supports inheritance from
+    /// parent page tree nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the TrimBox entry exists but is malformed.
+    fn page_trim_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error>;
+
+    /// Get the BleedBox for a page, if explicitly set.
+    ///
+    /// BleedBox defines the region to which page contents should be clipped
+    /// when output in a production environment. Returns `None` if not set.
+    /// Supports inheritance from parent page tree nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the BleedBox entry exists but is malformed.
+    fn page_bleed_box(doc: &Self::Document, page: &Self::Page)
+    -> Result<Option<BBox>, Self::Error>;
+
+    /// Get the ArtBox for a page, if explicitly set.
+    ///
+    /// ArtBox defines the extent of the page's meaningful content as intended
+    /// by the page's creator. Returns `None` if not set. Supports inheritance
+    /// from parent page tree nodes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the ArtBox entry exists but is malformed.
+    fn page_art_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error>;
+
     /// Get the page rotation angle in degrees.
     ///
     /// Returns one of: 0, 90, 180, or 270. Defaults to 0 if not specified.
@@ -133,6 +167,9 @@ mod tests {
     struct MockPageData {
         media_box: BBox,
         crop_box: Option<BBox>,
+        trim_box: Option<BBox>,
+        bleed_box: Option<BBox>,
+        art_box: Option<BBox>,
         rotate: i32,
     }
 
@@ -193,6 +230,9 @@ mod tests {
                 pages.push(MockPageData {
                     media_box: BBox::new(0.0, 0.0, 612.0, 792.0), // US Letter
                     crop_box: None,
+                    trim_box: None,
+                    bleed_box: None,
+                    art_box: None,
                     rotate: 0,
                 });
             }
@@ -222,6 +262,27 @@ mod tests {
             page: &Self::Page,
         ) -> Result<Option<BBox>, Self::Error> {
             Ok(doc.pages[page.index].crop_box)
+        }
+
+        fn page_trim_box(
+            doc: &Self::Document,
+            page: &Self::Page,
+        ) -> Result<Option<BBox>, Self::Error> {
+            Ok(doc.pages[page.index].trim_box)
+        }
+
+        fn page_bleed_box(
+            doc: &Self::Document,
+            page: &Self::Page,
+        ) -> Result<Option<BBox>, Self::Error> {
+            Ok(doc.pages[page.index].bleed_box)
+        }
+
+        fn page_art_box(
+            doc: &Self::Document,
+            page: &Self::Page,
+        ) -> Result<Option<BBox>, Self::Error> {
+            Ok(doc.pages[page.index].art_box)
         }
 
         fn page_rotate(doc: &Self::Document, page: &Self::Page) -> Result<i32, Self::Error> {
@@ -443,11 +504,17 @@ mod tests {
                 MockPageData {
                     media_box: BBox::new(0.0, 0.0, 595.0, 842.0), // A4
                     crop_box: Some(BBox::new(10.0, 10.0, 585.0, 832.0)),
+                    trim_box: None,
+                    bleed_box: None,
+                    art_box: None,
                     rotate: 90,
                 },
                 MockPageData {
                     media_box: BBox::new(0.0, 0.0, 842.0, 595.0), // A4 landscape
                     crop_box: None,
+                    trim_box: None,
+                    bleed_box: None,
+                    art_box: None,
                     rotate: 0,
                 },
             ],
