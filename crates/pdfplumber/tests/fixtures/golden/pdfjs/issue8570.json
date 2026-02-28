@@ -1,0 +1,582 @@
+{
+  "source": "issue8570.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 400.0,
+      "height": 100.0,
+      "chars": [
+        {
+          "text": "3",
+          "x0": 10.0,
+          "top": 14.9189,
+          "x1": 22.1816,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "D",
+          "x0": 22.1816,
+          "top": 14.9189,
+          "x1": 36.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "レ",
+          "x0": 36.4023,
+          "top": 14.9189,
+          "x1": 54.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 54.4023,
+          "top": 14.9189,
+          "x1": 72.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ザ",
+          "x0": 72.4023,
+          "top": 14.9189,
+          "x1": 90.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 90.4023,
+          "top": 14.9189,
+          "x1": 108.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "レ",
+          "x0": 108.4023,
+          "top": 14.9189,
+          "x1": 126.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 126.4023,
+          "top": 14.9189,
+          "x1": 144.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ダ",
+          "x0": 144.4023,
+          "top": 14.9189,
+          "x1": 162.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 162.4023,
+          "top": 14.9189,
+          "x1": 180.4023,
+          "bottom": 32.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 14.9189,
+          "upright": true
+        },
+        {
+          "text": "隙",
+          "x0": 10.0,
+          "top": 44.9189,
+          "x1": 28.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "間",
+          "x0": 28.0,
+          "top": 44.9189,
+          "x1": 46.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "の",
+          "x0": 46.0,
+          "top": 44.9189,
+          "x1": 64.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "な",
+          "x0": 64.0,
+          "top": 44.9189,
+          "x1": 82.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "い",
+          "x0": 82.0,
+          "top": 44.9189,
+          "x1": 100.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "空",
+          "x0": 100.0,
+          "top": 44.9189,
+          "x1": 118.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "間",
+          "x0": 118.0,
+          "top": 44.9189,
+          "x1": 136.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "ス",
+          "x0": 136.0,
+          "top": 44.9189,
+          "x1": 154.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "キ",
+          "x0": 154.0,
+          "top": 44.9189,
+          "x1": 172.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "ャ",
+          "x0": 172.0,
+          "top": 44.9189,
+          "x1": 190.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "ン",
+          "x0": 190.0,
+          "top": 44.9189,
+          "x1": 208.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "で",
+          "x0": 208.0,
+          "top": 44.9189,
+          "x1": 226.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "人",
+          "x0": 226.0,
+          "top": 44.9189,
+          "x1": 244.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "や",
+          "x0": 244.0,
+          "top": 44.9189,
+          "x1": 262.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "物",
+          "x0": 262.0,
+          "top": 44.9189,
+          "x1": 280.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "体",
+          "x0": 280.0,
+          "top": 44.9189,
+          "x1": 298.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "を",
+          "x0": 298.0,
+          "top": 44.9189,
+          "x1": 316.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "検",
+          "x0": 316.0,
+          "top": 44.9189,
+          "x1": 334.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "知",
+          "x0": 334.0,
+          "top": 44.9189,
+          "x1": 352.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "す",
+          "x0": 352.0,
+          "top": 44.9189,
+          "x1": 370.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "る",
+          "x0": 370.0,
+          "top": 44.9189,
+          "x1": 388.0,
+          "bottom": 62.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 44.9189,
+          "upright": true
+        },
+        {
+          "text": "光",
+          "x0": 10.0,
+          "top": 74.9189,
+          "x1": 28.0,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "学",
+          "x0": 28.0,
+          "top": 74.9189,
+          "x1": 46.0,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "技",
+          "x0": 46.0,
+          "top": 74.9189,
+          "x1": 64.0,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "術",
+          "x0": 64.0,
+          "top": 74.9189,
+          "x1": 82.0,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "×",
+          "x0": 82.0,
+          "top": 74.9189,
+          "x1": 96.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "レ",
+          "x0": 96.9941,
+          "top": 74.9189,
+          "x1": 114.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 114.9941,
+          "top": 74.9189,
+          "x1": 132.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "ザ",
+          "x0": 132.9941,
+          "top": 74.9189,
+          "x1": 150.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 150.9941,
+          "top": 74.9189,
+          "x1": 168.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "走",
+          "x0": 168.9941,
+          "top": 74.9189,
+          "x1": 186.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "査",
+          "x0": 186.9941,
+          "top": 74.9189,
+          "x1": 204.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "技",
+          "x0": 204.9941,
+          "top": 74.9189,
+          "x1": 222.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "術",
+          "x0": 222.9941,
+          "top": 74.9189,
+          "x1": 240.9941,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "×",
+          "x0": 240.9941,
+          "top": 74.9189,
+          "x1": 255.9883,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "情",
+          "x0": 255.9883,
+          "top": 74.9189,
+          "x1": 273.9883,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "報",
+          "x0": 273.9883,
+          "top": 74.9189,
+          "x1": 291.9883,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "処",
+          "x0": 291.9883,
+          "top": 74.9189,
+          "x1": 309.9883,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        },
+        {
+          "text": "理",
+          "x0": 309.9883,
+          "top": 74.9189,
+          "x1": 327.9883,
+          "bottom": 92.9189,
+          "fontname": "Meiryo",
+          "size": 18.0,
+          "doctop": 74.9189,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "3Dレーザーレーダー",
+          "x0": 10.0,
+          "top": 14.9189,
+          "x1": 180.4023,
+          "bottom": 32.9189,
+          "doctop": 14.9189
+        },
+        {
+          "text": "隙間のない空間スキャンで人や物体を検知する",
+          "x0": 10.0,
+          "top": 44.9189,
+          "x1": 388.0,
+          "bottom": 62.9189,
+          "doctop": 44.9189
+        },
+        {
+          "text": "光学技術×レーザー走査技術×情報処理",
+          "x0": 10.0,
+          "top": 74.9189,
+          "x1": 327.9883,
+          "bottom": 92.9189,
+          "doctop": 74.9189
+        }
+      ],
+      "text": "3Dレーザーレーダー\n隙間のない空間スキャンで人や物体を検知する\n光学技術×レーザー走査技術×情報処理",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

@@ -1,0 +1,3406 @@
+{
+  "source": "issue-1181.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 420.9449,
+      "height": 385.2756,
+      "chars": [
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 36.4637,
+          "x1": 107.4316,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 36.4637,
+          "x1": 111.8796,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 36.4637,
+          "x1": 116.3277,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 116.3277,
+          "top": 36.4637,
+          "x1": 120.7757,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 120.7757,
+          "top": 36.4637,
+          "x1": 125.2237,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": 36.4637,
+          "x1": 179.0798,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": 36.4637,
+          "x1": 183.5278,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": 36.4637,
+          "x1": 187.9759,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 187.9759,
+          "top": 36.4637,
+          "x1": 192.4239,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 191.8239,
+          "top": 36.4637,
+          "x1": 196.2719,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": 36.4637,
+          "x1": 291.7003,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 36.4637,
+          "x1": 296.1483,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 36.4637,
+          "x1": 300.5963,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 300.5963,
+          "top": 36.4637,
+          "x1": 305.0443,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 305.0443,
+          "top": 36.4637,
+          "x1": 309.4923,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": -30.4301,
+          "x1": 107.4316,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": -30.4301,
+          "x1": 111.8796,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": -30.4301,
+          "x1": 116.3277,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 116.3277,
+          "top": -30.4301,
+          "x1": 122.1037,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 122.1037,
+          "top": -30.4301,
+          "x1": 126.5517,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 126.5517,
+          "top": -30.4301,
+          "x1": 128.3277,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 128.3277,
+          "top": -30.4301,
+          "x1": 132.7757,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1918,
+          "top": -30.4301,
+          "x1": 179.0718,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0718,
+          "top": -30.4301,
+          "x1": 183.5198,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5198,
+          "top": -30.4301,
+          "x1": 187.9679,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 187.9679,
+          "top": -30.4301,
+          "x1": 193.7439,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 193.7439,
+          "top": -30.4301,
+          "x1": 198.1919,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 198.1919,
+          "top": -30.4301,
+          "x1": 199.9679,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 199.9679,
+          "top": -30.4301,
+          "x1": 204.4159,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": -30.4301,
+          "x1": 291.7003,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": -30.4301,
+          "x1": 296.1483,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": -30.4301,
+          "x1": 300.5963,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 300.5963,
+          "top": -30.4301,
+          "x1": 306.3723,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 306.3723,
+          "top": -30.4301,
+          "x1": 310.8203,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 310.8203,
+          "top": -30.4301,
+          "x1": 312.5963,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 312.5963,
+          "top": -30.4301,
+          "x1": 317.0443,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": -8.1322,
+          "x1": 107.4316,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": -8.1322,
+          "x1": 111.8796,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": -8.1322,
+          "x1": 116.3277,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "4",
+          "x0": 116.3277,
+          "top": -8.1322,
+          "x1": 120.7757,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": -8.1322,
+          "x1": 179.0798,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": -8.1322,
+          "x1": 183.5278,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": -8.1322,
+          "x1": 187.9759,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "5",
+          "x0": 187.9759,
+          "top": -8.1322,
+          "x1": 192.4239,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8203,
+          "top": -8.1322,
+          "x1": 291.7003,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": -8.1322,
+          "x1": 296.1483,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": -8.1322,
+          "x1": 300.5963,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "6",
+          "x0": 300.5963,
+          "top": -8.1322,
+          "x1": 305.0443,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 14.1658,
+          "x1": 107.4316,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 14.1658,
+          "x1": 111.8796,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 14.1658,
+          "x1": 116.3277,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "7",
+          "x0": 116.3277,
+          "top": 14.1658,
+          "x1": 120.7757,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": 14.1658,
+          "x1": 179.0798,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": 14.1658,
+          "x1": 183.5278,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": 14.1658,
+          "x1": 187.9759,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "8",
+          "x0": 187.9759,
+          "top": 14.1658,
+          "x1": 192.4239,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": 14.1658,
+          "x1": 291.7003,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 14.1658,
+          "x1": 296.1483,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 14.1658,
+          "x1": 300.5963,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "9",
+          "x0": 300.5963,
+          "top": 14.1658,
+          "x1": 305.0443,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 36.4637,
+          "x1": 497.4943,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 36.4637,
+          "x1": 501.9423,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 36.4637,
+          "x1": 504.6064,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 504.6064,
+          "top": 36.4637,
+          "x1": 509.0544,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 509.0544,
+          "top": 36.4637,
+          "x1": 513.5024,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": 36.4637,
+          "x1": 569.1425,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": 36.4637,
+          "x1": 573.5905,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": 36.4637,
+          "x1": 576.2545,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 576.2545,
+          "top": 36.4637,
+          "x1": 580.7026,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 580.1026,
+          "top": 36.4637,
+          "x1": 584.5506,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 36.4637,
+          "x1": 681.763,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": 36.4637,
+          "x1": 686.211,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 36.4637,
+          "x1": 688.875,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 688.875,
+          "top": 36.4637,
+          "x1": 693.323,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 693.323,
+          "top": 36.4637,
+          "x1": 697.771,
+          "bottom": 44.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 36.4637,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": -30.4301,
+          "x1": 497.4943,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": -30.4301,
+          "x1": 501.9423,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": -30.4301,
+          "x1": 504.6064,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 504.6064,
+          "top": -30.4301,
+          "x1": 510.3824,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 510.3824,
+          "top": -30.4301,
+          "x1": 514.8304,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 514.8304,
+          "top": -30.4301,
+          "x1": 516.6064,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 516.6064,
+          "top": -30.4301,
+          "x1": 521.0544,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8065,
+          "top": -30.4301,
+          "x1": 569.1345,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1345,
+          "top": -30.4301,
+          "x1": 573.5825,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5825,
+          "top": -30.4301,
+          "x1": 576.2466,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 576.2466,
+          "top": -30.4301,
+          "x1": 582.0226,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 582.0226,
+          "top": -30.4301,
+          "x1": 586.4706,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 586.4706,
+          "top": -30.4301,
+          "x1": 588.2466,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 588.2466,
+          "top": -30.4301,
+          "x1": 592.6946,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": -30.4301,
+          "x1": 681.763,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": -30.4301,
+          "x1": 686.211,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": -30.4301,
+          "x1": 688.875,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 688.875,
+          "top": -30.4301,
+          "x1": 694.651,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 694.651,
+          "top": -30.4301,
+          "x1": 699.099,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 699.099,
+          "top": -30.4301,
+          "x1": 700.875,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 700.875,
+          "top": -30.4301,
+          "x1": 705.323,
+          "bottom": -22.4301,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -30.4301,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": -8.1322,
+          "x1": 497.4943,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": -8.1322,
+          "x1": 501.9423,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": -8.1322,
+          "x1": 504.6063,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "4",
+          "x0": 504.6063,
+          "top": -8.1322,
+          "x1": 509.0544,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": -8.1322,
+          "x1": 569.1425,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": -8.1322,
+          "x1": 573.5905,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": -8.1322,
+          "x1": 576.2545,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "5",
+          "x0": 576.2545,
+          "top": -8.1322,
+          "x1": 580.7026,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": -8.1322,
+          "x1": 681.763,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": -8.1322,
+          "x1": 686.211,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": -8.1322,
+          "x1": 688.875,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "6",
+          "x0": 688.875,
+          "top": -8.1322,
+          "x1": 693.323,
+          "bottom": -0.1321,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": -8.1322,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 14.1658,
+          "x1": 497.4943,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 14.1658,
+          "x1": 501.9423,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 14.1658,
+          "x1": 504.6063,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "7",
+          "x0": 504.6063,
+          "top": 14.1658,
+          "x1": 509.0544,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": 14.1658,
+          "x1": 569.1425,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": 14.1658,
+          "x1": 573.5905,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": 14.1658,
+          "x1": 576.2545,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "8",
+          "x0": 576.2545,
+          "top": 14.1658,
+          "x1": 580.7026,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 14.1658,
+          "x1": 681.7629,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.7629,
+          "top": 14.1658,
+          "x1": 686.211,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 14.1658,
+          "x1": 688.875,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        },
+        {
+          "text": "9",
+          "x0": 688.875,
+          "top": 14.1658,
+          "x1": 693.323,
+          "bottom": 22.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 14.1658,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "FooCol1",
+          "x0": 102.5516,
+          "top": -30.4301,
+          "x1": 132.7757,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "FooCol2",
+          "x0": 174.1918,
+          "top": -30.4301,
+          "x1": 204.4159,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "FooCol3",
+          "x0": 286.8202,
+          "top": -30.4301,
+          "x1": 317.0443,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "BarCol1",
+          "x0": 492.1663,
+          "top": -30.4301,
+          "x1": 521.0544,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "BarCol2",
+          "x0": 563.8065,
+          "top": -30.4301,
+          "x1": 592.6946,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "BarCol3",
+          "x0": 676.4349,
+          "top": -30.4301,
+          "x1": 705.323,
+          "bottom": -22.4301,
+          "doctop": -30.4301
+        },
+        {
+          "text": "Foo4",
+          "x0": 102.5516,
+          "top": -8.1322,
+          "x1": 120.7757,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Foo5",
+          "x0": 174.1998,
+          "top": -8.1322,
+          "x1": 192.4239,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Foo6",
+          "x0": 286.8203,
+          "top": -8.1322,
+          "x1": 305.0443,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Bar4",
+          "x0": 492.1663,
+          "top": -8.1322,
+          "x1": 509.0544,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Bar5",
+          "x0": 563.8145,
+          "top": -8.1322,
+          "x1": 580.7026,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Bar6",
+          "x0": 676.4349,
+          "top": -8.1322,
+          "x1": 693.323,
+          "bottom": -0.1321,
+          "doctop": -8.1322
+        },
+        {
+          "text": "Foo7",
+          "x0": 102.5516,
+          "top": 14.1658,
+          "x1": 120.7757,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Foo8",
+          "x0": 174.1998,
+          "top": 14.1658,
+          "x1": 192.4239,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Foo9",
+          "x0": 286.8202,
+          "top": 14.1658,
+          "x1": 305.0443,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Bar7",
+          "x0": 492.1663,
+          "top": 14.1658,
+          "x1": 509.0544,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Bar8",
+          "x0": 563.8145,
+          "top": 14.1658,
+          "x1": 580.7026,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Bar9",
+          "x0": 676.4349,
+          "top": 14.1658,
+          "x1": 693.323,
+          "bottom": 22.1658,
+          "doctop": 14.1658
+        },
+        {
+          "text": "Foo10",
+          "x0": 102.5516,
+          "top": 36.4637,
+          "x1": 125.2237,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        },
+        {
+          "text": "Foo11",
+          "x0": 174.1998,
+          "top": 36.4637,
+          "x1": 196.2719,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        },
+        {
+          "text": "Foo12",
+          "x0": 286.8202,
+          "top": 36.4637,
+          "x1": 309.4923,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        },
+        {
+          "text": "Bar10",
+          "x0": 492.1663,
+          "top": 36.4637,
+          "x1": 513.5024,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        },
+        {
+          "text": "Bar11",
+          "x0": 563.8145,
+          "top": 36.4637,
+          "x1": 584.5506,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        },
+        {
+          "text": "Bar12",
+          "x0": 676.4349,
+          "top": 36.4637,
+          "x1": 697.771,
+          "bottom": 44.4637,
+          "doctop": 36.4637
+        }
+      ],
+      "text": "FooCol1 FooCol2 FooCol3 BarCol1 BarCol2 BarCol3\nFoo4 Foo5 Foo6 Bar4 Bar5 Bar6\nFoo7 Foo8 Foo9 Bar7 Bar8 Bar9\nFoo10 Foo11 Foo12 Bar10 Bar11 Bar12",
+      "lines": [
+        {
+          "x0": 140.898,
+          "top": -41.312,
+          "x1": 140.898,
+          "bottom": 215.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 279.066,
+          "top": -40.605,
+          "x1": 279.066,
+          "bottom": 215.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": -14.207,
+          "x1": 342.41,
+          "bottom": -14.207,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 7.289,
+          "x1": 342.41,
+          "bottom": 7.289,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 28.785,
+          "x1": 342.41,
+          "bottom": 28.785,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 50.281,
+          "x1": 342.41,
+          "bottom": 50.281,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 530.516,
+          "top": -41.312,
+          "x1": 530.516,
+          "bottom": 215.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 668.684,
+          "top": -40.605,
+          "x1": 668.684,
+          "bottom": 215.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": -14.207,
+          "x1": 732.023,
+          "bottom": -14.207,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 7.289,
+          "x1": 732.023,
+          "bottom": 7.289,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 28.785,
+          "x1": 732.023,
+          "bottom": 28.785,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 50.281,
+          "x1": 732.023,
+          "bottom": 50.281,
+          "linewidth": 1.4173
+        }
+      ],
+      "rects": [
+        {
+          "x0": 95.441,
+          "top": -40.605,
+          "x1": 342.41,
+          "bottom": 215.141,
+          "linewidth": 1.4173,
+          "stroke": true,
+          "fill": false
+        },
+        {
+          "x0": 485.055,
+          "top": -40.605,
+          "x1": 732.024,
+          "bottom": 215.141,
+          "linewidth": 1.4173,
+          "stroke": true,
+          "fill": false
+        }
+      ],
+      "tables": [
+        {
+          "bbox": {
+            "x0": 95.441,
+            "top": -40.605,
+            "x1": 342.41,
+            "bottom": 215.141
+          },
+          "rows": [
+            [
+              "FooCol1",
+              "FooCol2",
+              "FooCol3"
+            ],
+            [
+              "Foo4",
+              "Foo5",
+              "Foo6"
+            ],
+            [
+              "Foo7",
+              "Foo8",
+              "Foo9"
+            ],
+            [
+              "Foo10",
+              "Foo11",
+              "Foo12"
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ]
+        },
+        {
+          "bbox": {
+            "x0": 485.055,
+            "top": -40.605,
+            "x1": 732.024,
+            "bottom": 215.141
+          },
+          "rows": [
+            [
+              "BarCol1",
+              "BarCol2",
+              "BarCol3"
+            ],
+            [
+              "Bar4",
+              "Bar5",
+              "Bar6"
+            ],
+            [
+              "Bar7",
+              "Bar8",
+              "Bar9"
+            ],
+            [
+              "Bar10",
+              "Bar11",
+              "Bar12"
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "page_number": 1,
+      "width": 420.9449,
+      "height": 595.2756,
+      "chars": [
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 246.4637,
+          "x1": 107.4316,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 246.4637,
+          "x1": 111.8796,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 246.4637,
+          "x1": 116.3277,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 116.3277,
+          "top": 246.4637,
+          "x1": 120.7757,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 120.7757,
+          "top": 246.4637,
+          "x1": 125.2237,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": 246.4637,
+          "x1": 179.0798,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": 246.4637,
+          "x1": 183.5278,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": 246.4637,
+          "x1": 187.9759,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 187.9759,
+          "top": 246.4637,
+          "x1": 192.4239,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 191.8239,
+          "top": 246.4637,
+          "x1": 196.2719,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": 246.4637,
+          "x1": 291.7003,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 246.4637,
+          "x1": 296.1483,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 246.4637,
+          "x1": 300.5963,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 300.5963,
+          "top": 246.4637,
+          "x1": 305.0443,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 305.0443,
+          "top": 246.4637,
+          "x1": 309.4923,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 179.5699,
+          "x1": 107.4316,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 179.5699,
+          "x1": 111.8796,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 179.5699,
+          "x1": 116.3277,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 116.3277,
+          "top": 179.5699,
+          "x1": 122.1037,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 122.1037,
+          "top": 179.5699,
+          "x1": 126.5517,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 126.5517,
+          "top": 179.5699,
+          "x1": 128.3277,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 128.3277,
+          "top": 179.5699,
+          "x1": 132.7757,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1918,
+          "top": 179.5699,
+          "x1": 179.0718,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0718,
+          "top": 179.5699,
+          "x1": 183.5198,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5198,
+          "top": 179.5699,
+          "x1": 187.9679,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 187.9679,
+          "top": 179.5699,
+          "x1": 193.7439,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 193.7439,
+          "top": 179.5699,
+          "x1": 198.1919,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 198.1919,
+          "top": 179.5699,
+          "x1": 199.9679,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 199.9679,
+          "top": 179.5699,
+          "x1": 204.4159,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": 179.5699,
+          "x1": 291.7003,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 179.5699,
+          "x1": 296.1483,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 179.5699,
+          "x1": 300.5963,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 300.5963,
+          "top": 179.5699,
+          "x1": 306.3723,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 306.3723,
+          "top": 179.5699,
+          "x1": 310.8203,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 310.8203,
+          "top": 179.5699,
+          "x1": 312.5963,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 312.5963,
+          "top": 179.5699,
+          "x1": 317.0443,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 201.8678,
+          "x1": 107.4316,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 201.8678,
+          "x1": 111.8796,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 201.8678,
+          "x1": 116.3277,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "4",
+          "x0": 116.3277,
+          "top": 201.8678,
+          "x1": 120.7757,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": 201.8678,
+          "x1": 179.0798,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": 201.8678,
+          "x1": 183.5278,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": 201.8678,
+          "x1": 187.9759,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "5",
+          "x0": 187.9759,
+          "top": 201.8678,
+          "x1": 192.4239,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8203,
+          "top": 201.8678,
+          "x1": 291.7003,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 201.8678,
+          "x1": 296.1483,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 201.8678,
+          "x1": 300.5963,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "6",
+          "x0": 300.5963,
+          "top": 201.8678,
+          "x1": 305.0443,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 102.5516,
+          "top": 224.1658,
+          "x1": 107.4316,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 107.4316,
+          "top": 224.1658,
+          "x1": 111.8796,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 111.8796,
+          "top": 224.1658,
+          "x1": 116.3277,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "7",
+          "x0": 116.3277,
+          "top": 224.1658,
+          "x1": 120.7757,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 174.1998,
+          "top": 224.1658,
+          "x1": 179.0798,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 179.0798,
+          "top": 224.1658,
+          "x1": 183.5278,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 183.5278,
+          "top": 224.1658,
+          "x1": 187.9759,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "8",
+          "x0": 187.9759,
+          "top": 224.1658,
+          "x1": 192.4239,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 286.8202,
+          "top": 224.1658,
+          "x1": 291.7003,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 291.7003,
+          "top": 224.1658,
+          "x1": 296.1483,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 296.1483,
+          "top": 224.1658,
+          "x1": 300.5963,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "9",
+          "x0": 300.5963,
+          "top": 224.1658,
+          "x1": 305.0443,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 246.4637,
+          "x1": 497.4943,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 246.4637,
+          "x1": 501.9423,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 246.4637,
+          "x1": 504.6064,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 504.6064,
+          "top": 246.4637,
+          "x1": 509.0544,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 509.0544,
+          "top": 246.4637,
+          "x1": 513.5024,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": 246.4637,
+          "x1": 569.1425,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": 246.4637,
+          "x1": 573.5905,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": 246.4637,
+          "x1": 576.2545,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 576.2545,
+          "top": 246.4637,
+          "x1": 580.7026,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 580.1026,
+          "top": 246.4637,
+          "x1": 584.5506,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 246.4637,
+          "x1": 681.763,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": 246.4637,
+          "x1": 686.211,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 246.4637,
+          "x1": 688.875,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 688.875,
+          "top": 246.4637,
+          "x1": 693.323,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 693.323,
+          "top": 246.4637,
+          "x1": 697.771,
+          "bottom": 254.4637,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 631.7393,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 179.5699,
+          "x1": 497.4943,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 179.5699,
+          "x1": 501.9423,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 179.5699,
+          "x1": 504.6064,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 504.6064,
+          "top": 179.5699,
+          "x1": 510.3824,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 510.3824,
+          "top": 179.5699,
+          "x1": 514.8304,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 514.8304,
+          "top": 179.5699,
+          "x1": 516.6064,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 516.6064,
+          "top": 179.5699,
+          "x1": 521.0544,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8065,
+          "top": 179.5699,
+          "x1": 569.1345,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1345,
+          "top": 179.5699,
+          "x1": 573.5825,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5825,
+          "top": 179.5699,
+          "x1": 576.2466,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 576.2466,
+          "top": 179.5699,
+          "x1": 582.0226,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 582.0226,
+          "top": 179.5699,
+          "x1": 586.4706,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 586.4706,
+          "top": 179.5699,
+          "x1": 588.2466,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 588.2466,
+          "top": 179.5699,
+          "x1": 592.6946,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 179.5699,
+          "x1": 681.763,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": 179.5699,
+          "x1": 686.211,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 179.5699,
+          "x1": 688.875,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 688.875,
+          "top": 179.5699,
+          "x1": 694.651,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 694.651,
+          "top": 179.5699,
+          "x1": 699.099,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 699.099,
+          "top": 179.5699,
+          "x1": 700.875,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 700.875,
+          "top": 179.5699,
+          "x1": 705.323,
+          "bottom": 187.5699,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 564.8455,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 201.8678,
+          "x1": 497.4943,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 201.8678,
+          "x1": 501.9423,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 201.8678,
+          "x1": 504.6063,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "4",
+          "x0": 504.6063,
+          "top": 201.8678,
+          "x1": 509.0544,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": 201.8678,
+          "x1": 569.1425,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": 201.8678,
+          "x1": 573.5905,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": 201.8678,
+          "x1": 576.2545,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "5",
+          "x0": 576.2545,
+          "top": 201.8678,
+          "x1": 580.7026,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 201.8678,
+          "x1": 681.763,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.763,
+          "top": 201.8678,
+          "x1": 686.211,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 201.8678,
+          "x1": 688.875,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "6",
+          "x0": 688.875,
+          "top": 201.8678,
+          "x1": 693.323,
+          "bottom": 209.8679,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 587.1434,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 492.1663,
+          "top": 224.1658,
+          "x1": 497.4943,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 497.4943,
+          "top": 224.1658,
+          "x1": 501.9423,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 501.9423,
+          "top": 224.1658,
+          "x1": 504.6063,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "7",
+          "x0": 504.6063,
+          "top": 224.1658,
+          "x1": 509.0544,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 563.8145,
+          "top": 224.1658,
+          "x1": 569.1425,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 569.1425,
+          "top": 224.1658,
+          "x1": 573.5905,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 573.5905,
+          "top": 224.1658,
+          "x1": 576.2545,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "8",
+          "x0": 576.2545,
+          "top": 224.1658,
+          "x1": 580.7026,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 676.4349,
+          "top": 224.1658,
+          "x1": 681.7629,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 681.7629,
+          "top": 224.1658,
+          "x1": 686.211,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 686.211,
+          "top": 224.1658,
+          "x1": 688.875,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        },
+        {
+          "text": "9",
+          "x0": 688.875,
+          "top": 224.1658,
+          "x1": 693.323,
+          "bottom": 232.1658,
+          "fontname": "DEEVNY+LiberationSans",
+          "size": 8.0,
+          "doctop": 609.4414,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "FooCol1",
+          "x0": 102.5516,
+          "top": 179.5699,
+          "x1": 132.7757,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "FooCol2",
+          "x0": 174.1918,
+          "top": 179.5699,
+          "x1": 204.4159,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "FooCol3",
+          "x0": 286.8202,
+          "top": 179.5699,
+          "x1": 317.0443,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "BarCol1",
+          "x0": 492.1663,
+          "top": 179.5699,
+          "x1": 521.0544,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "BarCol2",
+          "x0": 563.8065,
+          "top": 179.5699,
+          "x1": 592.6946,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "BarCol3",
+          "x0": 676.4349,
+          "top": 179.5699,
+          "x1": 705.323,
+          "bottom": 187.5699,
+          "doctop": 564.8455
+        },
+        {
+          "text": "Foo4",
+          "x0": 102.5516,
+          "top": 201.8678,
+          "x1": 120.7757,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Foo5",
+          "x0": 174.1998,
+          "top": 201.8678,
+          "x1": 192.4239,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Foo6",
+          "x0": 286.8203,
+          "top": 201.8678,
+          "x1": 305.0443,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Bar4",
+          "x0": 492.1663,
+          "top": 201.8678,
+          "x1": 509.0544,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Bar5",
+          "x0": 563.8145,
+          "top": 201.8678,
+          "x1": 580.7026,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Bar6",
+          "x0": 676.4349,
+          "top": 201.8678,
+          "x1": 693.323,
+          "bottom": 209.8679,
+          "doctop": 587.1434
+        },
+        {
+          "text": "Foo7",
+          "x0": 102.5516,
+          "top": 224.1658,
+          "x1": 120.7757,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Foo8",
+          "x0": 174.1998,
+          "top": 224.1658,
+          "x1": 192.4239,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Foo9",
+          "x0": 286.8202,
+          "top": 224.1658,
+          "x1": 305.0443,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Bar7",
+          "x0": 492.1663,
+          "top": 224.1658,
+          "x1": 509.0544,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Bar8",
+          "x0": 563.8145,
+          "top": 224.1658,
+          "x1": 580.7026,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Bar9",
+          "x0": 676.4349,
+          "top": 224.1658,
+          "x1": 693.323,
+          "bottom": 232.1658,
+          "doctop": 609.4414
+        },
+        {
+          "text": "Foo10",
+          "x0": 102.5516,
+          "top": 246.4637,
+          "x1": 125.2237,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        },
+        {
+          "text": "Foo11",
+          "x0": 174.1998,
+          "top": 246.4637,
+          "x1": 196.2719,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        },
+        {
+          "text": "Foo12",
+          "x0": 286.8202,
+          "top": 246.4637,
+          "x1": 309.4923,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        },
+        {
+          "text": "Bar10",
+          "x0": 492.1663,
+          "top": 246.4637,
+          "x1": 513.5024,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        },
+        {
+          "text": "Bar11",
+          "x0": 563.8145,
+          "top": 246.4637,
+          "x1": 584.5506,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        },
+        {
+          "text": "Bar12",
+          "x0": 676.4349,
+          "top": 246.4637,
+          "x1": 697.771,
+          "bottom": 254.4637,
+          "doctop": 631.7393
+        }
+      ],
+      "text": "FooCol1 FooCol2 FooCol3 BarCol1 BarCol2 BarCol3\nFoo4 Foo5 Foo6 Bar4 Bar5 Bar6\nFoo7 Foo8 Foo9 Bar7 Bar8 Bar9\nFoo10 Foo11 Foo12 Bar10 Bar11 Bar12",
+      "lines": [
+        {
+          "x0": 140.898,
+          "top": 168.688,
+          "x1": 140.898,
+          "bottom": 425.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 279.066,
+          "top": 169.395,
+          "x1": 279.066,
+          "bottom": 425.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 195.793,
+          "x1": 342.41,
+          "bottom": 195.793,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 217.289,
+          "x1": 342.41,
+          "bottom": 217.289,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 238.785,
+          "x1": 342.41,
+          "bottom": 238.785,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 94.73,
+          "top": 260.281,
+          "x1": 342.41,
+          "bottom": 260.281,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 530.516,
+          "top": 168.688,
+          "x1": 530.516,
+          "bottom": 425.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 668.684,
+          "top": 169.395,
+          "x1": 668.684,
+          "bottom": 425.141,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 195.793,
+          "x1": 732.023,
+          "bottom": 195.793,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 217.289,
+          "x1": 732.023,
+          "bottom": 217.289,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 238.785,
+          "x1": 732.023,
+          "bottom": 238.785,
+          "linewidth": 1.4173
+        },
+        {
+          "x0": 484.348,
+          "top": 260.281,
+          "x1": 732.023,
+          "bottom": 260.281,
+          "linewidth": 1.4173
+        }
+      ],
+      "rects": [
+        {
+          "x0": 95.441,
+          "top": 169.395,
+          "x1": 342.41,
+          "bottom": 425.141,
+          "linewidth": 1.4173,
+          "stroke": true,
+          "fill": false
+        },
+        {
+          "x0": 485.055,
+          "top": 169.395,
+          "x1": 732.024,
+          "bottom": 425.141,
+          "linewidth": 1.4173,
+          "stroke": true,
+          "fill": false
+        }
+      ],
+      "tables": [
+        {
+          "bbox": {
+            "x0": 95.441,
+            "top": 169.395,
+            "x1": 342.41,
+            "bottom": 425.141
+          },
+          "rows": [
+            [
+              "FooCol1",
+              "FooCol2",
+              "FooCol3"
+            ],
+            [
+              "Foo4",
+              "Foo5",
+              "Foo6"
+            ],
+            [
+              "Foo7",
+              "Foo8",
+              "Foo9"
+            ],
+            [
+              "Foo10",
+              "Foo11",
+              "Foo12"
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ]
+        },
+        {
+          "bbox": {
+            "x0": 485.055,
+            "top": 169.395,
+            "x1": 732.024,
+            "bottom": 425.141
+          },
+          "rows": [
+            [
+              "BarCol1",
+              "BarCol2",
+              "BarCol3"
+            ],
+            [
+              "Bar4",
+              "Bar5",
+              "Bar6"
+            ],
+            [
+              "Bar7",
+              "Bar8",
+              "Bar9"
+            ],
+            [
+              "Bar10",
+              "Bar11",
+              "Bar12"
+            ],
+            [
+              "",
+              "",
+              ""
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

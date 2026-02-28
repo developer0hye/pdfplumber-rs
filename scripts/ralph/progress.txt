@@ -115,3 +115,20 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
   - Bash associative mapping via `local_name="${mapping##*|}"` pattern works well for rename mappings
   - 108 total PDFs on disk after this story (10 pdfbox + 3 poppler = 13 new)
 ---
+
+## 2026-03-01 - US-112
+- Updated `scripts/generate_golden.py` to walk subdirectories recursively using `os.walk()`
+- Added `collect_pdfs()` helper function returning `(relative_path, full_path)` pairs
+- Golden JSON output preserves subdirectory structure (golden/pdfjs/*.json, golden/pdfbox/*.json, golden/poppler/*.json, golden/oss-fuzz/*.json)
+- Added try/except per PDF — gracefully logs failures without aborting
+- Prints summary: N succeeded, M failed + list of failures
+- Created `scripts/setup_golden_venv.sh` — helper script to create .venv-golden with pdfplumber
+- Generated 97 golden JSON files (11 expected failures: 10 malformed oss-fuzz + 1 password-protected)
+- Files changed: `scripts/generate_golden.py` (updated), `scripts/setup_golden_venv.sh` (new), 97 golden JSON files (new), `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - 10/19 oss-fuzz PDFs fail in Python pdfplumber (recursion, malformed structure, invalid octals, etc.)
+  - password-example.pdf requires password — could support via CLI arg but not needed for golden data
+  - pdfplumber v0.11.9 used for golden generation — matches existing golden data version
+  - 97 golden JSON files total (4 pre-existing overwritten + 93 new including subdirectories)
+---

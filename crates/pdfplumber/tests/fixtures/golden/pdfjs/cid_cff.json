@@ -1,0 +1,340 @@
+{
+  "source": "cid_cff.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 756.0,
+      "height": 561.6,
+      "chars": [
+        {
+          "text": " ",
+          "x0": 117.295,
+          "top": 194.2216,
+          "x1": 123.5855,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "p",
+          "x0": 123.5855,
+          "top": 194.2216,
+          "x1": 136.7778,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 136.7778,
+          "top": 194.2216,
+          "x1": 146.0226,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 145.5133,
+          "top": 194.2216,
+          "x1": 158.8838,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 158.8838,
+          "top": 194.2216,
+          "x1": 169.9368,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 169.9368,
+          "top": 194.2216,
+          "x1": 183.2819,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 183.2819,
+          "top": 194.2216,
+          "x1": 194.6406,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 194.6406,
+          "top": 194.2216,
+          "x1": 205.9992,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 205.9992,
+          "top": 194.2216,
+          "x1": 219.3697,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 219.3697,
+          "top": 194.2216,
+          "x1": 228.6145,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 228.6145,
+          "top": 194.2216,
+          "x1": 234.9051,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 234.9051,
+          "top": 194.2216,
+          "x1": 244.1499,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 243.615,
+          "top": 194.2216,
+          "x1": 256.9601,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "f",
+          "x0": 256.5527,
+          "top": 194.2216,
+          "x1": 266.0012,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 265.4918,
+          "top": 194.2216,
+          "x1": 278.8369,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 278.8369,
+          "top": 194.2216,
+          "x1": 288.0817,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 287.5724,
+          "top": 194.2216,
+          "x1": 300.9175,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 300.9175,
+          "top": 194.2216,
+          "x1": 314.4409,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 314.4409,
+          "top": 194.2216,
+          "x1": 325.4939,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 325.4939,
+          "top": 194.2216,
+          "x1": 338.839,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 338.839,
+          "top": 194.2216,
+          "x1": 345.1295,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 345.1295,
+          "top": 194.2216,
+          "x1": 356.1825,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "h",
+          "x0": 356.1825,
+          "top": 194.2216,
+          "x1": 369.7059,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 369.7059,
+          "top": 194.2216,
+          "x1": 382.3633,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 382.3633,
+          "top": 194.2216,
+          "x1": 391.6081,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 391.6081,
+          "top": 194.2216,
+          "x1": 401.1585,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 401.1585,
+          "top": 194.2216,
+          "x1": 407.4491,
+          "bottom": 219.6893,
+          "fontname": "ERGTBC+NeoSansIntel",
+          "size": 25.4678,
+          "doctop": 194.2216,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "processor",
+          "x0": 123.5855,
+          "top": 194.2216,
+          "x1": 228.6145,
+          "bottom": 219.6893,
+          "doctop": 194.2216
+        },
+        {
+          "text": "reference",
+          "x0": 234.9051,
+          "top": 194.2216,
+          "x1": 338.839,
+          "bottom": 219.6893,
+          "doctop": 194.2216
+        },
+        {
+          "text": "chart",
+          "x0": 345.1295,
+          "top": 194.2216,
+          "x1": 401.1585,
+          "bottom": 219.6893,
+          "doctop": 194.2216
+        }
+      ],
+      "text": "processor reference chart",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

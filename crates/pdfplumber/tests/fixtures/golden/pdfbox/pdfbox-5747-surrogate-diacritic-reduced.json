@@ -1,0 +1,57 @@
+{
+  "source": "pdfbox-5747-surrogate-diacritic-reduced.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 596.0,
+      "height": 842.0,
+      "chars": [
+        {
+          "text": "𝑋",
+          "x0": 42.0,
+          "top": 114.808,
+          "x1": 65.463,
+          "bottom": 147.808,
+          "fontname": "KELZXM+CairoFont-0-1",
+          "size": 33.0,
+          "doctop": 114.808,
+          "upright": true
+        },
+        {
+          "text": "̂",
+          "x0": 64.3208,
+          "top": 108.8038,
+          "x1": 64.3208,
+          "bottom": 141.8038,
+          "fontname": "KELZXM+CairoFont-0-1",
+          "size": 33.0,
+          "doctop": 108.8038,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "̂",
+          "x0": 64.3208,
+          "top": 108.8038,
+          "x1": 64.3208,
+          "bottom": 141.8038,
+          "doctop": 108.8038
+        },
+        {
+          "text": "𝑋",
+          "x0": 42.0,
+          "top": 114.808,
+          "x1": 65.463,
+          "bottom": 147.808,
+          "doctop": 114.808
+        }
+      ],
+      "text": "̂\n𝑋",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

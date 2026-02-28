@@ -70,7 +70,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "The current generate_golden.py only reads flat files from fixtures/pdfs/. It needs to be updated to walk subdirectories and create corresponding subdirectories in golden/. Password-protected PDFs (password-example.pdf) will fail unless we pass the password. OSS-fuzz PDFs may crash pdfplumber - wrap in try/except. Some pdfjs PDFs with non-embedded fonts may produce empty output - that's acceptable for golden data."
     },
     {

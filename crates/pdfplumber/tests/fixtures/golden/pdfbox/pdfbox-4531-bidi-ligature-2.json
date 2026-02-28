@@ -1,0 +1,120 @@
+{
+  "source": "pdfbox-4531-bidi-ligature-2.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.32,
+      "height": 841.92,
+      "chars": [
+        {
+          "text": "אּ",
+          "x0": 85.1,
+          "top": 117.41,
+          "x1": 144.215,
+          "bottom": 222.41,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 117.41,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 144.2,
+          "top": 117.41,
+          "x1": 173.39,
+          "bottom": 222.41,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 117.41,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 85.1,
+          "top": 243.41,
+          "x1": 114.29,
+          "bottom": 348.41,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 243.41,
+          "upright": true
+        },
+        {
+          "text": "لا",
+          "x0": 85.1,
+          "top": 369.43,
+          "x1": 142.22,
+          "bottom": 474.43,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 369.43,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 142.22,
+          "top": 369.43,
+          "x1": 171.41,
+          "bottom": 474.43,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 369.43,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 85.1,
+          "top": 495.43,
+          "x1": 114.29,
+          "bottom": 600.43,
+          "fontname": "DJDLCI+ArialMT",
+          "size": 105.0,
+          "doctop": 495.43,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "אּ",
+          "x0": 85.1,
+          "top": 117.41,
+          "x1": 144.215,
+          "bottom": 222.41,
+          "doctop": 117.41
+        },
+        {
+          "text": "لا",
+          "x0": 85.1,
+          "top": 369.43,
+          "x1": 142.22,
+          "bottom": 474.43,
+          "doctop": 369.43
+        }
+      ],
+      "text": "אּ\nلا",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 85.1,
+          "top": 101.88,
+          "x1": 144.2,
+          "bottom": 222.62,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        },
+        {
+          "x0": 85.1,
+          "top": 353.9,
+          "x1": 142.22,
+          "bottom": 474.64,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

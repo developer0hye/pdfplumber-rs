@@ -160,31 +160,60 @@ def process_pdf(pdf_path):
     }
 
 
+def collect_pdfs(base_dir):
+    """Walk base_dir recursively and return (relative_path, full_path) pairs for all PDFs."""
+    results = []
+    for dirpath, _dirnames, filenames in os.walk(base_dir):
+        for fname in sorted(filenames):
+            if fname.lower().endswith(".pdf"):
+                full_path = os.path.join(dirpath, fname)
+                rel_path = os.path.relpath(full_path, base_dir)
+                results.append((rel_path, full_path))
+    results.sort(key=lambda x: x[0])
+    return results
+
+
 def main():
     os.makedirs(GOLDEN_DIR, exist_ok=True)
 
-    pdf_files = sorted(f for f in os.listdir(PDF_DIR) if f.endswith(".pdf"))
+    pdf_files = collect_pdfs(PDF_DIR)
     if not pdf_files:
         print(f"No PDF files found in {PDF_DIR}")
-        print("Run scripts/download_fixtures.sh first.")
+        print("Run scripts/download_test_fixtures.sh first.")
         sys.exit(1)
 
     print(f"Python pdfplumber version: {pdfplumber.__version__}")
     print(f"Found {len(pdf_files)} PDF files\n")
 
-    for pdf_file in pdf_files:
-        pdf_path = os.path.join(PDF_DIR, pdf_file)
-        golden = process_pdf(pdf_path)
+    succeeded = 0
+    failed = 0
+    failures = []
 
-        json_file = pdf_file.replace(".pdf", ".json")
-        json_path = os.path.join(GOLDEN_DIR, json_file)
+    for rel_path, pdf_path in pdf_files:
+        # Determine output path preserving subdirectory structure
+        json_rel = rel_path.replace(".pdf", ".json").replace(".PDF", ".json")
+        json_path = os.path.join(GOLDEN_DIR, json_rel)
+        os.makedirs(os.path.dirname(json_path), exist_ok=True)
 
-        with open(json_path, "w") as f:
-            json.dump(golden, f, indent=2, ensure_ascii=False)
+        try:
+            golden = process_pdf(pdf_path)
 
-        print(f"  -> Written: {json_file}\n")
+            with open(json_path, "w") as f:
+                json.dump(golden, f, indent=2, ensure_ascii=False)
 
-    print("Done! Golden data written to:", GOLDEN_DIR)
+            print(f"  -> Written: {json_rel}\n")
+            succeeded += 1
+        except Exception as e:
+            print(f"  FAILED: {rel_path}: {e}\n")
+            failed += 1
+            failures.append((rel_path, str(e)))
+
+    print(f"\nDone! {succeeded} succeeded, {failed} failed.")
+    if failures:
+        print("\nFailed PDFs:")
+        for rel_path, err in failures:
+            print(f"  - {rel_path}: {err}")
+    print(f"\nGolden data written to: {GOLDEN_DIR}")
 
 
 if __name__ == "__main__":
