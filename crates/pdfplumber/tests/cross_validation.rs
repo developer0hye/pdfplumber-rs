@@ -2,14 +2,11 @@
 //!
 //! Run with: `cargo test -p pdfplumber --test cross_validation -- --nocapture`
 //!
-//! # Known gaps (as of initial implementation)
+//! # Known gaps
 //!
-//! - **Lines/Rects**: Path extraction from real-world PDFs returns empty results.
-//!   The content stream interpreter does not yet propagate painted path events.
-//! - **scotus-transcript-p1.pdf**: Parser fails with "unexpected '<<' in content stream".
 //! - **nics-background-checks-2015-11.pdf**: Char/word accuracy ~89% (below 95% PRD target).
 //! - **pdffill-demo.pdf**: Word accuracy ~94.5% (page 3 has form-field text differences).
-//! - **Tables**: No tables detected from real-world PDFs (depends on path extraction).
+//! - **nics-background-checks tables**: Table cell accuracy ~5.4% (needs investigation).
 
 #![allow(dead_code)]
 
@@ -513,7 +510,8 @@ fn validate_pdf(pdf_name: &str) -> PdfResult {
 
 // ─── Test functions ─────────────────────────────────────────────────────────
 
-/// issue-33-lorem-ipsum.pdf: simple text — currently passes char/word thresholds.
+/// issue-33-lorem-ipsum.pdf: simple text with tables.
+/// All metrics at 100%.
 #[test]
 fn cross_validate_lorem_ipsum() {
     let result = validate_pdf("issue-33-lorem-ipsum.pdf");
@@ -530,11 +528,23 @@ fn cross_validate_lorem_ipsum() {
         result.total_word_rate() * 100.0,
         WORD_THRESHOLD * 100.0,
     );
+    assert!(
+        result.total_line_rate() >= 1.0,
+        "line rate {:.1}% < 100%",
+        result.total_line_rate() * 100.0,
+    );
+    assert!(
+        result.total_table_rate() >= TABLE_THRESHOLD,
+        "table rate {:.1}% < {:.1}%",
+        result.total_table_rate() * 100.0,
+        TABLE_THRESHOLD * 100.0,
+    );
 }
 
 /// pdffill-demo.pdf: text + form fields.
 /// Known gap: word rate ~94.5% (page 3 form-field text splits differently).
 /// Asserts char threshold (100%), word threshold relaxed to 90%.
+/// Lines and rects at 100%.
 #[test]
 fn cross_validate_pdffill_demo() {
     let result = validate_pdf("pdffill-demo.pdf");
@@ -554,6 +564,16 @@ fn cross_validate_pdffill_demo() {
         result.total_word_rate() * 100.0,
         relaxed_word_threshold * 100.0,
     );
+    assert!(
+        result.total_line_rate() >= 1.0,
+        "line rate {:.1}% < 100%",
+        result.total_line_rate() * 100.0,
+    );
+    assert!(
+        result.total_rect_rate() >= 1.0,
+        "rect rate {:.1}% < 100%",
+        result.total_rect_rate() * 100.0,
+    );
     if result.total_word_rate() < WORD_THRESHOLD {
         eprintln!(
             "  NOTE: word rate {:.1}% below PRD target {:.1}% (known gap: form field text)",
@@ -563,37 +583,36 @@ fn cross_validate_pdffill_demo() {
     }
 }
 
-/// scotus-transcript-p1.pdf: dense multi-column text.
-/// Known gap: parser fails with "unexpected '<<' in content stream".
-/// This test verifies the PDF can be opened and documents the parse error.
+/// scotus-transcript-p1.pdf: dense multi-column text with inline images.
+/// chars=99.9%, words=100%.
 #[test]
 fn cross_validate_scotus_transcript() {
     let result = validate_pdf("scotus-transcript-p1.pdf");
-    if let Some(ref err) = result.parse_error {
-        eprintln!(
-            "  KNOWN GAP: scotus-transcript parse error (content stream issue): {}",
-            err
-        );
-        // Don't fail — this is a known parser limitation to fix later.
-        return;
-    }
+    assert!(result.parse_error.is_none(), "parse error");
     assert!(
         result.total_char_rate() >= CHAR_THRESHOLD,
         "char rate {:.1}% < {:.1}%",
         result.total_char_rate() * 100.0,
         CHAR_THRESHOLD * 100.0,
     );
+    assert!(
+        result.total_word_rate() >= WORD_THRESHOLD,
+        "word rate {:.1}% < {:.1}%",
+        result.total_word_rate() * 100.0,
+        WORD_THRESHOLD * 100.0,
+    );
 }
 
 /// nics-background-checks-2015-11.pdf: complex lattice table.
-/// Known gap: char accuracy ~89%, word accuracy ~89% (below 95% target).
-/// Asserts a baseline to catch regressions; tighten as extraction improves.
+/// Known gap: char accuracy ~88.6%, word accuracy ~89.4% (below 95% target).
+/// Lines/rects at 100%. Table accuracy ~5.4% (needs investigation).
+/// Asserts tightened baseline to catch regressions.
 #[test]
 fn cross_validate_nics_background_checks() {
     let result = validate_pdf("nics-background-checks-2015-11.pdf");
     assert!(result.parse_error.is_none(), "parse error");
-    // Current baseline: ~88-89%. Catch regressions below 80%.
-    let baseline_threshold = 0.80;
+    // Current baseline: ~88-89%. Tighten to 85% to catch regressions.
+    let baseline_threshold = 0.85;
     assert!(
         result.total_char_rate() >= baseline_threshold,
         "char rate {:.1}% < {:.1}% baseline",
@@ -605,6 +624,16 @@ fn cross_validate_nics_background_checks() {
         "word rate {:.1}% < {:.1}% baseline",
         result.total_word_rate() * 100.0,
         baseline_threshold * 100.0,
+    );
+    assert!(
+        result.total_line_rate() >= 1.0,
+        "line rate {:.1}% < 100%",
+        result.total_line_rate() * 100.0,
+    );
+    assert!(
+        result.total_rect_rate() >= 1.0,
+        "rect rate {:.1}% < 100%",
+        result.total_rect_rate() * 100.0,
     );
     if result.total_char_rate() < CHAR_THRESHOLD {
         eprintln!(

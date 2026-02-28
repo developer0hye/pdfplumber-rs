@@ -2,13 +2,13 @@
 
 use pdfplumber_core::{
     Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageMetadata, Line, PaintedPath,
-    Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
+    ExtractWarning, FormField, Image, ImageContent, ImageMetadata, Line, PaintedPath, Path,
+    PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
     StructElement, UnicodeNorm, ValidationIssue, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
-    CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PaintOp,
-    PageGeometry, PathEvent, PdfBackend, char_from_event,
+    CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
+    PaintOp, PathEvent, PdfBackend, char_from_event,
 };
 
 use crate::Page;

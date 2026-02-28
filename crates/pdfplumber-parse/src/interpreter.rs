@@ -111,11 +111,14 @@ pub(crate) fn interpret_content_stream(
                 // Dash pattern: [array] phase d
                 if op.operands.len() >= 2 {
                     if let Operand::Array(ref arr) = op.operands[0] {
-                        let dash_array: Vec<f64> = arr.iter().filter_map(|o| match o {
-                            Operand::Integer(i) => Some(*i as f64),
-                            Operand::Real(f) => Some(*f),
-                            _ => None,
-                        }).collect();
+                        let dash_array: Vec<f64> = arr
+                            .iter()
+                            .filter_map(|o| match o {
+                                Operand::Integer(i) => Some(*i as f64),
+                                Operand::Real(f) => Some(*f),
+                                _ => None,
+                            })
+                            .collect();
                         let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
                         gstate.set_dash_pattern(dash_array, phase);
                     }
@@ -376,38 +379,86 @@ pub(crate) fn interpret_content_stream(
             // --- Path painting operators ---
             "S" => {
                 // Stroke
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Stroke, FillRule::NonZeroWinding);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Stroke,
+                    FillRule::NonZeroWinding,
+                );
             }
             "s" => {
                 // Close and stroke
                 path_builder.close_path();
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Stroke, FillRule::NonZeroWinding);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Stroke,
+                    FillRule::NonZeroWinding,
+                );
             }
             "f" | "F" => {
                 // Fill (nonzero winding)
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Fill, FillRule::NonZeroWinding);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Fill,
+                    FillRule::NonZeroWinding,
+                );
             }
             "f*" => {
                 // Fill (even-odd rule)
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Fill, FillRule::EvenOdd);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Fill,
+                    FillRule::EvenOdd,
+                );
             }
             "B" => {
                 // Fill and stroke (nonzero winding)
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::NonZeroWinding);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::NonZeroWinding,
+                );
             }
             "B*" => {
                 // Fill and stroke (even-odd rule)
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::EvenOdd);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::EvenOdd,
+                );
             }
             "b" => {
                 // Close, fill, and stroke (nonzero winding)
                 path_builder.close_path();
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::NonZeroWinding);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::NonZeroWinding,
+                );
             }
             "b*" => {
                 // Close, fill, and stroke (even-odd rule)
                 path_builder.close_path();
-                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::EvenOdd);
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::EvenOdd,
+                );
             }
             "n" => {
                 // End path without painting (no-op, used with clipping)
@@ -603,10 +654,7 @@ fn extract_tounicode_cmap(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Opti
 }
 
 /// Extract font encoding from a simple font dictionary's /Encoding entry.
-fn extract_font_encoding(
-    doc: &lopdf::Document,
-    fd: &lopdf::Dictionary,
-) -> Option<FontEncoding> {
+fn extract_font_encoding(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Option<FontEncoding> {
     let encoding_obj = fd.get(b"Encoding").ok()?;
     let encoding_obj = resolve_ref(doc, encoding_obj);
 
