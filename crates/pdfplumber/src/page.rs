@@ -1,9 +1,10 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    BBox, Char, Curve, Edge, Image, Line, Rect, TextOptions, Word, WordExtractor, WordOptions,
-    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    BBox, Char, Curve, Edge, Image, Line, Rect, Table, TableFinder, TableSettings, TextOptions,
+    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, derive_edges, extract_text_for_cells, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 
 /// A single page from a PDF document.
@@ -209,13 +210,86 @@ impl Page {
         sort_blocks_reading_order(&mut blocks, options.x_density);
         blocks_to_text(&blocks)
     }
+
+    /// Detect tables on this page and return them with cell text populated.
+    ///
+    /// Uses [`TableFinder`] internally with the specified strategy. For the
+    /// Stream strategy, words are extracted from the page's characters to
+    /// generate synthetic edges from text alignment patterns.
+    ///
+    /// Each cell's text is populated by finding characters whose bbox center
+    /// falls within the cell's bounding box.
+    pub fn find_tables(&self, settings: &TableSettings) -> Vec<Table> {
+        let edges = self.edges();
+        let words = self.extract_words(&WordOptions::default());
+
+        let finder = TableFinder::new_with_words(edges, words, settings.clone());
+        let mut tables = finder.find_tables();
+
+        // Populate cell text from page characters
+        for table in &mut tables {
+            extract_text_for_cells(&mut table.cells, &self.chars);
+            // Also populate text in rows and columns
+            for row in &mut table.rows {
+                extract_text_for_cells(row, &self.chars);
+            }
+            for col in &mut table.columns {
+                extract_text_for_cells(col, &self.chars);
+            }
+        }
+
+        tables
+    }
+
+    /// Extract tables as 2D text arrays.
+    ///
+    /// Returns a Vec of tables, where each table is a Vec of rows, and each row
+    /// is a Vec of cell text values (`None` for empty cells).
+    pub fn extract_tables(&self, settings: &TableSettings) -> Vec<Vec<Vec<Option<String>>>> {
+        self.find_tables(settings)
+            .into_iter()
+            .map(|table| {
+                table
+                    .rows
+                    .into_iter()
+                    .map(|row| row.into_iter().map(|cell| cell.text).collect())
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Extract the largest table as a 2D text array.
+    ///
+    /// Returns the table with the most cells. If multiple tables have the same
+    /// number of cells, returns the one with the largest bounding box area.
+    /// Returns `None` if no tables are found.
+    pub fn extract_table(&self, settings: &TableSettings) -> Option<Vec<Vec<Option<String>>>> {
+        let tables = self.find_tables(settings);
+        tables
+            .into_iter()
+            .max_by(|a, b| {
+                a.cells.len().cmp(&b.cells.len()).then_with(|| {
+                    let area_a = (a.bbox.x1 - a.bbox.x0) * (a.bbox.bottom - a.bbox.top);
+                    let area_b = (b.bbox.x1 - b.bbox.x0) * (b.bbox.bottom - b.bbox.top);
+                    area_a.partial_cmp(&area_b).unwrap()
+                })
+            })
+            .map(|table| {
+                table
+                    .rows
+                    .into_iter()
+                    .map(|row| row.into_iter().map(|cell| cell.text).collect())
+                    .collect()
+            })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use pdfplumber_core::{
-        BBox, Color, Ctm, EdgeSource, ImageMetadata, LineOrientation, TextOptions, image_from_ctm,
+        BBox, Color, Ctm, EdgeSource, ExplicitLines, ImageMetadata, LineOrientation, Strategy,
+        TextOptions, image_from_ctm,
     };
 
     fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
@@ -724,5 +798,349 @@ mod tests {
         };
         let text = page.extract_text(&opts);
         assert_eq!(text, "H\n\nL\n\nR\n\nF");
+    }
+
+    // --- Table API tests (US-039) ---
+
+    /// Helper: create a horizontal line from (x0, y) to (x1, y)
+    fn hline(x0: f64, y: f64, x1: f64) -> Line {
+        make_line(x0, y, x1, y, LineOrientation::Horizontal)
+    }
+
+    /// Helper: create a vertical line from (x, top) to (x, bottom)
+    fn vline(x: f64, top: f64, bottom: f64) -> Line {
+        make_line(x, top, x, bottom, LineOrientation::Vertical)
+    }
+
+    /// Build a page with a simple 2x2 bordered table (1 row, 2 columns)
+    /// with text "A" in left cell and "B" in right cell.
+    ///
+    /// Table grid:
+    /// ```text
+    /// (10,10)──(60,10)──(110,10)
+    ///   │   "A"   │   "B"   │
+    /// (10,30)──(60,30)──(110,30)
+    /// ```
+    fn make_simple_table_page() -> Page {
+        let lines = vec![
+            // 3 horizontal lines
+            hline(10.0, 10.0, 110.0),
+            hline(10.0, 30.0, 110.0),
+            // 3 vertical lines
+            vline(10.0, 10.0, 30.0),
+            vline(60.0, 10.0, 30.0),
+            vline(110.0, 10.0, 30.0),
+        ];
+        let chars = vec![
+            // "A" centered in left cell (10,10)-(60,30), center ~ (35,20)
+            make_char("A", 30.0, 15.0, 40.0, 25.0),
+            // "B" centered in right cell (60,10)-(110,30), center ~ (85,20)
+            make_char("B", 80.0, 15.0, 90.0, 25.0),
+        ];
+        Page::with_geometry(0, 612.0, 792.0, chars, lines, vec![], vec![])
+    }
+
+    /// Build a page with a 2-row, 2-column bordered table:
+    /// ```text
+    /// (10,10)──(60,10)──(110,10)
+    ///   │  "A"   │  "B"    │
+    /// (10,30)──(60,30)──(110,30)
+    ///   │  "C"   │  "D"    │
+    /// (10,50)──(60,50)──(110,50)
+    /// ```
+    fn make_2x2_table_page() -> Page {
+        let lines = vec![
+            hline(10.0, 10.0, 110.0),
+            hline(10.0, 30.0, 110.0),
+            hline(10.0, 50.0, 110.0),
+            vline(10.0, 10.0, 50.0),
+            vline(60.0, 10.0, 50.0),
+            vline(110.0, 10.0, 50.0),
+        ];
+        let chars = vec![
+            make_char("A", 30.0, 15.0, 40.0, 25.0),
+            make_char("B", 80.0, 15.0, 90.0, 25.0),
+            make_char("C", 30.0, 35.0, 40.0, 45.0),
+            make_char("D", 80.0, 35.0, 90.0, 45.0),
+        ];
+        Page::with_geometry(0, 612.0, 792.0, chars, lines, vec![], vec![])
+    }
+
+    #[test]
+    fn test_find_tables_simple_bordered() {
+        let page = make_simple_table_page();
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        let table = &tables[0];
+        assert_eq!(table.cells.len(), 2);
+        assert_eq!(table.rows.len(), 1);
+        assert_eq!(table.rows[0].len(), 2);
+    }
+
+    #[test]
+    fn test_find_tables_cell_text() {
+        let page = make_simple_table_page();
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        let row = &tables[0].rows[0];
+        assert_eq!(row[0].text, Some("A".to_string()));
+        assert_eq!(row[1].text, Some("B".to_string()));
+    }
+
+    #[test]
+    fn test_find_tables_2x2() {
+        let page = make_2x2_table_page();
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 4);
+        assert_eq!(tables[0].rows.len(), 2);
+        assert_eq!(tables[0].rows[0].len(), 2);
+        assert_eq!(tables[0].rows[1].len(), 2);
+    }
+
+    #[test]
+    fn test_find_tables_empty_page() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_find_tables_no_lines() {
+        // Page with only chars, no geometry → no tables with Lattice strategy
+        let chars = vec![make_char("A", 10.0, 10.0, 20.0, 22.0)];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_find_tables_with_rects() {
+        // A rect creates 4 edges (top, bottom, left, right) → should detect a 1-cell table
+        let rects = vec![make_rect(10.0, 10.0, 100.0, 50.0)];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], rects, vec![]);
+        let settings = TableSettings::default();
+        let tables = page.find_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_extract_tables_simple() {
+        let page = make_simple_table_page();
+        let settings = TableSettings::default();
+        let tables = page.extract_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].len(), 1); // 1 row
+        assert_eq!(tables[0][0].len(), 2); // 2 columns
+        assert_eq!(tables[0][0][0], Some("A".to_string()));
+        assert_eq!(tables[0][0][1], Some("B".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tables_2x2() {
+        let page = make_2x2_table_page();
+        let settings = TableSettings::default();
+        let tables = page.extract_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].len(), 2); // 2 rows
+        assert_eq!(
+            tables[0][0],
+            vec![Some("A".to_string()), Some("B".to_string())]
+        );
+        assert_eq!(
+            tables[0][1],
+            vec![Some("C".to_string()), Some("D".to_string())]
+        );
+    }
+
+    #[test]
+    fn test_extract_tables_empty_page() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        let settings = TableSettings::default();
+        let tables = page.extract_tables(&settings);
+
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_extract_tables_empty_cells() {
+        // Table with no text inside cells
+        let lines = vec![
+            hline(10.0, 10.0, 110.0),
+            hline(10.0, 30.0, 110.0),
+            vline(10.0, 10.0, 30.0),
+            vline(60.0, 10.0, 30.0),
+            vline(110.0, 10.0, 30.0),
+        ];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], lines, vec![], vec![]);
+        let settings = TableSettings::default();
+        let tables = page.extract_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0][0], vec![None, None]);
+    }
+
+    #[test]
+    fn test_extract_table_returns_largest() {
+        // Two tables: a 2x2 table and a single-cell table
+        let lines = vec![
+            // 2x2 table at top
+            hline(10.0, 10.0, 110.0),
+            hline(10.0, 30.0, 110.0),
+            hline(10.0, 50.0, 110.0),
+            vline(10.0, 10.0, 50.0),
+            vline(60.0, 10.0, 50.0),
+            vline(110.0, 10.0, 50.0),
+            // Single-cell table at bottom (well separated)
+            hline(200.0, 200.0, 300.0),
+            hline(200.0, 250.0, 300.0),
+            vline(200.0, 200.0, 250.0),
+            vline(300.0, 200.0, 250.0),
+        ];
+        let chars = vec![
+            make_char("A", 30.0, 15.0, 40.0, 25.0),
+            make_char("B", 80.0, 15.0, 90.0, 25.0),
+            make_char("C", 30.0, 35.0, 40.0, 45.0),
+            make_char("D", 80.0, 35.0, 90.0, 45.0),
+            make_char("X", 240.0, 220.0, 260.0, 240.0),
+        ];
+        let page = Page::with_geometry(0, 612.0, 792.0, chars, lines, vec![], vec![]);
+        let settings = TableSettings::default();
+
+        let table = page.extract_table(&settings);
+        assert!(table.is_some());
+        let table = table.unwrap();
+        // Should be the 2x2 table (4 cells > 1 cell)
+        assert_eq!(table.len(), 2); // 2 rows
+        assert_eq!(table[0], vec![Some("A".to_string()), Some("B".to_string())]);
+        assert_eq!(table[1], vec![Some("C".to_string()), Some("D".to_string())]);
+    }
+
+    #[test]
+    fn test_extract_table_none_when_no_tables() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        let settings = TableSettings::default();
+
+        assert!(page.extract_table(&settings).is_none());
+    }
+
+    #[test]
+    fn test_find_tables_stream_strategy() {
+        // Create words that align to form a 2x2 grid (Stream detects from text alignment)
+        // 4 words arranged in a grid pattern
+        let chars = vec![
+            // Row 1, Col 1: "AA" at (10-30, 10-22)
+            make_char("A", 10.0, 10.0, 20.0, 22.0),
+            make_char("A", 20.0, 10.0, 30.0, 22.0),
+            // Row 1, Col 2: "BB" at (50-70, 10-22)
+            make_char("B", 50.0, 10.0, 60.0, 22.0),
+            make_char("B", 60.0, 10.0, 70.0, 22.0),
+            // Row 2, Col 1: "CC" at (10-30, 30-42)
+            make_char("C", 10.0, 30.0, 20.0, 42.0),
+            make_char("C", 20.0, 30.0, 30.0, 42.0),
+            // Row 2, Col 2: "DD" at (50-70, 30-42)
+            make_char("D", 50.0, 30.0, 60.0, 42.0),
+            make_char("D", 60.0, 30.0, 70.0, 42.0),
+            // Row 3, Col 1: "EE" at (10-30, 50-62) - need 3 rows for min_words_vertical=3
+            make_char("E", 10.0, 50.0, 20.0, 62.0),
+            make_char("E", 20.0, 50.0, 30.0, 62.0),
+            // Row 3, Col 2: "FF" at (50-70, 50-62)
+            make_char("F", 50.0, 50.0, 60.0, 62.0),
+            make_char("F", 60.0, 50.0, 70.0, 62.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let settings = TableSettings {
+            strategy: Strategy::Stream,
+            min_words_vertical: 2,
+            min_words_horizontal: 1,
+            ..TableSettings::default()
+        };
+        let tables = page.find_tables(&settings);
+
+        // Stream strategy should detect tables from text alignment
+        assert!(!tables.is_empty());
+    }
+
+    #[test]
+    fn test_find_tables_explicit_strategy() {
+        let chars = vec![
+            make_char("X", 30.0, 15.0, 40.0, 25.0),
+            make_char("Y", 80.0, 15.0, 90.0, 25.0),
+        ];
+        let page = Page::new(0, 612.0, 792.0, chars);
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(ExplicitLines {
+                horizontal_lines: vec![10.0, 30.0],
+                vertical_lines: vec![10.0, 60.0, 110.0],
+            }),
+            ..TableSettings::default()
+        };
+        let tables = page.find_tables(&settings);
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
+        // Check text extraction works with explicit strategy
+        let row = &tables[0].rows[0];
+        assert_eq!(row[0].text, Some("X".to_string()));
+        assert_eq!(row[1].text, Some("Y".to_string()));
+    }
+
+    #[test]
+    fn test_extract_tables_multiple_tables() {
+        // Two well-separated tables
+        let lines = vec![
+            // Table 1: 1x2 at top-left
+            hline(10.0, 10.0, 110.0),
+            hline(10.0, 30.0, 110.0),
+            vline(10.0, 10.0, 30.0),
+            vline(60.0, 10.0, 30.0),
+            vline(110.0, 10.0, 30.0),
+            // Table 2: 1x1 at bottom-right (well separated)
+            hline(300.0, 300.0, 400.0),
+            hline(300.0, 350.0, 400.0),
+            vline(300.0, 300.0, 350.0),
+            vline(400.0, 300.0, 350.0),
+        ];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], lines, vec![], vec![]);
+        let settings = TableSettings::default();
+        let tables = page.extract_tables(&settings);
+
+        assert_eq!(tables.len(), 2);
+    }
+
+    #[test]
+    fn test_find_tables_lattice_strict() {
+        // LatticeStrict should only use line edges, not rect edges
+        // Create a rect (would form edges in Lattice) but not lines
+        let rects = vec![make_rect(10.0, 10.0, 100.0, 50.0)];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], rects, vec![]);
+
+        let strict_settings = TableSettings {
+            strategy: Strategy::LatticeStrict,
+            ..TableSettings::default()
+        };
+        let tables = page.find_tables(&strict_settings);
+        // Strict mode ignores rect edges, so no tables
+        assert!(tables.is_empty());
+
+        // Normal Lattice should find a table from the rect
+        let lattice_settings = TableSettings::default();
+        let tables = page.find_tables(&lattice_settings);
+        assert_eq!(tables.len(), 1);
     }
 }
