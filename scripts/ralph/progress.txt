@@ -97,3 +97,21 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
   - issue9262_reduced.pdf is 5.3MB — largest fixture file
   - 95 total PDFs on disk after this story
 ---
+
+## 2026-03-01 - US-111
+- Added `download_pdfbox()` function to `scripts/download_test_fixtures.sh`
+- Downloads 10 CJK/multilingual test PDFs from apache/pdfbox (trunk branch)
+- Long filenames shortened for readability (e.g., PDFBOX-5350-JX5...pdf → pdfbox-5350-korean-reduced.pdf)
+- Uses source_path|local_name mapping pattern for renaming
+- Added `download_poppler()` function for 3 poppler test PDFs from GitLab
+- Poppler uses `curl` with GitLab raw URLs (not `gh api`)
+- All 13 files are valid PDFs (non-zero size, %PDF- header)
+- Script is idempotent (re-run skips all 108 existing files)
+- Files changed: `scripts/download_test_fixtures.sh` (updated), 13 new PDF fixtures, `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - PDFBox raw URL format: `https://raw.githubusercontent.com/apache/pdfbox/trunk/<path>`
+  - Poppler GitLab raw URL format: `https://gitlab.freedesktop.org/poppler/test/-/raw/master/<path>`
+  - Bash associative mapping via `local_name="${mapping##*|}"` pattern works well for rename mappings
+  - 108 total PDFs on disk after this story (10 pdfbox + 3 poppler = 13 new)
+---

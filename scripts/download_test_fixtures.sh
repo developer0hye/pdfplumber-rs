@@ -4,7 +4,8 @@
 # Sources:
 #   1. jsvine/pdfplumber (stable branch) - MIT license
 #   2. mozilla/pdf.js (master branch) - Apache 2.0 license
-#   3. (Future: PDFBox, poppler - added by subsequent stories)
+#   3. apache/pdfbox (trunk branch) - Apache 2.0 license
+#   4. poppler/test (GitLab, master branch) - GPL license
 #
 # Usage: ./scripts/download_test_fixtures.sh
 
@@ -126,6 +127,65 @@ download_pdfjs() {
     echo ""
 }
 
+# Download CJK/multilingual test PDFs from apache/pdfbox (trunk branch)
+download_pdfbox() {
+    echo "=== Downloading from apache/pdfbox (trunk) ==="
+    local dest_dir="$PDF_DIR/pdfbox"
+    mkdir -p "$dest_dir"
+
+    local base_url="https://raw.githubusercontent.com/apache/pdfbox/trunk"
+
+    # Map: source_path -> local_filename (shortened for readability)
+    local -a pdfbox_mappings=(
+        "pdfbox/src/test/resources/input/PDFBOX-5350-JX57O5E5YG6XM4FZABPULQGTW4OXPCWA-p1-reduced.pdf|pdfbox-5350-korean-reduced.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-3833-reduced.pdf|pdfbox-3833-japanese-reduced.pdf"
+        "pdfbox/src/test/resources/org/apache/pdfbox/text/BidiSample.pdf|BidiSample.pdf"
+        "pdfbox/src/test/resources/input/FC60_Times.pdf|FC60_Times.pdf"
+        "pdfbox/src/test/resources/input/hello3.pdf|hello3.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-4531-bidi-ligature-1.pdf|pdfbox-4531-bidi-ligature-1.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-4531-bidi-ligature-2.pdf|pdfbox-4531-bidi-ligature-2.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-3127-RAU4G6QMOVRYBISJU7R6MOVZCRFUO7P4-VFont.pdf|pdfbox-3127-vfont-reduced.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-4322-Empty-ToUnicode-reduced.pdf|pdfbox-4322-empty-tounicode-reduced.pdf"
+        "pdfbox/src/test/resources/input/PDFBOX-5747-unicode-surrogate-with-diacritic-reduced.pdf|pdfbox-5747-surrogate-diacritic-reduced.pdf"
+    )
+
+    local count=0
+    for mapping in "${pdfbox_mappings[@]}"; do
+        local src_path="${mapping%%|*}"
+        local local_name="${mapping##*|}"
+        download_file "$base_url/$src_path" "$dest_dir/$local_name" || true
+        count=$((count + 1))
+    done
+    echo "  Processed $count files from PDFBox"
+    echo ""
+}
+
+# Download CJK/multilingual test PDFs from poppler test data (GitLab)
+download_poppler() {
+    echo "=== Downloading from poppler/test (GitLab, master) ==="
+    local dest_dir="$PDF_DIR/poppler"
+    mkdir -p "$dest_dir"
+
+    local base_url="https://gitlab.freedesktop.org/poppler/test/-/raw/master"
+
+    # Target PDFs for multilingual testing
+    local -a poppler_files=(
+        "unittestcases/pdf20-utf8-test.pdf"
+        "unittestcases/russian.pdf"
+        "unittestcases/deseret.pdf"
+    )
+
+    local count=0
+    for src_path in "${poppler_files[@]}"; do
+        local filename
+        filename="$(basename "$src_path")"
+        download_file "$base_url/$src_path" "$dest_dir/$filename" || true
+        count=$((count + 1))
+    done
+    echo "  Processed $count files from poppler"
+    echo ""
+}
+
 # Print summary
 print_summary() {
     echo "=== Summary ==="
@@ -145,6 +205,8 @@ main() {
 
     download_pdfplumber_python
     download_pdfjs
+    download_pdfbox
+    download_poppler
 
     print_summary
 }
