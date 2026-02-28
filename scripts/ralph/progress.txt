@@ -5,6 +5,7 @@
 - **String extraction from lopdf**: Use `Object::String(bytes, _)` matching. Handle UTF-16 BE (BOM 0xFE 0xFF) and Latin-1/UTF-8 fallback. Resolve indirect references before reading.
 - **CLI info output**: Text format prints sections with println!, JSON format builds serde_json::Value and prints pretty. New document-level data goes in both formats.
 - **Page box pattern**: Page-level optional boxes (TrimBox/BleedBox/ArtBox) follow: add trait method → implement in LopdfBackend with `resolve_inherited()` → add field + accessor to Page → wire up in `Pdf::page()`. Optional boxes use `Option<BBox>`, always-present boxes use `BBox`.
+- **Annotation pattern**: Page-level annotations follow: add trait method `page_annotations()` → implement in LopdfBackend parsing /Annots array → add `Vec<Annotation>` field to Page → pass through `from_extraction()`. Each annotation entry may be a direct dict or indirect ref. Extract /Subtype, /Rect, /Contents, /T (author), /M (date).
 - **CLI box display**: MediaBox always shown; optional boxes only shown when present. JSON uses conditional insertion (`page_json["key"] = val`). Text uses `if let Some(ref b) = ...`.
 
 # Ralph Progress Log
@@ -47,4 +48,25 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - `Page::from_extraction()` already had `#[allow(clippy::too_many_arguments)]` — adding 5 box params is acceptable
   - BBox is `Copy` so cheap to pass by value; `Option<BBox>` works well for optional boxes
   - lopdf `dictionary!` macro accepts `vec![Object::Integer(..)]` for array values directly
+---
+
+## 2026-02-28 - US-060
+- Implemented annotation extraction from pages
+- Files changed:
+  - `crates/pdfplumber-core/src/annotation.rs` (NEW) — Annotation struct, AnnotationType enum
+  - `crates/pdfplumber-core/src/lib.rs` — Added annotation module and exports
+  - `crates/pdfplumber-parse/src/backend.rs` — Added `page_annotations()` to PdfBackend trait + mock
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — Implemented annotation extraction from /Annots array
+  - `crates/pdfplumber/src/page.rs` — Added `annotations` field + `annots()` accessor
+  - `crates/pdfplumber/src/pdf.rs` — Calls `page_annotations()` in `Pdf::page()`, passes to `from_extraction()`
+  - `crates/pdfplumber/src/lib.rs` — Re-exported Annotation, AnnotationType
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (Text, Highlight, no annotations)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - Annotations are in the /Annots array on the page dictionary (not inherited)
+  - Each annotation entry can be a direct dictionary or indirect reference — must handle both
+  - /Subtype is a Name object (not String) — use `Object::Name` matching
+  - /T is the author field, /M is the modification date, /Contents is the text content
+  - `extract_string_from_dict()` helper handles both String and Name object types with UTF-16 BE support
+  - Test PDFs can set /Annots as vec![Object::Reference(annot_id)] in the page dictionary
 ---
