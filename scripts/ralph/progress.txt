@@ -7,6 +7,9 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
 - **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
 - **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
 - **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
+- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
+- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
+- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
 
 ---
 
@@ -22,4 +25,25 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - PyO3 0.24 pymodule signature: `fn name(m: &Bound<'_, PyModule>) -> PyResult<()>`
   - `crate-type = ["cdylib"]` is required for Python extension modules
   - Tests can verify the wrapper logic without the Python interpreter by testing inner field access directly
+---
+
+## 2026-02-28 - US-074
+- What was implemented: Full Python API exposure for pdfplumber-rs
+- Files changed:
+  - `crates/pdfplumber-py/Cargo.toml` — added `rlib` crate-type, `auto-initialize` dev-dep, `extension-module` feature flag, `doctest = false`
+  - `crates/pdfplumber-py/pyproject.toml` — updated to use `extension-module` feature
+  - `crates/pdfplumber-py/src/lib.rs` — expanded from 165 to 1340+ lines:
+    - PyPage: chars(), extract_text(), extract_words(), find_tables(), extract_tables(), lines(), rects(), curves(), images(), search(), crop(), within_bbox(), outside_bbox()
+    - PyPdf: metadata getter, bookmarks() method
+    - PyTable class: bbox, rows, accuracy, extract()
+    - PyCroppedPage class: full content access + spatial filtering
+    - 7 custom Python exception types (PdfParseError, PdfIoError, PdfFontError, PdfInterpreterError, PdfResourceLimitError, PdfPasswordRequired, PdfInvalidPassword)
+    - 10 conversion helpers (char_to_dict, word_to_dict, line_to_dict, etc.)
+    - 42 Rust unit tests
+- Dependencies added: None (reused existing pyo3 0.24)
+- **Learnings for future iterations:**
+  - `extension-module` must be conditional — unconditional use prevents test linking to libpython
+  - `DYLD_LIBRARY_PATH` may be needed for local test runs on macOS
+  - `create_exception!` macro creates Python exception types that can be registered with `m.add()`
+  - All Rust types can be converted to Python dicts via PyDict; complex nested types work well
 ---

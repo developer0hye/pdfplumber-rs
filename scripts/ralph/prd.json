@@ -44,7 +44,7 @@
         "maturin develop + pytest passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-073. Mirror the Python pdfplumber API naming for easy migration."
     },
     {
