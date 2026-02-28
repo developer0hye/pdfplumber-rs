@@ -27,6 +27,9 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `extract_text_for_cells(cells, chars)` populates cell text using center-point containment + WordExtractor
 - Center-point containment: char bbox center (cx, cy) must fall within cell bbox
 - Text assembly: chars → WordExtractor → group words into lines by y-tolerance → join with spaces/newlines
+- `words_to_edges_stream(words, text_x_tol, text_y_tol, min_words_v, min_words_h)` generates synthetic edges from word alignment
+- Stream strategy: cluster words by x0/x1 (vertical edges) and top/bottom (horizontal edges), filter by min_words threshold
+- `TableFinder::new_with_words(edges, words, settings)` constructor for Stream strategy; `new()` still works with empty words
 
 ---
 
@@ -132,4 +135,25 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Uses `WordOptions::default()` for word grouping (x_tolerance=3, y_tolerance=3)
   - Line grouping uses same y_tolerance as word grouping for consistency
   - 10 tests covering: single word, empty cell, chars outside, center-point containment (in/out), multiple words, multiple lines, two cells, no cells, mixed empty/populated
+---
+
+## 2026-02-28 - US-037
+- Implemented Stream strategy for text-based synthetic edge table detection
+- Added `words_to_edges_stream()` function that generates synthetic edges from word alignment patterns
+- Added `cluster_words_to_edges()` helper for clustering words by coordinate and producing edges
+- Added `EdgeSource::Stream` variant for synthetic stream edges
+- Added `TableFinder::new_with_words()` constructor for providing words alongside edges
+- Updated `TableFinder::find_tables()` to handle Stream strategy by generating synthetic edges from word positions
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber-core/src/edges.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `words_to_edges_stream(words, text_x_tolerance, text_y_tolerance, min_words_vertical, min_words_horizontal)` takes `&[Word]`
+  - Vertical edges from x0 alignment (left edges) and x1 alignment (right edges) of words
+  - Horizontal edges from top alignment and bottom alignment of words
+  - Clustering: sort words by coordinate, group consecutive within tolerance, take mean position
+  - Each synthetic edge spans the full extent of the aligned words in the perpendicular direction
+  - `EdgeKind` internal enum used to specify whether to produce vertical or horizontal edges from clusters
+  - `TableFinder` now has a `words: Vec<Word>` field, empty by default for backward compatibility
+  - Stream strategy uses text_x_tolerance/text_y_tolerance for clustering (not snap_tolerance)
+  - 13 tests covering: empty words, x0/x1 vertical alignment, top/bottom horizontal alignment, threshold filtering, tolerance grouping, no grouping beyond tolerance, full pipeline, no words, edge source, min_words_horizontal default
 ---
