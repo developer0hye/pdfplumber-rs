@@ -155,7 +155,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Final story - after this, the CLI is ready for publication."
     }
   ]

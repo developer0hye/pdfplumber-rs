@@ -62,6 +62,35 @@ fn tables_subcommand_help() {
 }
 
 #[test]
+fn version_flag_prints_version() {
+    cmd()
+        .arg("--version")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("pdfplumber 0.1.0"));
+}
+
+#[test]
+fn info_subcommand_help() {
+    cmd()
+        .args(["info", "--help"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("FILE"))
+        .stdout(predicate::str::contains("--pages"))
+        .stdout(predicate::str::contains("--format"));
+}
+
+#[test]
+fn help_lists_info_subcommand() {
+    cmd()
+        .arg("--help")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("info"));
+}
+
+#[test]
 fn no_args_shows_help() {
     // Running with no subcommand should show usage / error
     cmd()
