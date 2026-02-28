@@ -1863,6 +1863,125 @@ mod tests {
         assert_eq!(images[0].mime_type, Some("image/jpeg".to_string()));
     }
 
+    // --- Inline image tests ---
+
+    fn create_pdf_with_inline_image() -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Content stream with an inline image: 2x2 RGB, 8 bpc
+        let mut content = Vec::new();
+        content.extend_from_slice(b"q 200 0 0 150 100 300 cm BI /W 2 /H 2 /CS /RGB /BPC 8 ID ");
+        // 2x2 RGB = 12 bytes of pixel data
+        content.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128]);
+        content.extend_from_slice(b" EI Q");
+
+        let page_stream = Stream::new(lopdf::Dictionary::new(), content);
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(lopdf::Dictionary::new()),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn inline_image_appears_in_page_images() {
+        let bytes = create_pdf_with_inline_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+
+        let img = &images[0];
+        assert_eq!(img.src_width, Some(2));
+        assert_eq!(img.src_height, Some(2));
+        assert_eq!(img.color_space, Some("DeviceRGB".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+        // Should have correct position from CTM
+        assert!(img.width > 0.0);
+        assert!(img.height > 0.0);
+    }
+
+    #[test]
+    fn inline_image_with_abbreviated_colorspace() {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Use abbreviated key /G for DeviceGray
+        let mut content = Vec::new();
+        content.extend_from_slice(b"q 100 0 0 100 50 50 cm BI /W 1 /H 1 /CS /G /BPC 8 ID ");
+        content.push(200); // 1x1 gray = 1 byte
+        content.extend_from_slice(b" EI Q");
+
+        let page_stream = Stream::new(lopdf::Dictionary::new(), content);
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(lopdf::Dictionary::new()),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+
+        let pdf = Pdf::open(&buf, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].color_space, Some("DeviceGray".to_string()));
+    }
+
     // --- Encrypted PDF facade tests ---
 
     /// PDF standard padding bytes.

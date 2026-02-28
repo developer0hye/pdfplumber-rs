@@ -61,7 +61,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 79,
       "notes": "Inline images are common for small icons, decorative elements, and watermarks."
     },

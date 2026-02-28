@@ -17,6 +17,9 @@ Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
 - **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
 - **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
 - **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
+- **Inline image BI operator**: Tokenizer packs BI/ID/EI into a single Operator with operands[0]=Array (flattened dict key-value pairs) and operands[1]=LiteralString (raw image bytes). Interpreter must parse this structure, not the raw stream.
+- **Inline image abbreviated names**: PDF spec defines abbreviated key names (/W→Width, /H→Height, /BPC→BitsPerComponent, /CS→ColorSpace, /F→Filter, /DP→DecodeParms) and abbreviated color space (/G→DeviceGray, /RGB→DeviceRGB, /CMYK→DeviceCMYK) and filter names (/AHx→ASCIIHexDecode, /A85→ASCII85Decode, /LZW→LZWDecode, /Fl→FlateDecode, /RL→RunLengthDecode, /CCF→CCITTFaxDecode, /DCT→DCTDecode).
+- **Inline image naming**: Use `inline-{op_index}` for inline image names since they don't have XObject name references.
 - WordOptions is in `crates/pdfplumber-core/src/words.rs`, TextOptions in `crates/pdfplumber-core/src/layout.rs`
 - `extract_text()` in Page API creates WordOptions from TextOptions and calls `extract_words()` — new options must be forwarded there
 - `WordExtractor::make_word()` is called from 3 places in `extract()` — all must be updated when changing its signature
@@ -61,4 +64,18 @@ Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
   - Adding fields to struct with many existing constructions: use `..Default::default()` pattern in existing code to avoid mass updates
   - All ExtractOptions constructions already used `..ExtractOptions::default()` — new fields with defaults propagate automatically
   - Filter info (filter + mime_type) is set regardless of `extract_image_data` — useful for metadata queries without memory cost
+---
+
+## 2026-03-01 - US-090
+- **What was implemented**: Added BI (inline image) operator handling to the content stream interpreter. The tokenizer already parsed BI/ID/EI into structured Operator data; the interpreter now processes this data by parsing the flattened dictionary array for Width, Height, ColorSpace, BitsPerComponent, and Filter, expanding abbreviated key/value names to their full PDF equivalents, and emitting an ImageEvent via `handler.on_image()`. Inline images now appear in `page.images()` results.
+- **Files changed**:
+  - `crates/pdfplumber-parse/src/interpreter.rs` — Added `handle_inline_image()` function, `expand_inline_image_key()`, `expand_inline_image_colorspace()`, `expand_inline_image_filter()`, `operand_to_u32()` helpers. Added "BI" case to main operator match. Added `Operator` import. 4 unit tests covering basic inline images, abbreviated keys, filter handling, and all 7 abbreviated filter names.
+  - `crates/pdfplumber/src/pdf.rs` — 2 integration tests: `inline_image_appears_in_page_images()` and `inline_image_with_abbreviated_colorspace()`.
+  - `scripts/ralph/prd.json` — Set US-090 passes to true.
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Tokenizer already does the heavy lifting for BI/ID/EI — operands are pre-parsed into Array + LiteralString, so interpreter just needs to interpret the structured data
+  - Inline images don't have XObject names; use `inline-{op_index}` as synthetic name
+  - PDF spec Table 93 (inline image abbreviations) is the authoritative reference for all abbreviated key/value mappings
+  - The existing image pipeline (ImageEvent → image_from_ctm → Image) works transparently for inline images without any changes
 ---

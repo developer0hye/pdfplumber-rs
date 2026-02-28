@@ -21,7 +21,7 @@ use crate::text_renderer::{
     TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
 };
 use crate::text_state::TextState;
-use crate::tokenizer::{Operand, tokenize};
+use crate::tokenizer::{Operand, Operator, tokenize};
 use pdfplumber_core::{
     ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder, StandardEncoding,
     glyph_name_to_char,
@@ -460,6 +460,11 @@ pub(crate) fn interpret_content_stream(
 
             // --- Marked content operators ---
             "BMC" | "BDC" | "EMC" | "MP" | "DP" => {}
+
+            // --- Inline image operator ---
+            "BI" => {
+                handle_inline_image(op, op_index, gstate, handler);
+            }
 
             // Other operators — silently ignore
             _ => {}
@@ -1209,6 +1214,139 @@ fn handle_image_xobject(
         bits_per_component,
         filter,
     });
+}
+
+/// Handle an inline image (BI/ID/EI) operator.
+///
+/// The tokenizer packs inline image data into a BI operator with two operands:
+/// - operands[0]: Array of flattened key-value pairs from the image dictionary
+/// - operands[1]: LiteralString containing the raw image data bytes
+///
+/// Abbreviated keys and values are expanded to their full PDF names.
+fn handle_inline_image(
+    op: &Operator,
+    op_index: usize,
+    gstate: &InterpreterState,
+    handler: &mut dyn ContentHandler,
+) {
+    if op.operands.len() < 2 {
+        return;
+    }
+
+    let dict_entries = match &op.operands[0] {
+        Operand::Array(arr) => arr,
+        _ => return,
+    };
+
+    // Parse key-value pairs from the flattened array
+    let mut width: u32 = 0;
+    let mut height: u32 = 0;
+    let mut colorspace: Option<String> = None;
+    let mut bits_per_component: Option<u32> = None;
+    let mut filter: Option<String> = None;
+
+    let mut i = 0;
+    while i + 1 < dict_entries.len() {
+        let key = match &dict_entries[i] {
+            Operand::Name(k) => expand_inline_image_key(k),
+            _ => {
+                i += 2;
+                continue;
+            }
+        };
+        let value = &dict_entries[i + 1];
+
+        match key.as_str() {
+            "Width" => {
+                if let Some(v) = operand_to_u32(value) {
+                    width = v;
+                }
+            }
+            "Height" => {
+                if let Some(v) = operand_to_u32(value) {
+                    height = v;
+                }
+            }
+            "ColorSpace" => {
+                if let Operand::Name(cs) = value {
+                    colorspace = Some(expand_inline_image_colorspace(cs));
+                }
+            }
+            "BitsPerComponent" => {
+                if let Some(v) = operand_to_u32(value) {
+                    bits_per_component = Some(v);
+                }
+            }
+            "Filter" => {
+                if let Operand::Name(f) = value {
+                    filter = Some(expand_inline_image_filter(f));
+                }
+            }
+            _ => {}
+        }
+
+        i += 2;
+    }
+
+    handler.on_image(ImageEvent {
+        name: format!("inline-{op_index}"),
+        ctm: gstate.ctm_array(),
+        width,
+        height,
+        colorspace,
+        bits_per_component,
+        filter,
+    });
+}
+
+/// Expand abbreviated inline image dictionary keys to full PDF names.
+fn expand_inline_image_key(key: &str) -> String {
+    match key {
+        "W" => "Width".to_string(),
+        "H" => "Height".to_string(),
+        "BPC" => "BitsPerComponent".to_string(),
+        "CS" => "ColorSpace".to_string(),
+        "F" => "Filter".to_string(),
+        "DP" => "DecodeParms".to_string(),
+        "D" => "Decode".to_string(),
+        "I" => "Interpolate".to_string(),
+        "IM" => "ImageMask".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Expand abbreviated inline image color space names to full PDF names.
+fn expand_inline_image_colorspace(cs: &str) -> String {
+    match cs {
+        "G" => "DeviceGray".to_string(),
+        "RGB" => "DeviceRGB".to_string(),
+        "CMYK" => "DeviceCMYK".to_string(),
+        "I" => "Indexed".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Expand abbreviated inline image filter names to full PDF names.
+fn expand_inline_image_filter(filter: &str) -> String {
+    match filter {
+        "AHx" => "ASCIIHexDecode".to_string(),
+        "A85" => "ASCII85Decode".to_string(),
+        "LZW" => "LZWDecode".to_string(),
+        "Fl" => "FlateDecode".to_string(),
+        "RL" => "RunLengthDecode".to_string(),
+        "CCF" => "CCITTFaxDecode".to_string(),
+        "DCT" => "DCTDecode".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Convert an operand to u32, supporting Integer and Real types.
+fn operand_to_u32(op: &Operand) -> Option<u32> {
+    match op {
+        Operand::Integer(i) => Some(*i as u32),
+        Operand::Real(f) => Some(*f as u32),
+        _ => None,
+    }
 }
 
 // --- Helpers ---
@@ -2058,5 +2196,170 @@ mod tests {
             "expected line_width 3.0, got {}",
             gstate.graphics_state().line_width
         );
+    }
+
+    // --- Inline image (BI/ID/EI) tests ---
+
+    #[test]
+    fn interpret_inline_image_emits_image_event() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // Inline image: 2x2 DeviceRGB, 8 bpc, raw data (12 bytes)
+        // BI /W 2 /H 2 /CS /RGB /BPC 8 ID <12 bytes of pixel data> EI
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(b"q 100 0 0 50 72 700 cm BI /W 2 /H 2 /CS /RGB /BPC 8 ID ");
+        // 2x2 RGB = 12 bytes of image data
+        stream.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128]);
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 2);
+        assert_eq!(img.colorspace, Some("DeviceRGB".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+        // CTM should reflect the transformation: 100 0 0 50 72 700
+        assert_eq!(img.ctm, [100.0, 0.0, 0.0, 50.0, 72.0, 700.0]);
+        // Name should indicate inline image
+        assert!(img.name.starts_with("inline-"));
+    }
+
+    #[test]
+    fn interpret_inline_image_abbreviated_keys() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // Use abbreviated keys: /W, /H, /BPC, /CS with abbreviated color space /G
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(b"q 50 0 0 50 10 10 cm BI /W 1 /H 1 /CS /G /BPC 8 ID ");
+        stream.push(128); // 1x1 grayscale = 1 byte
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 1);
+        assert_eq!(img.height, 1);
+        assert_eq!(img.colorspace, Some("DeviceGray".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+    }
+
+    #[test]
+    fn interpret_inline_image_with_filter() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // BI with abbreviated filter /F /DCT
+        let mut stream: Vec<u8> = Vec::new();
+        stream
+            .extend_from_slice(b"q 200 0 0 100 0 0 cm BI /W 10 /H 10 /CS /RGB /BPC 8 /F /DCT ID ");
+        // Fake JPEG data (just a few bytes for testing)
+        stream.extend_from_slice(&[0xFF, 0xD8, 0xFF, 0xE0]);
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 10);
+        assert_eq!(img.height, 10);
+        assert_eq!(img.filter, Some("DCTDecode".to_string()));
+    }
+
+    #[test]
+    fn interpret_inline_image_abbreviated_filter_names() {
+        // Test all abbreviated filter name mappings
+        let abbreviated_to_full = [
+            ("AHx", "ASCIIHexDecode"),
+            ("A85", "ASCII85Decode"),
+            ("LZW", "LZWDecode"),
+            ("Fl", "FlateDecode"),
+            ("RL", "RunLengthDecode"),
+            ("CCF", "CCITTFaxDecode"),
+            ("DCT", "DCTDecode"),
+        ];
+
+        for (abbrev, full_name) in &abbreviated_to_full {
+            let doc = lopdf::Document::with_version("1.5");
+            let resources = empty_resources();
+
+            let mut stream: Vec<u8> = Vec::new();
+            stream.extend_from_slice(
+                format!("q 10 0 0 10 0 0 cm BI /W 1 /H 1 /CS /G /BPC 8 /F /{abbrev} ID ")
+                    .as_bytes(),
+            );
+            stream.push(0); // 1 byte image data
+            stream.extend_from_slice(b" EI Q");
+
+            let mut handler = CollectingHandler::new();
+            let mut gstate = InterpreterState::new();
+            let mut tstate = TextState::new();
+
+            interpret_content_stream(
+                &doc,
+                &stream,
+                &resources,
+                &mut handler,
+                &default_options(),
+                0,
+                &mut gstate,
+                &mut tstate,
+            )
+            .unwrap();
+
+            assert_eq!(
+                handler.images.len(),
+                1,
+                "no image emitted for filter abbreviation /{abbrev}"
+            );
+            assert_eq!(
+                handler.images[0].filter,
+                Some(full_name.to_string()),
+                "filter mismatch for /{abbrev}: expected {full_name}"
+            );
+        }
     }
 }
