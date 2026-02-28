@@ -11,6 +11,8 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - `Edge` struct has x0/top/x1/bottom/orientation/source fields
 - `derive_edges()` converts Lines+Rects+Curves to Vec<Edge>
 - Clippy: use `#[derive(Default)]` with `#[default]` variant instead of manual `impl Default` for enums
+- `snap_edges()` function lives in `table.rs` as a public standalone function; uses `snap_group()` helper for clustering
+- Edge processing helpers: `make_h_edge(x0, y, x1)` and `make_v_edge(x, top, bottom)` in test module for concise test construction
 
 ---
 
@@ -23,4 +25,16 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Strategy defaults to Lattice, all tolerances default to 3.0
   - TableFinder::find_tables() is a placeholder returning empty Vec, will be wired up in US-030 through US-036
   - Clippy enforces `#[derive(Default)]` for enums on Rust edition 2024
+---
+
+## 2026-02-28 - US-030
+- Implemented `snap_edges()` for parallel edge alignment and `snap_group()` clustering helper
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `snap_edges(edges, snap_x_tolerance, snap_y_tolerance)` takes owned Vec<Edge> and returns Vec<Edge>
+  - Horizontal edges cluster by y-coord (top/bottom), vertical edges cluster by x-coord (x0/x1)
+  - Clustering algorithm: sort by perpendicular axis, group consecutive within tolerance, replace with mean
+  - Diagonal edges pass through unchanged
+  - Snap only aligns positions, does NOT merge edges (merge is US-031 join_edge_group)
 ---
