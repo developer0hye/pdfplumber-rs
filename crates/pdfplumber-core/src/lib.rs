@@ -32,6 +32,8 @@ pub mod encoding;
 pub mod error;
 /// Geometric primitives: Point, BBox, CTM, Orientation.
 pub mod geometry;
+/// PDF hyperlink types.
+pub mod hyperlink;
 /// Image extraction and metadata.
 pub mod images;
 /// Text layout: words → lines → blocks, reading order, text output.
@@ -56,6 +58,7 @@ pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line,
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
 pub use geometry::{BBox, Ctm, Orientation, Point};
+pub use hyperlink::Hyperlink;
 pub use images::{Image, ImageMetadata, image_from_ctm};
 pub use layout::{
     TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,

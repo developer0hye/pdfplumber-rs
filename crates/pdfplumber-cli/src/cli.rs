@@ -115,6 +115,36 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = TextFormat::Text)]
         format: TextFormat,
     },
+
+    /// Extract annotations from PDF pages
+    Annots {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
+
+    /// Extract hyperlinks from PDF pages
+    Links {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+    },
 }
 
 /// Table detection strategy.
@@ -408,6 +438,72 @@ mod tests {
                 assert!(matches!(format, TextFormat::Text));
             }
             _ => panic!("expected Info subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_annots_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "annots", "test.pdf"]);
+        match cli.command {
+            Commands::Annots { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Annots subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_annots_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "annots", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Annots { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Json));
+            }
+            _ => panic!("expected Annots subcommand"),
+        }
+    }
+
+    #[test]
+    fn annots_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "annots", "test.pdf"]);
+        match cli.command {
+            Commands::Annots { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Text));
+            }
+            _ => panic!("expected Annots subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_links_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "links", "test.pdf"]);
+        match cli.command {
+            Commands::Links { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Links subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_links_with_csv_format() {
+        let cli = Cli::parse_from(["pdfplumber", "links", "test.pdf", "--format", "csv"]);
+        match cli.command {
+            Commands::Links { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Csv));
+            }
+            _ => panic!("expected Links subcommand"),
+        }
+    }
+
+    #[test]
+    fn links_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "links", "test.pdf"]);
+        match cli.command {
+            Commands::Links { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Text));
+            }
+            _ => panic!("expected Links subcommand"),
         }
     }
 }

@@ -1,6 +1,8 @@
+mod annots_cmd;
 mod chars_cmd;
 mod cli;
 mod info_cmd;
+mod links_cmd;
 mod page_range;
 mod shared;
 mod tables_cmd;
@@ -54,6 +56,16 @@ fn main() {
             ref pages,
             ref format,
         } => info_cmd::run(file, pages.as_deref(), format),
+        cli::Commands::Annots {
+            ref file,
+            ref pages,
+            ref format,
+        } => annots_cmd::run(file, pages.as_deref(), format),
+        cli::Commands::Links {
+            ref file,
+            ref pages,
+            ref format,
+        } => links_cmd::run(file, pages.as_deref(), format),
     };
 
     if let Err(code) = result {

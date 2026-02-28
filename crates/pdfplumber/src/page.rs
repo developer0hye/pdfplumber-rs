@@ -1,8 +1,8 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Image, Line, Rect, Table, TableFinder,
-    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Hyperlink, Image, Line, Rect, Table,
+    TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
     cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, extract_text_for_cells,
     sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
@@ -44,6 +44,8 @@ pub struct Page {
     images: Vec<Image>,
     /// Annotations extracted from the page's /Annots array.
     annotations: Vec<Annotation>,
+    /// Hyperlinks extracted from Link annotations with resolved URIs.
+    hyperlinks: Vec<Hyperlink>,
     /// Non-fatal warnings collected during extraction.
     warnings: Vec<ExtractWarning>,
 }
@@ -68,6 +70,7 @@ impl Page {
             curves: Vec::new(),
             images: Vec::new(),
             annotations: Vec::new(),
+            hyperlinks: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -99,6 +102,7 @@ impl Page {
             curves,
             images: Vec::new(),
             annotations: Vec::new(),
+            hyperlinks: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -132,6 +136,7 @@ impl Page {
             curves,
             images,
             annotations: Vec::new(),
+            hyperlinks: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -154,6 +159,7 @@ impl Page {
         chars: Vec<Char>,
         images: Vec<Image>,
         annotations: Vec<Annotation>,
+        hyperlinks: Vec<Hyperlink>,
         warnings: Vec<ExtractWarning>,
     ) -> Self {
         Self {
@@ -172,6 +178,7 @@ impl Page {
             curves: Vec::new(),
             images,
             annotations,
+            hyperlinks,
             warnings,
         }
     }
@@ -266,6 +273,14 @@ impl Page {
     /// interactive elements defined in the page's /Annots array.
     pub fn annots(&self) -> &[Annotation] {
         &self.annotations
+    }
+
+    /// Returns the hyperlinks extracted from this page.
+    ///
+    /// Hyperlinks are Link annotations with resolved URI targets.
+    /// Each hyperlink has a bounding box and a URI string.
+    pub fn hyperlinks(&self) -> &[Hyperlink] {
+        &self.hyperlinks
     }
 
     /// Returns non-fatal warnings collected during page extraction.

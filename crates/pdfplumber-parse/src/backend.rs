@@ -3,7 +3,7 @@
 //! Defines the [`PdfBackend`] trait that abstracts PDF parsing operations.
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
-use pdfplumber_core::{Annotation, BBox, DocumentMetadata, ExtractOptions, PdfError};
+use pdfplumber_core::{Annotation, BBox, DocumentMetadata, ExtractOptions, Hyperlink, PdfError};
 
 use crate::handler::ContentHandler;
 
@@ -143,6 +143,20 @@ pub trait PdfBackend {
         doc: &Self::Document,
         page: &Self::Page,
     ) -> Result<Vec<Annotation>, Self::Error>;
+
+    /// Extract hyperlinks from a page.
+    ///
+    /// Returns resolved [`Hyperlink`]s found among the page's Link annotations.
+    /// Each hyperlink has its URI resolved from `/A` (action) or `/Dest` entries.
+    /// Returns an empty Vec if the page has no link annotations.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the annotations exist but are malformed.
+    fn page_hyperlinks(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Vec<Hyperlink>, Self::Error>;
 
     /// Interpret the page's content stream, calling back into the handler.
     ///
@@ -310,6 +324,13 @@ mod tests {
             _doc: &Self::Document,
             _page: &Self::Page,
         ) -> Result<Vec<Annotation>, Self::Error> {
+            Ok(Vec::new())
+        }
+
+        fn page_hyperlinks(
+            _doc: &Self::Document,
+            _page: &Self::Page,
+        ) -> Result<Vec<Hyperlink>, Self::Error> {
             Ok(Vec::new())
         }
 
