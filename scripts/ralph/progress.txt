@@ -28,3 +28,17 @@ Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
   - Phase 1 built ahead: words, CJK, geometry, encoding, layout modules were all implemented in phase 1
   - Subsequent US stories in phase 2 may also already be implemented — verify before writing new code
 ---
+
+## 2026-02-28 - US-019: Page::extract_words() API + Word type integration
+- Implementation already existed from phase 1 (built alongside US-017/US-018)
+- Verified all acceptance criteria against existing code:
+  - `Page::extract_words(options: &WordOptions) -> Vec<Word>` at `crates/pdfplumber/src/page.rs:185-187`
+  - Words contain constituent `Char`s via `Word.chars: Vec<Char>`
+  - Default WordOptions: x_tolerance=3.0, y_tolerance=3.0
+  - Integration test at `crates/pdfplumber/tests/page_api_integration.rs:181-185`
+  - Unit tests at `crates/pdfplumber/src/page.rs:302-423` covering: default options, text concatenation, bbox calculation, multiline, custom options, empty page, constituent chars
+- Files: `crates/pdfplumber/src/page.rs`, `crates/pdfplumber-core/src/words.rs`
+- No code changes needed — all quality checks pass (fmt, clippy, tests)
+- **Learnings for future iterations:**
+  - Confirmed phase 1 built ahead pattern continues
+---
