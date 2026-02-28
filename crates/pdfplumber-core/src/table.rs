@@ -451,6 +451,137 @@ pub fn edges_to_intersections(
     intersections
 }
 
+/// Construct rectangular cells using edge coverage with grid completion.
+///
+/// Uses a two-phase approach:
+///
+/// **Phase 1 (strict edge coverage):** For each candidate cell (consecutive x-pair and
+/// y-pair from intersection grid), check all 4 edges: horizontal edges span \[x0, x1\]
+/// at top and bottom y, AND vertical edges span \[top, bottom\] at left and right x.
+///
+/// **Phase 2 (grid completion):** For cells rejected by phase 1, check if horizontal edges
+/// span \[x0, x1\] at both top and bottom y, AND the column boundaries (x0, x1) are
+/// established by at least one phase-1 cell. This handles tables with merged header rows
+/// or partial column dividers, where vertical edges exist only in the data area but
+/// horizontal edges span the full width.
+pub fn edges_to_cells(
+    intersections: &[Intersection],
+    edges: &[Edge],
+    x_tolerance: f64,
+    y_tolerance: f64,
+) -> Vec<Cell> {
+    if intersections.is_empty() || edges.is_empty() {
+        return Vec::new();
+    }
+
+    // Collect unique x and y coordinates (sorted) from intersections
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for pt in intersections {
+        if !xs.iter().any(|&x| (x - pt.x).abs() < 1e-9) {
+            xs.push(pt.x);
+        }
+        if !ys.iter().any(|&y| (y - pt.y).abs() < 1e-9) {
+            ys.push(pt.y);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // Separate edges by orientation
+    let horizontals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Horizontal)
+        .collect();
+    let verticals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Vertical)
+        .collect();
+
+    // Check if a horizontal edge covers the x-range [x0, x1] at y-position
+    let has_h_coverage = |x0: f64, x1: f64, y: f64| -> bool {
+        horizontals.iter().any(|e| {
+            (e.top - y).abs() <= y_tolerance && e.x0 <= x0 + x_tolerance && e.x1 >= x1 - x_tolerance
+        })
+    };
+
+    // Check if a vertical edge covers the y-range [top, bottom] at x-position
+    let has_v_coverage = |x: f64, top: f64, bottom: f64| -> bool {
+        verticals.iter().any(|e| {
+            (e.x0 - x).abs() <= x_tolerance
+                && e.top <= top + y_tolerance
+                && e.bottom >= bottom - y_tolerance
+        })
+    };
+
+    // Phase 1: strict edge coverage (all 4 edges required)
+    let mut cells = Vec::new();
+    // Track which column boundaries (x-positions) are established by phase-1 cells
+    let mut established_xs = std::collections::HashSet::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let x0 = xs[xi];
+            let x1 = xs[xi + 1];
+            let top = ys[yi];
+            let bottom = ys[yi + 1];
+
+            if has_h_coverage(x0, x1, top)
+                && has_h_coverage(x0, x1, bottom)
+                && has_v_coverage(x0, top, bottom)
+                && has_v_coverage(x1, top, bottom)
+            {
+                cells.push(Cell {
+                    bbox: BBox::new(x0, top, x1, bottom),
+                    text: None,
+                });
+                // Record that x0 and x1 are established column boundaries
+                // Use integer key (scaled by 1000) to avoid float hash issues
+                established_xs.insert((x0 * 1000.0).round() as i64);
+                established_xs.insert((x1 * 1000.0).round() as i64);
+            }
+        }
+    }
+
+    // Phase 2: grid completion — fill in rows with horizontal edges but missing verticals,
+    // only where column positions are established by phase-1 cells
+    let is_established_x =
+        |x: f64| -> bool { established_xs.contains(&((x * 1000.0).round() as i64)) };
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let x0 = xs[xi];
+            let x1 = xs[xi + 1];
+            let top = ys[yi];
+            let bottom = ys[yi + 1];
+
+            // Skip if already created in phase 1
+            if cells
+                .iter()
+                .any(|c| (c.bbox.x0 - x0).abs() < 1e-9 && (c.bbox.top - top).abs() < 1e-9)
+            {
+                continue;
+            }
+
+            // Grid completion: H edges at top & bottom, column positions established
+            if has_h_coverage(x0, x1, top)
+                && has_h_coverage(x0, x1, bottom)
+                && is_established_x(x0)
+                && is_established_x(x1)
+            {
+                cells.push(Cell {
+                    bbox: BBox::new(x0, top, x1, bottom),
+                    text: None,
+                });
+            }
+        }
+    }
+
+    cells
+}
+
 /// Construct rectangular cells from a grid of intersection points.
 ///
 /// Groups intersection points into a grid of unique y-rows and x-columns (sorted).
@@ -1229,8 +1360,13 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Build cells from intersections
-        let cells = intersections_to_cells(&intersections);
+        // Step 6: Build cells from intersections using edge coverage
+        let cells = edges_to_cells(
+            &intersections,
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
 
         // Step 7: Group cells into tables
         cells_to_tables(cells)
@@ -1343,8 +1479,13 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Cells
-        let cells = intersections_to_cells(&intersections);
+        // Step 6: Cells (using edge coverage)
+        let cells = edges_to_cells(
+            &intersections,
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
 
         // Step 7: Tables
         let tables = cells_to_tables(cells.clone());
@@ -2513,6 +2654,179 @@ mod tests {
             make_intersection(100.0, 50.0),
         ];
         let cells = intersections_to_cells(&intersections);
+        for cell in &cells {
+            assert!(cell.text.is_none());
+        }
+    }
+
+    // --- edges_to_cells tests ---
+
+    #[test]
+    fn test_edges_to_cells_complete_grid() {
+        // Complete 2x2 grid: 4 corners, 4 edges → 1 cell
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(100.0, 0.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 1);
+        assert_approx(cells[0].bbox.x0, 0.0);
+        assert_approx(cells[0].bbox.top, 0.0);
+        assert_approx(cells[0].bbox.x1, 100.0);
+        assert_approx(cells[0].bbox.bottom, 50.0);
+    }
+
+    #[test]
+    fn test_edges_to_cells_partial_intersections_with_spanning_edges() {
+        // Simulates the nics-background-checks scenario:
+        // Only outer corners have intersections, but edges span the full width.
+        // 3 columns, 2 rows, but only outer border intersections at y=0.
+        //
+        //  (0,0)                 (100,0)   <- only 2 intersections at y=0
+        //        H edge spans [0, 100] at y=0
+        //  (0,30) (50,30) (100,30)         <- all 3 intersections at y=30
+        //        H edge spans [0, 100] at y=30
+        //
+        // Vertical edges at x=0,50,100 span [0,30].
+        // With edge coverage, cells at y=[0,30] should be created for x=[0,50] and x=[50,100]
+        // because the horizontal edge at y=0 spans [0,100] covering both cells.
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            // no intersection at (50, 0)
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),  // top spans full width
+            make_h_edge(0.0, 30.0, 100.0), // bottom spans full width
+            make_v_edge(0.0, 0.0, 30.0),   // left border
+            make_v_edge(50.0, 0.0, 30.0),  // middle divider
+            make_v_edge(100.0, 0.0, 30.0), // right border
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        // Should produce 2 cells: (0,0)-(50,30) and (50,0)-(100,30)
+        assert_eq!(cells.len(), 2);
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 0.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 50.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 50.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 100.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+    }
+
+    #[test]
+    fn test_edges_to_cells_no_edges_no_cells() {
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &[], 3.0, 3.0);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_edges_to_cells_empty_intersections() {
+        let cells = edges_to_cells(&[], &[], 3.0, 3.0);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_edges_to_cells_single_row_table() {
+        // Single row with 3 columns, all edges present
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(30.0, 0.0),
+            make_intersection(60.0, 0.0),
+            make_intersection(90.0, 0.0),
+            make_intersection(0.0, 20.0),
+            make_intersection(30.0, 20.0),
+            make_intersection(60.0, 20.0),
+            make_intersection(90.0, 20.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 90.0),
+            make_h_edge(0.0, 20.0, 90.0),
+            make_v_edge(0.0, 0.0, 20.0),
+            make_v_edge(30.0, 0.0, 20.0),
+            make_v_edge(60.0, 0.0, 20.0),
+            make_v_edge(90.0, 0.0, 20.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 3);
+    }
+
+    #[test]
+    fn test_edges_to_cells_missing_vertical_no_cell() {
+        // Missing vertical edge at x=50 means cells adjacent to x=50 are invalid
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(50.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 30.0, 100.0),
+            make_v_edge(0.0, 0.0, 30.0),
+            // no vertical at x=50
+            make_v_edge(100.0, 0.0, 30.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        // Cell (0,0)-(50,30): V left OK, V right at x=50 missing → skip
+        // Cell (50,0)-(100,30): V left at x=50 missing → skip
+        assert_eq!(cells.len(), 0);
+    }
+
+    #[test]
+    fn test_edges_to_cells_tolerance_matching() {
+        // Edges slightly off from intersection positions, within tolerance
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 1.5, 100.0),  // y=1.5, within 3.0 of y=0
+            make_h_edge(0.0, 48.5, 100.0), // y=48.5, within 3.0 of y=50
+            make_v_edge(1.0, 0.0, 50.0),   // x=1.0, within 3.0 of x=0
+            make_v_edge(99.0, 0.0, 50.0),  // x=99.0, within 3.0 of x=100
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 1);
+    }
+
+    #[test]
+    fn test_edges_to_cells_text_is_none() {
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(100.0, 0.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
         for cell in &cells {
             assert!(cell.text.is_none());
         }

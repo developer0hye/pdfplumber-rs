@@ -35,7 +35,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key function: intersections_to_cells in crates/pdfplumber-core/src/table.rs line 455. The function currently uses has_point() for a strict 4-corner check. The edges (after snap+join) are available in the TableFinder, so they can be passed to the cell detection step. Consider adding a new function like edges_to_cells() that takes both intersections AND edges, or modifying intersections_to_cells to accept edges for coverage checking."
     },
     {

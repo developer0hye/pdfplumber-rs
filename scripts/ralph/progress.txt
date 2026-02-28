@@ -33,3 +33,19 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
 - 26 unique x-positions and 18 unique y-positions after snapping.
 - The "2 cols" in Rust output is because most y-pairs only have 2 corners matching at the outer borders (x=33.1 and x=975.3).
 ---
+
+## 2026-03-01 - US-107
+- Implemented `edges_to_cells` function with two-phase grid completion in `crates/pdfplumber-core/src/table.rs`
+- Phase 1: strict 4-edge coverage creates core cells, records established column boundaries
+- Phase 2: grid completion — for remaining positions, if H edges span [x0, x1] at top AND bottom, AND x0/x1 are established column boundaries from Phase 1, create the cell
+- Updated `find_tables()` and `find_tables_debug()` to call `edges_to_cells` instead of `intersections_to_cells`
+- Exported `edges_to_cells` from core and facade crates
+- Wrote 8 unit tests for `edges_to_cells` (complete grid, partial intersections, empty cases, tolerance, etc.)
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `scripts/ralph/prd.json`
+
+### Results:
+- nics table accuracy: 6.8% → 87.5% (372/425 cells match positionally)
+- Rust table dimensions: now 17 rows x 25 cols = 425 cells (matches golden exactly)
+- 53 unmatched cells are text extraction differences, not structural
+- All existing tests pass (0 regressions)
+---
