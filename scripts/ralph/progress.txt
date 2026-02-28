@@ -19,3 +19,17 @@
 # Ralph Progress Log - Phase 10: Interpreter Fixes - Path Operators, Extended Graphics State
 Started: 2026년  3월  1일 일요일 02시 00분 49초 KST
 ---
+
+## 2026-03-01 - US-086
+- What was implemented: Wired path operators (m, l, c, v, y, h, re), painting operators (S, s, f, F, f*, B, B*, b, b*, n), clipping operators (W, W*), marked content operators (BMC/BDC/EMC) into the interpreter. Added dictionary parsing to tokenizer for inline dictionaries. Based on PR #121 cherry-pick with merge conflict resolution.
+- Files changed:
+  - `crates/pdfplumber-parse/src/interpreter.rs` — Added set_ctm() to path construction operators, replaced painting operators to use PathBuilder painting methods, new emit_path_event using PaintedPath, added marked content operator handling
+  - `crates/pdfplumber-parse/src/tokenizer.rs` — Added Dictionary variant to Operand enum, replaced skip_dict with parse_dictionary/parse_dictionary_value functions, updated tests
+  - `Cargo.lock` — Auto-updated
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - HEAD already had most of the pdf.rs/page.rs changes from prior PRs — cherry-pick conflicts were only in interpreter.rs and tokenizer.rs
+  - The emit_path_event approach changed: old version took &mut PathBuilder and called take_and_reset(), new version takes PaintedPath from PathBuilder painting methods (stroke(), fill(), etc.)
+  - The DashPattern import was no longer needed in interpreter.rs after switching to PaintedPath-based emit_path_event
+  - `pdfplumber-py` tests fail with libpython3.11.dylib not found — pre-existing environment issue, not related to code changes
+---

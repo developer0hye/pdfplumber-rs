@@ -21,7 +21,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 71,
       "notes": "DO NOT reimplement. Cherry-pick from existing PR #121 (commit 6acba75b). The PR had two issues: (1) cargo fmt failure, (2) merge conflicts with main after PR #119 was merged. Fix both and merge. After this story's PR is merged, close PR #121 as superseded: gh pr close 121 --comment 'Superseded by PR #N'"
     },
