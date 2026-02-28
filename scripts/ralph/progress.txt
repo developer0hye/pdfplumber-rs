@@ -8,6 +8,9 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
 - **Edge pipeline**: Raw edges → filter (min_length) → snap → join → intersections → cells → tables.
 - **Pre-existing failure**: `pdfplumber-py` tests fail locally due to missing `libpython3.11.dylib` — not a code issue.
 - **Key function for US-107**: `intersections_to_cells` at table.rs:455 requires all 4 corners. The fix should use edge coverage instead.
+- **Download scripts**: `scripts/download_test_fixtures.sh` (modular with separate functions per source), `scripts/download_fixtures.sh` (old, hardcoded 4 files)
+- **Golden data generation**: `scripts/generate_golden.py` (currently flat, reads only top-level PDFs dir)
+- **gh api** works for GitHub repos; poppler tests are on GitLab (use curl with raw URLs)
 ---
 
 ## 2026-03-01 - US-106
@@ -64,4 +67,17 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
 - nics table accuracy: 87.5% → 100% (425/425 cells match)
 - All other cross-validation metrics unchanged: chars=100%, words=100%, lines=100%, rects=100%
 - All existing tests pass (0 regressions)
+---
+
+## 2026-03-01 - US-109
+- Created `scripts/download_test_fixtures.sh` — idempotent script using `gh api` to list and `curl` to download PDF fixtures from jsvine/pdfplumber (stable branch)
+- Downloads 62 PDFs from `tests/pdfs/` and 19 from `from-oss-fuzz/load/` into `oss-fuzz/` subdirectory
+- Skips non-PDF files (make_xref.py, issue-948.zip) via `.pdf` extension filter
+- Validates non-zero file size; empty.pdf correctly rejected (0 bytes)
+- Files changed: `scripts/download_test_fixtures.sh` (new), 76 new PDF fixtures
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `empty.pdf` in pdfplumber repo is genuinely 0 bytes — expected failure
+  - Script design is modular with `download_pdfplumber_python()` function — easy to add `download_pdfjs()`, `download_pdfbox()`, `download_poppler()` for US-110/US-111
+  - All 80 PDFs total on disk (4 pre-existing + 76 new)
 ---
