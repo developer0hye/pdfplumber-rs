@@ -1,57 +1,34 @@
 ## Codebase Patterns
-- Color is an enum (Gray/Rgb/Cmyk/Other with f32 values), not a struct. Use `.clone()` since it doesn't implement Copy (due to Other(Vec<f32>)).
-- Orientation enum lives in geometry.rs. LineOrientation in shapes.rs is a type alias for Orientation.
-- All coordinates use f64. Color values use f32.
-- BBox uses top-left origin: (x0, top, x1, bottom).
-- Char has all PDF fields: text, bbox, fontname, size, doctop, upright, direction, stroking_color, non_stroking_color, ctm ([f64; 6]), char_code (u32).
-- Word has doctop (min of char doctops) and direction (from first char).
-- Line/Rect/Curve use top/bottom naming (not y0/y1) matching BBox convention.
-- When constructing test Char instances, use a helper fn with sensible defaults for the 12 fields.
-- PdfError (core) has manual Error impl; BackendError (parse) uses thiserror. Convert between them via From impls.
-- ExtractResult<T> wraps value + warnings. Use ExtractResult::ok(val) for clean results.
-- PdfBackend trait uses associated functions (no &self). Call as `MyBackend::open(bytes)`, `MyBackend::page_count(&doc)`.
-- ContentHandler has default no-op methods. Implementors override only the events they care about.
-- ContentHandler is object-safe: use `&mut dyn ContentHandler` in trait method signatures.
-- CTM stored as [f64; 6] in event types (CharEvent, PathEvent, ImageEvent) for consistency with Char.ctm.
-- LopdfBackend uses BackendError as its Error type (already converts to PdfError via From impl).
-- LopdfDocument caches page ObjectIds in a Vec for O(1) 0-based index access (lopdf's get_pages returns BTreeMap<u32, ObjectId> with 1-based keys).
-- LopdfDocument.inner() accessor provides read access to the underlying lopdf::Document.
-- Create test PDFs programmatically with lopdf: Document::with_version + add_object with dictionary! macro. Save to Vec<u8> with save_to().
-- resolve_inherited() walks up page tree via /Parent to find inheritable properties (MediaBox, Rotate, etc.).
-- lopdf Object::as_float() returns f32 for both Integer and Real. Use custom object_to_f64() for f64 precision.
-- lopdf Dictionary::get(b"Key") takes byte slice key. Returns Result — Err if key missing.
-- CropBox is NOT inheritable in practice for this library (read from page dict only). MediaBox and Rotate ARE inherited.
-- Content stream tokenizer: `tokenize(&[u8]) -> Result<Vec<Operator>, BackendError>`. Operands accumulated on stack until operator keyword encountered.
-- Operand enum: Integer(i64), Real(f64), Name(String), LiteralString(Vec<u8>), HexString(Vec<u8>), Array(Vec<Operand>), Boolean(bool), Null.
-- Inline images (BI/ID/EI): dict stored as flattened Array of Name/value pairs, data as LiteralString. Single whitespace byte after ID is the separator.
-- PDF whitespace: space, tab, CR, LF, FF (0x0C), NUL (0x00). NUL is whitespace — be careful with binary data boundaries.
-- PDF names support #XX hex escapes (e.g., /F#231 → "F#1"). parse_name handles this.
-- Use `std::mem::take()` instead of `drain(..).collect()` for moving Vec contents (clippy drain_collect lint).
-- InterpreterState (pdfplumber-parse) bundles Ctm + GraphicsState + save/restore stack. Use save_state()/restore_state() for q/Q, concat_matrix() for cm.
-- cm operator uses pre-multiplication: new_matrix.concat(&current_ctm). This follows PDF spec where cm modifies CTM by pre-concatenating.
-- SC/SCN/sc/scn use component count to infer color space (1→Gray, 3→RGB, 4→CMYK, other→Other).
-- TextState (pdfplumber-parse) tracks text params (Tc/Tw/Tz/TL/Tf/Tr/Ts) + text_matrix + line_matrix + in_text_object flag.
-- TextRenderMode uses #[derive(Default)] with #[default] on Fill variant (clippy: derivable_impls).
-- h_scaling stored as percentage (100.0 = 100%). Use h_scaling_normalized() for fraction (1.0).
-- Td/TD/T* operate on line_matrix (pre-multiply translation), then copy to text_matrix.
-- advance_text_position() modifies text_matrix only (not line_matrix) — for glyph advance during Tj/TJ.
-- Tm replaces both text_matrix and line_matrix (it does NOT concatenate).
-- CMap::parse(data) -> Result<CMap, BackendError>. CMap::lookup(code) -> Option<&str>. CMap::lookup_or_replacement(code) -> String (returns U+FFFD for missing).
-- CMap parses beginbfchar/endbfchar and beginbfrange/endbfrange sections. Ignores CMap boilerplate (codespacerange, CIDSystemInfo, etc.).
-- FontMetrics.get_width(char_code) returns width in glyph space (1/1000 units). Indexes widths array by (char_code - first_char), falls back to missing_width.
-- extract_font_metrics(doc, font_dict) parses /Widths, /FirstChar, /LastChar + /FontDescriptor. Handles indirect references via resolve_object().
-- Default font metrics: ascent=750.0, descent=-250.0, width=600.0 (glyph space units).
-- lopdf Object::Real is f32 — use (f64 - expected).abs() < 1.0 for test assertions on values read from lopdf.
-- UTF-16BE decoding: hex string → u16 code units → String::from_utf16(). Handles surrogate pairs and multi-char mappings (ligatures).
-- bfrange supports both `<low> <high> <start>` (increment) and `<low> <high> [<str1> <str2>...]` (array) forms.
-- char_from_event(event, metrics, page_height, stroke_color, fill_color) → Char. Builds Trm, computes 4-corner AABB, y-flips.
-- Trm = font_matrix × Tm × CTM. font_matrix = Ctm::new(fs*Th, 0, 0, fs, 0, rise).
-- Glyph-normalized width: w_norm = displacement/1000 + (Tc + Tw_if_space)/font_size. h_scaling cancels out.
+
+- **PDF test fixture creation**: Use lopdf programmatically to create minimal PDFs for testing. Pattern: create font → content stream → resources → page → pages tree → catalog → save to bytes. See `create_pdf_with_content()` in `crates/pdfplumber/src/pdf.rs`.
+- **ContentHandler collecting pattern**: Implement a `CollectingHandler` that stores `CharEvent`s and `ImageEvent`s during `interpret_page`, then convert them to `Char`s and `Image`s afterward using `char_from_event` and `image_from_ctm`.
+- **CharEvent → Char conversion**: Use `FontMetrics::default_metrics()` (ascent=750, descent=-250) when per-font metrics aren't available. The displacement (glyph width) in CharEvent already comes from actual font metrics in the interpreter.
+- **doctop calculation**: Accumulate display page heights (`PageGeometry::height()`) for pages before the current one. Offset each char's doctop by this sum.
+- **Page parent reference**: When building PDFs with lopdf, create the page first, then the pages tree, then update the page's Parent reference afterward (circular reference workaround).
 
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 01시 07분 18초 KST
+Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
 ---
 
-# Ralph Progress Log - Phase 1: Foundation - Workspace, PDF Parsing, Content Interpreter, Char Extraction
-Started: 2026년  2월 28일 토요일 08시 48분 05초 KST
+## 2026-02-28 - US-017
+- What was implemented: Public API facade wiring the full extraction pipeline
+  - `Pdf` struct with `open()`, `page_count()`, `page()` methods
+  - `Page::rotation()`, `Page::bbox()` accessors
+  - `CollectingHandler` for content stream event collection
+  - `CharEvent` → `Char` conversion via `char_from_event`
+  - `ImageEvent` → `Image` conversion via `image_from_ctm`
+  - `doctop` calculation across multiple pages
+  - 20 unit tests + 10 integration tests with programmatic PDF fixtures
+- Files changed:
+  - `crates/pdfplumber/src/pdf.rs` (new - Pdf struct, CollectingHandler, tests)
+  - `crates/pdfplumber/src/page.rs` (added rotation field, bbox(), from_extraction())
+  - `crates/pdfplumber/src/lib.rs` (added mod pdf, pub use Pdf)
+  - `crates/pdfplumber/Cargo.toml` (added lopdf dev-dependency)
+  - `crates/pdfplumber/tests/pdf_integration.rs` (new - end-to-end tests)
+- Dependencies added: lopdf 0.34 (dev-dependency only, for test PDF creation)
+- **Learnings for future iterations:**
+  - CharEvent doesn't carry color info or font ascent/descent. Colors are set to None for now. Font metrics use defaults. These could be enhanced by adding fields to CharEvent.
+  - Path operators (m, l, re, S, f, etc.) are not yet implemented in the interpreter, so Page.lines/rects/curves are empty when extracted via Pdf::page().
+  - The raw PDF MediaBox height must be used for char_from_event y-flip (not the display height after rotation/crop).
+  - lopdf's Document::save_to() handles xref table and trailer automatically.
 ---

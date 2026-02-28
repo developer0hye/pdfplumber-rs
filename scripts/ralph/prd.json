@@ -320,8 +320,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 17,
-      "passes": false,
-      "notes": "This is the capstone story for Phase 1. Everything must work end-to-end."
+      "passes": true,
+      "notes": "Capstone story completed. Full extraction pipeline wired end-to-end."
     }
   ]
 }
