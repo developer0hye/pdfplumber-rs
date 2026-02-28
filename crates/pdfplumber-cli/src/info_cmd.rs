@@ -10,6 +10,7 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), 
     let page_count = pdf.page_count();
     let page_indices = resolve_pages(pages, page_count)?;
     let progress = ProgressReporter::new(page_indices.len());
+    let metadata = pdf.metadata();
 
     let settings = TableSettings::default();
 
@@ -66,6 +67,34 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), 
 
     match format {
         TextFormat::Text => {
+            if !metadata.is_empty() {
+                println!();
+                println!("Metadata:");
+                if let Some(ref v) = metadata.title {
+                    println!("  Title: {v}");
+                }
+                if let Some(ref v) = metadata.author {
+                    println!("  Author: {v}");
+                }
+                if let Some(ref v) = metadata.subject {
+                    println!("  Subject: {v}");
+                }
+                if let Some(ref v) = metadata.keywords {
+                    println!("  Keywords: {v}");
+                }
+                if let Some(ref v) = metadata.creator {
+                    println!("  Creator: {v}");
+                }
+                if let Some(ref v) = metadata.producer {
+                    println!("  Producer: {v}");
+                }
+                if let Some(ref v) = metadata.creation_date {
+                    println!("  CreationDate: {v}");
+                }
+                if let Some(ref v) = metadata.mod_date {
+                    println!("  ModDate: {v}");
+                }
+            }
             println!();
             println!("Pages: {page_count}");
             println!();
@@ -74,7 +103,34 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat) -> Result<(), 
             println!("  Total tables: {total_tables}");
         }
         TextFormat::Json => {
+            let mut metadata_json = serde_json::Map::new();
+            if let Some(ref v) = metadata.title {
+                metadata_json.insert("title".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.author {
+                metadata_json.insert("author".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.subject {
+                metadata_json.insert("subject".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.keywords {
+                metadata_json.insert("keywords".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.creator {
+                metadata_json.insert("creator".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.producer {
+                metadata_json.insert("producer".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.creation_date {
+                metadata_json.insert("creation_date".to_string(), serde_json::json!(v));
+            }
+            if let Some(ref v) = metadata.mod_date {
+                metadata_json.insert("mod_date".to_string(), serde_json::json!(v));
+            }
+
             let output = serde_json::json!({
+                "metadata": metadata_json,
                 "pages": page_count,
                 "page_info": page_infos,
                 "summary": {

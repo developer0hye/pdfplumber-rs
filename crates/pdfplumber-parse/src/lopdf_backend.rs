@@ -6,7 +6,7 @@
 use crate::backend::PdfBackend;
 use crate::error::BackendError;
 use crate::handler::ContentHandler;
-use pdfplumber_core::{BBox, ExtractOptions};
+use pdfplumber_core::{BBox, DocumentMetadata, ExtractOptions};
 
 /// A parsed PDF document backed by lopdf.
 pub struct LopdfDocument {
@@ -186,6 +186,10 @@ impl PdfBackend for LopdfBackend {
         }
     }
 
+    fn document_metadata(doc: &Self::Document) -> Result<DocumentMetadata, Self::Error> {
+        extract_document_metadata(&doc.inner)
+    }
+
     fn interpret_page(
         doc: &Self::Document,
         page: &Self::Page,
@@ -308,6 +312,78 @@ fn get_page_resources(
             Ok(&EMPTY_DICT)
         }
     }
+}
+
+/// Extract a string value from a lopdf dictionary, handling both String and Name types.
+fn extract_string_from_dict(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    key: &[u8],
+) -> Option<String> {
+    let obj = dict.get(key).ok()?;
+    // Resolve indirect reference if needed
+    let obj = match obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+    match obj {
+        lopdf::Object::String(bytes, _) => {
+            // Try UTF-16 BE (BOM: 0xFE 0xFF) first, then Latin-1/UTF-8
+            if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
+                let chars: Vec<u16> = bytes[2..]
+                    .chunks(2)
+                    .filter_map(|c| {
+                        if c.len() == 2 {
+                            Some(u16::from_be_bytes([c[0], c[1]]))
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+                String::from_utf16(&chars).ok()
+            } else {
+                // Try UTF-8 first, fall back to Latin-1
+                match std::str::from_utf8(bytes) {
+                    Ok(s) => Some(s.to_string()),
+                    Err(_) => Some(bytes.iter().map(|&b| b as char).collect()),
+                }
+            }
+        }
+        lopdf::Object::Name(name) => Some(String::from_utf8_lossy(name).into_owned()),
+        _ => None,
+    }
+}
+
+/// Extract document-level metadata from the PDF /Info dictionary.
+fn extract_document_metadata(doc: &lopdf::Document) -> Result<DocumentMetadata, BackendError> {
+    // The /Info dictionary is referenced from the trailer
+    let info_ref = match doc.trailer.get(b"Info") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(DocumentMetadata::default()),
+    };
+
+    let info_dict = match info_ref {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => match obj.as_dict() {
+                Ok(dict) => dict,
+                Err(_) => return Ok(DocumentMetadata::default()),
+            },
+            Err(_) => return Ok(DocumentMetadata::default()),
+        },
+        lopdf::Object::Dictionary(dict) => dict,
+        _ => return Ok(DocumentMetadata::default()),
+    };
+
+    Ok(DocumentMetadata {
+        title: extract_string_from_dict(doc, info_dict, b"Title"),
+        author: extract_string_from_dict(doc, info_dict, b"Author"),
+        subject: extract_string_from_dict(doc, info_dict, b"Subject"),
+        keywords: extract_string_from_dict(doc, info_dict, b"Keywords"),
+        creator: extract_string_from_dict(doc, info_dict, b"Creator"),
+        producer: extract_string_from_dict(doc, info_dict, b"Producer"),
+        creation_date: extract_string_from_dict(doc, info_dict, b"CreationDate"),
+        mod_date: extract_string_from_dict(doc, info_dict, b"ModDate"),
+    })
 }
 
 /// Create a minimal valid PDF document with the given number of pages.
@@ -853,6 +929,80 @@ fn create_test_pdf_with_text_content() -> Vec<u8> {
     buf
 }
 
+/// Create a test PDF with an /Info metadata dictionary.
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+fn create_test_pdf_with_metadata(
+    title: Option<&str>,
+    author: Option<&str>,
+    subject: Option<&str>,
+    keywords: Option<&str>,
+    creator: Option<&str>,
+    producer: Option<&str>,
+    creation_date: Option<&str>,
+    mod_date: Option<&str>,
+) -> Vec<u8> {
+    use lopdf::{Document, Object, ObjectId, dictionary};
+
+    let mut doc = Document::with_version("1.5");
+    let pages_id: ObjectId = doc.new_object_id();
+
+    let page_id = doc.add_object(dictionary! {
+        "Type" => "Page",
+        "Parent" => pages_id,
+        "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+    });
+
+    doc.objects.insert(
+        pages_id,
+        Object::Dictionary(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::from(page_id)],
+            "Count" => 1i64,
+        }),
+    );
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => pages_id,
+    });
+    doc.trailer.set("Root", catalog_id);
+
+    // Build /Info dictionary
+    let mut info_dict = lopdf::Dictionary::new();
+    if let Some(v) = title {
+        info_dict.set("Title", Object::string_literal(v));
+    }
+    if let Some(v) = author {
+        info_dict.set("Author", Object::string_literal(v));
+    }
+    if let Some(v) = subject {
+        info_dict.set("Subject", Object::string_literal(v));
+    }
+    if let Some(v) = keywords {
+        info_dict.set("Keywords", Object::string_literal(v));
+    }
+    if let Some(v) = creator {
+        info_dict.set("Creator", Object::string_literal(v));
+    }
+    if let Some(v) = producer {
+        info_dict.set("Producer", Object::string_literal(v));
+    }
+    if let Some(v) = creation_date {
+        info_dict.set("CreationDate", Object::string_literal(v));
+    }
+    if let Some(v) = mod_date {
+        info_dict.set("ModDate", Object::string_literal(v));
+    }
+
+    let info_id = doc.add_object(Object::Dictionary(info_dict));
+    doc.trailer.set("Info", Object::Reference(info_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).expect("failed to save test PDF");
+    buf
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1278,5 +1428,74 @@ mod tests {
         assert!(result.is_err());
         let err_msg = result.unwrap_err().to_string();
         assert!(err_msg.contains("recursion depth"));
+    }
+
+    // --- document_metadata() tests ---
+
+    #[test]
+    fn metadata_full_info_dictionary() {
+        let pdf_bytes = create_test_pdf_with_metadata(
+            Some("Test Document"),
+            Some("John Doe"),
+            Some("Testing metadata"),
+            Some("test, pdf, rust"),
+            Some("LibreOffice"),
+            Some("pdfplumber-rs"),
+            Some("D:20240101120000+00'00'"),
+            Some("D:20240615153000+00'00'"),
+        );
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let meta = LopdfBackend::document_metadata(&doc).unwrap();
+
+        assert_eq!(meta.title.as_deref(), Some("Test Document"));
+        assert_eq!(meta.author.as_deref(), Some("John Doe"));
+        assert_eq!(meta.subject.as_deref(), Some("Testing metadata"));
+        assert_eq!(meta.keywords.as_deref(), Some("test, pdf, rust"));
+        assert_eq!(meta.creator.as_deref(), Some("LibreOffice"));
+        assert_eq!(meta.producer.as_deref(), Some("pdfplumber-rs"));
+        assert_eq!(
+            meta.creation_date.as_deref(),
+            Some("D:20240101120000+00'00'")
+        );
+        assert_eq!(meta.mod_date.as_deref(), Some("D:20240615153000+00'00'"));
+        assert!(!meta.is_empty());
+    }
+
+    #[test]
+    fn metadata_partial_info_dictionary() {
+        let pdf_bytes = create_test_pdf_with_metadata(
+            Some("Only Title"),
+            None,
+            None,
+            None,
+            None,
+            Some("A Producer"),
+            None,
+            None,
+        );
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let meta = LopdfBackend::document_metadata(&doc).unwrap();
+
+        assert_eq!(meta.title.as_deref(), Some("Only Title"));
+        assert_eq!(meta.author, None);
+        assert_eq!(meta.subject, None);
+        assert_eq!(meta.keywords, None);
+        assert_eq!(meta.creator, None);
+        assert_eq!(meta.producer.as_deref(), Some("A Producer"));
+        assert_eq!(meta.creation_date, None);
+        assert_eq!(meta.mod_date, None);
+        assert!(!meta.is_empty());
+    }
+
+    #[test]
+    fn metadata_no_info_dictionary() {
+        // create_test_pdf doesn't add an /Info dictionary
+        let pdf_bytes = create_test_pdf(1);
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let meta = LopdfBackend::document_metadata(&doc).unwrap();
+
+        assert!(meta.is_empty());
+        assert_eq!(meta.title, None);
+        assert_eq!(meta.author, None);
     }
 }

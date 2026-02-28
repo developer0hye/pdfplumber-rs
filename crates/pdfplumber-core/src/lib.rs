@@ -34,6 +34,8 @@ pub mod geometry;
 pub mod images;
 /// Text layout: words → lines → blocks, reading order, text output.
 pub mod layout;
+/// Document-level metadata types.
+pub mod metadata;
 /// Graphics state, colors, dash patterns, and painted paths.
 pub mod painting;
 /// PDF path construction (MoveTo, LineTo, CurveTo, ClosePath).
@@ -56,6 +58,7 @@ pub use layout::{
     TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
+pub use metadata::DocumentMetadata;
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};
 pub use path::{Path, PathBuilder, PathSegment};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};

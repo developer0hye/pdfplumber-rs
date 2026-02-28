@@ -97,11 +97,11 @@ pub use cropped_page::CroppedPage;
 pub use page::Page;
 pub use pdf::{PagesIter, Pdf};
 pub use pdfplumber_core::{
-    BBox, Cell, Char, Color, Ctm, Curve, DashPattern, Edge, EdgeSource, EncodingResolver,
-    ExplicitLines, ExtGState, ExtractOptions, ExtractResult, ExtractWarning, FillRule,
-    FontEncoding, GraphicsState, Image, ImageMetadata, Intersection, Line, LineOrientation,
-    Orientation, PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, Rect,
-    StandardEncoding, Strategy, Table, TableFinder, TableSettings, TextBlock, TextDirection,
+    BBox, Cell, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, Edge, EdgeSource,
+    EncodingResolver, ExplicitLines, ExtGState, ExtractOptions, ExtractResult, ExtractWarning,
+    FillRule, FontEncoding, GraphicsState, Image, ImageMetadata, Intersection, Line,
+    LineOrientation, Orientation, PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point,
+    Rect, StandardEncoding, Strategy, Table, TableFinder, TableSettings, TextBlock, TextDirection,
     TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cells_to_tables,
     cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, edge_from_curve,
     edge_from_line, edges_from_rect, edges_to_intersections, explicit_lines_to_edges,
