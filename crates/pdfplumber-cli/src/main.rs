@@ -1,3 +1,4 @@
+mod chars_cmd;
 mod cli;
 mod page_range;
 mod text_cmd;
@@ -15,10 +16,11 @@ fn main() {
             ref format,
             layout,
         } => text_cmd::run(file, pages.as_deref(), format, layout),
-        cli::Commands::Chars { .. } => {
-            eprintln!("chars subcommand not yet implemented");
-            Err(1)
-        }
+        cli::Commands::Chars {
+            ref file,
+            ref pages,
+            ref format,
+        } => chars_cmd::run(file, pages.as_deref(), format),
         cli::Commands::Words { .. } => {
             eprintln!("words subcommand not yet implemented");
             Err(1)
