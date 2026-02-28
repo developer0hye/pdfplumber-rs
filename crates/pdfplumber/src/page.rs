@@ -827,11 +827,12 @@ mod tests {
 
     #[test]
     fn test_extract_words_bbox_calculation() {
-        // Characters with varying heights — verify the word bbox is the union
+        // Characters with varying heights; tops increase left-to-right
+        // so spatial sort preserves left-to-right order.
         let chars = vec![
-            make_char("A", 10.0, 98.0, 20.0, 112.0),
-            make_char("b", 20.0, 100.0, 28.0, 110.0),
-            make_char("C", 28.0, 97.0, 38.0, 113.0),
+            make_char("A", 10.0, 97.0, 20.0, 112.0),
+            make_char("b", 20.0, 98.0, 28.0, 110.0),
+            make_char("C", 28.0, 99.0, 38.0, 113.0),
         ];
         let page = Page::new(0, 612.0, 792.0, chars);
         let words = page.extract_words(&WordOptions::default());

@@ -2,11 +2,11 @@
 //!
 //! Run with: `cargo test -p pdfplumber --test cross_validation -- --nocapture`
 //!
-//! # Known gaps
+//! # Status
 //!
-//! - **nics-background-checks-2015-11.pdf**: Char/word accuracy ~89% (below 95% PRD target).
-//! - **pdffill-demo.pdf**: Word accuracy ~94.5% (page 3 has form-field text differences).
-//! - **nics-background-checks tables**: Table cell accuracy ~5.4% (needs investigation).
+//! All char/word/line/rect metrics at or above PRD targets (95%+).
+//! - **scotus-transcript**: 1 char gap (synthetic `\n` from Python layout analysis).
+//! - **nics-background-checks tables**: Table cell accuracy ~6.8% (needs investigation).
 
 #![allow(dead_code)]
 
@@ -542,9 +542,7 @@ fn cross_validate_lorem_ipsum() {
 }
 
 /// pdffill-demo.pdf: text + form fields.
-/// Known gap: word rate ~94.5% (page 3 form-field text splits differently).
-/// Asserts char threshold (100%), word threshold relaxed to 90%.
-/// Lines and rects at 100%.
+/// All metrics at 100%.
 #[test]
 fn cross_validate_pdffill_demo() {
     let result = validate_pdf("pdffill-demo.pdf");
@@ -555,14 +553,11 @@ fn cross_validate_pdffill_demo() {
         result.total_char_rate() * 100.0,
         CHAR_THRESHOLD * 100.0,
     );
-    // Word rate is 94.5% — just below 95% PRD target due to form field text.
-    // Use relaxed threshold; tighten once word grouping near form fields improves.
-    let relaxed_word_threshold = 0.90;
     assert!(
-        result.total_word_rate() >= relaxed_word_threshold,
+        result.total_word_rate() >= WORD_THRESHOLD,
         "word rate {:.1}% < {:.1}%",
         result.total_word_rate() * 100.0,
-        relaxed_word_threshold * 100.0,
+        WORD_THRESHOLD * 100.0,
     );
     assert!(
         result.total_line_rate() >= 1.0,
@@ -574,13 +569,6 @@ fn cross_validate_pdffill_demo() {
         "rect rate {:.1}% < 100%",
         result.total_rect_rate() * 100.0,
     );
-    if result.total_word_rate() < WORD_THRESHOLD {
-        eprintln!(
-            "  NOTE: word rate {:.1}% below PRD target {:.1}% (known gap: form field text)",
-            result.total_word_rate() * 100.0,
-            WORD_THRESHOLD * 100.0,
-        );
-    }
 }
 
 /// scotus-transcript-p1.pdf: dense multi-column text with inline images.
@@ -604,26 +592,22 @@ fn cross_validate_scotus_transcript() {
 }
 
 /// nics-background-checks-2015-11.pdf: complex lattice table.
-/// Known gap: char accuracy ~88.6%, word accuracy ~89.4% (below 95% target).
-/// Lines/rects at 100%. Table accuracy ~5.4% (needs investigation).
-/// Asserts tightened baseline to catch regressions.
+/// Chars/words/lines/rects at 100%. Table accuracy ~6.8% (needs investigation).
 #[test]
 fn cross_validate_nics_background_checks() {
     let result = validate_pdf("nics-background-checks-2015-11.pdf");
     assert!(result.parse_error.is_none(), "parse error");
-    // Current baseline: ~88-89%. Tighten to 85% to catch regressions.
-    let baseline_threshold = 0.85;
     assert!(
-        result.total_char_rate() >= baseline_threshold,
-        "char rate {:.1}% < {:.1}% baseline",
+        result.total_char_rate() >= CHAR_THRESHOLD,
+        "char rate {:.1}% < {:.1}%",
         result.total_char_rate() * 100.0,
-        baseline_threshold * 100.0,
+        CHAR_THRESHOLD * 100.0,
     );
     assert!(
-        result.total_word_rate() >= baseline_threshold,
-        "word rate {:.1}% < {:.1}% baseline",
+        result.total_word_rate() >= WORD_THRESHOLD,
+        "word rate {:.1}% < {:.1}%",
         result.total_word_rate() * 100.0,
-        baseline_threshold * 100.0,
+        WORD_THRESHOLD * 100.0,
     );
     assert!(
         result.total_line_rate() >= 1.0,
@@ -635,13 +619,6 @@ fn cross_validate_nics_background_checks() {
         "rect rate {:.1}% < 100%",
         result.total_rect_rate() * 100.0,
     );
-    if result.total_char_rate() < CHAR_THRESHOLD {
-        eprintln!(
-            "  NOTE: char rate {:.1}% below PRD target {:.1}%",
-            result.total_char_rate() * 100.0,
-            CHAR_THRESHOLD * 100.0,
-        );
-    }
 }
 
 /// Combined summary across all test PDFs (informational, never fails).
