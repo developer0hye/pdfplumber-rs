@@ -1,0 +1,115 @@
+{
+  "source": "FC60_Times.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 612.0,
+      "height": 792.0,
+      "chars": [
+        {
+          "text": "ﺎ",
+          "x0": 108.54,
+          "top": 75.8717,
+          "x1": 114.4894,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": "ﱠ",
+          "x0": 114.4868,
+          "top": 75.8717,
+          "x1": 119.9686,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": "ﺘ",
+          "x0": 114.4764,
+          "top": 75.8717,
+          "x1": 120.8156,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": "ُ",
+          "x0": 120.813,
+          "top": 75.8717,
+          "x1": 126.2428,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": "آ",
+          "x0": 120.8,
+          "top": 75.8717,
+          "x1": 131.0361,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": "ب",
+          "x0": 90.0007,
+          "top": 75.8717,
+          "x1": 108.5244,
+          "bottom": 101.8517,
+          "fontname": "PKLPHA+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 131.101,
+          "top": 75.8717,
+          "x1": 137.596,
+          "bottom": 101.8517,
+          "fontname": "PKMCDP+TimesNewRomanPSMT",
+          "size": 25.98,
+          "doctop": 75.8717,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 90.0,
+          "top": 103.74,
+          "x1": 97.2,
+          "bottom": 115.74,
+          "fontname": "CourierNewPSMT",
+          "size": 12.0,
+          "doctop": 103.74,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "بﺎﺘﱠآُ",
+          "x0": 90.0007,
+          "top": 75.8717,
+          "x1": 131.0361,
+          "bottom": 101.8517,
+          "doctop": 75.8717
+        }
+      ],
+      "text": "بﺎﺘﱠآُ",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

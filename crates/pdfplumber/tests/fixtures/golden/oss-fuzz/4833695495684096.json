@@ -1,0 +1,559 @@
+{
+  "source": "4833695495684096.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 611.0,
+      "height": 792.0,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    },
+    {
+      "page_number": 1,
+      "width": 611.0,
+      "height": 792.0,
+      "chars": [
+        {
+          "text": "G",
+          "x0": 100.0,
+          "top": 72.968,
+          "x1": 118.672,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 118.672,
+          "top": 72.968,
+          "x1": 132.016,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 132.016,
+          "top": 72.968,
+          "x1": 145.36,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 145.36,
+          "top": 72.968,
+          "x1": 158.704,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "b",
+          "x0": 158.704,
+          "top": 72.968,
+          "x1": 172.048,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "y",
+          "x0": 172.048,
+          "top": 72.968,
+          "x1": 184.048,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 184.048,
+          "top": 72.968,
+          "x1": 197.392,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 197.392,
+          "top": 72.968,
+          "x1": 204.064,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 204.064,
+          "top": 72.968,
+          "x1": 221.392,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 221.392,
+          "top": 72.968,
+          "x1": 229.384,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "u",
+          "x0": 229.384,
+          "top": 72.968,
+          "x1": 242.728,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 242.728,
+          "top": 72.968,
+          "x1": 256.072,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 256.072,
+          "top": 72.968,
+          "x1": 261.4,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 261.4,
+          "top": 72.968,
+          "x1": 268.072,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "W",
+          "x0": 268.072,
+          "top": 72.968,
+          "x1": 290.728,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 290.728,
+          "top": 72.968,
+          "x1": 304.072,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 304.072,
+          "top": 72.968,
+          "x1": 312.064,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 312.064,
+          "top": 72.968,
+          "x1": 317.392,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 317.392,
+          "top": 72.968,
+          "x1": 330.736,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": ".",
+          "x0": 330.736,
+          "top": 72.968,
+          "x1": 337.408,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": ".",
+          "x0": 337.408,
+          "top": 72.968,
+          "x1": 344.08,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": ".",
+          "x0": 344.08,
+          "top": 72.968,
+          "x1": 350.752,
+          "bottom": 96.968,
+          "fontname": "Helvetica",
+          "size": 24.0,
+          "doctop": 864.968,
+          "upright": true
+        },
+        {
+          "text": "I",
+          "x0": 100.0,
+          "top": 182.484,
+          "x1": 103.336,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "’",
+          "x0": 103.336,
+          "top": 182.484,
+          "x1": 106.0,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 106.0,
+          "top": 182.484,
+          "x1": 108.664,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 108.664,
+          "top": 182.484,
+          "x1": 111.328,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 111.328,
+          "top": 182.484,
+          "x1": 114.664,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "b",
+          "x0": 114.664,
+          "top": 182.484,
+          "x1": 121.336,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 121.336,
+          "top": 182.484,
+          "x1": 128.008,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 128.008,
+          "top": 182.484,
+          "x1": 131.344,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "b",
+          "x0": 131.344,
+          "top": 182.484,
+          "x1": 138.016,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 138.016,
+          "top": 182.484,
+          "x1": 144.688,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 144.688,
+          "top": 182.484,
+          "x1": 150.688,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "k",
+          "x0": 150.688,
+          "top": 182.484,
+          "x1": 156.688,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 156.688,
+          "top": 182.484,
+          "x1": 160.024,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 160.024,
+          "top": 182.484,
+          "x1": 166.024,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "h",
+          "x0": 166.024,
+          "top": 182.484,
+          "x1": 172.696,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 172.696,
+          "top": 182.484,
+          "x1": 179.368,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 179.368,
+          "top": 182.484,
+          "x1": 183.364,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 183.364,
+          "top": 182.484,
+          "x1": 186.7,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 186.7,
+          "top": 182.484,
+          "x1": 189.364,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "y",
+          "x0": 189.364,
+          "top": 182.484,
+          "x1": 195.364,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        },
+        {
+          "text": "!",
+          "x0": 195.364,
+          "top": 182.484,
+          "x1": 198.7,
+          "bottom": 194.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 974.484,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Goodbye",
+          "x0": 100.0,
+          "top": 72.968,
+          "x1": 197.392,
+          "bottom": 96.968,
+          "doctop": 864.968
+        },
+        {
+          "text": "Cruel",
+          "x0": 204.064,
+          "top": 72.968,
+          "x1": 261.4,
+          "bottom": 96.968,
+          "doctop": 864.968
+        },
+        {
+          "text": "World...",
+          "x0": 268.072,
+          "top": 72.968,
+          "x1": 350.752,
+          "bottom": 96.968,
+          "doctop": 864.968
+        },
+        {
+          "text": "I’ll",
+          "x0": 100.0,
+          "top": 182.484,
+          "x1": 111.328,
+          "bottom": 194.484,
+          "doctop": 974.484
+        },
+        {
+          "text": "be",
+          "x0": 114.664,
+          "top": 182.484,
+          "x1": 128.008,
+          "bottom": 194.484,
+          "doctop": 974.484
+        },
+        {
+          "text": "back",
+          "x0": 131.344,
+          "top": 182.484,
+          "x1": 156.688,
+          "bottom": 194.484,
+          "doctop": 974.484
+        },
+        {
+          "text": "shortly!",
+          "x0": 160.024,
+          "top": 182.484,
+          "x1": 198.7,
+          "bottom": 194.484,
+          "doctop": 974.484
+        }
+      ],
+      "text": "Goodbye Cruel World...\nI’ll be back shortly!",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

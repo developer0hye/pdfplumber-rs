@@ -1,0 +1,60 @@
+{
+  "source": "pdfbox-3833-japanese-reduced.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 792.0,
+      "height": 612.0,
+      "chars": [
+        {
+          "text": "タ",
+          "x0": 45.56,
+          "top": 183.8679,
+          "x1": 57.56,
+          "bottom": 195.8679,
+          "fontname": "JFFJFV+KozGoPr6N-Regular",
+          "size": 12.0,
+          "doctop": 183.8679,
+          "upright": true
+        },
+        {
+          "text": "ー",
+          "x0": 56.1212,
+          "top": 183.8679,
+          "x1": 68.1212,
+          "bottom": 195.8679,
+          "fontname": "JFFJFV+KozGoPr6N-Regular",
+          "size": 12.0,
+          "doctop": 183.8679,
+          "upright": true
+        },
+        {
+          "text": "ン",
+          "x0": 65.3372,
+          "top": 183.8679,
+          "x1": 77.3372,
+          "bottom": 195.8679,
+          "fontname": "JFFJFV+KozGoPr6N-Regular",
+          "size": 12.0,
+          "doctop": 183.8679,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "ターン",
+          "x0": 45.56,
+          "top": 183.8679,
+          "x1": 77.3372,
+          "bottom": 195.8679,
+          "doctop": 183.8679
+        }
+      ],
+      "text": "ターン",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

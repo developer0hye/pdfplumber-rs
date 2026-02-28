@@ -1,0 +1,59 @@
+{
+  "source": "issue-905.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 612.0,
+      "height": 792.0,
+      "chars": [
+        {
+          "text": ";",
+          "x0": 76.8954,
+          "top": 73.5626,
+          "x1": 83.3789,
+          "bottom": 84.3325,
+          "fontname": "AAAAAC+Menlo-Regular",
+          "size": 10.7699,
+          "doctop": 73.5626,
+          "upright": true
+        },
+        {
+          "text": ";",
+          "x0": 83.3789,
+          "top": 73.5626,
+          "x1": 89.8623,
+          "bottom": 84.3325,
+          "fontname": "AAAAAB+Menlo-Regular",
+          "size": 10.7699,
+          "doctop": 73.5626,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": ";;",
+          "x0": 76.8954,
+          "top": 73.5626,
+          "x1": 89.8623,
+          "bottom": 84.3325,
+          "doctop": 73.5626
+        }
+      ],
+      "text": ";;",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 72.0,
+          "top": 72.0,
+          "x1": 540.0,
+          "bottom": 97.4561,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

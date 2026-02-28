@@ -1,0 +1,120 @@
+{
+  "source": "pdfbox-4531-bidi-ligature-1.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.0,
+      "height": 842.0,
+      "chars": [
+        {
+          "text": "אּ",
+          "x0": 84.8924,
+          "top": 117.5655,
+          "x1": 144.075,
+          "bottom": 222.6855,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 117.5655,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 144.0737,
+          "top": 117.5654,
+          "x1": 173.2971,
+          "bottom": 222.6854,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 117.5654,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 84.96,
+          "top": 243.5654,
+          "x1": 114.1833,
+          "bottom": 348.6854,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 243.5654,
+          "upright": true
+        },
+        {
+          "text": "ﻻ",
+          "x0": 84.8947,
+          "top": 369.5654,
+          "x1": 142.08,
+          "bottom": 474.6854,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 369.5654,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 142.0742,
+          "top": 369.5654,
+          "x1": 171.2976,
+          "bottom": 474.6854,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 369.5654,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 84.96,
+          "top": 495.5654,
+          "x1": 114.1833,
+          "bottom": 600.6854,
+          "fontname": "AAAAAC+ArialMT",
+          "size": 105.12,
+          "doctop": 495.5654,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "אּ",
+          "x0": 84.8924,
+          "top": 117.5655,
+          "x1": 144.075,
+          "bottom": 222.6855,
+          "doctop": 117.5655
+        },
+        {
+          "text": "ﻻ",
+          "x0": 84.8947,
+          "top": 369.5654,
+          "x1": 142.08,
+          "bottom": 474.6854,
+          "doctop": 369.5654
+        }
+      ],
+      "text": "אּ\nﻻ",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 84.96,
+          "top": 102.0,
+          "x1": 144.0,
+          "bottom": 222.72,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        },
+        {
+          "x0": 84.96,
+          "top": 354.0,
+          "x1": 142.08,
+          "bottom": 474.72,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

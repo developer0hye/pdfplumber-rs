@@ -1,0 +1,241 @@
+{
+  "source": "hello3.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 612.0,
+      "height": 792.0,
+      "chars": [
+        {
+          "text": "H",
+          "x0": 90.0,
+          "top": 74.9957,
+          "x1": 104.4256,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 104.4395,
+          "top": 74.9957,
+          "x1": 113.3107,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 113.3247,
+          "top": 74.9957,
+          "x1": 118.8791,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 118.8931,
+          "top": 74.9957,
+          "x1": 124.4475,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 124.4615,
+          "top": 74.9957,
+          "x1": 134.4515,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 134.4655,
+          "top": 74.9957,
+          "x1": 139.4605,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "ﺪ",
+          "x0": 139.4505,
+          "top": 74.9957,
+          "x1": 146.1838,
+          "bottom": 94.9757,
+          "fontname": "FFJIAH+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "ﻤ",
+          "x0": 146.1778,
+          "top": 74.9957,
+          "x1": 154.0499,
+          "bottom": 94.9757,
+          "fontname": "FFJIAH+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "ﺤ",
+          "x0": 154.0439,
+          "top": 74.9957,
+          "x1": 164.6333,
+          "bottom": 94.9757,
+          "fontname": "FFJIAH+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "ﻣ",
+          "x0": 164.6273,
+          "top": 74.9957,
+          "x1": 172.4994,
+          "bottom": 94.9757,
+          "fontname": "FFJIAH+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 172.5174,
+          "top": 74.9957,
+          "x1": 177.5124,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "W",
+          "x0": 177.4964,
+          "top": 74.9957,
+          "x1": 196.3575,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 196.3575,
+          "top": 74.9957,
+          "x1": 206.3475,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 206.4275,
+          "top": 74.9957,
+          "x1": 213.0808,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 213.0808,
+          "top": 74.9957,
+          "x1": 218.6352,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 218.6352,
+          "top": 74.9957,
+          "x1": 228.6252,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": ".",
+          "x0": 228.6252,
+          "top": 74.9957,
+          "x1": 233.6202,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 233.6202,
+          "top": 74.9957,
+          "x1": 238.6152,
+          "bottom": 94.9757,
+          "fontname": "FFJICI+TimesNewRomanPSMT",
+          "size": 19.98,
+          "doctop": 74.9957,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Hello",
+          "x0": 90.0,
+          "top": 74.9957,
+          "x1": 134.4515,
+          "bottom": 94.9757,
+          "doctop": 74.9957
+        },
+        {
+          "text": "ﺪﻤﺤﻣ",
+          "x0": 139.4505,
+          "top": 74.9957,
+          "x1": 172.4994,
+          "bottom": 94.9757,
+          "doctop": 74.9957
+        },
+        {
+          "text": "World.",
+          "x0": 177.4964,
+          "top": 74.9957,
+          "x1": 233.6202,
+          "bottom": 94.9757,
+          "doctop": 74.9957
+        }
+      ],
+      "text": "Hello ﺪﻤﺤﻣ World.",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}
