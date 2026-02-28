@@ -23,8 +23,8 @@ pub use backend::PdfBackend;
 pub use char_extraction::char_from_event;
 pub use cid_font::{
     CidFontMetrics, CidFontType, CidSystemInfo, CidToGidMap, PredefinedCMapInfo,
-    extract_cid_font_metrics, get_descendant_font, get_type0_encoding, is_type0_font,
-    parse_predefined_cmap_name, parse_w_array,
+    extract_cid_font_metrics, get_descendant_font, get_type0_encoding, is_subset_font,
+    is_type0_font, parse_predefined_cmap_name, parse_w_array, strip_subset_prefix,
 };
 pub use cmap::{CMap, CidCMap};
 pub use error::BackendError;
@@ -35,8 +35,8 @@ pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
 pub use page_geometry::PageGeometry;
 pub use pdfplumber_core;
 pub use text_renderer::{
-    RawChar, TjElement, double_quote_show_string, quote_show_string, show_string,
-    show_string_with_positioning,
+    RawChar, TjElement, double_quote_show_string, quote_show_string, show_string, show_string_cid,
+    show_string_with_positioning, show_string_with_positioning_mode,
 };
 pub use text_state::{TextRenderMode, TextState};
 pub use tokenizer::{Operand, Operator, tokenize};

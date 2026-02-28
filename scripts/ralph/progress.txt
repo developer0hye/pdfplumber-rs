@@ -1,6 +1,9 @@
 ## Codebase Patterns
 
 - **Font handling architecture**: Fonts are cached in `CachedFont` struct in interpreter.rs. Simple fonts use `FontMetrics` (widths array indexed by char_code - first_char). CID fonts use `CidFontMetrics` (HashMap<u32, f64> for sparse widths + default_width).
+- **CID font 2-byte char codes**: CID fonts use `show_string_cid()` which reads pairs of bytes as big-endian u16 character codes. Simple fonts use `show_string()` with single-byte codes. The `is_cid_font` flag on `CachedFont` controls dispatch.
+- **Subset font prefix**: PDF subset fonts use `ABCDEF+RealName` pattern. `strip_subset_prefix()` removes the 6-uppercase-letter prefix. Applied to all font `base_name` in the interpreter.
+- **TJ array CID mode**: `show_string_with_positioning_mode()` wraps `show_string_with_positioning` with a `cid_mode` flag to dispatch string elements to the CID 2-byte decoder.
 - **lopdf object resolution**: Always resolve indirect references via `resolve_object(doc, obj)` before accessing dictionaries or arrays.
 - **Width function pattern**: The interpreter creates a width closure `get_width_fn(cached)` that dispatches to CID or simple metrics.
 - **CMap types**: `CMap` maps char_code→Unicode string (for ToUnicode). `CidCMap` maps char_code→CID (for predefined CMaps).
@@ -23,4 +26,18 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - Predefined CMap names follow patterns: Adobe-Japan1-*, UniJIS-UTF16-H, 90ms-RKSJ-H, etc.
   - clippy requires `#[allow(clippy::too_many_arguments)]` for constructors with 8+ params
   - Use `if let Ok(v) = x.parse()` not `if let Some(v) = x.parse().ok()` (clippy::match_result_ok)
+---
+
+## 2026-02-28 - US-041
+- Implemented Identity-H/V support, subset font handling, and 2-byte character codes for CID fonts
+- Modified: `crates/pdfplumber-parse/src/cid_font.rs` — Added `is_subset_font()` and `strip_subset_prefix()` functions with tests
+- Modified: `crates/pdfplumber-parse/src/text_renderer.rs` — Added `show_string_cid()` for 2-byte character code decoding and `show_string_with_positioning_mode()` for TJ arrays with CID mode
+- Modified: `crates/pdfplumber-parse/src/interpreter.rs` — Handle Tj/TJ dispatches to CID 2-byte mode for Type0 fonts; subset prefix stripping in font name extraction; integration tests for Identity-H, Identity-V, and subset font names
+- Modified: `crates/pdfplumber-parse/src/lib.rs` — Exports new functions
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - CID fonts use 2-byte character codes (big-endian u16), simple fonts use 1-byte codes
+  - Subset fonts follow strict pattern: exactly 6 uppercase letters + '+' + real name
+  - Identity-H and Identity-V map CID = character code directly; difference is writing mode (0=horizontal, 1=vertical)
+  - `is_some_and()` is a clean pattern for checking Option fields on borrowed references
 ---

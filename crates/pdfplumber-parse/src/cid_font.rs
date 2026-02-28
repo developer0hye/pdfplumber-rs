@@ -594,6 +594,38 @@ pub fn get_type0_encoding(font_dict: &lopdf::Dictionary) -> Option<String> {
     encoding.as_name_str().ok().map(|s| s.to_string())
 }
 
+/// Check if a font name has a subset prefix.
+///
+/// PDF subset fonts have a 6-uppercase-letter prefix followed by '+' and the
+/// real font name, e.g. `ABCDEF+ArialMT`. Returns `true` if the name matches
+/// this pattern.
+pub fn is_subset_font(font_name: &str) -> bool {
+    if font_name.len() < 8 {
+        return false;
+    }
+    let bytes = font_name.as_bytes();
+    // First 6 chars must be uppercase ASCII letters
+    for &b in &bytes[..6] {
+        if !b.is_ascii_uppercase() {
+            return false;
+        }
+    }
+    // 7th char must be '+'
+    bytes[6] == b'+'
+}
+
+/// Strip the subset prefix from a font name.
+///
+/// If the font name has the pattern `ABCDEF+RealName`, returns `RealName`.
+/// Otherwise returns the original name unchanged.
+pub fn strip_subset_prefix(font_name: &str) -> &str {
+    if is_subset_font(font_name) {
+        &font_name[7..]
+    } else {
+        font_name
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1217,5 +1249,64 @@ mod tests {
             "Subtype" => "Type0",
         };
         assert_eq!(get_type0_encoding(&dict), None);
+    }
+
+    // ========== Subset font detection tests ==========
+
+    #[test]
+    fn is_subset_font_valid() {
+        assert!(is_subset_font("ABCDEF+ArialMT"));
+        assert!(is_subset_font("XYZABC+TimesNewRoman"));
+        assert!(is_subset_font("AAAAAA+A")); // minimal real name
+    }
+
+    #[test]
+    fn is_subset_font_invalid() {
+        assert!(!is_subset_font("ArialMT")); // no prefix
+        assert!(!is_subset_font("abcdef+ArialMT")); // lowercase
+        assert!(!is_subset_font("ABCDE+ArialMT")); // only 5 uppercase
+        assert!(!is_subset_font("ABCDEF-ArialMT")); // dash not plus
+        assert!(!is_subset_font("ABC1EF+ArialMT")); // digit in prefix
+        assert!(!is_subset_font("")); // empty
+        assert!(!is_subset_font("ABCDEF+")); // nothing after +
+    }
+
+    #[test]
+    fn strip_subset_prefix_with_prefix() {
+        assert_eq!(strip_subset_prefix("ABCDEF+ArialMT"), "ArialMT");
+        assert_eq!(strip_subset_prefix("XYZABC+TimesNewRoman"), "TimesNewRoman");
+    }
+
+    #[test]
+    fn strip_subset_prefix_without_prefix() {
+        assert_eq!(strip_subset_prefix("ArialMT"), "ArialMT");
+        assert_eq!(strip_subset_prefix("Helvetica"), "Helvetica");
+        assert_eq!(strip_subset_prefix(""), "");
+    }
+
+    // ========== Identity-H/V encoding behavior tests ==========
+
+    #[test]
+    fn identity_h_encoding_detected() {
+        let dict = dictionary! {
+            "Subtype" => "Type0",
+            "Encoding" => "Identity-H",
+        };
+        let enc = get_type0_encoding(&dict).unwrap();
+        let info = parse_predefined_cmap_name(&enc).unwrap();
+        assert!(info.is_identity);
+        assert_eq!(info.writing_mode, 0); // horizontal
+    }
+
+    #[test]
+    fn identity_v_encoding_detected() {
+        let dict = dictionary! {
+            "Subtype" => "Type0",
+            "Encoding" => "Identity-V",
+        };
+        let enc = get_type0_encoding(&dict).unwrap();
+        let info = parse_predefined_cmap_name(&enc).unwrap();
+        assert!(info.is_identity);
+        assert_eq!(info.writing_mode, 1); // vertical
     }
 }

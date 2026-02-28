@@ -118,6 +118,94 @@ pub fn show_string_with_positioning(
     chars
 }
 
+/// `Tj` operator for CID fonts: show a string using 2-byte character codes.
+///
+/// For CID fonts (Type0/composite), each character code is formed from two
+/// consecutive bytes in big-endian order. If the byte string has an odd length,
+/// the last byte is treated as a single-byte code.
+pub fn show_string_cid(
+    text_state: &mut TextState,
+    string_bytes: &[u8],
+    get_width: &dyn Fn(u32) -> f64,
+) -> Vec<RawChar> {
+    let mut chars = Vec::with_capacity(string_bytes.len() / 2);
+    let mut i = 0;
+
+    while i < string_bytes.len() {
+        let char_code = if i + 1 < string_bytes.len() {
+            let code = u32::from(string_bytes[i]) << 8 | u32::from(string_bytes[i + 1]);
+            i += 2;
+            code
+        } else {
+            let code = u32::from(string_bytes[i]);
+            i += 1;
+            code
+        };
+
+        // Snapshot the text matrix before advancing
+        let text_matrix = text_state.text_matrix_array();
+
+        // Calculate displacement in text space
+        let w0 = get_width(char_code);
+        let font_size = text_state.font_size;
+        let char_spacing = text_state.char_spacing;
+        let word_spacing = if char_code == 32 {
+            text_state.word_spacing
+        } else {
+            0.0
+        };
+        let h_scaling = text_state.h_scaling_normalized();
+
+        let tx = ((w0 / 1000.0) * font_size + char_spacing + word_spacing) * h_scaling;
+
+        chars.push(RawChar {
+            char_code,
+            displacement: tx,
+            text_matrix,
+        });
+
+        // Advance text position
+        text_state.advance_text_position(tx);
+    }
+
+    chars
+}
+
+/// `TJ` operator with CID mode: show strings with positioning adjustments.
+///
+/// Like [`show_string_with_positioning`] but when `cid_mode` is true, string
+/// bytes are decoded as 2-byte character codes (for CID/Type0 fonts).
+pub fn show_string_with_positioning_mode(
+    text_state: &mut TextState,
+    elements: &[TjElement],
+    get_width: &dyn Fn(u32) -> f64,
+    cid_mode: bool,
+) -> Vec<RawChar> {
+    let mut chars = Vec::new();
+
+    for element in elements {
+        match element {
+            TjElement::String(bytes) => {
+                let mut sub_chars = if cid_mode {
+                    show_string_cid(text_state, bytes, get_width)
+                } else {
+                    show_string(text_state, bytes, get_width)
+                };
+                chars.append(&mut sub_chars);
+            }
+            TjElement::Adjustment(adj) => {
+                // PDF spec: positive adjustment moves left, negative moves right
+                let font_size = text_state.font_size;
+                let h_scaling = text_state.h_scaling_normalized();
+                let tx = -(adj / 1000.0) * font_size * h_scaling;
+                text_state.advance_text_position(tx);
+            }
+        }
+    }
+
+    chars
+}
+
 /// `'` (single quote) operator: move to next line and show a string.
 ///
 /// Equivalent to `T*` followed by `Tj`.
@@ -797,5 +885,109 @@ mod tests {
 
         // displacement: (600/1000 * 0 + 2.0) * 1.0 = 2.0
         assert_approx(chars[0].displacement, 2.0);
+    }
+
+    // --- CID font 2-byte character codes: show_string_cid ---
+
+    #[test]
+    fn cid_show_string_two_byte_codes() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 12.0);
+        ts.move_text_position(72.0, 700.0);
+
+        // Two 2-byte characters: 0x4E2D (中) and 0x6587 (文)
+        let bytes = vec![0x4E, 0x2D, 0x65, 0x87];
+        let chars = show_string_cid(&mut ts, &bytes, &constant_width);
+
+        assert_eq!(chars.len(), 2);
+        assert_eq!(chars[0].char_code, 0x4E2D);
+        assert_eq!(chars[1].char_code, 0x6587);
+    }
+
+    #[test]
+    fn cid_show_string_empty() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 12.0);
+
+        let chars = show_string_cid(&mut ts, &[], &constant_width);
+        assert!(chars.is_empty());
+    }
+
+    #[test]
+    fn cid_show_string_odd_byte_length() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 12.0);
+
+        // 3 bytes: first two form 0x4E2D, last byte is 0x41
+        let bytes = vec![0x4E, 0x2D, 0x41];
+        let chars = show_string_cid(&mut ts, &bytes, &constant_width);
+
+        assert_eq!(chars.len(), 2);
+        assert_eq!(chars[0].char_code, 0x4E2D);
+        assert_eq!(chars[1].char_code, 0x41);
+    }
+
+    #[test]
+    fn cid_show_string_single_two_byte_code() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 10.0);
+        ts.move_text_position(100.0, 500.0);
+
+        // Single 2-byte character: 0x0041 (should be 'A' in Unicode)
+        let bytes = vec![0x00, 0x41];
+        let chars = show_string_cid(&mut ts, &bytes, &constant_width);
+
+        assert_eq!(chars.len(), 1);
+        assert_eq!(chars[0].char_code, 0x0041);
+        assert_eq!(chars[0].text_matrix, [1.0, 0.0, 0.0, 1.0, 100.0, 500.0]);
+        // displacement = (600/1000 * 10 + 0 + 0) * 1.0 = 6.0
+        assert_approx(chars[0].displacement, 6.0);
+    }
+
+    #[test]
+    fn cid_show_string_advances_position() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 10.0);
+        ts.move_text_position(100.0, 500.0);
+
+        // Two 2-byte codes
+        let bytes = vec![0x4E, 0x2D, 0x65, 0x87];
+        let chars = show_string_cid(&mut ts, &bytes, &constant_width);
+
+        assert_eq!(chars.len(), 2);
+        assert_approx(chars[0].text_matrix[4], 100.0);
+        // Second char advanced by 6.0 (600/1000 * 10)
+        assert_approx(chars[1].text_matrix[4], 106.0);
+    }
+
+    #[test]
+    fn cid_show_string_with_variable_widths() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_font("F1".to_string(), 10.0);
+        ts.move_text_position(0.0, 0.0);
+
+        // Custom width function for CID codes
+        let cid_width = |code: u32| -> f64 {
+            match code {
+                0x4E2D => 1000.0, // full-width CJK
+                0x6587 => 1000.0,
+                _ => 500.0,
+            }
+        };
+
+        let bytes = vec![0x4E, 0x2D, 0x65, 0x87];
+        let chars = show_string_cid(&mut ts, &bytes, &cid_width);
+
+        // 0x4E2D width: (1000/1000 * 10) = 10.0
+        assert_approx(chars[0].displacement, 10.0);
+        // 0x6587 at position 10.0
+        assert_approx(chars[1].text_matrix[4], 10.0);
+        assert_approx(chars[1].displacement, 10.0);
     }
 }
