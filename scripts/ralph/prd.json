@@ -53,7 +53,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "PDFBox repo: apache/pdfbox, branch: trunk. License: Apache 2.0. Poppler test repo: https://gitlab.freedesktop.org/poppler/test, raw URL format: https://gitlab.freedesktop.org/poppler/test/-/raw/master/<path>. PDFBOX-5350 filename is very long - consider renaming to pdfbox-5350-korean-reduced.pdf for readability. Similarly shorten other long filenames: pdfbox-3833-japanese-reduced.pdf, pdfbox-4531-bidi-ligature-1.pdf, etc."
     },
     {
