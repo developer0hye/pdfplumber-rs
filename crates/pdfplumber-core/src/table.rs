@@ -3,10 +3,10 @@
 //! This module provides the configuration types, data structures, and orchestration
 //! for detecting tables in PDF pages using Lattice, Stream, or Explicit strategies.
 
-use crate::edges::Edge;
-use crate::geometry::BBox;
+use crate::edges::{Edge, EdgeSource};
+use crate::geometry::{BBox, Orientation};
 use crate::text::Char;
-use crate::words::{WordExtractor, WordOptions};
+use crate::words::{Word, WordExtractor, WordOptions};
 
 /// Strategy for table detection.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -128,8 +128,6 @@ pub struct Table {
 ///
 /// This does **not** merge edges — it only aligns their positions.
 pub fn snap_edges(edges: Vec<Edge>, snap_x_tolerance: f64, snap_y_tolerance: f64) -> Vec<Edge> {
-    use crate::geometry::Orientation;
-
     let mut result = Vec::with_capacity(edges.len());
     let mut horizontals: Vec<Edge> = Vec::new();
     let mut verticals: Vec<Edge> = Vec::new();
@@ -212,8 +210,6 @@ pub fn join_edge_group(
     join_x_tolerance: f64,
     join_y_tolerance: f64,
 ) -> Vec<Edge> {
-    use crate::geometry::Orientation;
-
     let mut result: Vec<Edge> = Vec::new();
     let mut horizontals: Vec<Edge> = Vec::new();
     let mut verticals: Vec<Edge> = Vec::new();
@@ -346,8 +342,6 @@ pub fn edges_to_intersections(
     x_tolerance: f64,
     y_tolerance: f64,
 ) -> Vec<Intersection> {
-    use crate::geometry::Orientation;
-
     let horizontals: Vec<&Edge> = edges
         .iter()
         .filter(|e| e.orientation == Orientation::Horizontal)
@@ -674,6 +668,158 @@ pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
     }
 }
 
+/// Generate synthetic edges from text alignment patterns for the Stream strategy.
+///
+/// Analyzes word positions to detect vertical and horizontal text alignments:
+/// - Words sharing similar x0 or x1 coordinates → synthetic vertical edges
+/// - Words sharing similar top or bottom coordinates → synthetic horizontal edges
+///
+/// Groups must meet the minimum word count thresholds (`min_words_vertical` for
+/// vertical edges, `min_words_horizontal` for horizontal edges) to produce an edge.
+///
+/// Each synthetic edge spans the full extent of the aligned words in the
+/// perpendicular direction.
+pub fn words_to_edges_stream(
+    words: &[Word],
+    text_x_tolerance: f64,
+    text_y_tolerance: f64,
+    min_words_vertical: usize,
+    min_words_horizontal: usize,
+) -> Vec<Edge> {
+    if words.is_empty() {
+        return Vec::new();
+    }
+
+    let mut edges = Vec::new();
+
+    // Vertical edges from x0 alignment (left edges of words)
+    edges.extend(cluster_words_to_edges(
+        words,
+        |w| w.bbox.x0,
+        text_x_tolerance,
+        min_words_vertical,
+        EdgeKind::Vertical,
+    ));
+
+    // Vertical edges from x1 alignment (right edges of words)
+    edges.extend(cluster_words_to_edges(
+        words,
+        |w| w.bbox.x1,
+        text_x_tolerance,
+        min_words_vertical,
+        EdgeKind::Vertical,
+    ));
+
+    // Horizontal edges from top alignment
+    edges.extend(cluster_words_to_edges(
+        words,
+        |w| w.bbox.top,
+        text_y_tolerance,
+        min_words_horizontal,
+        EdgeKind::Horizontal,
+    ));
+
+    // Horizontal edges from bottom alignment
+    edges.extend(cluster_words_to_edges(
+        words,
+        |w| w.bbox.bottom,
+        text_y_tolerance,
+        min_words_horizontal,
+        EdgeKind::Horizontal,
+    ));
+
+    edges
+}
+
+/// Internal enum to specify what kind of edge to produce from word clusters.
+enum EdgeKind {
+    Vertical,
+    Horizontal,
+}
+
+/// Cluster words by a coordinate accessor, then produce synthetic edges for qualifying clusters.
+fn cluster_words_to_edges<F>(
+    words: &[Word],
+    key: F,
+    tolerance: f64,
+    min_words: usize,
+    kind: EdgeKind,
+) -> Vec<Edge>
+where
+    F: Fn(&Word) -> f64,
+{
+    if words.is_empty() || min_words == 0 {
+        return Vec::new();
+    }
+
+    // Sort word indices by the key coordinate
+    let mut indices: Vec<usize> = (0..words.len()).collect();
+    indices.sort_by(|&a, &b| key(&words[a]).partial_cmp(&key(&words[b])).unwrap());
+
+    let mut edges = Vec::new();
+    let mut cluster_start = 0;
+
+    for i in 1..=indices.len() {
+        let end_of_cluster = i == indices.len()
+            || (key(&words[indices[i]]) - key(&words[indices[cluster_start]])).abs() > tolerance;
+
+        if end_of_cluster {
+            let cluster_size = i - cluster_start;
+            if cluster_size >= min_words {
+                // Compute the mean position for the cluster
+                let sum: f64 = (cluster_start..i).map(|j| key(&words[indices[j]])).sum();
+                let mean_pos = sum / cluster_size as f64;
+
+                // Compute the span in the perpendicular direction
+                let cluster_words: Vec<&Word> =
+                    (cluster_start..i).map(|j| &words[indices[j]]).collect();
+
+                match kind {
+                    EdgeKind::Vertical => {
+                        let min_top = cluster_words
+                            .iter()
+                            .map(|w| w.bbox.top)
+                            .fold(f64::INFINITY, f64::min);
+                        let max_bottom = cluster_words
+                            .iter()
+                            .map(|w| w.bbox.bottom)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        edges.push(Edge {
+                            x0: mean_pos,
+                            top: min_top,
+                            x1: mean_pos,
+                            bottom: max_bottom,
+                            orientation: Orientation::Vertical,
+                            source: EdgeSource::Stream,
+                        });
+                    }
+                    EdgeKind::Horizontal => {
+                        let min_x0 = cluster_words
+                            .iter()
+                            .map(|w| w.bbox.x0)
+                            .fold(f64::INFINITY, f64::min);
+                        let max_x1 = cluster_words
+                            .iter()
+                            .map(|w| w.bbox.x1)
+                            .fold(f64::NEG_INFINITY, f64::max);
+                        edges.push(Edge {
+                            x0: min_x0,
+                            top: mean_pos,
+                            x1: max_x1,
+                            bottom: mean_pos,
+                            orientation: Orientation::Horizontal,
+                            source: EdgeSource::Stream,
+                        });
+                    }
+                }
+            }
+            cluster_start = i;
+        }
+    }
+
+    edges
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -681,6 +827,8 @@ pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
 pub struct TableFinder {
     /// Edges available for table detection.
     edges: Vec<Edge>,
+    /// Words for Stream strategy text alignment detection.
+    words: Vec<Word>,
     /// Configuration settings.
     settings: TableSettings,
 }
@@ -688,7 +836,23 @@ pub struct TableFinder {
 impl TableFinder {
     /// Create a new TableFinder with the given edges and settings.
     pub fn new(edges: Vec<Edge>, settings: TableSettings) -> Self {
-        Self { edges, settings }
+        Self {
+            edges,
+            words: Vec::new(),
+            settings,
+        }
+    }
+
+    /// Create a new TableFinder with edges, words, and settings.
+    ///
+    /// The words are used by the Stream strategy to generate synthetic edges
+    /// from text alignment patterns.
+    pub fn new_with_words(edges: Vec<Edge>, words: Vec<Word>, settings: TableSettings) -> Self {
+        Self {
+            edges,
+            words,
+            settings,
+        }
     }
 
     /// Get a reference to the settings.
@@ -707,9 +871,8 @@ impl TableFinder {
     ///
     /// For **Lattice** strategy, all edges (lines + rect edges) are used.
     /// For **LatticeStrict** strategy, only line-sourced edges are used (no rect edges).
+    /// For **Stream** strategy, synthetic edges are generated from word alignment patterns.
     pub fn find_tables(&self) -> Vec<Table> {
-        use crate::edges::EdgeSource;
-
         // Step 1: Select edges based on strategy
         let edges: Vec<Edge> = match self.settings.strategy {
             Strategy::LatticeStrict => self
@@ -718,7 +881,17 @@ impl TableFinder {
                 .filter(|e| e.source == EdgeSource::Line)
                 .cloned()
                 .collect(),
-            // Lattice (default), Stream, Explicit: use all edges
+            Strategy::Stream => {
+                // Generate synthetic edges from word alignment patterns
+                words_to_edges_stream(
+                    &self.words,
+                    self.settings.text_x_tolerance,
+                    self.settings.text_y_tolerance,
+                    self.settings.min_words_vertical,
+                    self.settings.min_words_horizontal,
+                )
+            }
+            // Lattice (default), Explicit: use all edges
             _ => self.edges.clone(),
         };
 
@@ -2543,5 +2716,309 @@ mod tests {
         assert_eq!(cells[0].text, Some("X".to_string()));
         assert_eq!(cells[1].text, None);
         assert_eq!(cells[2].text, Some("Z".to_string()));
+    }
+
+    // --- Stream strategy tests (US-037) ---
+
+    fn make_word(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Word {
+        Word {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            doctop: top,
+            direction: crate::text::TextDirection::Ltr,
+            chars: vec![],
+        }
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_empty() {
+        let edges = words_to_edges_stream(&[], 3.0, 3.0, 3, 1);
+        assert!(edges.is_empty());
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_vertical_x0_alignment() {
+        // 3 words with x0 at ~10.0 (within tolerance 3.0)
+        // Should produce a vertical edge at ~10.0
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 10.0, 30.0, 35.0, 42.0),
+            make_word("C", 10.0, 50.0, 40.0, 62.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        // Should have at least one vertical edge from x0 alignment
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert!(
+            !v_edges.is_empty(),
+            "Should produce vertical edges from x0 alignment"
+        );
+
+        // The vertical edge at x0≈10.0 should span from top=10.0 to bottom=62.0
+        let v_edge = v_edges
+            .iter()
+            .find(|e| (e.x0 - 10.0).abs() < 1.0)
+            .expect("Should have a vertical edge near x=10");
+        assert!((v_edge.top - 10.0).abs() < 0.01);
+        assert!((v_edge.bottom - 62.0).abs() < 0.01);
+        assert_eq!(v_edge.source, EdgeSource::Stream);
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_vertical_x1_alignment() {
+        // 3 words with x1 at ~50.0
+        let words = vec![
+            make_word("A", 10.0, 10.0, 50.0, 22.0),
+            make_word("B", 20.0, 30.0, 50.0, 42.0),
+            make_word("C", 15.0, 50.0, 50.0, 62.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert!(
+            !v_edges.is_empty(),
+            "Should produce vertical edges from x1 alignment"
+        );
+
+        let v_edge = v_edges
+            .iter()
+            .find(|e| (e.x0 - 50.0).abs() < 1.0)
+            .expect("Should have a vertical edge near x=50");
+        assert!((v_edge.top - 10.0).abs() < 0.01);
+        assert!((v_edge.bottom - 62.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_horizontal_top_alignment() {
+        // 3 words with top at ~10.0 (min_words_horizontal = 1, but 3 words align)
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 40.0, 10.0, 60.0, 22.0),
+            make_word("C", 70.0, 10.0, 90.0, 22.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let h_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        assert!(
+            !h_edges.is_empty(),
+            "Should produce horizontal edges from top alignment"
+        );
+
+        // The horizontal edge at y≈10.0 should span from x0=10.0 to x1=90.0
+        let h_edge = h_edges
+            .iter()
+            .find(|e| (e.top - 10.0).abs() < 1.0)
+            .expect("Should have a horizontal edge near y=10");
+        assert!((h_edge.x0 - 10.0).abs() < 0.01);
+        assert!((h_edge.x1 - 90.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_horizontal_bottom_alignment() {
+        // 3 words with bottom at ~22.0
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 40.0, 12.0, 60.0, 22.0),
+            make_word("C", 70.0, 8.0, 90.0, 22.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let h_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        assert!(
+            !h_edges.is_empty(),
+            "Should produce horizontal edges from bottom alignment"
+        );
+
+        let h_edge = h_edges
+            .iter()
+            .find(|e| (e.top - 22.0).abs() < 1.0)
+            .expect("Should have a horizontal edge near y=22");
+        assert!((h_edge.x0 - 10.0).abs() < 0.01);
+        assert!((h_edge.x1 - 90.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_threshold_filtering_vertical() {
+        // Only 2 words with aligned x0, but min_words_vertical=3 → no vertical edge
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 10.0, 30.0, 35.0, 42.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert!(
+            v_edges.is_empty(),
+            "Should not produce vertical edges below threshold"
+        );
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_threshold_filtering_horizontal() {
+        // Only 2 words with aligned top, but min_words_horizontal=3 → no horizontal edge
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 40.0, 10.0, 60.0, 22.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 3);
+
+        let h_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        assert!(
+            h_edges.is_empty(),
+            "Should not produce horizontal edges below threshold"
+        );
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_tolerance_grouping() {
+        // Words with x0 slightly different but within tolerance
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 11.5, 30.0, 35.0, 42.0),
+            make_word("C", 12.0, 50.0, 40.0, 62.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        // Should group x0 values 10.0, 11.5, 12.0 into one cluster (all within 3.0 tolerance)
+        assert!(
+            !v_edges.is_empty(),
+            "Should group nearby x0 values within tolerance"
+        );
+    }
+
+    #[test]
+    fn test_words_to_edges_stream_no_grouping_beyond_tolerance() {
+        // Words with x0 values far apart → no cluster of 3
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 50.0, 30.0, 70.0, 42.0),
+            make_word("C", 90.0, 50.0, 110.0, 62.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let v_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect();
+        assert!(
+            v_edges.is_empty(),
+            "Should not group x0 values that are far apart"
+        );
+    }
+
+    #[test]
+    fn test_stream_strategy_full_pipeline() {
+        // Simulate a 3-column borderless table with 3 rows:
+        //   Row 0: "A"  "B"  "C"  (top=10, bottom=22)
+        //   Row 1: "D"  "E"  "F"  (top=30, bottom=42)
+        //   Row 2: "G"  "H"  "I"  (top=50, bottom=62)
+        // Columns: x0=10, x0=50, x0=90 → left edges
+        //          x1=30, x1=70, x1=110 → right edges
+        let words = vec![
+            // Row 0
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 50.0, 10.0, 70.0, 22.0),
+            make_word("C", 90.0, 10.0, 110.0, 22.0),
+            // Row 1
+            make_word("D", 10.0, 30.0, 30.0, 42.0),
+            make_word("E", 50.0, 30.0, 70.0, 42.0),
+            make_word("F", 90.0, 30.0, 110.0, 42.0),
+            // Row 2
+            make_word("G", 10.0, 50.0, 30.0, 62.0),
+            make_word("H", 50.0, 50.0, 70.0, 62.0),
+            make_word("I", 90.0, 50.0, 110.0, 62.0),
+        ];
+
+        let settings = TableSettings {
+            strategy: Strategy::Stream,
+            min_words_vertical: 3,
+            min_words_horizontal: 3,
+            ..TableSettings::default()
+        };
+
+        let finder = TableFinder::new_with_words(vec![], words, settings);
+        let tables = finder.find_tables();
+
+        // Should detect at least one table
+        assert!(!tables.is_empty(), "Stream strategy should detect a table");
+
+        // The table should have cells
+        assert!(
+            !tables[0].cells.is_empty(),
+            "Table should have detected cells"
+        );
+    }
+
+    #[test]
+    fn test_stream_strategy_with_no_words() {
+        // Empty words → no synthetic edges → no tables
+        let settings = TableSettings {
+            strategy: Strategy::Stream,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new_with_words(vec![], vec![], settings);
+        let tables = finder.find_tables();
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_stream_edge_source_is_stream() {
+        // All synthetic edges from Stream should have EdgeSource::Stream
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 10.0, 30.0, 35.0, 42.0),
+            make_word("C", 10.0, 50.0, 40.0, 62.0),
+        ];
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        for edge in &edges {
+            assert_eq!(
+                edge.source,
+                EdgeSource::Stream,
+                "All stream edges should have EdgeSource::Stream"
+            );
+        }
+    }
+
+    #[test]
+    fn test_stream_strategy_min_words_horizontal_default() {
+        // Default min_words_horizontal=1 means even a single row produces horizontal edges
+        let words = vec![
+            make_word("A", 10.0, 10.0, 30.0, 22.0),
+            make_word("B", 50.0, 10.0, 70.0, 22.0),
+            make_word("C", 90.0, 10.0, 110.0, 22.0),
+        ];
+        // min_words_horizontal=1 means each group of 1+ word at same y produces horizontal edges
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+
+        let h_edges: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect();
+        assert!(
+            !h_edges.is_empty(),
+            "min_words_horizontal=1 should produce horizontal edges for 3 aligned words"
+        );
     }
 }
