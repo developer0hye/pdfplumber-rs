@@ -14,7 +14,7 @@ use crate::cmap::CMap;
 use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
-use crate::handler::{CharEvent, ContentHandler, ImageEvent};
+use crate::handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 use crate::interpreter_state::InterpreterState;
 use crate::lopdf_backend::object_to_f64;
 use crate::text_renderer::{
@@ -22,7 +22,7 @@ use crate::text_renderer::{
 };
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
-use pdfplumber_core::{ExtractOptions, ExtractWarning};
+use pdfplumber_core::{ExtractOptions, ExtractWarning, FillRule, PathBuilder};
 
 /// Cached font information for the interpreter.
 struct CachedFont {
@@ -75,6 +75,7 @@ pub(crate) fn interpret_content_stream(
 
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
+    let mut path_builder = PathBuilder::new(*gstate.ctm());
 
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
@@ -283,7 +284,169 @@ pub(crate) fn interpret_content_stream(
                 }
             }
 
-            // Other operators (paths, etc.) - not yet handled for this story
+            // --- Dash pattern operator ---
+            "d" => {
+                if op.operands.len() >= 2 {
+                    if let Operand::Array(ref arr) = op.operands[0] {
+                        let dash_array: Vec<f64> = arr
+                            .iter()
+                            .filter_map(|o| match o {
+                                Operand::Integer(i) => Some(*i as f64),
+                                Operand::Real(f) => Some(*f),
+                                _ => None,
+                            })
+                            .collect();
+                        let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
+                        gstate.set_dash_pattern(dash_array, phase);
+                    }
+                }
+            }
+
+            // --- Path construction operators ---
+            "m" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.move_to(x, y);
+                }
+            }
+            "l" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.line_to(x, y);
+                }
+            }
+            "c" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 6 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x2 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 4).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 5).unwrap_or(0.0);
+                    path_builder.curve_to(x1, y1, x2, y2, x3, y3);
+                }
+            }
+            "v" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 4 {
+                    let x2 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_v(x2, y2, x3, y3);
+                }
+            }
+            "y" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 4 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_y(x1, y1, x3, y3);
+                }
+            }
+            "h" => {
+                path_builder.close_path();
+            }
+            "re" => {
+                path_builder.set_ctm(*gstate.ctm());
+                if op.operands.len() >= 4 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let w = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let h = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.rectangle(x, y, w, h);
+                }
+            }
+
+            // --- Path painting operators ---
+            "S" => {
+                let painted = path_builder.stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
+            }
+            "s" => {
+                let painted = path_builder.close_and_stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
+            }
+            "f" | "F" => {
+                let painted = path_builder.fill(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::Fill,
+                    Some(FillRule::NonZeroWinding),
+                );
+            }
+            "f*" => {
+                let painted = path_builder.fill_even_odd(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::Fill,
+                    Some(FillRule::EvenOdd),
+                );
+            }
+            "B" => {
+                let painted = path_builder.fill_and_stroke(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::FillAndStroke,
+                    Some(FillRule::NonZeroWinding),
+                );
+            }
+            "B*" => {
+                let painted = path_builder.fill_even_odd_and_stroke(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::FillAndStroke,
+                    Some(FillRule::EvenOdd),
+                );
+            }
+            "b" => {
+                let painted = path_builder.close_fill_and_stroke(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::FillAndStroke,
+                    Some(FillRule::NonZeroWinding),
+                );
+            }
+            "b*" => {
+                let painted =
+                    path_builder.close_fill_even_odd_and_stroke(gstate.graphics_state());
+                emit_path_event(
+                    handler,
+                    gstate,
+                    &painted,
+                    PaintOp::FillAndStroke,
+                    Some(FillRule::EvenOdd),
+                );
+            }
+            "n" => {
+                // Discard path — no paint, no event
+                path_builder.end_path();
+            }
+
+            // --- Clipping operators (no-op for extraction) ---
+            "W" | "W*" => {}
+
+            // --- Marked content operators ---
+            "BMC" | "BDC" | "EMC" | "MP" | "DP" => {}
+
+            // Other operators — silently ignore
             _ => {}
         }
     }
@@ -326,6 +489,29 @@ fn operand_to_name(o: &Operand) -> String {
         Operand::Name(n) => n.clone(),
         _ => String::new(),
     }
+}
+
+/// Emit a PathEvent from a PaintedPath produced by the PathBuilder.
+fn emit_path_event(
+    handler: &mut dyn ContentHandler,
+    gstate: &InterpreterState,
+    painted: &pdfplumber_core::PaintedPath,
+    paint_op: PaintOp,
+    fill_rule: Option<FillRule>,
+) {
+    if painted.path.segments.is_empty() {
+        return;
+    }
+    handler.on_path_painted(PathEvent {
+        segments: painted.path.segments.clone(),
+        paint_op,
+        line_width: painted.line_width,
+        stroking_color: Some(painted.stroke_color.clone()),
+        non_stroking_color: Some(painted.fill_color.clone()),
+        ctm: gstate.ctm_array(),
+        dash_pattern: Some(painted.dash_pattern.clone()),
+        fill_rule,
+    });
 }
 
 fn operand_to_string_bytes(o: &Operand) -> Option<&[u8]> {

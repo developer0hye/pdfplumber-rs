@@ -25,6 +25,8 @@ pub enum Operand {
     Boolean(bool),
     /// The null object.
     Null,
+    /// Dictionary object (`<< /Key value ... >>`).
+    Dictionary(Vec<(String, Operand)>),
 }
 
 /// A PDF content stream operator with its preceding operands.
@@ -76,14 +78,13 @@ pub fn tokenize(input: &[u8]) -> Result<Vec<Operator>, BackendError> {
             // Hex string
             b'<' => {
                 if pos + 1 < input.len() && input[pos + 1] == b'<' {
-                    // << is a dictionary start — not valid in content streams as operand,
-                    // but handle gracefully by treating as unknown token
-                    return Err(BackendError::Interpreter(
-                        "unexpected '<<' in content stream".to_string(),
-                    ));
+                    // << is a dictionary start — used by BDC and other operators
+                    let dict = parse_dictionary(input, &mut pos)?;
+                    operand_stack.push(Operand::Dictionary(dict));
+                } else {
+                    let s = parse_hex_string(input, &mut pos)?;
+                    operand_stack.push(Operand::HexString(s));
                 }
-                let s = parse_hex_string(input, &mut pos)?;
-                operand_stack.push(Operand::HexString(s));
             }
             // Array start
             b'[' => {
@@ -374,6 +375,83 @@ fn parse_array(input: &[u8], pos: &mut usize) -> Result<Vec<Operand>, BackendErr
                 )));
             }
         }
+    }
+}
+
+/// Parse a dictionary `<< /Key value ... >>`. Assumes current bytes are `<<`.
+fn parse_dictionary(input: &[u8], pos: &mut usize) -> Result<Vec<(String, Operand)>, BackendError> {
+    // Skip '<<'
+    *pos += 2;
+
+    let mut entries = Vec::new();
+
+    loop {
+        skip_whitespace_and_comments(input, pos);
+        if *pos >= input.len() {
+            return Err(BackendError::Interpreter(
+                "unterminated dictionary".to_string(),
+            ));
+        }
+
+        // Check for '>>'
+        if *pos + 1 < input.len() && input[*pos] == b'>' && input[*pos + 1] == b'>' {
+            *pos += 2; // skip '>>'
+            return Ok(entries);
+        }
+
+        // Parse key (must be a name)
+        if input[*pos] != b'/' {
+            return Err(BackendError::Interpreter(
+                "expected name key in dictionary".to_string(),
+            ));
+        }
+        let key = parse_name(input, pos);
+
+        // Parse value
+        skip_whitespace_and_comments(input, pos);
+        if *pos >= input.len() {
+            return Err(BackendError::Interpreter(
+                "unterminated dictionary value".to_string(),
+            ));
+        }
+
+        let value = parse_dictionary_value(input, pos)?;
+        entries.push((key, value));
+    }
+}
+
+/// Parse a single value inside a dictionary.
+fn parse_dictionary_value(input: &[u8], pos: &mut usize) -> Result<Operand, BackendError> {
+    let b = input[*pos];
+    match b {
+        b'/' => Ok(Operand::Name(parse_name(input, pos))),
+        b'(' => Ok(Operand::LiteralString(parse_literal_string(input, pos)?)),
+        b'<' => {
+            if *pos + 1 < input.len() && input[*pos + 1] == b'<' {
+                // Nested dictionary
+                Ok(Operand::Dictionary(parse_dictionary(input, pos)?))
+            } else {
+                Ok(Operand::HexString(parse_hex_string(input, pos)?))
+            }
+        }
+        b'[' => {
+            *pos += 1;
+            Ok(Operand::Array(parse_array(input, pos)?))
+        }
+        b'0'..=b'9' | b'+' | b'-' | b'.' => parse_number(input, pos),
+        b'a'..=b'z' | b'A'..=b'Z' => {
+            let kw = parse_keyword(input, pos);
+            match kw.as_str() {
+                "true" => Ok(Operand::Boolean(true)),
+                "false" => Ok(Operand::Boolean(false)),
+                "null" => Ok(Operand::Null),
+                _ => Ok(Operand::Name(kw)),
+            }
+        }
+        _ => Err(BackendError::Interpreter(format!(
+            "unexpected byte in dictionary value: 0x{:02X}",
+            b
+        ))),
     }
 }
 
@@ -1047,5 +1125,66 @@ mod tests {
         assert_eq!(ops.len(), 1);
         assert_eq!(ops[0].name, "Tj");
         assert_eq!(ops[0].operands.len(), 2);
+    }
+
+    // ---- Dictionary parsing tests ----
+
+    #[test]
+    fn parse_dictionary_operand() {
+        let ops = tokenize(b"<< /Type /Foo >> pop").unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_eq!(ops[0].name, "pop");
+        assert_eq!(
+            ops[0].operands,
+            vec![Operand::Dictionary(vec![(
+                "Type".to_string(),
+                Operand::Name("Foo".to_string())
+            )])]
+        );
+    }
+
+    #[test]
+    fn parse_bdc_with_inline_dict() {
+        let ops = tokenize(b"/Tag << /MCID 0 >> BDC").unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_eq!(ops[0].name, "BDC");
+        assert_eq!(ops[0].operands.len(), 2);
+        assert_eq!(ops[0].operands[0], Operand::Name("Tag".to_string()));
+        assert_eq!(
+            ops[0].operands[1],
+            Operand::Dictionary(vec![(
+                "MCID".to_string(),
+                Operand::Integer(0)
+            )])
+        );
+    }
+
+    #[test]
+    fn parse_nested_dictionary() {
+        let ops = tokenize(b"<< /Outer << /Inner 42 >> >> pop").unwrap();
+        assert_eq!(ops.len(), 1);
+        assert_eq!(
+            ops[0].operands,
+            vec![Operand::Dictionary(vec![(
+                "Outer".to_string(),
+                Operand::Dictionary(vec![(
+                    "Inner".to_string(),
+                    Operand::Integer(42)
+                )])
+            )])]
+        );
+    }
+
+    #[test]
+    fn parse_bdc_with_dict_in_content_stream() {
+        // Real-world pattern from SCOTUS PDFs
+        let stream = b"/P << /MCID 0 >> BDC\nBT\n/F1 12 Tf\nET\nEMC";
+        let ops = tokenize(stream).unwrap();
+        assert_eq!(ops.len(), 5);
+        assert_eq!(ops[0].name, "BDC");
+        assert_eq!(ops[1].name, "BT");
+        assert_eq!(ops[2].name, "Tf");
+        assert_eq!(ops[3].name, "ET");
+        assert_eq!(ops[4].name, "EMC");
     }
 }
