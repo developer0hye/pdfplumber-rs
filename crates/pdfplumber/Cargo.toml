@@ -8,10 +8,12 @@ description = "Extract chars, words, lines, rects, and tables from PDF documents
 
 [features]
 serde = ["pdfplumber-core/serde"]
+parallel = ["dep:rayon"]
 
 [dependencies]
 pdfplumber-core = { path = "../pdfplumber-core" }
 pdfplumber-parse = { path = "../pdfplumber-parse" }
+rayon = { version = "1.10", optional = true }
 
 [dev-dependencies]
 lopdf = "0.34"
