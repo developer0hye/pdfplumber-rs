@@ -1,84 +1,64 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/standard-font-widths",
+  "description": "Standard 14 Type1 Font Width Tables - Add built-in glyph width data for standard PDF fonts to fix char positioning in PDFs without embedded /Widths arrays",
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-103",
+      "title": "Create standard_fonts.rs with width tables for all 14 Standard Type1 fonts",
+      "description": "Create crates/pdfplumber-parse/src/standard_fonts.rs containing static [u16; 256] width arrays (in 1/1000 em-square units) for all 14 Standard Type1 fonts: Courier (4 variants), Helvetica (4 variants), Times-Roman (4 variants), Symbol, ZapfDingbats. Provide pub fn lookup(name: &str) -> Option<StandardFontData> that matches font names. Width data should be sourced from Adobe AFM specifications. Also add pub mod standard_fonts; to crates/pdfplumber-parse/src/lib.rs.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
-        "cargo test --workspace passes",
+        "Static width arrays exist for all 14 fonts: Courier, Courier-Bold, Courier-Oblique, Courier-BoldOblique, Helvetica, Helvetica-Bold, Helvetica-Oblique, Helvetica-BoldOblique, Times-Roman, Times-Bold, Times-Italic, Times-BoldItalic, Symbol, ZapfDingbats",
+        "Each width array is [u16; 256] indexed by char code",
+        "StandardFontData struct contains widths array and font_bbox",
+        "lookup() returns Some for all 14 standard font names, None for unknown fonts",
+        "Known width values match Adobe AFM: Helvetica 'A'(65)=667, space(32)=278, Courier 'A'(65)=600",
+        "All 4 Courier variants have uniform 600-unit widths (monospaced)",
+        "Module registered in lib.rs: pub mod standard_fonts",
+        "Unit tests verify: known widths, all 14 fonts present, unknown font returns None",
+        "cargo test -p pdfplumber-parse passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
+      "passes": false,
+      "notes": "Width data from Adobe AFM files. Courier is monospaced (all 600). Helvetica/Times are proportional. Key file to register module: crates/pdfplumber-parse/src/lib.rs."
     },
     {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
+      "id": "US-104",
+      "title": "Integrate standard font fallback in extract_font_metrics()",
+      "description": "In crates/pdfplumber-parse/src/font_metrics.rs, after the existing code determines widths is empty (around line 159), add a fallback that checks if the font's /BaseFont name matches a Standard 14 font via standard_fonts::lookup(). If matched, use the standard width array instead of falling back to DEFAULT_WIDTH=600.0. Handle subset-prefixed font names (ABCDEF+Helvetica) via crate::cid_font::strip_subset_prefix(). The FontDescriptor's ascent/descent/missing_width should override standard values if present; use standard font_bbox if FontDescriptor lacks one.",
       "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
+        "When /Widths array is absent and BaseFont is a standard font, uses standard widths instead of DEFAULT_WIDTH",
+        "PDFs with embedded /Widths arrays are completely unaffected (no behavior change)",
+        "Subset-prefixed fonts (ABCDEF+Helvetica) are handled via strip_subset_prefix()",
+        "FontDescriptor ascent/descent values override standard defaults when present",
+        "Standard font_bbox used as fallback when FontDescriptor bbox is absent",
+        "Integration test: create a minimal PDF with Helvetica (no /Widths), verify char widths are proportional not fixed",
+        "Existing font_metrics tests continue to pass",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
+      "passes": false,
+      "notes": "Key file: crates/pdfplumber-parse/src/font_metrics.rs. The fallback goes after line ~159 where empty widths is determined. Use crate::cid_font::strip_subset_prefix (at cid_font.rs:621) for subset prefix handling. parse_font_descriptor() already exists in font_metrics.rs."
     },
     {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
+      "id": "US-105",
+      "title": "Verify accuracy benchmark improvement for generated PDFs",
+      "description": "After implementing the standard font fallback, run the accuracy benchmark tests and verify that generated PDF F1 scores improve significantly. Update thresholds in crates/pdfplumber/tests/accuracy_benchmark.rs to reflect the improved accuracy. Generated PDFs (basic_text, multicolumn, multi_font, etc.) that currently score 0.01-0.71 should improve to near 1.0 since they all use standard Type1 fonts.",
       "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
+        "Run accuracy benchmark: cargo test -p pdfplumber --test accuracy_benchmark -- --nocapture",
+        "Generated PDF char F1 scores improve significantly (most should reach >0.90)",
+        "Generated PDF word F1 scores improve significantly",
+        "Real-world PDF scores (pdffill-demo, nics-firearm-checks) remain unchanged or improve",
+        "Accuracy benchmark test thresholds updated to new baselines with PRD targets as comments",
+        "All accuracy benchmark tests pass with updated thresholds",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
-    },
-    {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
-      "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "notes": "Accuracy benchmark test file: crates/pdfplumber/tests/accuracy_benchmark.rs (on feat/accuracy-benchmark branch, PR #125). Golden data in tests/fixtures/golden/. Current baselines: basic_text char=0.05, multicolumn char=0.10. These should jump to near 1.0."
     }
   ]
 }
