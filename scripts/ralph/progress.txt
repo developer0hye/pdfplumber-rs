@@ -54,3 +54,70 @@ Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
 - Files: `crates/pdfplumber-core/src/words.rs`, `crates/pdfplumber-core/src/text.rs`
 - No code changes needed — all quality checks pass
 ---
+
+## 2026-02-28 - US-021: Graphics path operators - m, l, c, v, y, h, re
+- Implementation already existed from phase 1
+- PathBuilder with all operators in `crates/pdfplumber-core/src/path.rs`
+- All 7 path operators implemented: move_to, line_to, curve_to, curve_to_v, curve_to_y, close_path, rectangle
+- CTM transformation applied to all coordinates
+- 25+ unit tests covering individual operators, combined paths, CTM transforms
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-022: Path painting operators - S, s, f, F, f*, B, B*, b, b*, n
+- Implementation already existed from phase 1
+- PaintedPath, FillRule, GraphicsState in `crates/pdfplumber-core/src/painting.rs`
+- All paint operators: stroke, close_and_stroke, fill, fill_even_odd, fill_and_stroke, fill_even_odd_and_stroke, close variants, end_path
+- 54 tests covering stroke-only, fill-only, both, clipping, graphics state
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-023: Line and Rect extraction from paths
+- Implementation already existed from phase 1
+- extract_shapes() in `crates/pdfplumber-core/src/shapes.rs`
+- Line/Rect/Curve structs, LineOrientation, axis-aligned rectangle detection
+- 32 tests covering horizontal/vertical/diagonal lines, rectangles from re and path segments
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-024: Curve extraction + Edge derivation
+- Implementation already existed from phase 1
+- Curve extraction in `crates/pdfplumber-core/src/shapes.rs`
+- Edge derivation in `crates/pdfplumber-core/src/edges.rs`: edge_from_line, edges_from_rect, edge_from_curve, derive_edges
+- EdgeSource enum tracks origin (Line, RectTop/Bottom/Left/Right, Curve)
+- 51 tests covering curve extraction, edge derivation from all sources
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-025: Page::lines()/rects()/curves()/edges()/images() API
+- Implementation already existed from phase 1
+- All accessors in `crates/pdfplumber/src/page.rs`: lines(), rects(), curves(), edges(), images()
+- Image struct with image_from_ctm() in `crates/pdfplumber-core/src/images.rs`
+- 34 tests covering all accessors and image extraction
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-026: Standard encodings - WinAnsi, MacRoman, Differences array
+- Implementation already existed from phase 1
+- EncodingResolver with 3-level resolution in `crates/pdfplumber-core/src/encoding.rs`
+- Full 256-entry tables: WinAnsi, MacRoman, MacExpert, Standard
+- FontEncoding with Differences array support
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-027: ExtGState (gs operator) - line width, dash pattern, opacity
+- Implementation already existed from phase 1
+- ExtGState, DashPattern, GraphicsState in `crates/pdfplumber-core/src/painting.rs`
+- apply_ext_gstate() and set_dash_pattern() methods
+- 54 tests covering gs/d operators with line width, dash pattern, opacity
+- No code changes needed — all quality checks pass
+---
+
+## 2026-02-28 - US-028: extract_text(layout=true) - reading order with TextBlocks
+- Implementation already existed from phase 1 (capstone story)
+- Layout pipeline in `crates/pdfplumber-core/src/layout.rs`: cluster_words_into_lines → split_lines_at_columns → cluster_lines_into_blocks → sort_blocks_reading_order → blocks_to_text
+- TextBlock, TextLine, TextOptions structs
+- Page::extract_text() with layout flag in `crates/pdfplumber/src/page.rs`
+- 37 tests covering single column, two-column, mixed blocks, reading order
+- No code changes needed — all quality checks pass
+---

@@ -74,8 +74,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. PathBuilder with all operators in crates/pdfplumber-core/src/path.rs, 25+ unit tests."
     },
     {
       "id": "US-022",
@@ -96,8 +96,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. PaintedPath in crates/pdfplumber-core/src/painting.rs, 54 tests."
     },
     {
       "id": "US-023",
@@ -115,8 +115,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. extract_shapes() in crates/pdfplumber-core/src/shapes.rs, 32 tests."
     },
     {
       "id": "US-024",
@@ -133,8 +133,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. Edge derivation in crates/pdfplumber-core/src/edges.rs, 51 tests."
     },
     {
       "id": "US-025",
@@ -152,8 +152,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. All accessors in crates/pdfplumber/src/page.rs, Image in crates/pdfplumber-core/src/images.rs, 34 tests."
     },
     {
       "id": "US-026",
@@ -171,8 +171,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 9,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. EncodingResolver in crates/pdfplumber-core/src/encoding.rs with full tables."
     },
     {
       "id": "US-027",
@@ -190,8 +190,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": "Dash patterns affect table detection quality."
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. ExtGState/DashPattern/GraphicsState in crates/pdfplumber-core/src/painting.rs, 54 tests."
     },
     {
       "id": "US-028",
@@ -210,8 +210,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 11,
-      "passes": false,
-      "notes": "This is the capstone story for Phase 2 text features."
+      "passes": true,
+      "notes": "Implementation already existed from phase 1. Layout pipeline in crates/pdfplumber-core/src/layout.rs, 37 tests. Capstone story complete."
     }
   ]
 }
