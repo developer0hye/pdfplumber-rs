@@ -1,6 +1,8 @@
 //! Top-level PDF document type for opening and extracting content.
 
-use pdfplumber_core::{Char, Ctm, ExtractOptions, Image, ImageMetadata, PdfError, image_from_ctm};
+use pdfplumber_core::{
+    Char, Ctm, ExtractOptions, ExtractWarning, Image, ImageMetadata, PdfError, image_from_ctm,
+};
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
     PathEvent, PdfBackend, char_from_event,
@@ -32,13 +34,19 @@ pub struct Pdf {
 struct CollectingHandler {
     chars: Vec<CharEvent>,
     images: Vec<ImageEvent>,
+    warnings: Vec<ExtractWarning>,
+    page_index: usize,
+    collect_warnings: bool,
 }
 
 impl CollectingHandler {
-    fn new() -> Self {
+    fn new(page_index: usize, collect_warnings: bool) -> Self {
         Self {
             chars: Vec::new(),
             images: Vec::new(),
+            warnings: Vec::new(),
+            page_index,
+            collect_warnings,
         }
     }
 }
@@ -55,6 +63,16 @@ impl ContentHandler for CollectingHandler {
 
     fn on_image(&mut self, event: ImageEvent) {
         self.images.push(event);
+    }
+
+    fn on_warning(&mut self, mut warning: ExtractWarning) {
+        if self.collect_warnings {
+            // Decorate warnings with page context
+            if warning.page.is_none() {
+                warning.page = Some(self.page_index);
+            }
+            self.warnings.push(warning);
+        }
     }
 }
 
@@ -146,7 +164,7 @@ impl Pdf {
         let geometry = PageGeometry::new(media_box, crop_box, rotation);
 
         // Interpret page content
-        let mut handler = CollectingHandler::new();
+        let mut handler = CollectingHandler::new(index, self.options.collect_warnings);
         LopdfBackend::interpret_page(&self.doc, &lopdf_page, &mut handler, &self.options)
             .map_err(PdfError::from)?;
 
@@ -195,6 +213,7 @@ impl Pdf {
             rotation,
             chars,
             images,
+            handler.warnings,
         ))
     }
 }
@@ -766,6 +785,100 @@ mod tests {
             // Compile-time assertion that Pdf can be shared across threads
             fn assert_sync<T: Sync>() {}
             assert_sync::<Pdf>();
+        }
+    }
+
+    // --- Warning collection tests ---
+
+    #[test]
+    fn page_has_empty_warnings_for_valid_pdf() {
+        let bytes = create_pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        // Valid PDF with proper font → no warnings
+        assert!(page.warnings().is_empty());
+    }
+
+    #[test]
+    fn page_collects_warnings_when_font_missing_from_resources() {
+        // Create PDF where the font reference F2 is not in resources
+        // The content references F2 but the PDF only defines F1
+        let bytes = create_pdf_with_content(b"BT /F2 12 Tf (X) Tj ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        // Should collect warnings about missing font
+        assert!(
+            !page.warnings().is_empty(),
+            "expected warnings for missing font"
+        );
+        assert!(page.warnings()[0].description.contains("font not found"));
+        assert_eq!(page.warnings()[0].page, Some(0));
+        assert_eq!(page.warnings()[0].font_name, Some("F2".to_string()));
+    }
+
+    #[test]
+    fn page_no_warnings_when_collection_disabled() {
+        let bytes = create_pdf_with_content(b"BT /F2 12 Tf (X) Tj ET");
+        let opts = ExtractOptions {
+            collect_warnings: false,
+            ..ExtractOptions::default()
+        };
+        let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        // Warnings suppressed → empty
+        assert!(page.warnings().is_empty());
+
+        // But characters should still be extracted
+        assert_eq!(page.chars().len(), 1);
+    }
+
+    #[test]
+    fn warnings_do_not_affect_char_extraction() {
+        let bytes = create_pdf_with_content(b"BT /F2 12 Tf (AB) Tj ET");
+
+        // With warnings
+        let pdf_on = Pdf::open(
+            &bytes,
+            Some(ExtractOptions {
+                collect_warnings: true,
+                ..ExtractOptions::default()
+            }),
+        )
+        .unwrap();
+        let page_on = pdf_on.page(0).unwrap();
+
+        // Without warnings
+        let pdf_off = Pdf::open(
+            &bytes,
+            Some(ExtractOptions {
+                collect_warnings: false,
+                ..ExtractOptions::default()
+            }),
+        )
+        .unwrap();
+        let page_off = pdf_off.page(0).unwrap();
+
+        // Same number of characters
+        assert_eq!(page_on.chars().len(), page_off.chars().len());
+        // Same char codes
+        for (a, b) in page_on.chars().iter().zip(page_off.chars().iter()) {
+            assert_eq!(a.char_code, b.char_code);
+            assert_eq!(a.text, b.text);
+        }
+    }
+
+    #[test]
+    fn warning_includes_page_number() {
+        let bytes = create_pdf_with_content(b"BT /F2 12 Tf (X) Tj ET");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        // Verify page number is set in warning
+        for w in page.warnings() {
+            assert_eq!(w.page, Some(0), "warning should have page context");
         }
     }
 }

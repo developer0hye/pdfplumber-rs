@@ -1,8 +1,8 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    BBox, Char, Curve, Edge, Image, Line, Rect, Table, TableFinder, TableSettings, TextOptions,
-    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    BBox, Char, Curve, Edge, ExtractWarning, Image, Line, Rect, Table, TableFinder, TableSettings,
+    TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, derive_edges, extract_text_for_cells, sort_blocks_reading_order,
     split_lines_at_columns, words_to_text,
 };
@@ -32,6 +32,8 @@ pub struct Page {
     curves: Vec<Curve>,
     /// Images extracted from Do operator (Image XObjects).
     images: Vec<Image>,
+    /// Non-fatal warnings collected during extraction.
+    warnings: Vec<ExtractWarning>,
 }
 
 impl Page {
@@ -47,6 +49,7 @@ impl Page {
             rects: Vec::new(),
             curves: Vec::new(),
             images: Vec::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -70,6 +73,7 @@ impl Page {
             rects,
             curves,
             images: Vec::new(),
+            warnings: Vec::new(),
         }
     }
 
@@ -95,6 +99,7 @@ impl Page {
             rects,
             curves,
             images,
+            warnings: Vec::new(),
         }
     }
 
@@ -102,6 +107,7 @@ impl Page {
     ///
     /// Used internally by [`Pdf::page()`](crate::Pdf::page) to construct pages
     /// from content stream interpretation.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_extraction(
         page_number: usize,
         width: f64,
@@ -109,6 +115,7 @@ impl Page {
         rotation: i32,
         chars: Vec<Char>,
         images: Vec<Image>,
+        warnings: Vec<ExtractWarning>,
     ) -> Self {
         Self {
             page_number,
@@ -120,6 +127,7 @@ impl Page {
             rects: Vec::new(),
             curves: Vec::new(),
             images,
+            warnings,
         }
     }
 
@@ -171,6 +179,18 @@ impl Page {
     /// Returns the images extracted from this page.
     pub fn images(&self) -> &[Image] {
         &self.images
+    }
+
+    /// Returns non-fatal warnings collected during page extraction.
+    ///
+    /// Warnings are purely informational and do not affect the correctness
+    /// of extracted content. They indicate best-effort degradation such as
+    /// missing font metrics or unresolvable resources.
+    ///
+    /// Warning collection is controlled by [`ExtractOptions::collect_warnings`].
+    /// When disabled, this returns an empty slice.
+    pub fn warnings(&self) -> &[ExtractWarning] {
+        &self.warnings
     }
 
     /// Compute edges from all geometric primitives (lines, rects, curves).
@@ -1185,5 +1205,26 @@ mod tests {
         let lattice_settings = TableSettings::default();
         let tables = page.find_tables(&lattice_settings);
         assert_eq!(tables.len(), 1);
+    }
+
+    // --- Warning accessor tests ---
+
+    #[test]
+    fn test_page_new_has_empty_warnings() {
+        let page = Page::new(0, 612.0, 792.0, vec![]);
+        assert!(page.warnings().is_empty());
+    }
+
+    #[test]
+    fn test_page_with_geometry_has_empty_warnings() {
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], vec![], vec![]);
+        assert!(page.warnings().is_empty());
+    }
+
+    #[test]
+    fn test_page_with_geometry_and_images_has_empty_warnings() {
+        let page =
+            Page::with_geometry_and_images(0, 612.0, 792.0, vec![], vec![], vec![], vec![], vec![]);
+        assert!(page.warnings().is_empty());
     }
 }
