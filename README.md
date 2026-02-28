@@ -1,5 +1,11 @@
 # pdfplumber-rs
 
+[![CI](https://github.com/developer0hye/pdfplumber-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/developer0hye/pdfplumber-rs/actions/workflows/ci.yml)
+[![crates.io](https://img.shields.io/crates/v/pdfplumber.svg)](https://crates.io/crates/pdfplumber)
+[![docs.rs](https://docs.rs/pdfplumber/badge.svg)](https://docs.rs/pdfplumber)
+[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://github.com/developer0hye/pdfplumber-rs)
+[![License](https://img.shields.io/crates/l/pdfplumber.svg)](https://github.com/developer0hye/pdfplumber-rs/blob/main/LICENSE)
+
 Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates.
 
 **pdfplumber-rs** is a Rust port of Python's [pdfplumber](https://github.com/jsvine/pdfplumber). It extracts structured content from PDF files with coordinate-accurate positioning, including characters, words, lines, rectangles, curves, images, and tables.
