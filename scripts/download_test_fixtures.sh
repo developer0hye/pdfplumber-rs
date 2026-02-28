@@ -3,7 +3,8 @@
 #
 # Sources:
 #   1. jsvine/pdfplumber (stable branch) - MIT license
-#   2. (Future: pdf.js, PDFBox, poppler - added by subsequent stories)
+#   2. mozilla/pdf.js (master branch) - Apache 2.0 license
+#   3. (Future: PDFBox, poppler - added by subsequent stories)
 #
 # Usage: ./scripts/download_test_fixtures.sh
 
@@ -89,6 +90,42 @@ download_pdfplumber_python() {
     echo ""
 }
 
+# Download CJK/encoding test PDFs from mozilla/pdf.js (master branch)
+download_pdfjs() {
+    echo "=== Downloading from mozilla/pdf.js (master) ==="
+    local dest_dir="$PDF_DIR/pdfjs"
+    mkdir -p "$dest_dir"
+
+    local base_url="https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs"
+
+    # Target PDFs for CJK and encoding testing
+    local pdfjs_files=(
+        "issue3521.pdf"
+        "noembed-eucjp.pdf"
+        "noembed-sjis.pdf"
+        "noembed-jis7.pdf"
+        "noembed-identity.pdf"
+        "noembed-identity-2.pdf"
+        "vertical.pdf"
+        "issue8570.pdf"
+        "ArabicCIDTrueType.pdf"
+        "cid_cff.pdf"
+        "text_clip_cff_cid.pdf"
+        "issue7696.pdf"
+        "issue4875.pdf"
+        "issue14117.pdf"
+        "issue9262_reduced.pdf"
+    )
+
+    local count=0
+    for filename in "${pdfjs_files[@]}"; do
+        download_file "$base_url/$filename" "$dest_dir/$filename" || true
+        count=$((count + 1))
+    done
+    echo "  Processed $count files from pdf.js"
+    echo ""
+}
+
 # Print summary
 print_summary() {
     echo "=== Summary ==="
@@ -107,6 +144,7 @@ main() {
     echo ""
 
     download_pdfplumber_python
+    download_pdfjs
 
     print_summary
 }

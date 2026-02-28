@@ -81,3 +81,19 @@ Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
   - Script design is modular with `download_pdfplumber_python()` function — easy to add `download_pdfjs()`, `download_pdfbox()`, `download_poppler()` for US-110/US-111
   - All 80 PDFs total on disk (4 pre-existing + 76 new)
 ---
+
+## 2026-03-01 - US-110
+- Added `download_pdfjs()` function to `scripts/download_test_fixtures.sh`
+- Downloads 15 CJK/encoding test PDFs from mozilla/pdf.js (master branch, test/pdfs/)
+- Target files: issue3521.pdf (GBKp-EUC-H Chinese), noembed-eucjp/sjis/jis7/identity/identity-2.pdf (Japanese encodings), vertical.pdf (CJK vertical writing), issue8570.pdf (Japanese), ArabicCIDTrueType.pdf, cid_cff.pdf, text_clip_cff_cid.pdf, issue7696.pdf, issue4875.pdf, issue14117.pdf, issue9262_reduced.pdf (5.3MB)
+- All 15 files placed in `crates/pdfplumber/tests/fixtures/pdfs/pdfjs/`
+- All files have valid %PDF- header and non-zero size
+- Script is idempotent (re-run skips existing files)
+- Files changed: `scripts/download_test_fixtures.sh` (updated), 15 new PDF fixtures, `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - pdf.js test PDFs exist directly in `test/pdfs/` (not as .link files) for the selected files
+  - Download URL: `https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/<filename>`
+  - issue9262_reduced.pdf is 5.3MB — largest fixture file
+  - 95 total PDFs on disk after this story
+---

@@ -36,7 +36,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "pdf.js repo: mozilla/pdf.js, branch: master. Files are in test/pdfs/ directory. Only download inline files (not .link files which reference external URLs that may be dead). License: Apache 2.0. Some files are large (issue9262_reduced.pdf is ~5.3MB) - include it but note the size."
     },
     {
