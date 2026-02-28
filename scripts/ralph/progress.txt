@@ -13,6 +13,7 @@
 - **Search pattern**: Text search follows: add types (SearchMatch, SearchOptions) + algorithm (search_chars) in pdfplumber-core/search.rs → add Page::search() delegating to search_chars → add Pdf::search_all() iterating pages. Algorithm: concatenate char texts, map byte offsets→char indices, run regex, compute union bbox from matched chars.
 - **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
 - **ExtractOptions pattern**: Document-level extraction settings go in ExtractOptions (set at Pdf::open() time, used during Pdf::page()). For text processing options (normalization, etc.), add field to ExtractOptions, apply in Pdf::page() after char creation. CLI: add separate clap ValueEnum arg type with conversion method, use open_pdf_with_norm() helper.
+- **Filter pattern**: Custom filtering follows: add PageObject enum in pdfplumber-core/page_object.rs → add Page::filter() and CroppedPage::filter() accepting Fn(&PageObject) -> bool → return CroppedPage with filtered objects (no coordinate adjustment). FilteredPage is a type alias for CroppedPage. Uses from_page_data() for Page, direct struct construction for CroppedPage.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -199,4 +200,22 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - CLI uses a separate UnicodeNormArg enum for clap ValueEnum, with to_unicode_norm() conversion method
   - open_pdf_with_norm() helper avoids modifying the existing open_pdf() signature
   - NFC composes decomposed chars (e + combining accent → é), NFKC additionally decomposes ligatures (ﬁ → fi) and fullwidth chars (Ａ → A)
+---
+
+## 2026-02-28 - US-066
+- Implemented custom object filtering with filter() method
+- Files changed:
+  - `crates/pdfplumber-core/src/page_object.rs` (NEW) — PageObject enum wrapping Char/Line/Rect/Curve/Image references
+  - `crates/pdfplumber-core/src/lib.rs` — Added page_object module and export
+  - `crates/pdfplumber/src/page.rs` — Added Page::filter() method
+  - `crates/pdfplumber/src/cropped_page.rs` — Added CroppedPage::filter() method for chaining
+  - `crates/pdfplumber/src/lib.rs` — Added FilteredPage type alias, re-exported PageObject
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 6 integration tests (font name, size, position, chained, extract_text, find_tables)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - filter() is a pure object-level operation — no backend trait changes needed, no coordinate adjustment
+  - PageObject uses lifetime references (`PageObject<'a>`) for zero-copy predicate inspection
+  - FilteredPage = CroppedPage type alias gives users a meaningful name while reusing all CroppedPage functionality
+  - Chaining works naturally: Page::filter() returns CroppedPage, CroppedPage::filter() returns CroppedPage
+  - Non-stroking colors are not populated in simple test PDFs (content stream interpreter limitation) — use position/font/size for test assertions instead
 ---
