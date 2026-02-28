@@ -139,3 +139,27 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - strip_markdown is a simple line-based approach — good enough for plain text generation
   - extract_title_from_markdown looks for first `# ` (H1) line only
 ---
+
+## 2026-03-01 - US-100 (Phase 13)
+- Implemented anytomd compatibility test suite with golden fixtures
+- 3 fixture categories: technical-doc (2 pages), business-report (1 page), mixed-language (1 page)
+- Each fixture: input.pdf + expected_markdown.md + expected_metadata.json
+- Golden tests compare convert_to_markdown() output against expected files
+- UPDATE_GOLDEN=1 env var regenerates expected files (verified in test)
+- Warning collection test: verifies warnings emitted for missing font reference
+- Image contract test: deterministic filenames, same input → same output
+- Strict mode test: warnings-as-errors behavior verified
+- Plain text output test: verifies no markdown markers in plain text
+- 10 golden tests total, all passing
+- Files changed:
+  - crates/pdfplumber/tests/anytomd_golden.rs (new — 10 golden tests + helpers)
+  - tests/anytomd/fixtures/technical-doc/{input.pdf, expected_markdown.md, expected_metadata.json}
+  - tests/anytomd/fixtures/business-report/{input.pdf, expected_markdown.md, expected_metadata.json}
+  - tests/anytomd/fixtures/mixed-language/{input.pdf, expected_markdown.md, expected_metadata.json}
+  - scripts/ralph/prd.json (US-100 passes: true)
+- **Learnings for future iterations:**
+  - Programmatic PDF creation via lopdf works well for controlled test fixtures
+  - Markdown renderer may split large-font words into separate headings — test for content presence, not exact formatting
+  - Golden test pattern: generate → compare (or write if UPDATE_GOLDEN=1) is simple and effective
+  - serde_json is already a dev-dependency in pdfplumber crate — can use for metadata JSON files
+---
