@@ -425,3 +425,153 @@ fn info_exit_code_zero_on_success() {
         .success()
         .code(0);
 }
+
+// --- Metadata tests (US-058) ---
+
+/// Create a PDF with metadata in the /Info dictionary.
+fn pdf_with_metadata_fields() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    // Add /Info dictionary
+    let info_dict = dictionary! {
+        "Title" => Object::string_literal("CLI Test Document"),
+        "Author" => Object::string_literal("Test Author"),
+        "Subject" => Object::string_literal("Testing CLI metadata"),
+        "Keywords" => Object::string_literal("cli, test"),
+        "Creator" => Object::string_literal("TestCreator"),
+        "Producer" => Object::string_literal("TestProducer"),
+        "CreationDate" => Object::string_literal("D:20240101120000Z"),
+        "ModDate" => Object::string_literal("D:20240615153000Z"),
+    };
+    let info_id = doc.add_object(Object::Dictionary(info_dict));
+    doc.trailer.set("Info", Object::Reference(info_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn info_text_shows_metadata() {
+    let pdf_bytes = pdf_with_metadata_fields();
+    let f = write_temp_pdf(&pdf_bytes);
+
+    cmd()
+        .args(["info", f.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Metadata:"))
+        .stdout(predicate::str::contains("Title: CLI Test Document"))
+        .stdout(predicate::str::contains("Author: Test Author"))
+        .stdout(predicate::str::contains("Subject: Testing CLI metadata"))
+        .stdout(predicate::str::contains("Keywords: cli, test"))
+        .stdout(predicate::str::contains("Creator: TestCreator"))
+        .stdout(predicate::str::contains("Producer: TestProducer"))
+        .stdout(predicate::str::contains("CreationDate: D:20240101120000Z"))
+        .stdout(predicate::str::contains("ModDate: D:20240615153000Z"));
+}
+
+#[test]
+fn info_text_no_metadata_section_when_empty() {
+    let pdf_bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let f = write_temp_pdf(&pdf_bytes);
+
+    cmd()
+        .args(["info", f.path().to_str().unwrap()])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Metadata:").not());
+}
+
+#[test]
+fn info_json_includes_metadata() {
+    let pdf_bytes = pdf_with_metadata_fields();
+    let f = write_temp_pdf(&pdf_bytes);
+
+    let output = cmd()
+        .args(["info", f.path().to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let meta = &v["metadata"];
+    assert!(meta.is_object(), "metadata should be a JSON object");
+    assert_eq!(meta["title"].as_str(), Some("CLI Test Document"));
+    assert_eq!(meta["author"].as_str(), Some("Test Author"));
+    assert_eq!(meta["subject"].as_str(), Some("Testing CLI metadata"));
+    assert_eq!(meta["keywords"].as_str(), Some("cli, test"));
+    assert_eq!(meta["creator"].as_str(), Some("TestCreator"));
+    assert_eq!(meta["producer"].as_str(), Some("TestProducer"));
+    assert_eq!(meta["creation_date"].as_str(), Some("D:20240101120000Z"));
+    assert_eq!(meta["mod_date"].as_str(), Some("D:20240615153000Z"));
+}
+
+#[test]
+fn info_json_empty_metadata_when_no_info() {
+    let pdf_bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let f = write_temp_pdf(&pdf_bytes);
+
+    let output = cmd()
+        .args(["info", f.path().to_str().unwrap(), "--format", "json"])
+        .output()
+        .unwrap();
+
+    assert!(output.status.success());
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let meta = &v["metadata"];
+    assert!(
+        meta.is_object(),
+        "metadata should be present as empty object"
+    );
+    assert_eq!(meta.as_object().unwrap().len(), 0);
+}

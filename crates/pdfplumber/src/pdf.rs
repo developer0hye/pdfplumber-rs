@@ -1,7 +1,8 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Char, Ctm, ExtractOptions, ExtractWarning, Image, ImageMetadata, PdfError, image_from_ctm,
+    Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageMetadata, PdfError,
+    image_from_ctm,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -59,6 +60,8 @@ pub struct Pdf {
     page_heights: Vec<f64>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
+    /// Cached document metadata from the /Info dictionary.
+    metadata: DocumentMetadata,
 }
 
 /// Internal handler that collects content stream events during interpretation.
@@ -164,17 +167,30 @@ impl Pdf {
             raw_page_heights.push(media_box.height());
         }
 
+        // Extract document metadata
+        let metadata = LopdfBackend::document_metadata(&doc).map_err(PdfError::from)?;
+
         Ok(Self {
             doc,
             options,
             page_heights,
             raw_page_heights,
+            metadata,
         })
     }
 
     /// Return the number of pages in the document.
     pub fn page_count(&self) -> usize {
         LopdfBackend::page_count(&self.doc)
+    }
+
+    /// Return the document metadata from the PDF /Info dictionary.
+    ///
+    /// Returns a reference to the cached [`DocumentMetadata`] containing
+    /// title, author, subject, keywords, creator, producer, and dates.
+    /// Fields not present in the PDF are `None`.
+    pub fn metadata(&self) -> &DocumentMetadata {
+        &self.metadata
     }
 
     /// Return a streaming iterator over all pages in the document.

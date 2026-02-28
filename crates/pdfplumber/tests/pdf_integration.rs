@@ -5,7 +5,7 @@
 //!
 //! Test PDFs are created programmatically using lopdf.
 
-use pdfplumber::{ExtractOptions, Pdf, TextOptions, WordOptions};
+use pdfplumber::{DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions};
 
 // --- Test PDF creation helpers ---
 
@@ -311,4 +311,151 @@ fn end_to_end_tj_array_kerning() {
     assert_eq!(chars.len(), 5);
     let text: String = chars.iter().map(|c| c.text.as_str()).collect();
     assert_eq!(text, "Hello");
+}
+
+// --- Metadata tests (US-058) ---
+
+/// Create a PDF with /Info metadata dictionary.
+fn pdf_with_metadata(
+    title: Option<&str>,
+    author: Option<&str>,
+    subject: Option<&str>,
+    keywords: Option<&str>,
+    creator: Option<&str>,
+    producer: Option<&str>,
+    creation_date: Option<&str>,
+    mod_date: Option<&str>,
+) -> Vec<u8> {
+    use lopdf::{Object, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = lopdf::Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    // Build /Info dictionary
+    let mut info_dict = lopdf::Dictionary::new();
+    if let Some(v) = title {
+        info_dict.set("Title", Object::string_literal(v));
+    }
+    if let Some(v) = author {
+        info_dict.set("Author", Object::string_literal(v));
+    }
+    if let Some(v) = subject {
+        info_dict.set("Subject", Object::string_literal(v));
+    }
+    if let Some(v) = keywords {
+        info_dict.set("Keywords", Object::string_literal(v));
+    }
+    if let Some(v) = creator {
+        info_dict.set("Creator", Object::string_literal(v));
+    }
+    if let Some(v) = producer {
+        info_dict.set("Producer", Object::string_literal(v));
+    }
+    if let Some(v) = creation_date {
+        info_dict.set("CreationDate", Object::string_literal(v));
+    }
+    if let Some(v) = mod_date {
+        info_dict.set("ModDate", Object::string_literal(v));
+    }
+
+    let info_id = doc.add_object(Object::Dictionary(info_dict));
+    doc.trailer.set("Info", Object::Reference(info_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn metadata_full_fields() {
+    let bytes = pdf_with_metadata(
+        Some("My Document"),
+        Some("Jane Smith"),
+        Some("A test PDF"),
+        Some("rust, pdf, test"),
+        Some("Writer"),
+        Some("pdfplumber-rs"),
+        Some("D:20240101120000+00'00'"),
+        Some("D:20240615153000+00'00'"),
+    );
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let meta = pdf.metadata();
+
+    assert_eq!(meta.title.as_deref(), Some("My Document"));
+    assert_eq!(meta.author.as_deref(), Some("Jane Smith"));
+    assert_eq!(meta.subject.as_deref(), Some("A test PDF"));
+    assert_eq!(meta.keywords.as_deref(), Some("rust, pdf, test"));
+    assert_eq!(meta.creator.as_deref(), Some("Writer"));
+    assert_eq!(meta.producer.as_deref(), Some("pdfplumber-rs"));
+    assert_eq!(
+        meta.creation_date.as_deref(),
+        Some("D:20240101120000+00'00'")
+    );
+    assert_eq!(meta.mod_date.as_deref(), Some("D:20240615153000+00'00'"));
+    assert!(!meta.is_empty());
+}
+
+#[test]
+fn metadata_partial_fields() {
+    let bytes = pdf_with_metadata(Some("Title Only"), None, None, None, None, None, None, None);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let meta = pdf.metadata();
+
+    assert_eq!(meta.title.as_deref(), Some("Title Only"));
+    assert_eq!(meta.author, None);
+    assert_eq!(meta.subject, None);
+    assert!(!meta.is_empty());
+}
+
+#[test]
+fn metadata_no_info_dictionary() {
+    // Regular PDF without /Info dictionary
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let meta = pdf.metadata();
+
+    assert!(meta.is_empty());
+    assert_eq!(*meta, DocumentMetadata::default());
 }

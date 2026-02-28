@@ -3,7 +3,7 @@
 //! Defines the [`PdfBackend`] trait that abstracts PDF parsing operations.
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
-use pdfplumber_core::{BBox, ExtractOptions, PdfError};
+use pdfplumber_core::{BBox, DocumentMetadata, ExtractOptions, PdfError};
 
 use crate::handler::ContentHandler;
 
@@ -85,6 +85,17 @@ pub trait PdfBackend {
     ///
     /// Returns an error if the Rotate entry exists but is malformed.
     fn page_rotate(doc: &Self::Document, page: &Self::Page) -> Result<i32, Self::Error>;
+
+    /// Extract document-level metadata from the PDF /Info dictionary.
+    ///
+    /// Returns a [`DocumentMetadata`] containing title, author, subject,
+    /// keywords, creator, producer, creation date, and modification date.
+    /// Fields not present in the PDF are returned as `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the /Info dictionary exists but is malformed.
+    fn document_metadata(doc: &Self::Document) -> Result<DocumentMetadata, Self::Error>;
 
     /// Interpret the page's content stream, calling back into the handler.
     ///
@@ -215,6 +226,10 @@ mod tests {
 
         fn page_rotate(doc: &Self::Document, page: &Self::Page) -> Result<i32, Self::Error> {
             Ok(doc.pages[page.index].rotate)
+        }
+
+        fn document_metadata(_doc: &Self::Document) -> Result<DocumentMetadata, Self::Error> {
+            Ok(DocumentMetadata::default())
         }
 
         fn interpret_page(
