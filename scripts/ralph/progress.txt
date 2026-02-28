@@ -62,3 +62,20 @@ Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
   - `page.crop(bbox)` automatically adjusts coordinates relative to crop origin — perfect for extracting region text
   - `detect_page_regions` is a pure function on text data, making it easy to unit test without PDF fixtures
 ---
+
+## 2026-03-01 - US-095
+- **What was implemented**: Multi-column layout reading order improvement. Added `ColumnMode` enum (None, Auto, Explicit), `column_mode`, `min_column_gap`, `max_columns` fields to `TextOptions`. Implemented `detect_columns()` for automatic column boundary detection via word gap clustering. Implemented `sort_blocks_column_order()` that detects multi-column regions by vertical overlap analysis and sorts blocks column-by-column within those regions. Full-width elements (headings spanning multiple columns) act as section separators. Wired into `Page::extract_text()` and `CroppedPage::extract_text()`.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/layout.rs` — ColumnMode enum, detect_columns(), sort_blocks_column_order(), column_index(), new TextOptions fields. 17 new unit tests (column detection, column sorting, end-to-end)
+  - `crates/pdfplumber-core/src/lib.rs` — Re-exports for ColumnMode, detect_columns, sort_blocks_column_order
+  - `crates/pdfplumber/src/page.rs` — Column-aware extract_text() using ColumnMode
+  - `crates/pdfplumber/src/cropped_page.rs` — Column-aware extract_text() using ColumnMode
+  - `crates/pdfplumber/src/lib.rs` — Re-exports for ColumnMode, detect_columns, sort_blocks_column_order
+  - `scripts/ralph/prd.json` — marked US-095 as passes: true
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Column detection clusters inter-word gaps within lines and merges positionally similar gaps into boundaries
+  - Multi-column region detection via vertical overlap: a block is in a multi-column region if blocks in other columns overlap vertically
+  - Standalone blocks (no vertical overlap with other columns) act as section separators — they maintain natural reading order
+  - The section-based approach handles heading-columns-footer patterns without needing explicit full-width detection
+---

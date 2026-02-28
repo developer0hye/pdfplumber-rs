@@ -1,13 +1,13 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, FormField, HtmlOptions,
-    HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject,
-    PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
+    Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExtractWarning, FormField,
+    HtmlOptions, HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer,
+    PageObject, PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
     TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
     cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    duplicate_merged_content_in_table, extract_text_for_cells, search_chars,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    detect_columns, duplicate_merged_content_in_table, extract_text_for_cells, search_chars,
+    sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -372,7 +372,21 @@ impl Page {
         let lines = cluster_words_into_lines(&words, options.y_tolerance);
         let split = split_lines_at_columns(lines, options.x_density);
         let mut blocks = cluster_lines_into_blocks(split, options.y_density);
-        sort_blocks_reading_order(&mut blocks, options.x_density);
+
+        match &options.column_mode {
+            ColumnMode::None => {
+                sort_blocks_reading_order(&mut blocks, options.x_density);
+            }
+            ColumnMode::Auto => {
+                let boundaries =
+                    detect_columns(&words, options.min_column_gap, options.max_columns);
+                sort_blocks_column_order(&mut blocks, &boundaries);
+            }
+            ColumnMode::Explicit(boundaries) => {
+                sort_blocks_column_order(&mut blocks, boundaries);
+            }
+        }
+
         blocks_to_text(&blocks)
     }
 
