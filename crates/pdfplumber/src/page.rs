@@ -2,8 +2,8 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, Hyperlink, Image, Line,
-    Rect, SearchMatch, SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word,
-    WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    PageObject, Rect, SearchMatch, SearchOptions, Table, TableFinder, TableSettings, TextOptions,
+    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
     sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
@@ -432,6 +432,63 @@ impl Page {
     /// Coordinates are adjusted relative to the bbox origin.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
+    }
+
+    /// Return a filtered view retaining only objects that match the predicate.
+    ///
+    /// The predicate receives a [`PageObject`] reference for each object on
+    /// the page (characters, lines, rectangles, curves, images). Objects for
+    /// which the predicate returns `true` are kept; all others are removed.
+    ///
+    /// The original page is not modified. The returned [`FilteredPage`] (a
+    /// type alias for [`CroppedPage`]) supports the same query methods
+    /// (`chars()`, `extract_text()`, `find_tables()`, etc.) and can be
+    /// filtered again for composable filtering.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// // Keep only characters with size > 14pt, plus all non-char objects
+    /// let big = page.filter(|obj| match obj {
+    ///     PageObject::Char(c) => c.size > 14.0,
+    ///     _ => true,
+    /// });
+    /// ```
+    pub fn filter<F>(&self, predicate: F) -> CroppedPage
+    where
+        F: Fn(&PageObject<'_>) -> bool,
+    {
+        let chars: Vec<Char> = self
+            .chars
+            .iter()
+            .filter(|c| predicate(&PageObject::Char(c)))
+            .cloned()
+            .collect();
+        let lines: Vec<Line> = self
+            .lines
+            .iter()
+            .filter(|l| predicate(&PageObject::Line(l)))
+            .cloned()
+            .collect();
+        let rects: Vec<Rect> = self
+            .rects
+            .iter()
+            .filter(|r| predicate(&PageObject::Rect(r)))
+            .cloned()
+            .collect();
+        let curves: Vec<Curve> = self
+            .curves
+            .iter()
+            .filter(|c| predicate(&PageObject::Curve(c)))
+            .cloned()
+            .collect();
+        let images: Vec<Image> = self
+            .images
+            .iter()
+            .filter(|i| predicate(&PageObject::Image(i)))
+            .cloned()
+            .collect();
+        from_page_data(self.width, self.height, chars, lines, rects, curves, images)
     }
 
     /// Remove duplicate overlapping characters, returning a new page view.

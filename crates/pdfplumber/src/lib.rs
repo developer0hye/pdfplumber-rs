@@ -96,12 +96,19 @@ mod pdf;
 pub use cropped_page::CroppedPage;
 pub use page::Page;
 pub use pdf::{PagesIter, Pdf};
+
+/// A page view produced by [`Page::filter`] or [`CroppedPage::filter`].
+///
+/// `FilteredPage` is a type alias for [`CroppedPage`] — it supports all the
+/// same query methods (`chars()`, `extract_text()`, `find_tables()`, etc.)
+/// and can be filtered again for composable filtering chains.
+pub type FilteredPage = CroppedPage;
 pub use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, Cell, Char, Color, Ctm, Curve, DashPattern,
     DedupeOptions, DocumentMetadata, Edge, EdgeSource, EncodingResolver, ExplicitLines, ExtGState,
     ExtractOptions, ExtractResult, ExtractWarning, FillRule, FontEncoding, GraphicsState,
-    Hyperlink, Image, ImageMetadata, Intersection, Line, LineOrientation, Orientation, PaintedPath,
-    Path, PathBuilder, PathSegment, PdfError, Point, Rect, SearchMatch, SearchOptions,
+    Hyperlink, Image, ImageMetadata, Intersection, Line, LineOrientation, Orientation, PageObject,
+    PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, Rect, SearchMatch, SearchOptions,
     StandardEncoding, Strategy, Table, TableFinder, TableSettings, TextBlock, TextDirection,
     TextLine, TextOptions, UnicodeNorm, Word, WordExtractor, WordOptions, blocks_to_text,
     cells_to_tables, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,

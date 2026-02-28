@@ -5,10 +5,10 @@
 //! Coordinates are adjusted relative to the crop origin.
 
 use pdfplumber_core::{
-    BBox, Char, Curve, DedupeOptions, Edge, Image, Line, Rect, Table, TableFinder, TableSettings,
-    TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    BBox, Char, Curve, DedupeOptions, Edge, Image, Line, PageObject, Rect, Table, TableFinder,
+    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
+    extract_text_for_cells, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A spatially filtered view of a PDF page.
@@ -136,6 +136,55 @@ impl CroppedPage {
     /// Return objects fully outside the bbox.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
+    }
+
+    /// Return a filtered view retaining only objects that match the predicate.
+    ///
+    /// Enables composable filtering: `page.filter(f1).filter(f2)`.
+    /// See [`crate::Page::filter`] for details.
+    pub fn filter<F>(&self, predicate: F) -> CroppedPage
+    where
+        F: Fn(&PageObject<'_>) -> bool,
+    {
+        let chars: Vec<Char> = self
+            .chars
+            .iter()
+            .filter(|c| predicate(&PageObject::Char(c)))
+            .cloned()
+            .collect();
+        let lines: Vec<Line> = self
+            .lines
+            .iter()
+            .filter(|l| predicate(&PageObject::Line(l)))
+            .cloned()
+            .collect();
+        let rects: Vec<Rect> = self
+            .rects
+            .iter()
+            .filter(|r| predicate(&PageObject::Rect(r)))
+            .cloned()
+            .collect();
+        let curves: Vec<Curve> = self
+            .curves
+            .iter()
+            .filter(|c| predicate(&PageObject::Curve(c)))
+            .cloned()
+            .collect();
+        let images: Vec<Image> = self
+            .images
+            .iter()
+            .filter(|i| predicate(&PageObject::Image(i)))
+            .cloned()
+            .collect();
+        CroppedPage {
+            width: self.width,
+            height: self.height,
+            chars,
+            lines,
+            rects,
+            curves,
+            images,
+        }
     }
 
     /// Remove duplicate overlapping characters, returning a new view.

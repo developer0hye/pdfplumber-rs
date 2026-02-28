@@ -170,7 +170,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "May require refactoring CroppedPage and FilteredPage to share a common trait or use a unified page view abstraction."
     }
   ]

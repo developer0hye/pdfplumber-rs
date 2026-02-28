@@ -6,8 +6,8 @@
 //! Test PDFs are created programmatically using lopdf.
 
 use pdfplumber::{
-    AnnotationType, Bookmark, DedupeOptions, DocumentMetadata, ExtractOptions, Pdf, SearchOptions,
-    TextOptions, UnicodeNorm, WordOptions,
+    AnnotationType, Bookmark, DedupeOptions, DocumentMetadata, ExtractOptions, PageObject, Pdf,
+    SearchOptions, TextOptions, UnicodeNorm, WordOptions,
 };
 
 // --- Test PDF creation helpers ---
@@ -1558,4 +1558,191 @@ fn unicode_norm_none_preserves_original_text() {
     assert_eq!(page.chars().len(), 2);
     assert_eq!(page.chars()[0].text, "A");
     assert_eq!(page.chars()[1].text, "B");
+}
+
+// ---- US-066: Custom object filtering ----
+
+#[test]
+fn filter_by_font_name_keeps_matching_chars() {
+    // Create a PDF with two fonts: F1 (Helvetica) and F2 (Courier)
+    let bytes =
+        pdf_with_two_fonts(b"BT /F1 12 Tf 72 720 Td (AB) Tj /F2 12 Tf 72 700 Td (CD) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // All 4 chars present before filter
+    assert_eq!(page.chars().len(), 4);
+
+    // Filter to keep only Helvetica chars (and all non-char objects)
+    let filtered = page.filter(|obj| match obj {
+        PageObject::Char(c) => c.fontname.contains("Helvetica"),
+        _ => true,
+    });
+
+    // Only the 2 Helvetica chars should remain
+    assert_eq!(filtered.chars().len(), 2);
+    assert_eq!(filtered.chars()[0].text, "A");
+    assert_eq!(filtered.chars()[1].text, "B");
+}
+
+#[test]
+fn filter_by_size_keeps_large_chars() {
+    // Create a PDF with two font sizes: 12pt and 24pt
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (AB) Tj /F1 24 Tf 72 680 Td (XY) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert_eq!(page.chars().len(), 4);
+
+    // Filter to keep only chars with size > 20
+    let filtered = page.filter(|obj| match obj {
+        PageObject::Char(c) => c.size > 20.0,
+        _ => true,
+    });
+
+    assert_eq!(filtered.chars().len(), 2);
+    assert_eq!(filtered.chars()[0].text, "X");
+    assert_eq!(filtered.chars()[1].text, "Y");
+}
+
+#[test]
+fn filter_by_position_keeps_matching_chars() {
+    // Create a PDF with two lines of text at different y positions
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (AB) Tj 0 -20 Td (CD) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert_eq!(page.chars().len(), 4);
+
+    // Filter to keep only chars in the upper region (top < 80)
+    // In top-left origin: first line at y=72 (792-720), second at y=92 (792-700)
+    let filtered = page.filter(|obj| match obj {
+        PageObject::Char(c) => c.bbox.top < 80.0,
+        _ => true,
+    });
+
+    assert_eq!(filtered.chars().len(), 2);
+    assert_eq!(filtered.chars()[0].text, "A");
+    assert_eq!(filtered.chars()[1].text, "B");
+}
+
+#[test]
+fn filter_chained_filters_compose() {
+    // Create a PDF with two font sizes
+    let bytes =
+        pdf_with_content(b"BT /F1 12 Tf 72 720 Td (ABCD) Tj /F1 24 Tf 72 680 Td (EFGH) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert_eq!(page.chars().len(), 8);
+
+    // First filter: keep only chars (remove everything else)
+    let filtered1 = page.filter(|obj| matches!(obj, PageObject::Char(_)));
+    assert_eq!(filtered1.chars().len(), 8);
+
+    // Second filter: keep only large chars
+    let filtered2 = filtered1.filter(|obj| match obj {
+        PageObject::Char(c) => c.size > 20.0,
+        _ => false,
+    });
+
+    assert_eq!(filtered2.chars().len(), 4);
+    assert_eq!(filtered2.chars()[0].text, "E");
+}
+
+#[test]
+fn filter_preserves_extract_text() {
+    let bytes =
+        pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj /F1 24 Tf 72 700 Td (World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // Filter to keep only large chars
+    let filtered = page.filter(|obj| match obj {
+        PageObject::Char(c) => c.size > 20.0,
+        _ => true,
+    });
+
+    let text = filtered.extract_text(&TextOptions::default());
+    assert_eq!(text, "World");
+}
+
+#[test]
+fn filter_preserves_find_tables() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (AB) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // Filter keeping everything should not break find_tables
+    let filtered = page.filter(|_| true);
+    let tables = filtered.find_tables(&pdfplumber::TableSettings::default());
+    // No tables in a simple text PDF
+    assert!(tables.is_empty());
+}
+
+/// Helper: create a single-page PDF with two fonts (F1=Helvetica, F2=Courier).
+fn pdf_with_two_fonts(content: &[u8]) -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font1_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let font2_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Courier",
+    });
+
+    let stream = Stream::new(dictionary! {}, content.to_vec());
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! {
+            "F1" => Object::Reference(font1_id),
+            "F2" => Object::Reference(font2_id),
+        },
+    };
+
+    let media_box = vec![
+        Object::Integer(0),
+        Object::Integer(0),
+        Object::Integer(612),
+        Object::Integer(792),
+    ];
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => media_box,
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    // Set parent
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Object::Dictionary(d) = page_obj {
+            d.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
 }
