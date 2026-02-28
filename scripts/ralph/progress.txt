@@ -42,3 +42,15 @@ Started: 2026년  2월 28일 토요일 09시 02분 42초 KST
 - **Learnings for future iterations:**
   - Confirmed phase 1 built ahead pattern continues
 ---
+
+## 2026-02-28 - US-020: CJK word grouping - character-width-based tolerance
+- Implementation already existed from phase 1
+- Verified all acceptance criteria against existing code:
+  - CJK detection by Unicode range: `is_cjk()` in `crates/pdfplumber-core/src/text.rs` covers CJK Unified Ideographs, Hiragana, Katakana, Hangul, and more
+  - Character width-based tolerance: `effective_x_tolerance()` in `crates/pdfplumber-core/src/words.rs` uses char width for CJK
+  - Mixed CJK + Latin: `test_japanese_mixed_text`, `test_mixed_cjk_latin_with_gap`, `test_cjk_transition_to_latin_uses_cjk_tolerance`
+  - Vertical writing mode: `test_vertical_text_chinese`, `test_vertical_text_two_columns`, `test_vertical_text_with_gap`
+  - Chinese: `test_chinese_text_grouping`, Japanese: `test_japanese_mixed_text`, Korean: `test_korean_text_grouping`
+- Files: `crates/pdfplumber-core/src/words.rs`, `crates/pdfplumber-core/src/text.rs`
+- No code changes needed — all quality checks pass
+---
