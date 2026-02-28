@@ -57,7 +57,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Accuracy benchmark test file: crates/pdfplumber/tests/accuracy_benchmark.rs (on feat/accuracy-benchmark branch, PR #125). Golden data in tests/fixtures/golden/. Current baselines: basic_text char=0.05, multicolumn char=0.10. These should jump to near 1.0."
     }
   ]

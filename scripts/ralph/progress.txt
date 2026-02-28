@@ -11,6 +11,7 @@ Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
 - Standard font fallback: `lookup_standard_font(font_dict)` in `font_metrics.rs` — reads `/BaseFont`, strips subset prefix, looks up standard widths
 - When standard font matched: widths cover codes 0-255, `first_char=0`, `last_char=255`; descriptor values override standard defaults
 - pdfplumber-py tests SIGABRT on macOS (pre-existing, unrelated to standard font work)
+- Accuracy benchmark: `crates/pdfplumber/tests/accuracy_benchmark.rs`, golden data in `tests/fixtures/golden/`; aggregate F1: chars=0.991, words=0.994
 
 ---
 
@@ -41,4 +42,25 @@ Started: 2026년  3월  1일 일요일 04시 55분 12초 KST
   - Standard font fallback improves text grouping quality — proportional widths produce correct x-positions for word boundary detection
   - `lopdf::Object::as_name()` returns `&[u8]`, needs `std::str::from_utf8()` conversion
   - Existing tests may break when behavior changes are intentional improvements — update assertions to match new correct behavior
+---
+
+## 2026-03-01 - US-105
+- Ran accuracy benchmark after standard font integration — dramatic improvements across all generated PDFs
+- Updated thresholds in `crates/pdfplumber/tests/accuracy_benchmark.rs` to reflect new baselines
+- Results summary:
+  - basic_text: F1 0.05→1.000, multicolumn: 0.15→1.000, table_lattice: 0.40→1.000
+  - table_borderless: 0.40→1.000, table_merged_cells: 0.60→1.000, cjk_mixed: 0.05→1.000
+  - long_document: 0.10→1.000, annotations_links: 0.05→1.000
+  - multi_font: 0.05→0.588 (non-standard fonts), rotated_pages: 0.01→0.241 (rotation gap)
+  - nics-firearm-checks: 0.80→1.000, scotus-transcript: now parses (F1=0.999), pdffill-demo: 1.000
+  - Aggregate: chars F1=0.991, words F1=0.994 (exceeds PRD target of 0.95)
+- 10/12 PDFs now meet PRD char/word F1>=0.95 target; remaining gaps are multi_font and rotated_pages
+- scotus-transcript now parses successfully — updated test from graceful skip to assertion
+- Files changed: `crates/pdfplumber/tests/accuracy_benchmark.rs`, `scripts/ralph/prd.json`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Standard font width tables are the single biggest accuracy lever for generated PDFs
+  - multi_font.pdf uses non-standard fonts — needs embedded font metrics or extended font tables
+  - Rotation coordinate transforms remain a separate problem from font metrics
+  - scotus-transcript parsing was fixed at some point — always re-test known failures
 ---
