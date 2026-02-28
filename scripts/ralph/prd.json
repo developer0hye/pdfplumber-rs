@@ -52,8 +52,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Cross-validation test file: crates/pdfplumber/tests/cross_validation.rs. Golden data: crates/pdfplumber/tests/fixtures/golden/nics-background-checks-2015-11.json. Current status: chars=100%, words=100%, lines=100%, rects=100%, tables=6.8%."
+      "passes": true,
+      "notes": "Cross-validation test file: crates/pdfplumber/tests/cross_validation.rs. Golden data: crates/pdfplumber/tests/fixtures/golden/nics-background-checks-2015-11.json. Current status: chars=100%, words=100%, lines=100%, rects=100%, tables=100%."
     }
   ]
 }

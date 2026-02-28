@@ -8,8 +8,8 @@ use pdfplumber_core::{
     BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, Image, Line, PageObject, Rect, Table,
     TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
     cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, extract_text_for_cells, sort_blocks_column_order, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    detect_columns, extract_text_for_cells, normalize_table_columns, sort_blocks_column_order,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A spatially filtered view of a PDF page.
@@ -134,6 +134,12 @@ impl CroppedPage {
                 extract_text_for_cells(col, &self.chars);
             }
         }
+
+        // Normalize merged cells: split wide cells into uniform grid columns
+        tables = tables
+            .into_iter()
+            .map(|t| normalize_table_columns(&t))
+            .collect();
 
         tables
     }
