@@ -8,6 +8,7 @@
 - **Width function pattern**: The interpreter creates a width closure `get_width_fn(cached)` that dispatches to CID or simple metrics.
 - **CMap types**: `CMap` maps char_code→Unicode string (for ToUnicode). `CidCMap` maps char_code→CID (for predefined CMaps).
 - **Type0 font loading flow**: `is_type0_font()` → `get_descendant_font()` → `extract_cid_font_metrics()` → stores in `CachedFont.cid_metrics`.
+- **Spatial filtering pattern**: `PageData` trait provides shared access to page data (chars, lines, rects, curves, images). Both `Page` and `CroppedPage` implement it. `filter_and_build()` takes `&dyn PageData` + `BBox` + `FilterMode` to produce a `CroppedPage`. Coordinates adjusted by subtracting crop origin.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
@@ -40,4 +41,17 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - Subset fonts follow strict pattern: exactly 6 uppercase letters + '+' + real name
   - Identity-H and Identity-V map CID = character code directly; difference is writing mode (0=horizontal, 1=vertical)
   - `is_some_and()` is a clean pattern for checking Option fields on borrowed references
+---
+
+## 2026-02-28 - US-042
+- Implemented spatial filtering: crop, within_bbox, outside_bbox
+- New file: `crates/pdfplumber/src/cropped_page.rs` — CroppedPage struct with full query API (chars, lines, rects, curves, images, edges, extract_words, extract_text, find_tables), filtering helpers (passes_filter, bbox_center, point_in_bbox, fully_within, fully_outside), coordinate adjustment, chained filtering support
+- Modified: `crates/pdfplumber/src/page.rs` — Added crop(), within_bbox(), outside_bbox() methods to Page; implemented PageData trait for Page
+- Modified: `crates/pdfplumber/src/lib.rs` — Registered cropped_page module, exported CroppedPage
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Used `PageData` trait to share filtering logic between Page and CroppedPage (both can be filtered further)
+  - Crop uses center-point test, within_bbox uses full containment, outside_bbox uses no-overlap
+  - Coordinate adjustment: subtract crop bbox origin (dx, dy) from all coordinates including curve pts and char doctop
+  - CroppedPage carries same query API as Page for seamless use in pipelines
 ---
