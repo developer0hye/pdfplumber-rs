@@ -1,7 +1,7 @@
 use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 
-use pdfplumber::{Pdf, TextDirection};
+use pdfplumber::{ExtractOptions, Pdf, TextDirection, UnicodeNorm};
 
 use crate::page_range::parse_page_range;
 
@@ -10,12 +10,22 @@ use crate::page_range::parse_page_range;
 /// Returns `Err(1)` with a message printed to stderr if the file is not found
 /// or cannot be parsed as a valid PDF.
 pub fn open_pdf(file: &Path) -> Result<Pdf, i32> {
+    open_pdf_with_norm(file, None)
+}
+
+/// Open a PDF file with optional Unicode normalization.
+pub fn open_pdf_with_norm(file: &Path, unicode_norm: Option<UnicodeNorm>) -> Result<Pdf, i32> {
     if !file.exists() {
         eprintln!("Error: file not found: {}", file.display());
         return Err(1);
     }
 
-    Pdf::open_file(file, None).map_err(|e| {
+    let options = unicode_norm.map(|norm| ExtractOptions {
+        unicode_norm: norm,
+        ..ExtractOptions::default()
+    });
+
+    Pdf::open_file(file, options).map_err(|e| {
         eprintln!("Error: failed to open PDF: {e}");
         1
     })

@@ -7,6 +7,8 @@
 
 use std::fmt;
 
+use crate::unicode_norm::UnicodeNorm;
+
 /// Fatal error types for PDF processing.
 ///
 /// These errors indicate conditions that prevent further processing
@@ -197,6 +199,8 @@ pub struct ExtractOptions {
     pub max_stream_bytes: usize,
     /// Whether to collect warnings during extraction (default: true).
     pub collect_warnings: bool,
+    /// Unicode normalization form to apply to extracted character text (default: None).
+    pub unicode_norm: UnicodeNorm,
 }
 
 impl Default for ExtractOptions {
@@ -206,6 +210,7 @@ impl Default for ExtractOptions {
             max_objects_per_page: 100_000,
             max_stream_bytes: 100 * 1024 * 1024,
             collect_warnings: true,
+            unicode_norm: UnicodeNorm::None,
         }
     }
 }
@@ -213,6 +218,7 @@ impl Default for ExtractOptions {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::unicode_norm::UnicodeNorm;
 
     // --- PdfError tests ---
 
@@ -404,6 +410,7 @@ mod tests {
         assert_eq!(opts.max_objects_per_page, 100_000);
         assert_eq!(opts.max_stream_bytes, 100 * 1024 * 1024);
         assert!(opts.collect_warnings);
+        assert_eq!(opts.unicode_norm, UnicodeNorm::None);
     }
 
     #[test]
@@ -413,6 +420,7 @@ mod tests {
             max_objects_per_page: 50_000,
             max_stream_bytes: 10 * 1024 * 1024,
             collect_warnings: false,
+            unicode_norm: UnicodeNorm::None,
         };
         assert_eq!(opts.max_recursion_depth, 5);
         assert_eq!(opts.max_objects_per_page, 50_000);

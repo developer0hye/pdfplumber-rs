@@ -15,6 +15,7 @@ serde = ["dep:serde"]
 [dependencies]
 regex = "1"
 serde = { version = "1.0", features = ["derive"], optional = true }
+unicode-normalization = "0.1"
 
 [dev-dependencies]
 serde_json = "1.0"
