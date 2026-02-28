@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Add to pdfplumber-parse for extraction, expose via pdfplumber facade. Reference: pypdf PdfReader.metadata, PyMuPDF Document.metadata."
     },
     {

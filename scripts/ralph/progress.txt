@@ -1,35 +1,30 @@
 ## Codebase Patterns
-- Workspace root Cargo.toml has `members` array for all crates
-- Each crate uses `edition.workspace = true`, `rust-version.workspace = true`, `license.workspace = true`, `repository.workspace = true`
-- Facade crate (`pdfplumber`) re-exports from `pdfplumber-core` and `pdfplumber-parse`
-- Page API: `Pdf::open_file(path, None)`, `pdf.page(idx)`, `pdf.pages_iter()`, `pdf.page_count()`
-- Page methods: `page.chars()`, `page.extract_words(opts)`, `page.extract_text(opts)`, `page.find_tables(settings)`
-- Char fields: text, fontname, size, x0, top, x1, bottom, doctop, upright, direction
-- Word fields: text, x0, top, x1, bottom, doctop, direction
-- Table has `rows: Vec<Vec<Cell>>`, Cell has `text: Option<String>`
-- Integration tests in `crates/pdfplumber/tests/` use real PDFs from `tests/fixtures/`
-- CLI crate uses `assert_cmd` and `predicates` for integration tests
-- CLI integration tests use `lopdf` + `tempfile` to create PDF fixtures on disk
-- Page range parsing: `parse_page_range("1,3-5", page_count)` → 0-indexed `Vec<usize>`
-- Text command pattern: `text_cmd::run(file, pages, format, layout) -> Result<(), i32>`
-- Chars command pattern: `chars_cmd::run(file, pages, format) -> Result<(), i32>`
-- Words command pattern: `words_cmd::run(file, pages, format, x_tolerance, y_tolerance) -> Result<(), i32>`
-- Char bbox accessed via `ch.bbox.x0`, `ch.bbox.top`, etc. (BBox struct wraps coordinates)
-- `page.chars()` returns `&[Char]` (reference to slice), iterate with `for ch in chars` not `&chars`
-- Tables command pattern: `tables_cmd::run(file, pages, format, strategy, snap, join, text_tol) -> Result<(), i32>`
-- `page.find_tables(&settings)` returns `Vec<Table>`, Table has `bbox`, `rows`, `cells`, `columns`
-- Table.rows is `Vec<Vec<Cell>>`, Cell has `text: Option<String>` and `bbox: BBox`
-- Strategy/TableSettings re-exported from pdfplumber facade crate
-- Info command pattern: `info_cmd::run(file, pages, format) -> Result<(), i32>`
-- Page dimension/count API: `page.width()`, `page.height()`, `page.rotation()`, `page.chars().len()`, `page.lines().len()`, `page.rects().len()`, `page.curves().len()`, `page.images().len()`
-- Shared utilities in `shared.rs`: `open_pdf`, `resolve_pages`, `direction_str`, `csv_escape`, `ProgressReporter`
-- ProgressReporter: `new(total)`, `report(current)`, `finish()` — only prints to stderr when TTY
-- `Pdf` doesn't implement `Debug` — can't use `unwrap_err()` on `Result<Pdf, i32>`
+
+- **PdfBackend trait pattern**: Document-level features add a method to `PdfBackend` trait, implement in `LopdfBackend`, cache result in `Pdf` struct on open, expose via accessor method.
+- **Test PDF creation**: Use `lopdf::Document::with_version("1.5")` and `doc.add_object()` to build test PDFs programmatically. Set trailer entries for document-level features.
+- **String extraction from lopdf**: Use `Object::String(bytes, _)` matching. Handle UTF-16 BE (BOM 0xFE 0xFF) and Latin-1/UTF-8 fallback. Resolve indirect references before reading.
+- **CLI info output**: Text format prints sections with println!, JSON format builds serde_json::Value and prints pretty. New document-level data goes in both formats.
 
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
+Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
 ---
 
-# Ralph Progress Log - Phase 6: Feature Parity - Metadata, Annotations, Bookmarks, Search, Dedup, Unicode Norm
-Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
+## 2026-02-28 - US-058
+- Implemented PDF document metadata access
+- Files changed:
+  - `crates/pdfplumber-core/src/metadata.rs` (NEW) — DocumentMetadata struct
+  - `crates/pdfplumber-core/src/lib.rs` — Added metadata module and export
+  - `crates/pdfplumber-parse/src/backend.rs` — Added `document_metadata()` to PdfBackend trait
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — Implemented metadata extraction from /Info dictionary
+  - `crates/pdfplumber/src/pdf.rs` — Added metadata field to Pdf struct, caches on open
+  - `crates/pdfplumber/src/lib.rs` — Re-exported DocumentMetadata
+  - `crates/pdfplumber-cli/src/info_cmd.rs` — Added metadata display (text + JSON formats)
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests
+  - `crates/pdfplumber-cli/tests/info_cmd.rs` — 4 CLI tests
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - lopdf /Info dictionary is accessed via `doc.trailer.get(b"Info")` → Reference → Dictionary
+  - PDF strings may be UTF-16 BE with BOM (0xFE 0xFF) — must handle encoding
+  - `Object::string_literal()` creates PDF string objects in lopdf for test PDFs
+  - Document-level features follow pattern: trait method → backend impl → Pdf facade cache + accessor
 ---
