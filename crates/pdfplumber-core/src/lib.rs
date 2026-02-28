@@ -95,8 +95,9 @@ pub use html::{HtmlOptions, HtmlRenderer};
 pub use hyperlink::Hyperlink;
 pub use images::{Image, ImageContent, ImageFilter, ImageFormat, ImageMetadata, image_from_ctm};
 pub use layout::{
-    TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    ColumnMode, TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, detect_columns, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 pub use markdown::{MarkdownOptions, MarkdownRenderer};
 pub use metadata::DocumentMetadata;

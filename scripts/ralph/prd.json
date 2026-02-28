@@ -80,7 +80,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 89,
       "notes": "Important for academic papers, newsletters, and magazine-style layouts."
     }
