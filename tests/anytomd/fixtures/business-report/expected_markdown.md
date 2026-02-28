@@ -1,8 +1,4 @@
-## Q4
-
-## Financial
-
-## Summary
+## Q4 Financial Summary
 
 Revenue increased by 15% year-over-year.
 Operating margin improved to 22%.
