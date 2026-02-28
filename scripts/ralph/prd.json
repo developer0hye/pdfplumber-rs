@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 101,
       "notes": "Foundation for anytomd integration — enables downstream policy handling of extraction issues."
     },

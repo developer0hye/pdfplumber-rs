@@ -1,21 +1,30 @@
-## Codebase Patterns
-- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
-- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
-- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
-- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
-- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
-- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
-- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
-- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
-- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
-- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
-- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
-- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
-- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
-- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
-
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 04시 01분 36초 KST
 ---
 
-# Ralph Progress Log - Phase 13: anytomd Integration - Markdown API, Warning Taxonomy, Resource Budgets, Image Naming
-Started: 2026년  3월  1일 일요일 04시 01분 35초 KST
+## Codebase Patterns
+- Warning types are in `crates/pdfplumber-core/src/error.rs` — ExtractWarning, ExtractWarningCode, ExtractOptions, PdfError
+- Re-exports from `crates/pdfplumber-core/src/lib.rs`
+- Warning emission sites are in `crates/pdfplumber-parse/src/interpreter.rs` (3 font-related sites)
+- serde support uses conditional derive: `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]`
+- All ExtractOptions struct literals in tests use `..ExtractOptions::default()` spread, so adding new fields with defaults is backward-compatible
+- pdfplumber-py tests fail in local env due to missing libpython3.11.dylib — pre-existing issue, skip with `-p` flags
+---
+
+## 2026-03-01 - US-096
+- Implemented ExtractWarningCode enum: MissingFont, UnsupportedOperator, MalformedObject, ResourceLimitReached, EncodingFallback, Other(String)
+- ExtractWarning gained `code` field, Display format changed to `[CODE] message (page N)`
+- ExtractOptions gained `strict_mode` (bool, default false)
+- All 3 interpreter warning emission sites updated to use MissingFont code
+- Added set_code() builder and to_error() for strict mode escalation
+- serde serialization with tagged enum for ExtractWarningCode
+- 15 new tests, all passing (42 total in error module)
+- Files changed:
+  - crates/pdfplumber-core/src/error.rs (main implementation + tests)
+  - crates/pdfplumber-core/src/lib.rs (re-export ExtractWarningCode)
+  - crates/pdfplumber-parse/src/interpreter.rs (import + warning code updates)
+- **Learnings for future iterations:**
+  - Existing constructors (new, on_page, with_context, with_operator_context) default to Other code
+  - Use set_code() builder pattern to override after construction
+  - Existing tests check .description field, not Display output, so Display format changes don't break them
 ---
