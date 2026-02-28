@@ -1,0 +1,314 @@
+//! Integration tests for the Pdf public API (US-017).
+//!
+//! These tests exercise the full end-to-end pipeline:
+//! PDF bytes → Pdf::open → Page → chars/extract_text.
+//!
+//! Test PDFs are created programmatically using lopdf.
+
+use pdfplumber::{ExtractOptions, Pdf, TextOptions, WordOptions};
+
+// --- Test PDF creation helpers ---
+
+/// Create a single-page PDF with the given content stream.
+fn pdf_with_content(content: &[u8]) -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(dictionary! {}, content.to_vec());
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! {
+            "F1" => Object::Reference(font_id),
+        },
+    };
+
+    let media_box = vec![
+        Object::Integer(0),
+        Object::Integer(0),
+        Object::Integer(612),
+        Object::Integer(792),
+    ];
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => media_box,
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+/// Create a multi-page PDF. Each page has a single line of text.
+fn pdf_with_pages(texts: &[&str]) -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let media_box = vec![
+        Object::Integer(0),
+        Object::Integer(0),
+        Object::Integer(612),
+        Object::Integer(792),
+    ];
+
+    let mut page_ids = Vec::new();
+    for text in texts {
+        let content_str = format!("BT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+        let stream = Stream::new(dictionary! {}, content_str.into_bytes());
+        let content_id = doc.add_object(stream);
+
+        let resources = dictionary! {
+            "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+        };
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => media_box.clone(),
+            "Contents" => Object::Reference(content_id),
+            "Resources" => resources,
+        };
+        page_ids.push(doc.add_object(page_dict));
+    }
+
+    let kids: Vec<Object> = page_ids.iter().map(|id| Object::Reference(*id)).collect();
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => kids,
+        "Count" => Object::Integer(texts.len() as i64),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    for &pid in &page_ids {
+        if let Ok(page_obj) = doc.get_object_mut(pid) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+// --- End-to-end integration tests ---
+
+#[test]
+fn end_to_end_single_page_hello_world() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello World) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+
+    // Document level
+    assert_eq!(pdf.page_count(), 1);
+
+    // Page level
+    let page = pdf.page(0).unwrap();
+    assert_eq!(page.page_number(), 0);
+    assert_eq!(page.width(), 612.0);
+    assert_eq!(page.height(), 792.0);
+    assert_eq!(page.rotation(), 0);
+
+    // Page bbox
+    let bbox = page.bbox();
+    assert_eq!(bbox.x0, 0.0);
+    assert_eq!(bbox.top, 0.0);
+    assert_eq!(bbox.x1, 612.0);
+    assert_eq!(bbox.bottom, 792.0);
+
+    // Characters
+    let chars = page.chars();
+    assert_eq!(chars.len(), 11); // "Hello World" = 11 chars
+
+    // Verify character content
+    let text_from_chars: String = chars.iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(text_from_chars, "Hello World");
+
+    // Characters should have positive-sized bounding boxes
+    for ch in chars {
+        assert!(ch.bbox.width() > 0.0, "char '{}' has zero width", ch.text);
+        assert!(ch.bbox.height() > 0.0, "char '{}' has zero height", ch.text);
+    }
+
+    // Words
+    let words = page.extract_words(&WordOptions::default());
+    assert_eq!(words.len(), 2);
+    assert_eq!(words[0].text, "Hello");
+    assert_eq!(words[1].text, "World");
+
+    // Text extraction (layout=false)
+    let text = page.extract_text(&TextOptions::default());
+    assert_eq!(text, "Hello World");
+}
+
+#[test]
+fn end_to_end_multiline_text() {
+    // Three lines of text
+    let content =
+        b"BT /F1 12 Tf 72 720 Td (Line One) Tj 0 -20 Td (Line Two) Tj 0 -20 Td (Line Three) Tj ET";
+    let bytes = pdf_with_content(content);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // Should produce three separate lines in text
+    let text = page.extract_text(&TextOptions::default());
+    let lines: Vec<&str> = text.lines().collect();
+    assert_eq!(lines.len(), 3);
+    assert_eq!(lines[0], "Line One");
+    assert_eq!(lines[1], "Line Two");
+    assert_eq!(lines[2], "Line Three");
+}
+
+#[test]
+fn end_to_end_multi_page_document() {
+    let bytes = pdf_with_pages(&["Page One", "Page Two", "Page Three"]);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+
+    assert_eq!(pdf.page_count(), 3);
+
+    // Each page should have its text
+    for (i, expected) in ["Page One", "Page Two", "Page Three"].iter().enumerate() {
+        let page = pdf.page(i).unwrap();
+        assert_eq!(page.page_number(), i);
+        let text = page.extract_text(&TextOptions::default());
+        assert_eq!(text.trim(), *expected);
+    }
+}
+
+#[test]
+fn end_to_end_doctop_across_pages() {
+    let bytes = pdf_with_pages(&["Hello", "World"]);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+
+    let page0 = pdf.page(0).unwrap();
+    let page1 = pdf.page(1).unwrap();
+
+    let char0 = &page0.chars()[0]; // 'H' on page 0
+    let char1 = &page1.chars()[0]; // 'W' on page 1
+
+    // Both at same position on their respective pages
+    assert!((char0.bbox.top - char1.bbox.top).abs() < 0.01);
+
+    // doctop for page 1 chars should be offset by page 0's height
+    let expected_doctop = char1.bbox.top + page0.height();
+    assert!(
+        (char1.doctop - expected_doctop).abs() < 0.01,
+        "doctop ({}) should be bbox.top ({}) + page_height ({})",
+        char1.doctop,
+        char1.bbox.top,
+        page0.height()
+    );
+}
+
+#[test]
+fn end_to_end_character_coordinates_are_reasonable() {
+    // Place text at known position: (72, 720) in PDF coords
+    // With page height 792, y-flip gives top ≈ 72 in display coords
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (X) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let ch = &page.chars()[0];
+    assert_eq!(ch.text, "X");
+    assert_eq!(ch.fontname, "Helvetica");
+    assert_eq!(ch.size, 12.0);
+    assert!(ch.upright);
+
+    // x0 should be at approximately 72 (text position)
+    assert!((ch.bbox.x0 - 72.0).abs() < 1.0);
+    // top should be near 72 (792 - 720 = 72, minus ascent adjustment)
+    assert!(ch.bbox.top > 50.0 && ch.bbox.top < 80.0);
+}
+
+#[test]
+fn end_to_end_empty_page() {
+    let bytes = pdf_with_content(b"");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert!(page.chars().is_empty());
+    assert_eq!(page.extract_text(&TextOptions::default()), "");
+    assert!(page.extract_words(&WordOptions::default()).is_empty());
+}
+
+#[test]
+fn end_to_end_page_out_of_range() {
+    let bytes = pdf_with_content(b"BT ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    assert!(pdf.page(1).is_err());
+    assert!(pdf.page(999).is_err());
+}
+
+#[test]
+fn end_to_end_invalid_pdf_bytes() {
+    assert!(Pdf::open(b"garbage", None).is_err());
+    assert!(Pdf::open(b"", None).is_err());
+}
+
+#[test]
+fn end_to_end_with_custom_options() {
+    let bytes = pdf_with_content(b"BT /F1 12 Tf (Test) Tj ET");
+    let opts = ExtractOptions {
+        max_recursion_depth: 3,
+        max_objects_per_page: 50_000,
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+    assert_eq!(page.chars().len(), 4); // T, e, s, t
+}
+
+#[test]
+fn end_to_end_tj_array_kerning() {
+    // TJ operator with kerning adjustments
+    let content = b"BT /F1 12 Tf [(H) -20 (e) -10 (llo)] TJ ET";
+    let bytes = pdf_with_content(content);
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let chars = page.chars();
+    assert_eq!(chars.len(), 5);
+    let text: String = chars.iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(text, "Hello");
+}

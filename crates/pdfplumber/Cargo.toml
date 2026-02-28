@@ -9,3 +9,6 @@ description = "Extract chars, words, lines, rects, and tables from PDF documents
 [dependencies]
 pdfplumber-core = { path = "../pdfplumber-core" }
 pdfplumber-parse = { path = "../pdfplumber-parse" }
+
+[dev-dependencies]
+lopdf = "0.34"
