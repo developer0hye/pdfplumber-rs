@@ -5,7 +5,9 @@
 //!
 //! Test PDFs are created programmatically using lopdf.
 
-use pdfplumber::{AnnotationType, DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions};
+use pdfplumber::{
+    AnnotationType, Bookmark, DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions,
+};
 
 // --- Test PDF creation helpers ---
 
@@ -1034,4 +1036,253 @@ fn hyperlink_page_with_no_links() {
     let page = pdf.page(0).unwrap();
 
     assert!(page.hyperlinks().is_empty());
+}
+
+// --- Bookmark tests (US-062) ---
+
+/// Create a PDF with multi-level bookmarks (outlines).
+fn pdf_with_bookmarks() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    // Create 3 pages
+    let media_box = vec![
+        Object::Integer(0),
+        Object::Integer(0),
+        Object::Integer(612),
+        Object::Integer(792),
+    ];
+
+    let mut page_ids = Vec::new();
+    for text in &["Chapter 1", "Section 1.1", "Chapter 2"] {
+        let content_str = format!("BT /F1 12 Tf 72 720 Td ({text}) Tj ET");
+        let stream = Stream::new(dictionary! {}, content_str.into_bytes());
+        let content_id = doc.add_object(stream);
+
+        let resources = dictionary! {
+            "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+        };
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => media_box.clone(),
+            "Contents" => Object::Reference(content_id),
+            "Resources" => resources,
+        };
+        page_ids.push(doc.add_object(page_dict));
+    }
+
+    let kids: Vec<Object> = page_ids.iter().map(|id| Object::Reference(*id)).collect();
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => kids,
+        "Count" => Object::Integer(3),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    for &pid in &page_ids {
+        if let Ok(page_obj) = doc.get_object_mut(pid) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+    }
+
+    // Create outline entries (bottom-up to reference children)
+    // Section 1.1 → child of Chapter 1, links to page 2
+    let section_id = doc.add_object(dictionary! {
+        "Title" => Object::string_literal("Section 1.1"),
+        "Dest" => vec![
+            Object::Reference(page_ids[1]),
+            Object::Name(b"XYZ".to_vec()),
+            Object::Integer(0),
+            Object::Integer(700),
+            Object::Integer(0),
+        ],
+    });
+
+    // Chapter 1 → links to page 1, has child Section 1.1
+    let ch1_id = doc.add_object(dictionary! {
+        "Title" => Object::string_literal("Chapter 1"),
+        "First" => Object::Reference(section_id),
+        "Last" => Object::Reference(section_id),
+        "Count" => Object::Integer(1),
+        "Dest" => vec![
+            Object::Reference(page_ids[0]),
+            Object::Name(b"Fit".to_vec()),
+        ],
+    });
+
+    // Chapter 2 → links to page 3
+    let ch2_id = doc.add_object(dictionary! {
+        "Title" => Object::string_literal("Chapter 2"),
+        "Dest" => vec![
+            Object::Reference(page_ids[2]),
+            Object::Name(b"XYZ".to_vec()),
+            Object::Null,
+            Object::Integer(792),
+            Object::Null,
+        ],
+    });
+
+    // Set parent/sibling links
+    if let Ok(obj) = doc.get_object_mut(section_id) {
+        if let Ok(dict) = obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(ch1_id));
+        }
+    }
+    if let Ok(obj) = doc.get_object_mut(ch1_id) {
+        if let Ok(dict) = obj.as_dict_mut() {
+            dict.set("Next", Object::Reference(ch2_id));
+        }
+    }
+    if let Ok(obj) = doc.get_object_mut(ch2_id) {
+        if let Ok(dict) = obj.as_dict_mut() {
+            dict.set("Prev", Object::Reference(ch1_id));
+        }
+    }
+
+    // Outlines root
+    let outlines_id = doc.add_object(dictionary! {
+        "Type" => "Outlines",
+        "First" => Object::Reference(ch1_id),
+        "Last" => Object::Reference(ch2_id),
+        "Count" => Object::Integer(3),
+    });
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+        "Outlines" => Object::Reference(outlines_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn bookmarks_multi_level() {
+    let bytes = pdf_with_bookmarks();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let bookmarks = pdf.bookmarks();
+
+    assert_eq!(bookmarks.len(), 3);
+
+    // Chapter 1 — level 0, page 0
+    assert_eq!(bookmarks[0].title, "Chapter 1");
+    assert_eq!(bookmarks[0].level, 0);
+    assert_eq!(bookmarks[0].page_number, Some(0));
+
+    // Section 1.1 — level 1, page 1
+    assert_eq!(bookmarks[1].title, "Section 1.1");
+    assert_eq!(bookmarks[1].level, 1);
+    assert_eq!(bookmarks[1].page_number, Some(1));
+    assert_eq!(bookmarks[1].dest_top, Some(700.0));
+
+    // Chapter 2 — level 0, page 2
+    assert_eq!(bookmarks[2].title, "Chapter 2");
+    assert_eq!(bookmarks[2].level, 0);
+    assert_eq!(bookmarks[2].page_number, Some(2));
+    assert_eq!(bookmarks[2].dest_top, Some(792.0));
+}
+
+#[test]
+fn bookmarks_no_outlines() {
+    // Regular PDF without /Outlines
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+
+    assert!(pdf.bookmarks().is_empty());
+}
+
+#[test]
+fn bookmarks_named_destination() {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    // Outline entry with /A GoTo action
+    let outline_item_id = doc.add_object(dictionary! {
+        "Title" => Object::string_literal("Intro"),
+        "A" => dictionary! {
+            "S" => "GoTo",
+            "D" => vec![
+                Object::Reference(page_id),
+                Object::Name(b"FitH".to_vec()),
+                Object::Integer(500),
+            ],
+        },
+    });
+
+    let outlines_id = doc.add_object(dictionary! {
+        "Type" => "Outlines",
+        "First" => Object::Reference(outline_item_id),
+        "Last" => Object::Reference(outline_item_id),
+        "Count" => Object::Integer(1),
+    });
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+        "Outlines" => Object::Reference(outlines_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+
+    let pdf = Pdf::open(&buf, None).unwrap();
+    let bookmarks = pdf.bookmarks();
+
+    assert_eq!(bookmarks.len(), 1);
+    assert_eq!(bookmarks[0].title, "Intro");
+    assert_eq!(bookmarks[0].level, 0);
+    assert_eq!(bookmarks[0].page_number, Some(0));
+    assert_eq!(bookmarks[0].dest_top, Some(500.0));
 }

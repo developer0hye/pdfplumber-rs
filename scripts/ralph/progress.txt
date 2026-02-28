@@ -9,6 +9,7 @@
 - **CLI box display**: MediaBox always shown; optional boxes only shown when present. JSON uses conditional insertion (`page_json["key"] = val`). Text uses `if let Some(ref b) = ...`.
 - **Hyperlink pattern**: Hyperlinks follow: add `page_hyperlinks()` trait method → implement in LopdfBackend filtering for Link annotations and resolving /A (URI, GoTo) or /Dest → add `Vec<Hyperlink>` field to Page → pass through `from_extraction()`. Skip links without resolvable URIs.
 - **CLI subcommand pattern**: New CLI commands: add variant to `Commands` enum in cli.rs → create `<name>_cmd.rs` with `run()`, `write_text()`, `write_json()`, `write_csv()` → wire up in main.rs match. Each output format follows the same structure (header + per-page iteration).
+- **Bookmark/outline pattern**: Document-level outlines follow: add `document_bookmarks()` to PdfBackend trait → implement in LopdfBackend walking outline tree via /First, /Next sibling links → cache in Pdf struct on open → expose via `Pdf::bookmarks()`. Resolve destinations using `doc.get_pages()` (1-indexed page map). Handle circular references with visited set + max depth limit.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -99,4 +100,31 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - /Dest on the annotation is a direct destination (no action dict)
   - Annotations without resolvable actions/dests are skipped (graceful handling)
   - `page_hyperlinks()` follows the same backend trait pattern as `page_annotations()`
+---
+
+## 2026-02-28 - US-062
+- Implemented bookmark / outline / table of contents extraction
+- Files changed:
+  - `crates/pdfplumber-core/src/bookmark.rs` (NEW) — Bookmark struct
+  - `crates/pdfplumber-core/src/lib.rs` — Added bookmark module and export
+  - `crates/pdfplumber-parse/src/backend.rs` — Added `document_bookmarks()` to PdfBackend trait + mock
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — Implemented outline tree walking with destination resolution
+  - `crates/pdfplumber/src/pdf.rs` — Added bookmarks field to Pdf struct, caches on open, `bookmarks()` accessor
+  - `crates/pdfplumber/src/lib.rs` — Re-exported Bookmark
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (multi-level, no outlines, GoTo action)
+  - `crates/pdfplumber-cli/src/cli.rs` — Added Bookmarks subcommand with --format json/text
+  - `crates/pdfplumber-cli/src/bookmarks_cmd.rs` (NEW) — Bookmarks CLI command
+  - `crates/pdfplumber-cli/src/main.rs` — Wired up bookmarks command
+  - `crates/pdfplumber-cli/tests/bookmarks_cmd.rs` (NEW) — 3 CLI tests
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - Outlines are document-level (not page-level), accessed via catalog /Outlines
+  - Outline tree uses /First (first child), /Next (next sibling) links — walk iteratively with visited set
+  - lopdf `doc.get_pages()` returns BTreeMap<u32, ObjectId> with 1-indexed page numbers
+  - Destinations can be explicit arrays `[page_ref, /type, ...]` or named destinations
+  - /XYZ destination type has `[page, /XYZ, left, top, zoom]` — top is at index 3
+  - /FitH and /FitBH have `[page, /type, top]` — top is at index 2
+  - Named destinations are looked up in catalog /Names → /Dests name tree or catalog /Dests dictionary
+  - Circular reference protection: visited set + max_depth (64) + max_siblings (10,000) limits
+  - Bookmarks follow the metadata pattern: document-level, cached on open, exposed via accessor
 ---

@@ -96,7 +96,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Parsing is in pdfplumber-parse, Bookmark type in pdfplumber-core, API in pdfplumber facade. Reference: PyMuPDF Document.get_toc()."
     },
     {

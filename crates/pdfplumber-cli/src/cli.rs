@@ -145,6 +145,17 @@ pub enum Commands {
         #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
         format: OutputFormat,
     },
+
+    /// Extract bookmarks (outline / table of contents) from PDF
+    Bookmarks {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = TextFormat::Text)]
+        format: TextFormat,
+    },
 }
 
 /// Table detection strategy.
@@ -504,6 +515,39 @@ mod tests {
                 assert!(matches!(format, OutputFormat::Text));
             }
             _ => panic!("expected Links subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_bookmarks_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "bookmarks", "test.pdf"]);
+        match cli.command {
+            Commands::Bookmarks { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Bookmarks subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_bookmarks_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "bookmarks", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Bookmarks { ref format, .. } => {
+                assert!(matches!(format, TextFormat::Json));
+            }
+            _ => panic!("expected Bookmarks subcommand"),
+        }
+    }
+
+    #[test]
+    fn bookmarks_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "bookmarks", "test.pdf"]);
+        match cli.command {
+            Commands::Bookmarks { ref format, .. } => {
+                assert!(matches!(format, TextFormat::Text));
+            }
+            _ => panic!("expected Bookmarks subcommand"),
         }
     }
 }
