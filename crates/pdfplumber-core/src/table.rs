@@ -585,6 +585,13 @@ fn float_key(v: f64) -> i64 {
     (v * 1000.0).round() as i64
 }
 
+/// Compute the length of an edge along its primary axis.
+fn edge_length(edge: &Edge) -> f64 {
+    let dx = edge.x1 - edge.x0;
+    let dy = edge.bottom - edge.top;
+    (dx * dx + dy * dy).sqrt()
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -614,16 +621,62 @@ impl TableFinder {
 
     /// Run the table detection pipeline and return detected tables.
     ///
-    /// This is a placeholder that will be filled in by subsequent user stories.
+    /// Pipeline: filter edges → snap → join → intersections → cells → tables.
+    ///
+    /// For **Lattice** strategy, all edges (lines + rect edges) are used.
+    /// For **LatticeStrict** strategy, only line-sourced edges are used (no rect edges).
     pub fn find_tables(&self) -> Vec<Table> {
-        // Pipeline will be implemented in US-030 through US-036:
-        // 1. Filter edges by min_length (US-035)
-        // 2. snap_edges (US-030)
-        // 3. join_edges (US-031)
-        // 4. edges_to_intersections (US-032)
-        // 5. intersections_to_cells (US-033)
-        // 6. cells_to_tables (US-034)
-        Vec::new()
+        use crate::edges::EdgeSource;
+
+        // Step 1: Select edges based on strategy
+        let edges: Vec<Edge> = match self.settings.strategy {
+            Strategy::LatticeStrict => self
+                .edges
+                .iter()
+                .filter(|e| e.source == EdgeSource::Line)
+                .cloned()
+                .collect(),
+            // Lattice (default), Stream, Explicit: use all edges
+            _ => self.edges.clone(),
+        };
+
+        // Step 2: Filter edges by minimum length
+        let min_len = self.settings.edge_min_length;
+        let edges: Vec<Edge> = edges
+            .into_iter()
+            .filter(|e| edge_length(e) >= min_len)
+            .collect();
+
+        if edges.is_empty() {
+            return Vec::new();
+        }
+
+        // Step 3: Snap nearby parallel edges
+        let edges = snap_edges(
+            edges,
+            self.settings.snap_x_tolerance,
+            self.settings.snap_y_tolerance,
+        );
+
+        // Step 4: Join collinear edge segments
+        let edges = join_edge_group(
+            edges,
+            self.settings.join_x_tolerance,
+            self.settings.join_y_tolerance,
+        );
+
+        // Step 5: Find intersections
+        let intersections = edges_to_intersections(
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
+
+        // Step 6: Build cells from intersections
+        let cells = intersections_to_cells(&intersections);
+
+        // Step 7: Group cells into tables
+        cells_to_tables(cells)
     }
 }
 
@@ -1980,5 +2033,245 @@ mod tests {
         }
         assert_eq!(tables[0].columns.len(), 1);
         assert_eq!(tables[0].columns[0].len(), 3);
+    }
+
+    // --- US-035: Lattice strategy - full pipeline tests ---
+
+    fn make_h_edge_src(x0: f64, y: f64, x1: f64, source: crate::edges::EdgeSource) -> Edge {
+        Edge {
+            x0,
+            top: y,
+            x1,
+            bottom: y,
+            orientation: Orientation::Horizontal,
+            source,
+        }
+    }
+
+    fn make_v_edge_src(x: f64, top: f64, bottom: f64, source: crate::edges::EdgeSource) -> Edge {
+        Edge {
+            x0: x,
+            top,
+            x1: x,
+            bottom,
+            orientation: Orientation::Vertical,
+            source,
+        }
+    }
+
+    #[test]
+    fn test_lattice_simple_bordered_table() {
+        // Simple 2x2 table from line edges forming a grid:
+        // 3 horizontal lines at y=0, y=30, y=60 (from x=0 to x=100)
+        // 3 vertical lines at x=0, x=50, x=100 (from y=0 to y=60)
+        // Should produce 1 table with 4 cells (2 rows × 2 cols)
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 30.0, 100.0),
+            make_h_edge(0.0, 60.0, 100.0),
+            make_v_edge(0.0, 0.0, 60.0),
+            make_v_edge(50.0, 0.0, 60.0),
+            make_v_edge(100.0, 0.0, 60.0),
+        ];
+        let settings = TableSettings::default();
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 4);
+        assert_eq!(tables[0].rows.len(), 2);
+        assert_eq!(tables[0].rows[0].len(), 2);
+        assert_eq!(tables[0].rows[1].len(), 2);
+        assert_approx(tables[0].bbox.x0, 0.0);
+        assert_approx(tables[0].bbox.top, 0.0);
+        assert_approx(tables[0].bbox.x1, 100.0);
+        assert_approx(tables[0].bbox.bottom, 60.0);
+    }
+
+    #[test]
+    fn test_lattice_with_rect_edges() {
+        // Lattice strategy includes rect-sourced edges.
+        // Build edges from rect sources that form a 1-cell table.
+        let edges = vec![
+            make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::RectTop),
+            make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::RectBottom),
+            make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
+            make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::RectRight),
+        ];
+        let settings = TableSettings {
+            strategy: Strategy::Lattice,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        // Lattice includes rect edges → should find 1 table with 1 cell
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_lattice_strict_excludes_rect_edges() {
+        // LatticeStrict should exclude rect-sourced edges.
+        // Only line-sourced edges should be used.
+        let edges = vec![
+            // These rect-sourced edges form a grid by themselves
+            make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::RectTop),
+            make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::RectBottom),
+            make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
+            make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::RectRight),
+        ];
+        let settings = TableSettings {
+            strategy: Strategy::LatticeStrict,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        // LatticeStrict excludes rect edges → no line edges → no tables
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_lattice_strict_with_line_edges() {
+        // LatticeStrict with line-sourced edges should detect tables.
+        let edges = vec![
+            make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::Line),
+            make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::Line),
+            make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+            make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+        ];
+        let settings = TableSettings {
+            strategy: Strategy::LatticeStrict,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_lattice_edge_min_length_filtering() {
+        // Edges shorter than edge_min_length should be filtered out.
+        // Short edges (length 2.0) should be removed with min_length=3.0
+        let edges = vec![
+            // These form a valid grid
+            make_h_edge(0.0, 0.0, 100.0),  // length 100, kept
+            make_h_edge(0.0, 50.0, 100.0), // length 100, kept
+            make_v_edge(0.0, 0.0, 50.0),   // length 50, kept
+            make_v_edge(100.0, 0.0, 50.0), // length 50, kept
+            // Short edges that should be filtered
+            make_h_edge(200.0, 0.0, 201.0), // length 1, filtered
+            make_v_edge(200.0, 0.0, 2.0),   // length 2, filtered
+        ];
+        let settings = TableSettings {
+            edge_min_length: 3.0,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        // Only the main grid edges remain → 1 table
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_lattice_edge_min_length_filters_all() {
+        // If all edges are too short, no tables should be detected.
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 2.0),   // length 2
+            make_h_edge(0.0, 50.0, 1.5),  // length 1.5
+            make_v_edge(0.0, 0.0, 2.5),   // length 2.5
+            make_v_edge(100.0, 0.0, 1.0), // length 1
+        ];
+        let settings = TableSettings {
+            edge_min_length: 3.0,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_lattice_full_pipeline_snap_and_join() {
+        // Edges that are slightly misaligned and segmented.
+        // After snap and join, they should form a valid grid.
+        //
+        // Two horizontal edges at y≈0 (slightly off) and y≈50:
+        //   h1: y=0.5, x=0..60
+        //   h2: y=-0.3, x=55..100  (same line as h1 after snap, overlapping after join)
+        //   h3: y=50.0, x=0..100
+        //
+        // Two vertical edges at x≈0 and x≈100:
+        //   v1: x=0.0, y=0..50
+        //   v2: x=100.2, y=0..25
+        //   v3: x=99.8, y=23..50  (same line as v2 after snap, overlapping after join)
+        let edges = vec![
+            make_h_edge(0.0, 0.5, 60.0),
+            make_h_edge(55.0, -0.3, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(100.2, 0.0, 25.0),
+            make_v_edge(99.8, 23.0, 50.0),
+        ];
+        let settings = TableSettings::default(); // snap/join tolerances = 3.0
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        // After snap+join, should form 1 table with 1 cell
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
+    }
+
+    #[test]
+    fn test_lattice_empty_edges() {
+        // No edges → no tables
+        let finder = TableFinder::new(Vec::new(), TableSettings::default());
+        let tables = finder.find_tables();
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_lattice_no_intersections() {
+        // Parallel edges that don't intersect → no tables
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            // No vertical edges → no intersections
+        ];
+        let finder = TableFinder::new(edges, TableSettings::default());
+        let tables = finder.find_tables();
+        assert!(tables.is_empty());
+    }
+
+    #[test]
+    fn test_lattice_strict_mixed_line_and_rect_edges() {
+        // LatticeStrict should use line edges but not rect edges.
+        // Mix of both: only line edges should be used.
+        let edges = vec![
+            // Line edges forming top/bottom
+            make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::Line),
+            make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::Line),
+            // Line edges forming left/right
+            make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+            make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+            // Rect edge adding a middle vertical line (should be ignored in strict mode)
+            make_v_edge_src(50.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
+        ];
+        let settings = TableSettings {
+            strategy: Strategy::LatticeStrict,
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(edges, settings);
+        let tables = finder.find_tables();
+
+        // Only line edges used → 1 table with 1 cell (not 2 cells)
+        assert_eq!(tables.len(), 1);
+        assert_eq!(tables[0].cells.len(), 1);
     }
 }
