@@ -309,6 +309,10 @@ impl Pdf {
             })
             .collect();
 
+        // Extract annotations from the page
+        let annotations =
+            LopdfBackend::page_annotations(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+
         Ok(Page::from_extraction(
             index,
             geometry.width(),
@@ -321,6 +325,7 @@ impl Pdf {
             art_box,
             chars,
             images,
+            annotations,
             handler.warnings,
         ))
     }

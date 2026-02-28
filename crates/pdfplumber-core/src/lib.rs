@@ -22,6 +22,8 @@
 
 #![deny(missing_docs)]
 
+/// PDF annotation types.
+pub mod annotation;
 /// Edge derivation from geometric primitives for table detection.
 pub mod edges;
 /// Font encoding mapping (Standard, Windows, Mac, Custom).
@@ -49,6 +51,7 @@ pub mod text;
 /// Word extraction from characters based on spatial proximity.
 pub mod words;
 
+pub use annotation::{Annotation, AnnotationType};
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};

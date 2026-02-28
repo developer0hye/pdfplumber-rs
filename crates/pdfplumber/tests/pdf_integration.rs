@@ -5,7 +5,7 @@
 //!
 //! Test PDFs are created programmatically using lopdf.
 
-use pdfplumber::{DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions};
+use pdfplumber::{AnnotationType, DocumentMetadata, ExtractOptions, Pdf, TextOptions, WordOptions};
 
 // --- Test PDF creation helpers ---
 
@@ -669,4 +669,184 @@ fn page_boxes_inherited_from_parent() {
     // BleedBox and ArtBox not set anywhere
     assert!(page.bleed_box().is_none());
     assert!(page.art_box().is_none());
+}
+
+// --- Annotation tests (US-060) ---
+
+/// Create a PDF with a Text annotation on the page.
+fn pdf_with_text_annotation() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Test) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    // Create a Text annotation with all optional fields
+    let annot_id = doc.add_object(dictionary! {
+        "Type" => "Annot",
+        "Subtype" => "Text",
+        "Rect" => vec![Object::Integer(100), Object::Integer(700), Object::Integer(200), Object::Integer(750)],
+        "Contents" => Object::string_literal("This is a comment"),
+        "T" => Object::string_literal("Alice"),
+        "M" => Object::string_literal("D:20240601120000"),
+    });
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+        "Annots" => vec![Object::Reference(annot_id)],
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+/// Create a PDF with a Highlight annotation on the page.
+fn pdf_with_highlight_annotation() -> Vec<u8> {
+    use lopdf::{Object, Stream, dictionary};
+
+    let mut doc = lopdf::Document::with_version("1.5");
+
+    let font_id = doc.add_object(dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica",
+    });
+
+    let stream = Stream::new(
+        dictionary! {},
+        b"BT /F1 12 Tf 72 720 Td (Highlighted text) Tj ET".to_vec(),
+    );
+    let content_id = doc.add_object(stream);
+
+    let resources = dictionary! {
+        "Font" => dictionary! { "F1" => Object::Reference(font_id) },
+    };
+
+    // Create a Highlight annotation (no author or date)
+    let annot_id = doc.add_object(dictionary! {
+        "Type" => "Annot",
+        "Subtype" => "Highlight",
+        "Rect" => vec![Object::Integer(72), Object::Integer(710), Object::Integer(200), Object::Integer(730)],
+        "Contents" => Object::string_literal("Important section"),
+    });
+
+    let page_dict = dictionary! {
+        "Type" => "Page",
+        "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
+        "Contents" => Object::Reference(content_id),
+        "Resources" => resources,
+        "Annots" => vec![Object::Reference(annot_id)],
+    };
+    let page_id = doc.add_object(page_dict);
+
+    let pages_dict = dictionary! {
+        "Type" => "Pages",
+        "Kids" => vec![Object::Reference(page_id)],
+        "Count" => Object::Integer(1),
+    };
+    let pages_id = doc.add_object(pages_dict);
+
+    if let Ok(page_obj) = doc.get_object_mut(page_id) {
+        if let Ok(dict) = page_obj.as_dict_mut() {
+            dict.set("Parent", Object::Reference(pages_id));
+        }
+    }
+
+    let catalog_id = doc.add_object(dictionary! {
+        "Type" => "Catalog",
+        "Pages" => Object::Reference(pages_id),
+    });
+    doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf).unwrap();
+    buf
+}
+
+#[test]
+fn annotation_text_with_all_fields() {
+    let bytes = pdf_with_text_annotation();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let annots = page.annots();
+    assert_eq!(annots.len(), 1);
+
+    let annot = &annots[0];
+    assert_eq!(annot.annot_type, AnnotationType::Text);
+    assert_eq!(annot.raw_subtype, "Text");
+    assert_eq!(annot.contents.as_deref(), Some("This is a comment"));
+    assert_eq!(annot.author.as_deref(), Some("Alice"));
+    assert_eq!(annot.date.as_deref(), Some("D:20240601120000"));
+
+    // Check bbox
+    assert_eq!(annot.bbox.x0, 100.0);
+    assert_eq!(annot.bbox.top, 700.0);
+    assert_eq!(annot.bbox.x1, 200.0);
+    assert_eq!(annot.bbox.bottom, 750.0);
+}
+
+#[test]
+fn annotation_highlight_partial_fields() {
+    let bytes = pdf_with_highlight_annotation();
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    let annots = page.annots();
+    assert_eq!(annots.len(), 1);
+
+    let annot = &annots[0];
+    assert_eq!(annot.annot_type, AnnotationType::Highlight);
+    assert_eq!(annot.raw_subtype, "Highlight");
+    assert_eq!(annot.contents.as_deref(), Some("Important section"));
+    assert!(annot.author.is_none());
+    assert!(annot.date.is_none());
+}
+
+#[test]
+fn annotation_page_with_no_annotations() {
+    // Regular PDF without /Annots
+    let bytes = pdf_with_content(b"BT /F1 12 Tf 72 720 Td (Hello) Tj ET");
+    let pdf = Pdf::open(&bytes, None).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    assert!(page.annots().is_empty());
 }
