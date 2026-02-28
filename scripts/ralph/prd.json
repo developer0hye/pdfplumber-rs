@@ -176,7 +176,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "This enhances Markdown/HTML output accuracy when available. Reference: pdfplumber(Py) Page.structure_tree."
     }
   ]

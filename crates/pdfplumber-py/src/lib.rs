@@ -1013,6 +1013,8 @@ mod tests {
             non_stroking_color: Some(Color::Gray(0.0)),
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 65,
+            mcid: None,
+            tag: None,
         };
         Python::with_gil(|py| {
             let dict_obj = char_to_dict(py, &ch).expect("char_to_dict");

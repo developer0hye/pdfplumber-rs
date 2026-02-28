@@ -3,8 +3,8 @@
 use pdfplumber_core::{
     Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, FormField, HtmlOptions,
     HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect,
-    SearchMatch, SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word,
-    WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    SearchMatch, SearchOptions, StructElement, Table, TableFinder, TableSettings, TextOptions,
+    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
     sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
@@ -50,6 +50,8 @@ pub struct Page {
     hyperlinks: Vec<Hyperlink>,
     /// Form fields belonging to this page (from document AcroForm, filtered by page).
     form_fields: Vec<FormField>,
+    /// Structure tree elements for this page (from document StructTreeRoot, filtered by page).
+    structure_tree: Option<Vec<StructElement>>,
     /// Non-fatal warnings collected during extraction.
     warnings: Vec<ExtractWarning>,
 }
@@ -76,6 +78,7 @@ impl Page {
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             form_fields: Vec::new(),
+            structure_tree: None,
             warnings: Vec::new(),
         }
     }
@@ -109,6 +112,7 @@ impl Page {
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             form_fields: Vec::new(),
+            structure_tree: None,
             warnings: Vec::new(),
         }
     }
@@ -144,6 +148,7 @@ impl Page {
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             form_fields: Vec::new(),
+            structure_tree: None,
             warnings: Vec::new(),
         }
     }
@@ -168,6 +173,7 @@ impl Page {
         annotations: Vec<Annotation>,
         hyperlinks: Vec<Hyperlink>,
         form_fields: Vec<FormField>,
+        structure_tree: Option<Vec<StructElement>>,
         warnings: Vec<ExtractWarning>,
     ) -> Self {
         Self {
@@ -188,6 +194,7 @@ impl Page {
             annotations,
             hyperlinks,
             form_fields,
+            structure_tree,
             warnings,
         }
     }
@@ -298,6 +305,18 @@ impl Page {
     /// and filtered to this page based on the field's `/P` reference.
     pub fn form_fields(&self) -> &[FormField] {
         &self.form_fields
+    }
+
+    /// Returns the structure tree elements for this page, if the PDF is tagged.
+    ///
+    /// Tagged PDFs (ISO 32000-1, Section 14.8) contain a logical structure tree
+    /// that maps semantic elements (headings, paragraphs, tables) to visual content
+    /// via marked content identifiers (MCIDs). Returns `None` for untagged PDFs.
+    ///
+    /// Each [`StructElement`] has an `element_type` (e.g., "H1", "P", "Table"),
+    /// `mcids` linking to characters, and `children` forming a tree hierarchy.
+    pub fn structure_tree(&self) -> Option<&[StructElement]> {
+        self.structure_tree.as_deref()
     }
 
     /// Returns non-fatal warnings collected during page extraction.
@@ -689,6 +708,8 @@ mod tests {
             non_stroking_color: None,
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 0,
+            mcid: None,
+            tag: None,
         }
     }
 

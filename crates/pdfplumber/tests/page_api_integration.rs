@@ -23,6 +23,8 @@ fn char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
         non_stroking_color: None,
         ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         char_code: 0,
+        mcid: None,
+        tag: None,
     }
 }
 

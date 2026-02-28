@@ -5,7 +5,7 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
-    ImageContent, PdfError,
+    ImageContent, PdfError, StructElement,
 };
 
 use crate::handler::ContentHandler;
@@ -214,6 +214,18 @@ pub trait PdfBackend {
     /// Returns an error if the AcroForm exists but is malformed.
     fn document_form_fields(doc: &Self::Document) -> Result<Vec<FormField>, Self::Error>;
 
+    /// Extract the document's structure tree from `/StructTreeRoot`.
+    ///
+    /// Returns the structure tree elements for tagged PDFs. Each element has a
+    /// type (e.g., "H1", "P", "Table"), MCIDs linking to page content, and
+    /// child elements forming a tree. Returns an empty Vec if the document
+    /// has no structure tree (untagged PDF).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the structure tree exists but is malformed.
+    fn document_structure_tree(doc: &Self::Document) -> Result<Vec<StructElement>, Self::Error>;
+
     /// Extract image content (raw bytes) from a named image XObject on a page.
     ///
     /// Locates the image XObject by name in the page's `/Resources/XObject`
@@ -388,6 +400,12 @@ mod tests {
         }
 
         fn document_form_fields(_doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
+            Ok(Vec::new())
+        }
+
+        fn document_structure_tree(
+            _doc: &Self::Document,
+        ) -> Result<Vec<StructElement>, Self::Error> {
             Ok(Vec::new())
         }
 

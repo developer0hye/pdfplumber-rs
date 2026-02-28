@@ -66,6 +66,8 @@ fn test_serde_char() {
         non_stroking_color: Some(Color::Gray(0.0)),
         ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         char_code: 65,
+        mcid: None,
+        tag: None,
     };
     roundtrip(&ch);
 }
@@ -84,6 +86,8 @@ fn test_serde_char_no_colors() {
         non_stroking_color: None,
         ctm: [0.0, 1.0, -1.0, 0.0, 50.0, 100.0],
         char_code: 90,
+        mcid: None,
+        tag: None,
     };
     roundtrip(&ch);
 }
@@ -252,6 +256,8 @@ fn test_serde_word() {
             non_stroking_color: Some(Color::Gray(0.0)),
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             char_code: 72,
+            mcid: None,
+            tag: None,
         }],
     };
     roundtrip(&word);
@@ -381,6 +387,8 @@ fn test_char_json_fields() {
         non_stroking_color: None,
         ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
         char_code: 88,
+        mcid: None,
+        tag: None,
     };
     let json: serde_json::Value = serde_json::to_value(&ch).unwrap();
     assert_eq!(json["text"], "X");

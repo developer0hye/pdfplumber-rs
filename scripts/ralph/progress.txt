@@ -169,3 +169,27 @@ Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
   - `decode_pdf_string` handles UTF-16 BE BOM (0xFE 0xFF) for internationalized field values
   - pdfplumber-py test failure (libpython3.11.dylib not found) is pre-existing and unrelated to code changes
 ---
+
+## 2026-02-28 - US-081
+- What was implemented: Structure tree / tagged PDF access
+- Files changed:
+  - `crates/pdfplumber-core/src/struct_tree.rs` — new module: StructElement struct (element_type, mcids, alt_text, actual_text, lang, bbox, children, page_index), 8 unit tests
+  - `crates/pdfplumber-core/src/text.rs` — added `mcid: Option<u32>` and `tag: Option<String>` fields to Char struct
+  - `crates/pdfplumber-core/src/lib.rs` — registered struct_tree module, exported StructElement
+  - `crates/pdfplumber-parse/src/backend.rs` — added `document_structure_tree()` to PdfBackend trait + mock impl
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — implemented structure tree extraction: `extract_document_structure_tree()`, `parse_struct_kids()`, `parse_struct_element()`, `collect_mcids_and_children()`, `process_k_dict()`, `resolve_struct_page()`, `extract_string_entry()`, `resolve_object()`, 8 integration tests
+  - `crates/pdfplumber/src/lib.rs` — re-exported StructElement
+  - `crates/pdfplumber/src/pdf.rs` — added structure tree extraction in `Pdf::page()`, `filter_struct_elements_for_page()` helper
+  - `crates/pdfplumber/src/page.rs` — added `structure_tree` field to Page struct, `structure_tree()` accessor, updated all constructors
+  - `crates/pdfplumber-parse/src/char_extraction.rs` — added `mcid: None, tag: None` to Char construction
+  - 14 other files — mechanical `mcid: None, tag: None` additions to Char construction sites
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - Structure tree lives in `/StructTreeRoot` in document catalog, similar to `/AcroForm` for form fields
+  - `/K` entries can be: integer (MCID), dictionary (MCR or child element), reference, or array of mixed
+  - MCR dictionaries have `/Type /MCR` and `/MCID` keys — differentiate from child struct elements via `/S` key
+  - `/Pg` reference in struct elements maps to page index for per-page filtering
+  - `resolve_object()` helper needed for following indirect references in structure tree
+  - Adding fields to Char struct requires updating 22+ construction sites across ~14 files
+  - Use `replace_all` mode in Edit tool for efficient updates when pattern appears multiple times in a file
+---
