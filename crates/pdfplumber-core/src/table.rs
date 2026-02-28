@@ -385,6 +385,66 @@ pub fn edges_to_intersections(
     intersections
 }
 
+/// Construct rectangular cells from a grid of intersection points.
+///
+/// Groups intersection points into a grid of unique y-rows and x-columns (sorted).
+/// For each pair of adjacent rows and adjacent columns, checks if all 4 corner
+/// intersections exist. If so, creates a [`Cell`] with the corresponding bounding box.
+/// Missing corners are skipped gracefully.
+pub fn intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell> {
+    if intersections.is_empty() {
+        return Vec::new();
+    }
+
+    // Collect unique x and y coordinates (sorted)
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for pt in intersections {
+        if !xs.iter().any(|&x| (x - pt.x).abs() < 1e-9) {
+            xs.push(pt.x);
+        }
+        if !ys.iter().any(|&y| (y - pt.y).abs() < 1e-9) {
+            ys.push(pt.y);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // Helper to check if an intersection exists at (x, y)
+    let has_point = |x: f64, y: f64| -> bool {
+        intersections
+            .iter()
+            .any(|pt| (pt.x - x).abs() < 1e-9 && (pt.y - y).abs() < 1e-9)
+    };
+
+    let mut cells = Vec::new();
+
+    // For each pair of adjacent rows and columns, check all 4 corners
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let x0 = xs[xi];
+            let x1 = xs[xi + 1];
+            let top = ys[yi];
+            let bottom = ys[yi + 1];
+
+            if has_point(x0, top)
+                && has_point(x1, top)
+                && has_point(x0, bottom)
+                && has_point(x1, bottom)
+            {
+                cells.push(Cell {
+                    bbox: BBox::new(x0, top, x1, bottom),
+                    text: None,
+                });
+            }
+        }
+    }
+
+    cells
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -1383,5 +1443,207 @@ mod tests {
         // Should be deduplicated to 1 intersection
         assert_eq!(result.len(), 1);
         assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    // --- intersections_to_cells tests ---
+
+    fn make_intersection(x: f64, y: f64) -> Intersection {
+        Intersection { x, y }
+    }
+
+    #[test]
+    fn test_intersections_to_cells_empty() {
+        let result = intersections_to_cells(&[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_to_cells_simple_2x2_grid() {
+        // 2x2 grid of intersections → 1 cell
+        // (0,0) (100,0)
+        // (0,50) (100,50)
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        assert_eq!(cells.len(), 1);
+        assert_approx(cells[0].bbox.x0, 0.0);
+        assert_approx(cells[0].bbox.top, 0.0);
+        assert_approx(cells[0].bbox.x1, 100.0);
+        assert_approx(cells[0].bbox.bottom, 50.0);
+        assert!(cells[0].text.is_none());
+    }
+
+    #[test]
+    fn test_intersections_to_cells_3x3_grid() {
+        // 3x3 grid of intersections → 4 cells
+        //  (0,0)  (50,0)  (100,0)
+        //  (0,30) (50,30) (100,30)
+        //  (0,60) (50,60) (100,60)
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(50.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+            make_intersection(0.0, 60.0),
+            make_intersection(50.0, 60.0),
+            make_intersection(100.0, 60.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        assert_eq!(cells.len(), 4);
+
+        // Top-left cell
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 0.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 50.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+        // Top-right cell
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 50.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 100.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+        // Bottom-left cell
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 0.0).abs() < 1e-6
+            && (c.bbox.top - 30.0).abs() < 1e-6
+            && (c.bbox.x1 - 50.0).abs() < 1e-6
+            && (c.bbox.bottom - 60.0).abs() < 1e-6));
+        // Bottom-right cell
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 50.0).abs() < 1e-6
+            && (c.bbox.top - 30.0).abs() < 1e-6
+            && (c.bbox.x1 - 100.0).abs() < 1e-6
+            && (c.bbox.bottom - 60.0).abs() < 1e-6));
+    }
+
+    #[test]
+    fn test_intersections_to_cells_missing_corner() {
+        // 2x2 grid but missing the bottom-right corner → 0 cells
+        // (0,0) (100,0)
+        // (0,50) ---missing---
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_to_cells_irregular_grid() {
+        // 3x3 grid but missing center intersection → only corners that form complete rectangles
+        // (0,0)  (50,0)  (100,0)
+        // (0,30) ---X--- (100,30)
+        // (0,60) (50,60) (100,60)
+        // Without (50,30): top-left and bottom-left cells lose a corner.
+        // Only (0,0)-(100,0)-(0,30)-(100,30) is complete → 1 big cell top row
+        // And (0,30)-(100,30)-(0,60)-(100,60) is complete → 1 big cell bottom row
+        // Plus (0,60)-(50,60) and (50,60)-(100,60) don't have top corners at 50,30
+        // So we get: cells that have all 4 corners present
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(50.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            // (50, 30) missing
+            make_intersection(100.0, 30.0),
+            make_intersection(0.0, 60.0),
+            make_intersection(50.0, 60.0),
+            make_intersection(100.0, 60.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        // Top row: (0,0)-(50,0)-(0,30)-(50,30)? No, (50,30) missing → skip
+        //          (50,0)-(100,0)-(50,30)-(100,30)? No, (50,30) missing → skip
+        //          (0,0)-(100,0)-(0,30)-(100,30)? The grid only checks adjacent columns.
+        //            xs = [0, 50, 100], adjacent pairs are (0,50) and (50,100)
+        //            So this cell would not be formed from the adjacent pair logic.
+        // Bottom row: (0,30)-(50,30)? (50,30) missing → skip
+        //             (50,30)-(100,30)? (50,30) missing → skip
+        // Bottom row with y=30..60: (0,30)-(50,30) missing → skip; (50,30)-(100,30) missing → skip
+        //   But (0,30)-(100,30)-(0,60)-(100,60) is NOT adjacent columns
+        // Result: 0 cells (because the missing center breaks all adjacent cell formations)
+        // Wait - let me reconsider:
+        // xs = [0, 50, 100], ys = [0, 30, 60]
+        // (0,50) x (0,30): corners (0,0),(50,0),(0,30),(50,30) → (50,30) missing → skip
+        // (50,100) x (0,30): corners (50,0),(100,0),(50,30),(100,30) → (50,30) missing → skip
+        // (0,50) x (30,60): corners (0,30),(50,30),(0,60),(50,60) → (50,30) missing → skip
+        // (50,100) x (30,60): corners (50,30),(100,30),(50,60),(100,60) → (50,30) missing → skip
+        // All cells need (50,30) which is missing → 0 cells
+        assert_eq!(cells.len(), 0);
+    }
+
+    #[test]
+    fn test_intersections_to_cells_partial_grid_with_valid_cells() {
+        // L-shaped grid where some cells are complete
+        // (0,0) (50,0)
+        // (0,30) (50,30) (100,30)
+        //                (100,60)
+        // Only the top-left cell (0,0)-(50,0)-(0,30)-(50,30) has all 4 corners
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(50.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+            make_intersection(100.0, 60.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        assert_eq!(cells.len(), 1);
+        assert_approx(cells[0].bbox.x0, 0.0);
+        assert_approx(cells[0].bbox.top, 0.0);
+        assert_approx(cells[0].bbox.x1, 50.0);
+        assert_approx(cells[0].bbox.bottom, 30.0);
+    }
+
+    #[test]
+    fn test_intersections_to_cells_single_point() {
+        // Single intersection point → no cells
+        let intersections = vec![make_intersection(50.0, 50.0)];
+        let cells = intersections_to_cells(&intersections);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_to_cells_collinear_points() {
+        // Points along a single line (no area) → no cells
+        let intersections = vec![
+            make_intersection(0.0, 50.0),
+            make_intersection(50.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_to_cells_4x3_grid() {
+        // 4 columns × 3 rows → 3×2 = 6 cells
+        let mut intersections = Vec::new();
+        for &x in &[0.0, 40.0, 80.0, 120.0] {
+            for &y in &[0.0, 30.0, 60.0] {
+                intersections.push(make_intersection(x, y));
+            }
+        }
+        let cells = intersections_to_cells(&intersections);
+        assert_eq!(cells.len(), 6);
+    }
+
+    #[test]
+    fn test_intersections_to_cells_text_is_none() {
+        // All cells should have text = None (text extraction is a separate step)
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let cells = intersections_to_cells(&intersections);
+        for cell in &cells {
+            assert!(cell.text.is_none());
+        }
     }
 }
