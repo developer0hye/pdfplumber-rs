@@ -498,6 +498,8 @@ mod tests {
                 word_spacing: 0.0,
                 h_scaling: 1.0,
                 rise: 0.0,
+                mcid: None,
+                tag: None,
             });
 
             // Emit a sample path (horizontal line)

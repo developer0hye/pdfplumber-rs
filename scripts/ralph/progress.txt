@@ -1,102 +1,32 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
+Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
 ---
 
 ## Codebase Patterns
-- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
-- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
-- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
-- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
-- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
-- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
-- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
-- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
-- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
-- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
-- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
-- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
-- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
-- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
-- **Inline image BI operator**: Tokenizer packs BI/ID/EI into a single Operator with operands[0]=Array (flattened dict key-value pairs) and operands[1]=LiteralString (raw image bytes). Interpreter must parse this structure, not the raw stream.
-- **Inline image abbreviated names**: PDF spec defines abbreviated key names (/W→Width, /H→Height, /BPC→BitsPerComponent, /CS→ColorSpace, /F→Filter, /DP→DecodeParms) and abbreviated color space (/G→DeviceGray, /RGB→DeviceRGB, /CMYK→DeviceCMYK) and filter names (/AHx→ASCIIHexDecode, /A85→ASCII85Decode, /LZW→LZWDecode, /Fl→FlateDecode, /RL→RunLengthDecode, /CCF→CCITTFaxDecode, /DCT→DCTDecode).
-- **Inline image naming**: Use `inline-{op_index}` for inline image names since they don't have XObject name references.
-- WordOptions is in `crates/pdfplumber-core/src/words.rs`, TextOptions in `crates/pdfplumber-core/src/layout.rs`
-- `extract_text()` in Page API creates WordOptions from TextOptions and calls `extract_words()` — new options must be forwarded there
-- `WordExtractor::make_word()` is called from 3 places in `extract()` — all must be updated when changing its signature
-- pdfplumber-py tests fail locally due to missing Python 3.11 dylib (pre-existing, not a regression)
-- **Image struct fields**: When adding new Optional fields to Image, also update: image_from_ctm(), test helpers in page.rs/cropped_page.rs, serde_roundtrip.rs, pdfplumber-py test, and any direct Image{} constructors
-- **ImageEvent→Image flow**: Interpreter extracts metadata from stream dict → emits ImageEvent → pdf.rs converts to Image via image_from_ctm(). New image metadata fields must be added to ImageEvent in handler.rs and extracted in interpreter.rs handle_image_xobject()
+- Text rendering operators (Tj, TJ, ', ") flow: interpret_content_stream → handle_tj/handle_tj_array → emit_char_events → handler.on_char(CharEvent)
+- The tokenizer's Operand enum now includes Dictionary(Vec<(String, Operand)>) for inline `<<...>>` dicts
+- Marked content state is NOT part of graphics state (q/Q don't save/restore it), so it's tracked as a local `Vec<MarkedContentEntry>` in interpret_content_stream
+- To thread new state through char emission: add parameter to handle_tj → handle_tj_array → emit_char_events chain
 
 ---
 
-## 2026-03-01 - US-088
-- **What was implemented**: Added `expand_ligatures: bool` field (default true) to WordOptions and TextOptions. Implemented ligature expansion function covering U+FB00-U+FB06. Integrated into `WordExtractor::make_word()`. Forwarded option from TextOptions to WordOptions in Page API.
+## 2026-03-01 - US-092
+- **What was implemented**: Tagged PDF operators (BMC/BDC/EMC) wired in content stream interpreter
+  - Added `mcid: Option<u32>` and `tag: Option<String>` to `CharEvent`
+  - Added `MarkedContentEntry` struct and `marked_content_stack` in interpreter
+  - Implemented BMC (push tag), BDC (push tag+MCID), EMC (pop) operator handlers
+  - Updated `emit_char_events` to propagate current mcid/tag to CharEvent
+  - Updated `char_from_event` to propagate mcid/tag from event to Char
 - **Files changed**:
-  - `crates/pdfplumber-core/src/words.rs` — WordOptions field, expand_ligatures_in_text(), make_word(), 5 unit tests
-  - `crates/pdfplumber-core/src/layout.rs` — TextOptions field
-  - `crates/pdfplumber/src/page.rs` — Forward expand_ligatures in extract_text()
+  - `crates/pdfplumber-parse/src/handler.rs` — mcid/tag fields on CharEvent
+  - `crates/pdfplumber-parse/src/interpreter.rs` — BMC/BDC/EMC handlers, marked content stack
+  - `crates/pdfplumber-parse/src/char_extraction.rs` — propagate mcid/tag in char_from_event
+  - `crates/pdfplumber-parse/src/backend.rs` — updated test CharEvent construction
+  - `scripts/ralph/prd.json` — marked US-092 as passes: true
 - **Dependencies added**: None
 - **Learnings for future iterations:**
-  - make_word is called from 3 locations in extract() — easy to miss one with simple search-replace
-  - Unicode normalization (NFKC/NFKD) already exists in unicode_norm.rs and also expands ligatures, but the dedicated expand_ligatures option is simpler and independent
-  - U+FB05 maps to ſt (long s + t), not "st" — preserve the archaic long s character
----
-
-## 2026-03-01 - US-089
-- **What was implemented**: Added `ImageFilter` enum (8 variants: DCTDecode, FlateDecode, CCITTFaxDecode, JBIG2Decode, JPXDecode, LZWDecode, RunLengthDecode, Raw) with `mime_type()` and `from_pdf_name()` methods. Extended `Image` struct with `data: Option<Vec<u8>>`, `filter: Option<ImageFilter>`, `mime_type: Option<String>`. Added `extract_image_data: bool` (default false) to `ExtractOptions`. Extended `ImageEvent` with `filter: Option<String>` field. Interpreter now extracts filter name from image XObject stream dictionary. In `Pdf::page()`, when `extract_image_data` is enabled, image data is extracted using existing `LopdfBackend::extract_image_content()` and populated into Image struct. Filter and MIME type are set even without data extraction opt-in.
-- **Files changed**:
-  - `crates/pdfplumber-core/src/images.rs` — ImageFilter enum, Image struct new fields, unit tests (10 new)
-  - `crates/pdfplumber-core/src/error.rs` — ExtractOptions.extract_image_data field
-  - `crates/pdfplumber-core/src/lib.rs` — Re-export ImageFilter
-  - `crates/pdfplumber-parse/src/handler.rs` — ImageEvent.filter field, tests
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Extract filter from stream dict in handle_image_xobject
-  - `crates/pdfplumber-parse/src/backend.rs` — Mock backend filter field
-  - `crates/pdfplumber/src/pdf.rs` — Populate filter/mime_type/data in page(), 4 new integration tests
-  - `crates/pdfplumber/src/lib.rs` — Re-export ImageFilter
-  - `crates/pdfplumber/src/page.rs` — Test helper update
-  - `crates/pdfplumber/src/cropped_page.rs` — Test helper update
-  - `crates/pdfplumber-py/src/lib.rs` — Test update
-  - `crates/pdfplumber-core/tests/serde_roundtrip.rs` — Test update
-- **Dependencies added**: None
-- **Learnings for future iterations:**
-  - Image struct has `data: Option<Vec<u8>>` — adding large optional fields to structs is OK when gated behind opt-in options
-  - `ImageFilter` is distinct from `ImageFormat` — filter is the PDF encoding method, format is the output format for extracted data
-  - Adding fields to struct with many existing constructions: use `..Default::default()` pattern in existing code to avoid mass updates
-  - All ExtractOptions constructions already used `..ExtractOptions::default()` — new fields with defaults propagate automatically
-  - Filter info (filter + mime_type) is set regardless of `extract_image_data` — useful for metadata queries without memory cost
----
-
-## 2026-03-01 - US-090
-- **What was implemented**: Added BI (inline image) operator handling to the content stream interpreter. The tokenizer already parsed BI/ID/EI into structured Operator data; the interpreter now processes this data by parsing the flattened dictionary array for Width, Height, ColorSpace, BitsPerComponent, and Filter, expanding abbreviated key/value names to their full PDF equivalents, and emitting an ImageEvent via `handler.on_image()`. Inline images now appear in `page.images()` results.
-- **Files changed**:
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Added `handle_inline_image()` function, `expand_inline_image_key()`, `expand_inline_image_colorspace()`, `expand_inline_image_filter()`, `operand_to_u32()` helpers. Added "BI" case to main operator match. Added `Operator` import. 4 unit tests covering basic inline images, abbreviated keys, filter handling, and all 7 abbreviated filter names.
-  - `crates/pdfplumber/src/pdf.rs` — 2 integration tests: `inline_image_appears_in_page_images()` and `inline_image_with_abbreviated_colorspace()`.
-  - `scripts/ralph/prd.json` — Set US-090 passes to true.
-- **Dependencies added**: None
-- **Learnings for future iterations:**
-  - Tokenizer already does the heavy lifting for BI/ID/EI — operands are pre-parsed into Array + LiteralString, so interpreter just needs to interpret the structured data
-  - Inline images don't have XObject names; use `inline-{op_index}` as synthetic name
-  - PDF spec Table 93 (inline image abbreviations) is the authoritative reference for all abbreviated key/value mappings
-  - The existing image pipeline (ImageEvent → image_from_ctm → Image) works transparently for inline images without any changes
----
-
-## 2026-03-01 - US-091
-- **What was implemented**: Added comprehensive real-world PDF test suite with 55 integration tests across 5 categories. Created `tests/fixtures/real-world/` directory with categorized subdirectories: fonts-encoding (2 PDFs), layout (2 PDFs), tables (2 PDFs), images (2 PDFs), edge-cases (4 PDFs). All 10 fixture PDFs are generated programmatically using lopdf and saved to disk. Tests cover character extraction accuracy (fontname, size, bbox validation), word grouping correctness, table detection on bordered tables (3x3 grid, multi-row), image metadata extraction (XObject and inline), and edge cases (empty pages, single char, whitespace-only, overlapping text/dedup). All fixtures under 100KB. Platform-specific float tolerance (2.0pt) used throughout. README.md documents all fixtures.
-- **Files changed**:
-  - `crates/pdfplumber/tests/real_world_integration.rs` — 55 integration tests, PDF generation helpers, Once-based fixture generation
-  - `tests/fixtures/real-world/README.md` — Documentation of all fixtures and test coverage
-  - `tests/fixtures/real-world/fonts-encoding/` — standard-14-fonts.pdf, special-characters.pdf
-  - `tests/fixtures/real-world/layout/` — multi-font-sizes.pdf, positioned-text.pdf
-  - `tests/fixtures/real-world/tables/` — simple-bordered-table.pdf, multi-row-table.pdf
-  - `tests/fixtures/real-world/images/` — xobject-image.pdf, inline-image.pdf
-  - `tests/fixtures/real-world/edge-cases/` — empty-page.pdf, single-char.pdf, whitespace-only.pdf, overlapping-text.pdf
-  - `scripts/ralph/prd.json` — Set US-091 passes to true
-- **Dependencies added**: None
-- **Learnings for future iterations:**
-  - `std::sync::Once` is perfect for one-time fixture generation across parallel test threads
-  - Cell type in table rows is `Cell { bbox: BBox, text: Option<String> }`, not `Option<String>` — access via `cell.text`
-  - lopdf content streams with line drawing (m/l/S operators) work well for creating lattice table fixtures
-  - Table detection works on lopdf-generated PDFs with 1pt stroke lines
-  - Inline image BI/ID/EI works in lopdf content streams for fixture generation
-  - Keep fixture PDFs minimal — a 4×4 pixel image (48 bytes) is sufficient for testing image extraction pipeline
+  - MCID inheritance in nested content uses `iter().rev().find_map()` to find nearest ancestor with MCID
+  - Tag always comes from the innermost (last) stack entry
+  - EMC on empty stack is gracefully ignored (no panic)
+  - Dictionary parsing in tokenizer was already added in phase 11 (no need to add Dictionary variant again)
 ---

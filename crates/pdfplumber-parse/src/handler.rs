@@ -46,6 +46,10 @@ pub struct CharEvent {
     pub h_scaling: f64,
     /// Text rise value (Ts operator) for superscript/subscript.
     pub rise: f64,
+    /// Marked content identifier (MCID) from BDC operator, if inside a marked content sequence.
+    pub mcid: Option<u32>,
+    /// Structure tag name (e.g., "P", "Span", "H1") from BMC/BDC operator.
+    pub tag: Option<String>,
 }
 
 /// Information about a painted path.
@@ -199,6 +203,8 @@ mod tests {
             word_spacing: 0.0,
             h_scaling: 1.0,
             rise: 0.0,
+            mcid: None,
+            tag: None,
         }
     }
 
