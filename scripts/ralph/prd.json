@@ -21,7 +21,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "PyO3 and maturin are new dependencies — justified as the standard Rust-Python bridge. This crate is excluded from WASM builds."
     },
     {

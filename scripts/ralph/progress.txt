@@ -1,28 +1,25 @@
-## Codebase Patterns
-
-- **PdfBackend trait pattern**: Document-level features add a method to `PdfBackend` trait, implement in `LopdfBackend`, cache result in `Pdf` struct on open, expose via accessor method.
-- **Test PDF creation**: Use `lopdf::Document::with_version("1.5")` and `doc.add_object()` to build test PDFs programmatically. Set trailer entries for document-level features.
-- **String extraction from lopdf**: Use `Object::String(bytes, _)` matching. Handle UTF-16 BE (BOM 0xFE 0xFF) and Latin-1/UTF-8 fallback. Resolve indirect references before reading.
-- **CLI info output**: Text format prints sections with println!, JSON format builds serde_json::Value and prints pretty. New document-level data goes in both formats.
-- **Page box pattern**: Page-level optional boxes (TrimBox/BleedBox/ArtBox) follow: add trait method → implement in LopdfBackend with `resolve_inherited()` → add field + accessor to Page → wire up in `Pdf::page()`. Optional boxes use `Option<BBox>`, always-present boxes use `BBox`.
-- **Annotation pattern**: Page-level annotations follow: add trait method `page_annotations()` → implement in LopdfBackend parsing /Annots array → add `Vec<Annotation>` field to Page → pass through `from_extraction()`. Each annotation entry may be a direct dict or indirect ref. Extract /Subtype, /Rect, /Contents, /T (author), /M (date).
-- **CLI box display**: MediaBox always shown; optional boxes only shown when present. JSON uses conditional insertion (`page_json["key"] = val`). Text uses `if let Some(ref b) = ...`.
-- **Hyperlink pattern**: Hyperlinks follow: add `page_hyperlinks()` trait method → implement in LopdfBackend filtering for Link annotations and resolving /A (URI, GoTo) or /Dest → add `Vec<Hyperlink>` field to Page → pass through `from_extraction()`. Skip links without resolvable URIs.
-- **CLI subcommand pattern**: New CLI commands: add variant to `Commands` enum in cli.rs → create `<name>_cmd.rs` with `run()`, `write_text()`, `write_json()`, `write_csv()` → wire up in main.rs match. Each output format follows the same structure (header + per-page iteration).
-- **Bookmark/outline pattern**: Document-level outlines follow: add `document_bookmarks()` to PdfBackend trait → implement in LopdfBackend walking outline tree via /First, /Next sibling links → cache in Pdf struct on open → expose via `Pdf::bookmarks()`. Resolve destinations using `doc.get_pages()` (1-indexed page map). Handle circular references with visited set + max depth limit.
-- **Search pattern**: Text search follows: add types (SearchMatch, SearchOptions) + algorithm (search_chars) in pdfplumber-core/search.rs → add Page::search() delegating to search_chars → add Pdf::search_all() iterating pages. Algorithm: concatenate char texts, map byte offsets→char indices, run regex, compute union bbox from matched chars.
-- **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
-- **ExtractOptions pattern**: Document-level extraction settings go in ExtractOptions (set at Pdf::open() time, used during Pdf::page()). For text processing options (normalization, etc.), add field to ExtractOptions, apply in Pdf::page() after char creation. CLI: add separate clap ValueEnum arg type with conversion method, use open_pdf_with_norm() helper.
-- **Filter pattern**: Custom filtering follows: add PageObject enum in pdfplumber-core/page_object.rs → add Page::filter() and CroppedPage::filter() accepting Fn(&PageObject) -> bool → return CroppedPage with filtered objects (no coordinate adjustment). FilteredPage is a type alias for CroppedPage. Uses from_page_data() for Page, direct struct construction for CroppedPage.
-- **SVG overlay pattern**: SvgRenderer is a builder: `new(w,h)` → `draw_chars/rects/lines/edges/tables/intersections/cells(&mut self, items, &DrawStyle)` → `to_svg(&SvgOptions) -> String`. DrawStyle has `fill`, `stroke`, `stroke_width`, `opacity` with per-object-type defaults. Elements accumulate in `Vec<String>` and render between page boundary and `</svg>`. No external SVG library needed.
-- **Debug pipeline pattern**: For exposing intermediate pipeline results, add a `*_debug()` method returning a struct with all stages. `TableFinder::find_tables_debug()` returns `TableFinderDebug { edges, intersections, cells, tables }`. `Page::debug_tablefinder_svg()` runs the pipeline and renders each stage with distinct styles via `SvgDebugOptions` toggle flags.
-- **Image content pattern**: Image content extraction follows: add `extract_image_content(doc, page, name)` to PdfBackend trait → implement in LopdfBackend (get XObject stream, check /Filter, decode accordingly) → add `Pdf::extract_image_content()` and `Pdf::extract_images_with_content()` facade methods. Filter detection: DCTDecode→Jpeg (raw bytes), FlateDecode→Raw (decompressed), JBIG2Decode→Jbig2, CCITTFaxDecode→CcittFax, no filter→Raw. Chained filters use lopdf `decompressed_content()`.
-- **Encryption pattern**: Encrypted PDF support follows: add `open_with_password(bytes, password)` to PdfBackend trait → implement in LopdfBackend (load → check `is_encrypted()` → call `decrypt(password)`) → add `Pdf::open_with_password()` and `Pdf::open_file_with_password()` facade methods. `open()` without password returns `PdfError::PasswordRequired` for encrypted PDFs. Wrong password returns `PdfError::InvalidPassword`. Unencrypted PDFs ignore the password. CLI: add `--password` flag to all subcommands, pass through `open_pdf_full(file, unicode_norm, password)`. Test encrypted PDFs created programmatically using RC4 + MD5 (PAD_BYTES padding, Algorithm 3.2-3.4 from PDF spec).
-
 # Ralph Progress Log
-Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
+Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
+
+## Codebase Patterns
+- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
+- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
+- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
+- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
+- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
+
 ---
 
-# Ralph Progress Log - Phase 8: Ecosystem - Python Bindings (PyO3), WASM/JS Bindings, Markdown/HTML, Forms, Structure Tree
-Started: 2026년  2월 28일 토요일 18시 13분 54초 KST
+## 2026-02-28 - US-073
+- What was implemented: PyO3 crate scaffolding for Python bindings
+- Files changed:
+  - `Cargo.toml` (workspace root) — added `crates/pdfplumber-py` to members
+  - `crates/pdfplumber-py/Cargo.toml` — new crate with pyo3 + pdfplumber deps
+  - `crates/pdfplumber-py/pyproject.toml` — maturin build backend
+  - `crates/pdfplumber-py/src/lib.rs` — PyPdf (open/open_bytes/pages) + PyPage (page_number/width/height) + 4 Rust tests
+- Dependencies added: `pyo3 0.24` (with extension-module feature), `lopdf 0.34` (dev-dependency for test PDF generation)
+- **Learnings for future iterations:**
+  - PyO3 0.24 pymodule signature: `fn name(m: &Bound<'_, PyModule>) -> PyResult<()>`
+  - `crate-type = ["cdylib"]` is required for Python extension modules
+  - Tests can verify the wrapper logic without the Python interpreter by testing inner field access directly
 ---
