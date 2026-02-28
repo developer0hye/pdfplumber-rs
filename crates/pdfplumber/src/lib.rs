@@ -20,7 +20,7 @@ pub use pdfplumber_core::{
     FontEncoding, GraphicsState, Image, ImageMetadata, Intersection, Line, LineOrientation,
     Orientation, PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, Rect,
     StandardEncoding, Strategy, Table, TableFinder, TableSettings, TextBlock, TextDirection,
-    TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cells_to_tables,
     cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, edge_from_curve,
     edge_from_line, edges_from_rect, edges_to_intersections, extract_shapes, image_from_ctm,
     intersections_to_cells, is_cjk, is_cjk_text, join_edge_group, snap_edges,

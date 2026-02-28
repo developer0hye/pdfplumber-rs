@@ -19,6 +19,8 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
 - Deduplication: intersections at the same point (within 1e-9) are deduplicated via sort+dedup_by
 - `intersections_to_cells(intersections: &[Intersection]) -> Vec<Cell>` constructs cells from a grid of intersection points
 - Cell construction: collects unique x/y coords, sorts them, checks all 4 corners for each adjacent pair
+- `cells_to_tables(cells: Vec<Cell>) -> Vec<Table>` groups adjacent cells into tables using union-find
+- Table grouping: `cells_share_edge()` checks shared boundaries, `float_key()` converts f64→i64 for BTreeMap grouping
 
 ---
 
@@ -80,4 +82,19 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Missing corners are skipped gracefully (no panics)
   - All cells have `text: None` — text extraction is a separate step (US-036)
   - 10 tests covering: empty, 2x2 grid, 3x3 grid, missing corner, irregular grid, partial grid, single point, collinear points, 4x3 grid, text is None
+---
+
+## 2026-02-28 - US-034
+- Implemented `cells_to_tables()` for grouping adjacent cells into distinct tables
+- Added `cells_share_edge()` helper and `float_key()` utility for coordinate grouping
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `cells_to_tables(cells: Vec<Cell>) -> Vec<Table>` takes owned Vec, returns sorted Vec<Table>
+  - Uses union-find algorithm to group cells sharing edges (vertical or horizontal boundary with overlapping ranges)
+  - `cells_share_edge()` checks for shared vertical boundary (x1==x0 with overlapping y) or shared horizontal boundary (bottom==top with overlapping x)
+  - Rows grouped by `float_key(top)` (multiply by 1000, round to i64) using BTreeMap for sorted order
+  - Columns grouped by `float_key(x0)` similarly
+  - Tables sorted by (top, x0) for deterministic output
+  - 9 tests covering: empty, single cell, 2x2 grid, row ordering, column ordering, two separate tables, 3x3 grid, single row, single column
 ---
