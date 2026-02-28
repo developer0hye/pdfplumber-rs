@@ -37,7 +37,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Straightforward extension of existing page_media_box/page_crop_box pattern in lopdf backend."
     },
     {

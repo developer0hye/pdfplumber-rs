@@ -4,6 +4,8 @@
 - **Test PDF creation**: Use `lopdf::Document::with_version("1.5")` and `doc.add_object()` to build test PDFs programmatically. Set trailer entries for document-level features.
 - **String extraction from lopdf**: Use `Object::String(bytes, _)` matching. Handle UTF-16 BE (BOM 0xFE 0xFF) and Latin-1/UTF-8 fallback. Resolve indirect references before reading.
 - **CLI info output**: Text format prints sections with println!, JSON format builds serde_json::Value and prints pretty. New document-level data goes in both formats.
+- **Page box pattern**: Page-level optional boxes (TrimBox/BleedBox/ArtBox) follow: add trait method → implement in LopdfBackend with `resolve_inherited()` → add field + accessor to Page → wire up in `Pdf::page()`. Optional boxes use `Option<BBox>`, always-present boxes use `BBox`.
+- **CLI box display**: MediaBox always shown; optional boxes only shown when present. JSON uses conditional insertion (`page_json["key"] = val`). Text uses `if let Some(ref b) = ...`.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -27,4 +29,22 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - PDF strings may be UTF-16 BE with BOM (0xFE 0xFF) — must handle encoding
   - `Object::string_literal()` creates PDF string objects in lopdf for test PDFs
   - Document-level features follow pattern: trait method → backend impl → Pdf facade cache + accessor
+---
+
+## 2026-02-28 - US-059
+- Implemented page box variants: TrimBox, BleedBox, ArtBox
+- Files changed:
+  - `crates/pdfplumber-parse/src/backend.rs` — Added `page_trim_box()`, `page_bleed_box()`, `page_art_box()` to PdfBackend trait + mock
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — Implemented extraction with `resolve_inherited()` for all three boxes
+  - `crates/pdfplumber/src/page.rs` — Added `media_box`, `crop_box`, `trim_box`, `bleed_box`, `art_box` fields + accessors
+  - `crates/pdfplumber/src/pdf.rs` — Fetches all five boxes and passes to `Page::from_extraction()`
+  - `crates/pdfplumber-cli/src/info_cmd.rs` — Displays all page boxes in text + JSON formats
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (all boxes, only MediaBox, inheritance)
+  - `crates/pdfplumber-cli/tests/info_cmd.rs` — 4 CLI tests (text/JSON presence + absence)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - All box types can use `resolve_inherited()` for walking up the page tree (parent → grandparent)
+  - `Page::from_extraction()` already had `#[allow(clippy::too_many_arguments)]` — adding 5 box params is acceptable
+  - BBox is `Copy` so cheap to pass by value; `Option<BBox>` works well for optional boxes
+  - lopdf `dictionary!` macro accepts `vec![Object::Integer(..)]` for array values directly
 ---
