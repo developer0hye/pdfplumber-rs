@@ -16,6 +16,10 @@
 - Words command pattern: `words_cmd::run(file, pages, format, x_tolerance, y_tolerance) -> Result<(), i32>`
 - Char bbox accessed via `ch.bbox.x0`, `ch.bbox.top`, etc. (BBox struct wraps coordinates)
 - `page.chars()` returns `&[Char]` (reference to slice), iterate with `for ch in chars` not `&chars`
+- Tables command pattern: `tables_cmd::run(file, pages, format, strategy, snap, join, text_tol) -> Result<(), i32>`
+- `page.find_tables(&settings)` returns `Vec<Table>`, Table has `bbox`, `rows`, `cells`, `columns`
+- Table.rows is `Vec<Vec<Cell>>`, Cell has `text: Option<String>` and `bbox: BBox`
+- Strategy/TableSettings re-exported from pdfplumber facade crate
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
@@ -79,4 +83,24 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - Word fields: text, bbox (x0/top/x1/bottom), doctop, direction — no fontname/size (unlike Char)
   - CSV header: `page,text,x0,top,x1,bottom` (6 columns, fewer than chars)
   - Use struct init `WordOptions { x_tolerance, y_tolerance, ..WordOptions::default() }` to avoid clippy field_reassign_with_default
+---
+
+## 2026-02-28 - US-054
+- Implemented `tables` subcommand for detecting and extracting tables from PDF pages
+- Files changed: crates/pdfplumber-cli/{src/cli.rs, src/main.rs, src/tables_cmd.rs, tests/tables_cmd.rs}
+- New module: `tables_cmd` (table detection + 3 output formats: grid/json/csv)
+- Added `TableStrategy` enum to CLI (lattice/stream)
+- Added CLI options: --strategy, --snap-tolerance, --join-tolerance, --text-tolerance
+- No new dependencies
+- Features: grid format with | separators and aligned columns, JSON with bbox/rows, CSV with tables separated by blank lines
+- 2 CLI parsing tests (options + defaults) + 14 integration tests
+- **Learnings for future iterations:**
+  - Tables command pattern: `tables_cmd::run(file, pages, format, strategy, snap, join, text_tol) -> Result<(), i32>`
+  - `page.find_tables(&settings)` returns `Vec<Table>`, Table has `bbox`, `rows`, `cells`, `columns`
+  - Table.rows is `Vec<Vec<Cell>>`, Cell has `text: Option<String>` and `bbox: BBox`
+  - Strategy and TableSettings are re-exported from pdfplumber facade crate
+  - Grid format: compute column widths from cell text, pad with spaces, join with ` | ` separators
+  - JSON output: array of table objects with page, bbox, and rows (2D array of optional strings)
+  - CSV output: tables separated by blank lines, CSV escaping for commas/quotes/newlines
+  - Summary line format: `--- Table N (page M, bbox: [x0, top, x1, bottom]) ---`
 ---
