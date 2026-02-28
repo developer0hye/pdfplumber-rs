@@ -48,6 +48,12 @@ pub struct Image {
     pub bits_per_component: Option<u32>,
     /// Color space name.
     pub color_space: Option<String>,
+    /// Raw image stream data (populated when `extract_image_data` is enabled).
+    pub data: Option<Vec<u8>>,
+    /// PDF stream filter used to encode this image.
+    pub filter: Option<ImageFilter>,
+    /// MIME type of the image data (e.g., "image/jpeg").
+    pub mime_type: Option<String>,
 }
 
 /// Extract an Image from the CTM active during a Do operator invocation.
@@ -99,6 +105,9 @@ pub fn image_from_ctm(ctm: &Ctm, name: &str, page_height: f64, metadata: &ImageM
         src_height: metadata.src_height,
         bits_per_component: metadata.bits_per_component,
         color_space: metadata.color_space.clone(),
+        data: None,
+        filter: None,
+        mime_type: None,
     }
 }
 
@@ -106,6 +115,61 @@ impl Image {
     /// Returns the bounding box in top-left origin coordinates.
     pub fn bbox(&self) -> BBox {
         BBox::new(self.x0, self.top, self.x1, self.bottom)
+    }
+}
+
+/// PDF stream filter used to encode image data.
+///
+/// Maps to the `/Filter` entry in a PDF image XObject stream dictionary.
+/// Used to identify how image data was encoded in the PDF.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ImageFilter {
+    /// JPEG compression (DCTDecode).
+    DCTDecode,
+    /// Flate (zlib/deflate) compression.
+    FlateDecode,
+    /// CCITT fax compression (Group 3 or 4).
+    CCITTFaxDecode,
+    /// JBIG2 compression.
+    JBIG2Decode,
+    /// JPEG 2000 compression (JPXDecode).
+    JPXDecode,
+    /// LZW compression.
+    LZWDecode,
+    /// Run-length encoding.
+    RunLengthDecode,
+    /// No filter — raw uncompressed data.
+    Raw,
+}
+
+impl ImageFilter {
+    /// Returns the MIME type for the image data produced by this filter.
+    pub fn mime_type(&self) -> &str {
+        match self {
+            ImageFilter::DCTDecode => "image/jpeg",
+            ImageFilter::JPXDecode => "image/jp2",
+            ImageFilter::JBIG2Decode => "image/x-jbig2",
+            ImageFilter::CCITTFaxDecode => "image/tiff",
+            ImageFilter::FlateDecode => "application/octet-stream",
+            ImageFilter::LZWDecode => "application/octet-stream",
+            ImageFilter::RunLengthDecode => "application/octet-stream",
+            ImageFilter::Raw => "application/octet-stream",
+        }
+    }
+
+    /// Parse a PDF filter name string to an `ImageFilter`.
+    pub fn from_pdf_name(name: &str) -> Self {
+        match name {
+            "DCTDecode" => ImageFilter::DCTDecode,
+            "FlateDecode" => ImageFilter::FlateDecode,
+            "CCITTFaxDecode" => ImageFilter::CCITTFaxDecode,
+            "JBIG2Decode" => ImageFilter::JBIG2Decode,
+            "JPXDecode" => ImageFilter::JPXDecode,
+            "LZWDecode" => ImageFilter::LZWDecode,
+            "RunLengthDecode" => ImageFilter::RunLengthDecode,
+            _ => ImageFilter::Raw,
+        }
     }
 }
 
@@ -182,6 +246,9 @@ mod tests {
             src_height: Some(1080),
             bits_per_component: Some(8),
             color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
         };
         assert_eq!(img.x0, 72.0);
         assert_eq!(img.top, 100.0);
@@ -194,6 +261,9 @@ mod tests {
         assert_eq!(img.src_height, Some(1080));
         assert_eq!(img.bits_per_component, Some(8));
         assert_eq!(img.color_space, Some("DeviceRGB".to_string()));
+        assert_eq!(img.data, None);
+        assert_eq!(img.filter, None);
+        assert_eq!(img.mime_type, None);
 
         let bbox = img.bbox();
         assert_approx(bbox.x0, 72.0);
@@ -216,6 +286,9 @@ mod tests {
             src_height: Some(480),
             bits_per_component: Some(8),
             color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
         };
         let bbox = img.bbox();
         assert_approx(bbox.x0, 100.0);
@@ -402,5 +475,134 @@ mod tests {
         };
         let content2 = content.clone();
         assert_eq!(content, content2);
+    }
+
+    // --- ImageFilter tests ---
+
+    #[test]
+    fn test_image_filter_variants() {
+        // Verify all 8 variants exist and are distinct
+        let filters = [
+            ImageFilter::DCTDecode,
+            ImageFilter::FlateDecode,
+            ImageFilter::CCITTFaxDecode,
+            ImageFilter::JBIG2Decode,
+            ImageFilter::JPXDecode,
+            ImageFilter::LZWDecode,
+            ImageFilter::RunLengthDecode,
+            ImageFilter::Raw,
+        ];
+        for (i, a) in filters.iter().enumerate() {
+            for (j, b) in filters.iter().enumerate() {
+                if i == j {
+                    assert_eq!(a, b);
+                } else {
+                    assert_ne!(a, b);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn test_image_filter_mime_type() {
+        assert_eq!(ImageFilter::DCTDecode.mime_type(), "image/jpeg");
+        assert_eq!(ImageFilter::JPXDecode.mime_type(), "image/jp2");
+        assert_eq!(ImageFilter::JBIG2Decode.mime_type(), "image/x-jbig2");
+        assert_eq!(ImageFilter::CCITTFaxDecode.mime_type(), "image/tiff");
+        assert_eq!(
+            ImageFilter::FlateDecode.mime_type(),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            ImageFilter::LZWDecode.mime_type(),
+            "application/octet-stream"
+        );
+        assert_eq!(
+            ImageFilter::RunLengthDecode.mime_type(),
+            "application/octet-stream"
+        );
+        assert_eq!(ImageFilter::Raw.mime_type(), "application/octet-stream");
+    }
+
+    #[test]
+    fn test_image_filter_from_pdf_name() {
+        assert_eq!(
+            ImageFilter::from_pdf_name("DCTDecode"),
+            ImageFilter::DCTDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("FlateDecode"),
+            ImageFilter::FlateDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("CCITTFaxDecode"),
+            ImageFilter::CCITTFaxDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("JBIG2Decode"),
+            ImageFilter::JBIG2Decode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("JPXDecode"),
+            ImageFilter::JPXDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("LZWDecode"),
+            ImageFilter::LZWDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("RunLengthDecode"),
+            ImageFilter::RunLengthDecode
+        );
+        assert_eq!(
+            ImageFilter::from_pdf_name("UnknownFilter"),
+            ImageFilter::Raw
+        );
+    }
+
+    #[test]
+    fn test_image_filter_clone_copy() {
+        let f = ImageFilter::DCTDecode;
+        let f2 = f; // Copy
+        let f3 = f.clone();
+        assert_eq!(f, f2);
+        assert_eq!(f, f3);
+    }
+
+    // --- Image with data fields ---
+
+    #[test]
+    fn test_image_with_data_populated() {
+        let jpeg_data = vec![0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+        let img = Image {
+            x0: 72.0,
+            top: 100.0,
+            x1: 272.0,
+            bottom: 250.0,
+            width: 200.0,
+            height: 150.0,
+            name: "Im0".to_string(),
+            src_width: Some(640),
+            src_height: Some(480),
+            bits_per_component: Some(8),
+            color_space: Some("DeviceRGB".to_string()),
+            data: Some(jpeg_data.clone()),
+            filter: Some(ImageFilter::DCTDecode),
+            mime_type: Some("image/jpeg".to_string()),
+        };
+        assert_eq!(img.data, Some(jpeg_data));
+        assert_eq!(img.filter, Some(ImageFilter::DCTDecode));
+        assert_eq!(img.mime_type, Some("image/jpeg".to_string()));
+    }
+
+    #[test]
+    fn test_image_data_none_by_default() {
+        // image_from_ctm should produce None for data/filter/mime_type
+        let ctm = Ctm::new(100.0, 0.0, 0.0, 100.0, 50.0, 50.0);
+        let meta = ImageMetadata::default();
+        let img = image_from_ctm(&ctm, "Im0", PAGE_HEIGHT, &meta);
+        assert_eq!(img.data, None);
+        assert_eq!(img.filter, None);
+        assert_eq!(img.mime_type, None);
     }
 }

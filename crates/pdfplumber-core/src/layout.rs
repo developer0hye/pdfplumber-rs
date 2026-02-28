@@ -1,6 +1,21 @@
 use crate::geometry::BBox;
 use crate::words::Word;
 
+/// Column detection mode for multi-column layout reading order.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ColumnMode {
+    /// No column detection (current default behavior).
+    /// Blocks are sorted top-to-bottom, left-to-right.
+    None,
+    /// Automatically detect columns by clustering word x-coordinates
+    /// and finding gaps wider than `min_column_gap`.
+    Auto,
+    /// Use explicit column boundary x-coordinates.
+    /// Each value is an x-coordinate that separates adjacent columns.
+    Explicit(Vec<f64>),
+}
+
 /// A text line: a sequence of words on the same y-level.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -33,6 +48,16 @@ pub struct TextOptions {
     pub y_density: f64,
     /// Minimum horizontal gap to detect column boundaries (in points).
     pub x_density: f64,
+    /// If true, expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
+    pub expand_ligatures: bool,
+    /// Column detection mode. Default: `ColumnMode::None`.
+    pub column_mode: ColumnMode,
+    /// Minimum horizontal gap (in points) to detect as a column separator.
+    /// Only used when `column_mode` is `Auto`. Default: 20.0.
+    pub min_column_gap: f64,
+    /// Maximum number of columns to detect.
+    /// Only used when `column_mode` is `Auto`. Default: 6.
+    pub max_columns: usize,
 }
 
 impl Default for TextOptions {
@@ -42,6 +67,10 @@ impl Default for TextOptions {
             y_tolerance: 3.0,
             y_density: 10.0,
             x_density: 10.0,
+            expand_ligatures: true,
+            column_mode: ColumnMode::None,
+            min_column_gap: 20.0,
+            max_columns: 6,
         }
     }
 }
@@ -216,6 +245,200 @@ pub fn sort_blocks_reading_order(blocks: &mut [TextBlock], _x_density: f64) {
             .unwrap()
             .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
     });
+}
+
+/// Detect column boundaries from word x-coordinates.
+///
+/// Clusters word x-positions to find consistent vertical gaps that indicate
+/// column separators. Returns a sorted list of x-coordinate boundaries.
+///
+/// # Arguments
+/// * `words` — All words on the page
+/// * `min_column_gap` — Minimum horizontal gap (in points) to detect as a column separator
+/// * `max_columns` — Upper limit on the number of columns to detect
+pub fn detect_columns(words: &[Word], min_column_gap: f64, max_columns: usize) -> Vec<f64> {
+    if words.is_empty() || max_columns <= 1 {
+        return Vec::new();
+    }
+
+    // Collect all inter-word gaps within each line
+    // A column gap should appear consistently across multiple lines
+    let mut gap_positions: Vec<(f64, f64)> = Vec::new(); // (gap_start_x, gap_end_x)
+
+    // Group words into lines by y-proximity
+    let lines = cluster_words_into_lines(words, 3.0);
+
+    for line in &lines {
+        if line.words.len() < 2 {
+            continue;
+        }
+        for pair in line.words.windows(2) {
+            let gap_start = pair[0].bbox.x1;
+            let gap_end = pair[1].bbox.x0;
+            let gap_width = gap_end - gap_start;
+            if gap_width >= min_column_gap {
+                gap_positions.push((gap_start, gap_end));
+            }
+        }
+    }
+
+    if gap_positions.is_empty() {
+        return Vec::new();
+    }
+
+    // Cluster gap positions by their midpoint x-coordinate
+    gap_positions.sort_by(|a, b| {
+        let mid_a = (a.0 + a.1) / 2.0;
+        let mid_b = (b.0 + b.1) / 2.0;
+        mid_a.partial_cmp(&mid_b).unwrap()
+    });
+
+    // Merge gap positions that are close together into column boundaries
+    let mut boundaries: Vec<f64> = Vec::new();
+    let mut cluster_sum = (gap_positions[0].0 + gap_positions[0].1) / 2.0;
+    let mut cluster_count = 1usize;
+    let merge_tolerance = min_column_gap;
+
+    for gap in gap_positions.iter().skip(1) {
+        let mid = (gap.0 + gap.1) / 2.0;
+        let cluster_mid = cluster_sum / cluster_count as f64;
+        if (mid - cluster_mid).abs() <= merge_tolerance {
+            cluster_sum += mid;
+            cluster_count += 1;
+        } else {
+            // Emit previous cluster
+            boundaries.push(cluster_sum / cluster_count as f64);
+            cluster_sum = mid;
+            cluster_count = 1;
+        }
+    }
+    // Emit last cluster
+    boundaries.push(cluster_sum / cluster_count as f64);
+
+    // Limit to max_columns - 1 boundaries
+    if boundaries.len() >= max_columns {
+        boundaries.truncate(max_columns - 1);
+    }
+
+    boundaries
+}
+
+/// Sort text blocks in column-aware reading order.
+///
+/// Detects which blocks are in multi-column regions (blocks that have vertical
+/// overlap with blocks in other columns) vs. standalone blocks that act as
+/// section separators. Multi-column blocks are sorted by column first, then
+/// top-to-bottom within each column. Standalone blocks maintain their natural
+/// vertical position relative to multi-column sections.
+///
+/// # Arguments
+/// * `blocks` — Text blocks to sort
+/// * `column_boundaries` — Sorted x-coordinates that separate columns
+pub fn sort_blocks_column_order(blocks: &mut [TextBlock], column_boundaries: &[f64]) {
+    if blocks.is_empty() || column_boundaries.is_empty() {
+        // Fall back to default reading order
+        blocks.sort_by(|a, b| {
+            a.bbox
+                .top
+                .partial_cmp(&b.bbox.top)
+                .unwrap()
+                .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
+        });
+        return;
+    }
+
+    // Assign each block a column index
+    let col_assignments: Vec<usize> = blocks
+        .iter()
+        .map(|block| column_index(block.bbox.x0, column_boundaries))
+        .collect();
+
+    // Determine which blocks are in multi-column regions.
+    // A block is in a multi-column region if some block in a different column
+    // has vertical overlap with it.
+    let n = blocks.len();
+    let mut in_multicolumn = vec![false; n];
+    for i in 0..n {
+        for j in (i + 1)..n {
+            if col_assignments[i] != col_assignments[j]
+                && blocks[i].bbox.top < blocks[j].bbox.bottom
+                && blocks[j].bbox.top < blocks[i].bbox.bottom
+            {
+                in_multicolumn[i] = true;
+                in_multicolumn[j] = true;
+            }
+        }
+    }
+
+    // Sort indices by vertical position to establish scan order
+    let mut indices: Vec<usize> = (0..n).collect();
+    indices.sort_by(|&a, &b| {
+        blocks[a]
+            .bbox
+            .top
+            .partial_cmp(&blocks[b].bbox.top)
+            .unwrap()
+            .then(blocks[a].bbox.x0.partial_cmp(&blocks[b].bbox.x0).unwrap())
+    });
+
+    // Walk blocks in vertical order and group into sections.
+    // Multi-column blocks form contiguous sections; standalone blocks are
+    // each their own section.
+    let mut sections: Vec<Vec<usize>> = Vec::new();
+    let mut current_section: Vec<usize> = Vec::new();
+    let mut current_is_multi = false;
+
+    for &idx in &indices {
+        if current_section.is_empty() {
+            current_section.push(idx);
+            current_is_multi = in_multicolumn[idx];
+        } else if in_multicolumn[idx] && current_is_multi {
+            // Continue multi-column section
+            current_section.push(idx);
+        } else if !in_multicolumn[idx] && !current_is_multi {
+            // Each standalone block is its own section
+            sections.push(current_section);
+            current_section = vec![idx];
+        } else {
+            // Type changed — start new section
+            sections.push(current_section);
+            current_section = vec![idx];
+            current_is_multi = in_multicolumn[idx];
+        }
+    }
+    if !current_section.is_empty() {
+        sections.push(current_section);
+    }
+
+    // Within multi-column sections, sort by (column, top)
+    for section in &mut sections {
+        if section.len() > 1 && section.iter().any(|&i| in_multicolumn[i]) {
+            section.sort_by(|&a, &b| {
+                col_assignments[a]
+                    .cmp(&col_assignments[b])
+                    .then(blocks[a].bbox.top.partial_cmp(&blocks[b].bbox.top).unwrap())
+            });
+        }
+    }
+
+    // Flatten sections into final order
+    let final_order: Vec<usize> = sections.into_iter().flatten().collect();
+
+    // Reorder blocks
+    let original: Vec<TextBlock> = blocks.to_vec();
+    for (dest, &src) in final_order.iter().enumerate() {
+        blocks[dest] = original[src].clone();
+    }
+}
+
+/// Determine which column a given x-coordinate falls into.
+fn column_index(x: f64, boundaries: &[f64]) -> usize {
+    for (i, &boundary) in boundaries.iter().enumerate() {
+        if x < boundary {
+            return i;
+        }
+    }
+    boundaries.len()
 }
 
 /// Convert text blocks into a string.
@@ -764,5 +987,489 @@ mod tests {
         let text = blocks_to_text(&blocks);
 
         assert_eq!(text, "A\n\nB\n\nC");
+    }
+
+    // --- ColumnMode and TextOptions column fields ---
+
+    #[test]
+    fn test_text_options_default_column_mode() {
+        let opts = TextOptions::default();
+        assert_eq!(opts.column_mode, ColumnMode::None);
+        assert_eq!(opts.min_column_gap, 20.0);
+        assert_eq!(opts.max_columns, 6);
+    }
+
+    #[test]
+    fn test_column_mode_auto() {
+        let opts = TextOptions {
+            column_mode: ColumnMode::Auto,
+            ..TextOptions::default()
+        };
+        assert_eq!(opts.column_mode, ColumnMode::Auto);
+    }
+
+    #[test]
+    fn test_column_mode_explicit() {
+        let opts = TextOptions {
+            column_mode: ColumnMode::Explicit(vec![300.0]),
+            ..TextOptions::default()
+        };
+        match &opts.column_mode {
+            ColumnMode::Explicit(boundaries) => {
+                assert_eq!(boundaries, &[300.0]);
+            }
+            _ => panic!("expected Explicit"),
+        }
+    }
+
+    // --- detect_columns ---
+
+    #[test]
+    fn test_detect_columns_empty_words() {
+        let boundaries = detect_columns(&[], 20.0, 6);
+        assert!(boundaries.is_empty());
+    }
+
+    #[test]
+    fn test_detect_columns_single_column() {
+        // All words in one column — no large gaps
+        let words = vec![
+            make_word("Hello", 10.0, 100.0, 50.0, 112.0),
+            make_word("World", 55.0, 100.0, 95.0, 112.0),
+            make_word("Foo", 10.0, 120.0, 40.0, 132.0),
+            make_word("Bar", 45.0, 120.0, 80.0, 132.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert!(
+            boundaries.is_empty(),
+            "single column should have no boundaries"
+        );
+    }
+
+    #[test]
+    fn test_detect_columns_two_columns() {
+        // Two columns with a large gap at x~130
+        let words = vec![
+            // Left column: x=10..100
+            make_word("Left1", 10.0, 100.0, 50.0, 112.0),
+            make_word("word1", 55.0, 100.0, 100.0, 112.0),
+            make_word("Left2", 10.0, 120.0, 50.0, 132.0),
+            make_word("word2", 55.0, 120.0, 100.0, 132.0),
+            make_word("Left3", 10.0, 140.0, 50.0, 152.0),
+            make_word("word3", 55.0, 140.0, 100.0, 152.0),
+            // Right column: x=200..300
+            make_word("Right1", 200.0, 100.0, 250.0, 112.0),
+            make_word("rword1", 255.0, 100.0, 300.0, 112.0),
+            make_word("Right2", 200.0, 120.0, 250.0, 132.0),
+            make_word("rword2", 255.0, 120.0, 300.0, 132.0),
+            make_word("Right3", 200.0, 140.0, 250.0, 152.0),
+            make_word("rword3", 255.0, 140.0, 300.0, 152.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert_eq!(boundaries.len(), 1, "should detect one column boundary");
+        // Boundary should be around x=150 (midpoint of gap from 100 to 200)
+        assert!(
+            boundaries[0] > 100.0 && boundaries[0] < 200.0,
+            "boundary {} should be between columns",
+            boundaries[0]
+        );
+    }
+
+    #[test]
+    fn test_detect_columns_three_columns() {
+        // Three columns
+        let words = vec![
+            // Column 1: x=10..80
+            make_word("A1", 10.0, 100.0, 40.0, 112.0),
+            make_word("a1", 45.0, 100.0, 80.0, 112.0),
+            make_word("A2", 10.0, 120.0, 40.0, 132.0),
+            make_word("a2", 45.0, 120.0, 80.0, 132.0),
+            make_word("A3", 10.0, 140.0, 40.0, 152.0),
+            make_word("a3", 45.0, 140.0, 80.0, 152.0),
+            // Column 2: x=150..220
+            make_word("B1", 150.0, 100.0, 180.0, 112.0),
+            make_word("b1", 185.0, 100.0, 220.0, 112.0),
+            make_word("B2", 150.0, 120.0, 180.0, 132.0),
+            make_word("b2", 185.0, 120.0, 220.0, 132.0),
+            make_word("B3", 150.0, 140.0, 180.0, 152.0),
+            make_word("b3", 185.0, 140.0, 220.0, 152.0),
+            // Column 3: x=290..360
+            make_word("C1", 290.0, 100.0, 320.0, 112.0),
+            make_word("c1", 325.0, 100.0, 360.0, 112.0),
+            make_word("C2", 290.0, 120.0, 320.0, 132.0),
+            make_word("c2", 325.0, 120.0, 360.0, 132.0),
+            make_word("C3", 290.0, 140.0, 320.0, 152.0),
+            make_word("c3", 325.0, 140.0, 360.0, 152.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert_eq!(boundaries.len(), 2, "should detect two column boundaries");
+        assert!(
+            boundaries[0] > 80.0 && boundaries[0] < 150.0,
+            "first boundary {} should be between col1 and col2",
+            boundaries[0]
+        );
+        assert!(
+            boundaries[1] > 220.0 && boundaries[1] < 290.0,
+            "second boundary {} should be between col2 and col3",
+            boundaries[1]
+        );
+    }
+
+    #[test]
+    fn test_detect_columns_max_columns_limit() {
+        // Three-column layout but max_columns=2 should return at most 1 boundary
+        let words = vec![
+            make_word("A", 10.0, 100.0, 40.0, 112.0),
+            make_word("B", 150.0, 100.0, 180.0, 112.0),
+            make_word("C", 290.0, 100.0, 320.0, 112.0),
+            make_word("A", 10.0, 120.0, 40.0, 132.0),
+            make_word("B", 150.0, 120.0, 180.0, 132.0),
+            make_word("C", 290.0, 120.0, 320.0, 132.0),
+            make_word("A", 10.0, 140.0, 40.0, 152.0),
+            make_word("B", 150.0, 140.0, 180.0, 152.0),
+            make_word("C", 290.0, 140.0, 320.0, 152.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 2);
+        assert!(
+            boundaries.len() <= 1,
+            "max_columns=2 should produce at most 1 boundary"
+        );
+    }
+
+    #[test]
+    fn test_detect_columns_max_columns_one_returns_empty() {
+        let words = vec![
+            make_word("A", 10.0, 100.0, 40.0, 112.0),
+            make_word("B", 200.0, 100.0, 240.0, 112.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 1);
+        assert!(
+            boundaries.is_empty(),
+            "max_columns=1 should return no boundaries"
+        );
+    }
+
+    // --- sort_blocks_column_order ---
+
+    #[test]
+    fn test_column_order_two_columns() {
+        // Two-column layout: blocks at Left and Right at same y-levels
+        // With column-aware sort, all Left blocks come before all Right blocks
+        let mut blocks = vec![
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Left1", 10.0, 100.0, 100.0, 112.0)],
+                    bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+                }],
+                bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Right1", 200.0, 100.0, 300.0, 112.0)],
+                    bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+                }],
+                bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Left2", 10.0, 200.0, 100.0, 212.0)],
+                    bbox: BBox::new(10.0, 200.0, 100.0, 212.0),
+                }],
+                bbox: BBox::new(10.0, 200.0, 100.0, 212.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Right2", 200.0, 200.0, 300.0, 212.0)],
+                    bbox: BBox::new(200.0, 200.0, 300.0, 212.0),
+                }],
+                bbox: BBox::new(200.0, 200.0, 300.0, 212.0),
+            },
+        ];
+
+        let boundaries = vec![150.0]; // column boundary at x=150
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Column-aware: Left1, Left2, Right1, Right2
+        assert_eq!(text, "Left1\n\nLeft2\n\nRight1\n\nRight2");
+    }
+
+    #[test]
+    fn test_column_order_three_columns() {
+        let mut blocks = vec![
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("A1", 10.0, 100.0, 80.0, 112.0)],
+                    bbox: BBox::new(10.0, 100.0, 80.0, 112.0),
+                }],
+                bbox: BBox::new(10.0, 100.0, 80.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("B1", 150.0, 100.0, 220.0, 112.0)],
+                    bbox: BBox::new(150.0, 100.0, 220.0, 112.0),
+                }],
+                bbox: BBox::new(150.0, 100.0, 220.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("C1", 290.0, 100.0, 360.0, 112.0)],
+                    bbox: BBox::new(290.0, 100.0, 360.0, 112.0),
+                }],
+                bbox: BBox::new(290.0, 100.0, 360.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("A2", 10.0, 200.0, 80.0, 212.0)],
+                    bbox: BBox::new(10.0, 200.0, 80.0, 212.0),
+                }],
+                bbox: BBox::new(10.0, 200.0, 80.0, 212.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("B2", 150.0, 200.0, 220.0, 212.0)],
+                    bbox: BBox::new(150.0, 200.0, 220.0, 212.0),
+                }],
+                bbox: BBox::new(150.0, 200.0, 220.0, 212.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("C2", 290.0, 200.0, 360.0, 212.0)],
+                    bbox: BBox::new(290.0, 200.0, 360.0, 212.0),
+                }],
+                bbox: BBox::new(290.0, 200.0, 360.0, 212.0),
+            },
+        ];
+
+        let boundaries = vec![120.0, 260.0];
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Column order: A1, A2, B1, B2, C1, C2
+        assert_eq!(text, "A1\n\nA2\n\nB1\n\nB2\n\nC1\n\nC2");
+    }
+
+    #[test]
+    fn test_column_order_full_width_heading_not_split() {
+        // Full-width heading spans both columns — should not be split
+        // It should appear first, then left column content, then right column content
+        let mut blocks = vec![
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Full-Width Heading", 10.0, 50.0, 300.0, 62.0)],
+                    bbox: BBox::new(10.0, 50.0, 300.0, 62.0),
+                }],
+                bbox: BBox::new(10.0, 50.0, 300.0, 62.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Left1", 10.0, 100.0, 100.0, 112.0)],
+                    bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+                }],
+                bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Right1", 200.0, 100.0, 300.0, 112.0)],
+                    bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+                }],
+                bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Left2", 10.0, 200.0, 100.0, 212.0)],
+                    bbox: BBox::new(10.0, 200.0, 100.0, 212.0),
+                }],
+                bbox: BBox::new(10.0, 200.0, 100.0, 212.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("Right2", 200.0, 200.0, 300.0, 212.0)],
+                    bbox: BBox::new(200.0, 200.0, 300.0, 212.0),
+                }],
+                bbox: BBox::new(200.0, 200.0, 300.0, 212.0),
+            },
+        ];
+
+        let boundaries = vec![150.0];
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Heading first, then Left column, then Right column
+        assert_eq!(
+            text,
+            "Full-Width Heading\n\nLeft1\n\nLeft2\n\nRight1\n\nRight2"
+        );
+    }
+
+    #[test]
+    fn test_column_order_no_boundaries_falls_back() {
+        // When no boundaries provided, should fall back to default order
+        let mut blocks = vec![
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("B", 200.0, 100.0, 300.0, 112.0)],
+                    bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+                }],
+                bbox: BBox::new(200.0, 100.0, 300.0, 112.0),
+            },
+            TextBlock {
+                lines: vec![TextLine {
+                    words: vec![make_word("A", 10.0, 100.0, 100.0, 112.0)],
+                    bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+                }],
+                bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+            },
+        ];
+
+        sort_blocks_column_order(&mut blocks, &[]);
+        // Falls back to (top, x0) order
+        assert_eq!(blocks[0].lines[0].words[0].text, "A");
+        assert_eq!(blocks[1].lines[0].words[0].text, "B");
+    }
+
+    // --- End-to-end column-aware layout tests ---
+
+    #[test]
+    fn test_end_to_end_two_column_auto_detection() {
+        // Two-column layout with auto detection
+        let words = vec![
+            // Left column: x=10..100
+            make_word("Left", 10.0, 100.0, 50.0, 112.0),
+            make_word("L1", 55.0, 100.0, 100.0, 112.0),
+            make_word("Left", 10.0, 120.0, 50.0, 132.0),
+            make_word("L2", 55.0, 120.0, 100.0, 132.0),
+            make_word("Left", 10.0, 140.0, 50.0, 152.0),
+            make_word("L3", 55.0, 140.0, 100.0, 152.0),
+            // Right column: x=200..300
+            make_word("Right", 200.0, 100.0, 250.0, 112.0),
+            make_word("R1", 255.0, 100.0, 300.0, 112.0),
+            make_word("Right", 200.0, 120.0, 250.0, 132.0),
+            make_word("R2", 255.0, 120.0, 300.0, 132.0),
+            make_word("Right", 200.0, 140.0, 250.0, 152.0),
+            make_word("R3", 255.0, 140.0, 300.0, 152.0),
+        ];
+
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert_eq!(boundaries.len(), 1, "should detect one column boundary");
+
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let split = split_lines_at_columns(lines, 10.0);
+        let mut blocks = cluster_lines_into_blocks(split, 10.0);
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Column-aware: all Left content, then all Right content
+        assert_eq!(
+            text,
+            "Left L1\nLeft L2\nLeft L3\n\nRight R1\nRight R2\nRight R3"
+        );
+    }
+
+    #[test]
+    fn test_end_to_end_three_column_auto_detection() {
+        let words = vec![
+            // Column 1: x=10..80
+            make_word("A1", 10.0, 100.0, 40.0, 112.0),
+            make_word("a1", 45.0, 100.0, 80.0, 112.0),
+            make_word("A2", 10.0, 120.0, 40.0, 132.0),
+            make_word("a2", 45.0, 120.0, 80.0, 132.0),
+            make_word("A3", 10.0, 140.0, 40.0, 152.0),
+            make_word("a3", 45.0, 140.0, 80.0, 152.0),
+            // Column 2: x=150..220
+            make_word("B1", 150.0, 100.0, 180.0, 112.0),
+            make_word("b1", 185.0, 100.0, 220.0, 112.0),
+            make_word("B2", 150.0, 120.0, 180.0, 132.0),
+            make_word("b2", 185.0, 120.0, 220.0, 132.0),
+            make_word("B3", 150.0, 140.0, 180.0, 152.0),
+            make_word("b3", 185.0, 140.0, 220.0, 152.0),
+            // Column 3: x=290..360
+            make_word("C1", 290.0, 100.0, 320.0, 112.0),
+            make_word("c1", 325.0, 100.0, 360.0, 112.0),
+            make_word("C2", 290.0, 120.0, 320.0, 132.0),
+            make_word("c2", 325.0, 120.0, 360.0, 132.0),
+            make_word("C3", 290.0, 140.0, 320.0, 152.0),
+            make_word("c3", 325.0, 140.0, 360.0, 152.0),
+        ];
+
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert_eq!(boundaries.len(), 2, "should detect two column boundaries");
+
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let split = split_lines_at_columns(lines, 10.0);
+        let mut blocks = cluster_lines_into_blocks(split, 10.0);
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Column-aware: A content, B content, C content
+        assert_eq!(
+            text,
+            "A1 a1\nA2 a2\nA3 a3\n\nB1 b1\nB2 b2\nB3 b3\n\nC1 c1\nC2 c2\nC3 c3"
+        );
+    }
+
+    #[test]
+    fn test_end_to_end_full_width_heading_with_columns() {
+        // Full-width heading, then two columns, then full-width footer
+        let words = vec![
+            // Full-width heading
+            make_word("Document", 10.0, 50.0, 80.0, 62.0),
+            make_word("Title", 85.0, 50.0, 130.0, 62.0),
+            // Left column: x=10..100
+            make_word("Left", 10.0, 100.0, 50.0, 112.0),
+            make_word("L1", 55.0, 100.0, 100.0, 112.0),
+            make_word("Left", 10.0, 120.0, 50.0, 132.0),
+            make_word("L2", 55.0, 120.0, 100.0, 132.0),
+            make_word("Left", 10.0, 140.0, 50.0, 152.0),
+            make_word("L3", 55.0, 140.0, 100.0, 152.0),
+            // Right column: x=200..300
+            make_word("Right", 200.0, 100.0, 250.0, 112.0),
+            make_word("R1", 255.0, 100.0, 300.0, 112.0),
+            make_word("Right", 200.0, 120.0, 250.0, 132.0),
+            make_word("R2", 255.0, 120.0, 300.0, 132.0),
+            make_word("Right", 200.0, 140.0, 250.0, 152.0),
+            make_word("R3", 255.0, 140.0, 300.0, 152.0),
+            // Full-width footer
+            make_word("Footer", 10.0, 250.0, 80.0, 262.0),
+            make_word("Text", 85.0, 250.0, 130.0, 262.0),
+        ];
+
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert!(!boundaries.is_empty(), "should detect column boundary");
+
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let split = split_lines_at_columns(lines, 10.0);
+        let mut blocks = cluster_lines_into_blocks(split, 10.0);
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        // Full-width heading, then Left column, then Right column, then footer
+        assert_eq!(
+            text,
+            "Document Title\n\nLeft L1\nLeft L2\nLeft L3\n\nRight R1\nRight R2\nRight R3\n\nFooter Text"
+        );
+    }
+
+    #[test]
+    fn test_column_order_explicit_boundaries() {
+        // Use explicit column boundaries
+        let words = vec![
+            // Left column
+            make_word("Left1", 10.0, 100.0, 100.0, 112.0),
+            make_word("Left2", 10.0, 120.0, 100.0, 132.0),
+            // Right column
+            make_word("Right1", 200.0, 100.0, 300.0, 112.0),
+            make_word("Right2", 200.0, 120.0, 300.0, 132.0),
+        ];
+
+        let boundaries = vec![150.0]; // Explicit boundary
+
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let split = split_lines_at_columns(lines, 10.0);
+        let mut blocks = cluster_lines_into_blocks(split, 10.0);
+        sort_blocks_column_order(&mut blocks, &boundaries);
+        let text = blocks_to_text(&blocks);
+
+        assert_eq!(text, "Left1\nLeft2\n\nRight1\nRight2");
     }
 }

@@ -1,17 +1,51 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 04시 01분 36초 KST
+Started: 2026년  3월  1일 일요일 03시 06분 03초 KST
 ---
 
 ## Codebase Patterns
+- Text rendering operators (Tj, TJ, ', ") flow: interpret_content_stream → handle_tj/handle_tj_array → emit_char_events → handler.on_char(CharEvent)
+- The tokenizer's Operand enum now includes Dictionary(Vec<(String, Operand)>) for inline `<<...>>` dicts
+- Marked content state is NOT part of graphics state (q/Q don't save/restore it), so it's tracked as a local `Vec<MarkedContentEntry>` in interpret_content_stream
+- To thread new state through char emission: add parameter to handle_tj → handle_tj_array → emit_char_events chain
 - Warning types are in `crates/pdfplumber-core/src/error.rs` — ExtractWarning, ExtractWarningCode, ExtractOptions, PdfError
 - Re-exports from `crates/pdfplumber-core/src/lib.rs`
 - Warning emission sites are in `crates/pdfplumber-parse/src/interpreter.rs` (3 font-related sites)
 - serde support uses conditional derive: `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]`
 - All ExtractOptions struct literals in tests use `..ExtractOptions::default()` spread, so adding new fields with defaults is backward-compatible
 - pdfplumber-py tests fail in local env due to missing libpython3.11.dylib — pre-existing issue, skip with `-p` flags
+
 ---
 
-## 2026-03-01 - US-096
+## 2026-03-01 - US-092
+- **What was implemented**: Tagged PDF operators (BMC/BDC/EMC) wired in content stream interpreter
+- **Learnings for future iterations:**
+  - MCID inheritance in nested content uses `iter().rev().find_map()` to find nearest ancestor with MCID
+  - Tag always comes from the innermost (last) stack entry
+  - EMC on empty stack is gracefully ignored (no panic)
+---
+
+## 2026-03-01 - US-093
+- **What was implemented**: Added `duplicate_merged_content: bool` to `TableSettings`
+- **Learnings for future iterations:**
+  - Merged cells create larger cells covering multiple grid positions
+  - Center-point containment (with epsilon tolerance) is used to match sub-grid positions
+---
+
+## 2026-03-01 - US-094
+- **What was implemented**: Added automatic header/footer detection and removal
+- **Learnings for future iterations:**
+  - Digit masking is effective for detecting repeating text with variable page numbers
+  - `detect_page_regions` is a pure function on text data
+---
+
+## 2026-03-01 - US-095
+- **What was implemented**: Multi-column layout reading order improvement
+- **Learnings for future iterations:**
+  - Column detection clusters inter-word gaps within lines
+  - Section-based approach handles heading-columns-footer patterns
+---
+
+## 2026-03-01 - US-096 (Phase 13)
 - Implemented ExtractWarningCode enum: MissingFont, UnsupportedOperator, MalformedObject, ResourceLimitReached, EncodingFallback, Other(String)
 - ExtractWarning gained `code` field, Display format changed to `[CODE] message (page N)`
 - ExtractOptions gained `strict_mode` (bool, default false)

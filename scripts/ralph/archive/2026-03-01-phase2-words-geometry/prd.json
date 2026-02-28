@@ -1,0 +1,111 @@
+{
+  "project": "pdfplumber-rs",
+  "branchName": "ralph/phase13-anytomd-integration",
+  "description": "Phase 13: anytomd Integration - Document-level Markdown API, warning taxonomy, resource budgets, image naming, compatibility tests",
+  "userStories": [
+    {
+      "id": "US-096",
+      "title": "Structured warning code taxonomy for ExtractWarning",
+      "description": "Warnings are currently free-form text without stable machine-readable codes. Add an ExtractWarningCode enum with structured fields and a strict-mode helper that converts warnings into errors. Resolves #101.",
+      "acceptanceCriteria": [
+        "ExtractWarningCode enum: MissingFont, UnsupportedOperator, MalformedObject, ResourceLimitReached, EncodingFallback, Other(String)",
+        "ExtractWarning struct gains: code (ExtractWarningCode), page (Option<usize>), element (Option<String>)",
+        "All existing warning emission sites updated to use appropriate codes",
+        "ExtractOptions gains: strict_mode (bool, default false) — when true, any warning becomes an error",
+        "Warnings implement Display with format: [CODE] message (page N)",
+        "serde serialization includes code as string tag",
+        "Unit tests: each warning code emitted correctly, strict mode converts warning to error, Other code preserves custom message",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "relatedIssue": 101,
+      "notes": "Foundation for anytomd integration — enables downstream policy handling of extraction issues."
+    },
+    {
+      "id": "US-097",
+      "title": "Document-level resource budgets for production safety",
+      "description": "Per-page/per-stream limits exist but document-level budgets are missing. Add max_input_bytes, max_pages, max_total_image_bytes, and max_total_objects to ExtractOptions with PdfError::ResourceLimitExceeded. Resolves #103.",
+      "acceptanceCriteria": [
+        "ExtractOptions gains: max_input_bytes (Option<usize>), max_pages (Option<usize>), max_total_image_bytes (Option<usize>), max_total_objects (Option<usize>)",
+        "Pdf::open checks max_input_bytes before parsing",
+        "Page iteration checks max_pages and stops with error when exceeded",
+        "Image extraction accumulates byte count and checks max_total_image_bytes",
+        "Object extraction accumulates count and checks max_total_objects",
+        "PdfError::ResourceLimitExceeded variant with: limit_name (String), limit_value (usize), actual_value (usize)",
+        "Default values are None (no limit) for backward compatibility",
+        "Unit tests: max_input_bytes rejects oversized PDF, max_pages stops at limit, limits disabled by default",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "relatedIssue": 103,
+      "notes": "Critical for production pipelines processing untrusted PDFs."
+    },
+    {
+      "id": "US-098",
+      "title": "Deterministic image naming and export contract",
+      "description": "For Markdown conversion pipelines, extracted images need deterministic, collision-safe naming. Add ImageExportOptions with filename patterns, content-hash deduplication, and MIME/extension normalization. Resolves #104.",
+      "acceptanceCriteria": [
+        "ImageExportOptions struct: pattern (String, default 'page{page}_img{index}.{ext}'), deduplicate (bool, default false)",
+        "Pattern variables: {page} (1-indexed page number), {index} (0-indexed image index on page), {ext} (normalized extension), {hash} (content hash prefix)",
+        "Extension normalization: DCTDecode->jpg, FlateDecode->png, JPXDecode->jp2, CCITTFaxDecode->tiff, Raw->bin",
+        "When deduplicate=true, identical images (by content hash) share the same filename",
+        "ExportedImage struct: filename (String), data (Vec<u8>), mime_type (String), page (usize)",
+        "Page::export_images(options) -> Vec<ExportedImage>",
+        "Deterministic: same input always produces same filenames",
+        "Unit tests: default pattern produces expected names, deduplication identifies identical images, custom pattern with hash",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "relatedIssue": 104,
+      "notes": "Ensures re-running conversion on same input produces identical filenames for stable diffs and caching."
+    },
+    {
+      "id": "US-099",
+      "title": "Document-level Markdown conversion API",
+      "description": "High-level Pdf::convert_to_markdown() that returns MarkdownConversionResult with markdown, plain text, title, extracted images, and warnings. Builds on page-level markdown (US-078). Resolves #100.",
+      "acceptanceCriteria": [
+        "MarkdownConversionResult struct: markdown (String), plain_text (String), title (Option<String>), images (Vec<ExportedImage>), warnings (Vec<ExtractWarning>), page_count (usize)",
+        "Pdf::convert_to_markdown(options) -> Result<MarkdownConversionResult>",
+        "MarkdownConversionOptions: page_separator (String, default '\\n\\n---\\n\\n'), include_images (bool, default true), image_options (ImageExportOptions), strict_mode (bool, default false)",
+        "Aggregates page-level markdown with configurable separator",
+        "Title extracted from PDF metadata /Title or first heading in content",
+        "Plain text is markdown stripped of formatting",
+        "strict_mode escalates warnings to errors via ExtractWarning taxonomy",
+        "Unit tests: multi-page PDF produces combined markdown, title extracted from metadata, strict mode fails on warnings",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "relatedIssue": 100,
+      "notes": "Top-level API for anytomd-rs integration. Depends on page-level markdown already being implemented."
+    },
+    {
+      "id": "US-100",
+      "title": "anytomd compatibility test suite with golden fixtures",
+      "description": "Focused test suite validating outputs against the contract expected by anytomd-rs. Includes golden tests for Markdown structure, plain-text output, title extraction, warning collection, and image contract stability. Resolves #105.",
+      "acceptanceCriteria": [
+        "tests/anytomd/ directory with golden fixture files",
+        "Fixture categories: technical docs, business reports, mixed-language PDFs",
+        "Each fixture has: input.pdf, expected_markdown.md, expected_metadata.json",
+        "Golden tests compare convert_to_markdown() output against expected files",
+        "Warning collection test: specific warning codes emitted for known-problematic PDFs",
+        "Image contract test: exported image filenames match expected deterministic names",
+        "Strict mode test: warnings-as-errors behavior verified",
+        "Update mechanism: UPDATE_GOLDEN=1 env var regenerates expected files",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "relatedIssue": 105,
+      "notes": "Ensures pdfplumber-rs output contract remains stable for downstream consumers."
+    }
+  ]
+}

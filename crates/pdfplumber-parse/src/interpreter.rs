@@ -21,10 +21,10 @@ use crate::text_renderer::{
     TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
 };
 use crate::text_state::TextState;
-use crate::tokenizer::{Operand, tokenize};
+use crate::tokenizer::{Operand, Operator, tokenize};
 use pdfplumber_core::{
-    DashPattern, ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule, FontEncoding,
-    PathBuilder, StandardEncoding, glyph_name_to_char,
+    ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule, FontEncoding, PathBuilder,
+    StandardEncoding, glyph_name_to_char,
 };
 
 /// Cached font information for the interpreter.
@@ -42,6 +42,41 @@ struct CachedFont {
     writing_mode: u8,
     /// Font encoding from the /Encoding entry (for simple fonts).
     encoding: Option<FontEncoding>,
+}
+
+/// Entry on the marked content stack, tracking BMC/BDC nesting.
+#[derive(Debug, Clone)]
+struct MarkedContentEntry {
+    /// Tag name (e.g., "P", "Span", "Artifact").
+    tag: String,
+    /// Marked content identifier from BDC properties, if present.
+    mcid: Option<u32>,
+}
+
+/// Extract MCID from a BDC operator's properties operand (inline dictionary).
+fn extract_mcid_from_operands(op: &Operator) -> Option<u32> {
+    for operand in &op.operands {
+        if let Operand::Dictionary(entries) = operand {
+            for (key, value) in entries {
+                if key == "MCID" {
+                    return match value {
+                        Operand::Integer(i) => Some(*i as u32),
+                        Operand::Real(f) => Some(*f as u32),
+                        _ => None,
+                    };
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Extract the tag name from a BMC/BDC operator's operands.
+fn extract_tag_name(op: &Operator) -> Option<String> {
+    op.operands.first().and_then(|o| match o {
+        Operand::Name(name) => Some(name.clone()),
+        _ => None,
+    })
 }
 
 /// Interpret a content stream and emit events to the handler.
@@ -81,6 +116,7 @@ pub(crate) fn interpret_content_stream(
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
     let mut path_builder = PathBuilder::new(*gstate.ctm());
+    let mut marked_content_stack: Vec<MarkedContentEntry> = Vec::new();
 
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
@@ -124,8 +160,14 @@ pub(crate) fn interpret_content_stream(
                     }
                 }
             }
-            "J" | "j" | "M" | "i" | "gs" | "ri" => {
-                // Line cap, line join, miter limit, flatness, ExtGState, rendering intent
+            "gs" => {
+                // Extended Graphics State
+                if let Some(Operand::Name(name)) = op.operands.first() {
+                    apply_ext_gstate(doc, resources, gstate, name);
+                }
+            }
+            "J" | "j" | "M" | "i" | "ri" => {
+                // Line cap, line join, miter limit, flatness, rendering intent
                 // Not yet fully implemented — ignore
             }
 
@@ -277,15 +319,36 @@ pub(crate) fn interpret_content_stream(
 
             // --- Text rendering operators ---
             "Tj" => {
-                handle_tj(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "TJ" => {
-                handle_tj_array(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj_array(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "'" => {
                 // T* then Tj
                 tstate.move_to_next_line();
-                handle_tj(tstate, gstate, handler, &op.operands, &font_cache);
+                handle_tj(
+                    tstate,
+                    gstate,
+                    handler,
+                    &op.operands,
+                    &font_cache,
+                    &marked_content_stack,
+                );
             }
             "\"" => {
                 // aw ac (string) "
@@ -299,7 +362,14 @@ pub(crate) fn interpret_content_stream(
                     tstate.move_to_next_line();
                     // Show the string (3rd operand)
                     let string_operands = vec![op.operands[2].clone()];
-                    handle_tj(tstate, gstate, handler, &string_operands, &font_cache);
+                    handle_tj(
+                        tstate,
+                        gstate,
+                        handler,
+                        &string_operands,
+                        &font_cache,
+                        &marked_content_stack,
+                    );
                 }
             }
 
@@ -314,7 +384,7 @@ pub(crate) fn interpret_content_stream(
 
             // --- Path construction operators ---
             "m" => {
-                // moveto
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 2 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -322,7 +392,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "l" => {
-                // lineto
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 2 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -330,7 +400,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "c" => {
-                // curveto (6 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 6 {
                     let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -342,7 +412,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "v" => {
-                // curveto variant: first CP = current point (4 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x2 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y2 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -352,7 +422,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "y" => {
-                // curveto variant: last CP = endpoint (4 args)
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -362,7 +432,7 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "re" => {
-                // rectangle
+                path_builder.set_ctm(*gstate.ctm());
                 if op.operands.len() >= 4 {
                     let x = get_f64(&op.operands, 0).unwrap_or(0.0);
                     let y = get_f64(&op.operands, 1).unwrap_or(0.0);
@@ -378,97 +448,101 @@ pub(crate) fn interpret_content_stream(
 
             // --- Path painting operators ---
             "S" => {
-                // Stroke
-                emit_path_event(
-                    &mut path_builder,
-                    gstate,
-                    handler,
-                    PaintOp::Stroke,
-                    FillRule::NonZeroWinding,
-                );
+                let painted = path_builder.stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
             }
             "s" => {
-                // Close and stroke
-                path_builder.close_path();
-                emit_path_event(
-                    &mut path_builder,
-                    gstate,
-                    handler,
-                    PaintOp::Stroke,
-                    FillRule::NonZeroWinding,
-                );
+                let painted = path_builder.close_and_stroke(gstate.graphics_state());
+                emit_path_event(handler, gstate, &painted, PaintOp::Stroke, None);
             }
             "f" | "F" => {
-                // Fill (nonzero winding)
+                let painted = path_builder.fill(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::Fill,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "f*" => {
-                // Fill (even-odd rule)
+                let painted = path_builder.fill_even_odd(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::Fill,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "B" => {
-                // Fill and stroke (nonzero winding)
+                let painted = path_builder.fill_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "B*" => {
-                // Fill and stroke (even-odd rule)
+                let painted = path_builder.fill_even_odd_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "b" => {
-                // Close, fill, and stroke (nonzero winding)
-                path_builder.close_path();
+                let painted = path_builder.close_fill_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::NonZeroWinding,
+                    Some(FillRule::NonZeroWinding),
                 );
             }
             "b*" => {
-                // Close, fill, and stroke (even-odd rule)
-                path_builder.close_path();
+                let painted = path_builder.close_fill_even_odd_and_stroke(gstate.graphics_state());
                 emit_path_event(
-                    &mut path_builder,
-                    gstate,
                     handler,
+                    gstate,
+                    &painted,
                     PaintOp::FillAndStroke,
-                    FillRule::EvenOdd,
+                    Some(FillRule::EvenOdd),
                 );
             }
             "n" => {
-                // End path without painting (no-op, used with clipping)
-                path_builder.take_and_reset();
-            }
-            "W" | "W*" => {
-                // Clipping path — no-op for extraction purposes
+                path_builder.end_path();
             }
 
-            // Other operators not yet handled
+            // --- Clipping operators (no-op for extraction) ---
+            "W" | "W*" => {}
+
+            // --- Marked content operators ---
+            "BMC" => {
+                let tag = extract_tag_name(op).unwrap_or_default();
+                marked_content_stack.push(MarkedContentEntry { tag, mcid: None });
+            }
+            "BDC" => {
+                let tag = extract_tag_name(op).unwrap_or_default();
+                let mcid = extract_mcid_from_operands(op);
+                marked_content_stack.push(MarkedContentEntry { tag, mcid });
+            }
+            "EMC" => {
+                marked_content_stack.pop();
+            }
+            "MP" | "DP" => {}
+
+            // --- Inline image operator ---
+            "BI" => {
+                handle_inline_image(op, op_index, gstate, handler);
+            }
+
+            // Other operators — silently ignore
             _ => {}
         }
     }
@@ -785,6 +859,7 @@ fn handle_tj(
     handler: &mut dyn ContentHandler,
     operands: &[Operand],
     font_cache: &HashMap<String, CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let string_bytes = match operands.first().and_then(operand_to_string_bytes) {
         Some(bytes) => bytes,
@@ -800,7 +875,14 @@ fn handle_tj(
         show_string(tstate, string_bytes, &*width_fn)
     };
 
-    emit_char_events(raw_chars, tstate, gstate, handler, cached);
+    emit_char_events(
+        raw_chars,
+        tstate,
+        gstate,
+        handler,
+        cached,
+        marked_content_stack,
+    );
 }
 
 fn handle_tj_array(
@@ -809,6 +891,7 @@ fn handle_tj_array(
     handler: &mut dyn ContentHandler,
     operands: &[Operand],
     font_cache: &HashMap<String, CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let array = match operands.first() {
         Some(Operand::Array(arr)) => arr,
@@ -831,7 +914,14 @@ fn handle_tj_array(
     let is_cid = cached.is_some_and(|c| c.is_cid_font);
     let raw_chars = show_string_with_positioning_mode(tstate, &elements, &*width_fn, is_cid);
 
-    emit_char_events(raw_chars, tstate, gstate, handler, cached);
+    emit_char_events(
+        raw_chars,
+        tstate,
+        gstate,
+        handler,
+        cached,
+        marked_content_stack,
+    );
 }
 
 fn emit_char_events(
@@ -840,6 +930,7 @@ fn emit_char_events(
     gstate: &InterpreterState,
     handler: &mut dyn ContentHandler,
     cached: Option<&CachedFont>,
+    marked_content_stack: &[MarkedContentEntry],
 ) {
     let ctm = gstate.ctm_array();
     let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
@@ -892,41 +983,138 @@ fn emit_char_events(
             word_spacing: tstate.word_spacing,
             h_scaling: tstate.h_scaling_normalized(),
             rise: tstate.rise,
+            mcid: marked_content_stack.iter().rev().find_map(|mc| mc.mcid),
+            tag: marked_content_stack.last().map(|mc| mc.tag.clone()),
         });
     }
 }
 
 // --- Path painting ---
 
+/// Emit a PathEvent from a PaintedPath produced by the PathBuilder.
 fn emit_path_event(
-    path_builder: &mut PathBuilder,
-    gstate: &InterpreterState,
     handler: &mut dyn ContentHandler,
+    gstate: &InterpreterState,
+    painted: &pdfplumber_core::PaintedPath,
     paint_op: PaintOp,
-    fill_rule: FillRule,
+    fill_rule: Option<FillRule>,
 ) {
-    let path = path_builder.take_and_reset();
-    if path.segments.is_empty() {
+    if painted.path.segments.is_empty() {
         return;
     }
-
-    let gs = gstate.graphics_state();
-    let dp = &gs.dash_pattern;
-
     handler.on_path_painted(PathEvent {
-        segments: path.segments,
+        segments: painted.path.segments.clone(),
         paint_op,
-        line_width: gs.line_width,
-        stroking_color: Some(gs.stroke_color.clone()),
-        non_stroking_color: Some(gs.fill_color.clone()),
+        line_width: painted.line_width,
+        stroking_color: Some(painted.stroke_color.clone()),
+        non_stroking_color: Some(painted.fill_color.clone()),
         ctm: gstate.ctm_array(),
-        dash_pattern: if dp.is_solid() {
+        dash_pattern: if painted.dash_pattern.is_solid() {
             None
         } else {
-            Some(DashPattern::new(dp.dash_array.clone(), dp.dash_phase))
+            Some(painted.dash_pattern.clone())
         },
-        fill_rule: Some(fill_rule),
+        fill_rule,
     });
+}
+
+// --- gs operator: Extended Graphics State ---
+
+/// Look up the named ExtGState from page resources and apply it to the current
+/// graphics state. Unknown keys are silently ignored. If the name is not found
+/// in resources, this is a no-op (graceful degradation).
+fn apply_ext_gstate(
+    doc: &lopdf::Document,
+    resources: &lopdf::Dictionary,
+    gstate: &mut InterpreterState,
+    name: &str,
+) {
+    let ext_dict = (|| -> Option<&lopdf::Dictionary> {
+        let egs_obj = resources.get(b"ExtGState").ok()?;
+        let egs_obj = resolve_ref(doc, egs_obj);
+        let egs_dict = egs_obj.as_dict().ok()?;
+        let entry = egs_dict.get(name.as_bytes()).ok()?;
+        let entry = resolve_ref(doc, entry);
+        entry.as_dict().ok()
+    })();
+
+    let Some(ext_dict) = ext_dict else {
+        return;
+    };
+
+    let mut ext = pdfplumber_core::ExtGState::default();
+
+    // /LW — Line width
+    if let Ok(obj) = ext_dict.get(b"LW") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.line_width = Some(v);
+        }
+    }
+
+    // /D — Dash pattern: [dash_array phase]
+    if let Ok(obj) = ext_dict.get(b"D") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(arr) = obj.as_array() {
+            if arr.len() >= 2 {
+                if let Ok(dash_arr) = arr[0].as_array() {
+                    let dash_array: Vec<f64> = dash_arr
+                        .iter()
+                        .filter_map(|o| match o {
+                            lopdf::Object::Integer(i) => Some(*i as f64),
+                            lopdf::Object::Real(f) => Some(*f as f64),
+                            _ => None,
+                        })
+                        .collect();
+                    let phase = match &arr[1] {
+                        lopdf::Object::Integer(i) => *i as f64,
+                        lopdf::Object::Real(f) => *f as f64,
+                        _ => 0.0,
+                    };
+                    ext.dash_pattern = Some(pdfplumber_core::DashPattern::new(dash_array, phase));
+                }
+            }
+        }
+    }
+
+    // /CA — Stroking alpha
+    if let Ok(obj) = ext_dict.get(b"CA") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.stroke_alpha = Some(v);
+        }
+    }
+
+    // /ca — Non-stroking alpha
+    if let Ok(obj) = ext_dict.get(b"ca") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(v) = object_to_f64(obj) {
+            ext.fill_alpha = Some(v);
+        }
+    }
+
+    // /Font — Font array [fontRef size]
+    if let Ok(obj) = ext_dict.get(b"Font") {
+        let obj = resolve_ref(doc, obj);
+        if let Ok(arr) = obj.as_array() {
+            if arr.len() >= 2 {
+                let font_name = match &arr[0] {
+                    lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).to_string()),
+                    _ => None,
+                };
+                let font_size = match &arr[1] {
+                    lopdf::Object::Integer(i) => Some(*i as f64),
+                    lopdf::Object::Real(f) => Some(*f as f64),
+                    _ => None,
+                };
+                if let (Some(name), Some(size)) = (font_name, font_size) {
+                    ext.font = Some((name, size));
+                }
+            }
+        }
+    }
+
+    gstate.graphics_state_mut().apply_ext_gstate(&ext);
 }
 
 // --- Do operator: XObject handling ---
@@ -1107,6 +1295,20 @@ fn handle_image_xobject(
         .and_then(|o| o.as_i64().ok())
         .map(|v| v as u32);
 
+    // Extract the primary filter name from the stream dictionary
+    let filter = stream.dict.get(b"Filter").ok().and_then(|o| {
+        if let Ok(name) = o.as_name_str() {
+            Some(name.to_string())
+        } else if let Ok(arr) = o.as_array() {
+            // For filter arrays, use the last filter (the one that determines the format)
+            arr.last()
+                .and_then(|item| item.as_name_str().ok())
+                .map(|s| s.to_string())
+        } else {
+            None
+        }
+    });
+
     handler.on_image(ImageEvent {
         name: name.to_string(),
         ctm: gstate.ctm_array(),
@@ -1114,7 +1316,141 @@ fn handle_image_xobject(
         height,
         colorspace,
         bits_per_component,
+        filter,
     });
+}
+
+/// Handle an inline image (BI/ID/EI) operator.
+///
+/// The tokenizer packs inline image data into a BI operator with two operands:
+/// - operands[0]: Array of flattened key-value pairs from the image dictionary
+/// - operands[1]: LiteralString containing the raw image data bytes
+///
+/// Abbreviated keys and values are expanded to their full PDF names.
+fn handle_inline_image(
+    op: &Operator,
+    op_index: usize,
+    gstate: &InterpreterState,
+    handler: &mut dyn ContentHandler,
+) {
+    if op.operands.len() < 2 {
+        return;
+    }
+
+    let dict_entries = match &op.operands[0] {
+        Operand::Array(arr) => arr,
+        _ => return,
+    };
+
+    // Parse key-value pairs from the flattened array
+    let mut width: u32 = 0;
+    let mut height: u32 = 0;
+    let mut colorspace: Option<String> = None;
+    let mut bits_per_component: Option<u32> = None;
+    let mut filter: Option<String> = None;
+
+    let mut i = 0;
+    while i + 1 < dict_entries.len() {
+        let key = match &dict_entries[i] {
+            Operand::Name(k) => expand_inline_image_key(k),
+            _ => {
+                i += 2;
+                continue;
+            }
+        };
+        let value = &dict_entries[i + 1];
+
+        match key.as_str() {
+            "Width" => {
+                if let Some(v) = operand_to_u32(value) {
+                    width = v;
+                }
+            }
+            "Height" => {
+                if let Some(v) = operand_to_u32(value) {
+                    height = v;
+                }
+            }
+            "ColorSpace" => {
+                if let Operand::Name(cs) = value {
+                    colorspace = Some(expand_inline_image_colorspace(cs));
+                }
+            }
+            "BitsPerComponent" => {
+                if let Some(v) = operand_to_u32(value) {
+                    bits_per_component = Some(v);
+                }
+            }
+            "Filter" => {
+                if let Operand::Name(f) = value {
+                    filter = Some(expand_inline_image_filter(f));
+                }
+            }
+            _ => {}
+        }
+
+        i += 2;
+    }
+
+    handler.on_image(ImageEvent {
+        name: format!("inline-{op_index}"),
+        ctm: gstate.ctm_array(),
+        width,
+        height,
+        colorspace,
+        bits_per_component,
+        filter,
+    });
+}
+
+/// Expand abbreviated inline image dictionary keys to full PDF names.
+fn expand_inline_image_key(key: &str) -> String {
+    match key {
+        "W" => "Width".to_string(),
+        "H" => "Height".to_string(),
+        "BPC" => "BitsPerComponent".to_string(),
+        "CS" => "ColorSpace".to_string(),
+        "F" => "Filter".to_string(),
+        "DP" => "DecodeParms".to_string(),
+        "D" => "Decode".to_string(),
+        "I" => "Interpolate".to_string(),
+        "IM" => "ImageMask".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Expand abbreviated inline image color space names to full PDF names.
+fn expand_inline_image_colorspace(cs: &str) -> String {
+    match cs {
+        "G" => "DeviceGray".to_string(),
+        "RGB" => "DeviceRGB".to_string(),
+        "CMYK" => "DeviceCMYK".to_string(),
+        "I" => "Indexed".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Expand abbreviated inline image filter names to full PDF names.
+fn expand_inline_image_filter(filter: &str) -> String {
+    match filter {
+        "AHx" => "ASCIIHexDecode".to_string(),
+        "A85" => "ASCII85Decode".to_string(),
+        "LZW" => "LZWDecode".to_string(),
+        "Fl" => "FlateDecode".to_string(),
+        "RL" => "RunLengthDecode".to_string(),
+        "CCF" => "CCITTFaxDecode".to_string(),
+        "DCT" => "DCTDecode".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Convert an operand to u32, supporting Integer and Real types.
+fn operand_to_u32(op: &Operand) -> Option<u32> {
+    match op {
+        Operand::Integer(i) => Some(*i as u32),
+        Operand::Real(f) => Some(*f as u32),
+        _ => None,
+    }
 }
 
 // --- Helpers ---
@@ -1144,6 +1480,7 @@ fn decode_stream(stream: &lopdf::Stream) -> Result<Vec<u8>, BackendError> {
 mod tests {
     use super::*;
     use crate::handler::{CharEvent, ContentHandler, ImageEvent};
+    use lopdf::Object;
 
     // --- Collecting handler ---
 
@@ -1772,5 +2109,537 @@ mod tests {
             handler.warnings
         );
         assert_eq!(handler.chars.len(), 1);
+    }
+
+    // --- ExtGState (gs operator) tests ---
+
+    /// Helper to create resources with an ExtGState dictionary.
+    fn resources_with_ext_gstate(
+        name: &str,
+        ext_gstate_dict: lopdf::Dictionary,
+    ) -> lopdf::Dictionary {
+        use lopdf::dictionary;
+        dictionary! {
+            "ExtGState" => Object::Dictionary(dictionary! {
+                name => Object::Dictionary(ext_gstate_dict),
+            }),
+        }
+    }
+
+    #[test]
+    fn gs_applies_line_width() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "LW" => Object::Real(2.5),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert!(
+            (gstate.graphics_state().line_width - 2.5).abs() < f64::EPSILON,
+            "expected line_width 2.5, got {}",
+            gstate.graphics_state().line_width
+        );
+    }
+
+    #[test]
+    fn gs_applies_dash_pattern() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        // /D [[3 5] 6] — dash array [3, 5] with phase 6
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "D" => Object::Array(vec![
+                    Object::Array(vec![Object::Integer(3), Object::Integer(5)]),
+                    Object::Integer(6),
+                ]),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        let dp = &gstate.graphics_state().dash_pattern;
+        assert_eq!(dp.dash_array, vec![3.0, 5.0]);
+        assert!((dp.dash_phase - 6.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn gs_applies_alpha() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "CA" => Object::Real(0.7),
+                "ca" => Object::Real(0.3),
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert!(
+            (gstate.graphics_state().stroke_alpha - 0.7).abs() < 1e-6,
+            "expected stroke_alpha ~0.7, got {}",
+            gstate.graphics_state().stroke_alpha
+        );
+        assert!(
+            (gstate.graphics_state().fill_alpha - 0.3).abs() < 1e-6,
+            "expected fill_alpha ~0.3, got {}",
+            gstate.graphics_state().fill_alpha
+        );
+    }
+
+    #[test]
+    fn gs_missing_name_produces_no_error() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // gs with a name that doesn't exist in resources — should not error
+        let stream = b"/GS_nonexistent gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        // Should not return an error
+        let result = interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        );
+        assert!(result.is_ok(), "missing ExtGState should not produce error");
+    }
+
+    #[test]
+    fn gs_unknown_keys_silently_ignored() {
+        use lopdf::dictionary;
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = resources_with_ext_gstate(
+            "GS1",
+            dictionary! {
+                "LW" => Object::Real(3.0),
+                "BM" => "Normal",  // blend mode — not handled
+                "SM" => Object::Real(0.01),  // smoothness — not handled
+            },
+        );
+        let stream = b"/GS1 gs";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // LW should be applied, unknown keys silently ignored
+        assert!(
+            (gstate.graphics_state().line_width - 3.0).abs() < f64::EPSILON,
+            "expected line_width 3.0, got {}",
+            gstate.graphics_state().line_width
+        );
+    }
+
+    // --- Inline image (BI/ID/EI) tests ---
+
+    #[test]
+    fn interpret_inline_image_emits_image_event() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // Inline image: 2x2 DeviceRGB, 8 bpc, raw data (12 bytes)
+        // BI /W 2 /H 2 /CS /RGB /BPC 8 ID <12 bytes of pixel data> EI
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(b"q 100 0 0 50 72 700 cm BI /W 2 /H 2 /CS /RGB /BPC 8 ID ");
+        // 2x2 RGB = 12 bytes of image data
+        stream.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128]);
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 2);
+        assert_eq!(img.height, 2);
+        assert_eq!(img.colorspace, Some("DeviceRGB".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+        // CTM should reflect the transformation: 100 0 0 50 72 700
+        assert_eq!(img.ctm, [100.0, 0.0, 0.0, 50.0, 72.0, 700.0]);
+        // Name should indicate inline image
+        assert!(img.name.starts_with("inline-"));
+    }
+
+    #[test]
+    fn interpret_inline_image_abbreviated_keys() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // Use abbreviated keys: /W, /H, /BPC, /CS with abbreviated color space /G
+        let mut stream: Vec<u8> = Vec::new();
+        stream.extend_from_slice(b"q 50 0 0 50 10 10 cm BI /W 1 /H 1 /CS /G /BPC 8 ID ");
+        stream.push(128); // 1x1 grayscale = 1 byte
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 1);
+        assert_eq!(img.height, 1);
+        assert_eq!(img.colorspace, Some("DeviceGray".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+    }
+
+    #[test]
+    fn interpret_inline_image_with_filter() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        // BI with abbreviated filter /F /DCT
+        let mut stream: Vec<u8> = Vec::new();
+        stream
+            .extend_from_slice(b"q 200 0 0 100 0 0 cm BI /W 10 /H 10 /CS /RGB /BPC 8 /F /DCT ID ");
+        // Fake JPEG data (just a few bytes for testing)
+        stream.extend_from_slice(&[0xFF, 0xD8, 0xFF, 0xE0]);
+        stream.extend_from_slice(b" EI Q");
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            &stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.images.len(), 1);
+        let img = &handler.images[0];
+        assert_eq!(img.width, 10);
+        assert_eq!(img.height, 10);
+        assert_eq!(img.filter, Some("DCTDecode".to_string()));
+    }
+
+    #[test]
+    fn interpret_inline_image_abbreviated_filter_names() {
+        // Test all abbreviated filter name mappings
+        let abbreviated_to_full = [
+            ("AHx", "ASCIIHexDecode"),
+            ("A85", "ASCII85Decode"),
+            ("LZW", "LZWDecode"),
+            ("Fl", "FlateDecode"),
+            ("RL", "RunLengthDecode"),
+            ("CCF", "CCITTFaxDecode"),
+            ("DCT", "DCTDecode"),
+        ];
+
+        for (abbrev, full_name) in &abbreviated_to_full {
+            let doc = lopdf::Document::with_version("1.5");
+            let resources = empty_resources();
+
+            let mut stream: Vec<u8> = Vec::new();
+            stream.extend_from_slice(
+                format!("q 10 0 0 10 0 0 cm BI /W 1 /H 1 /CS /G /BPC 8 /F /{abbrev} ID ")
+                    .as_bytes(),
+            );
+            stream.push(0); // 1 byte image data
+            stream.extend_from_slice(b" EI Q");
+
+            let mut handler = CollectingHandler::new();
+            let mut gstate = InterpreterState::new();
+            let mut tstate = TextState::new();
+
+            interpret_content_stream(
+                &doc,
+                &stream,
+                &resources,
+                &mut handler,
+                &default_options(),
+                0,
+                &mut gstate,
+                &mut tstate,
+            )
+            .unwrap();
+
+            assert_eq!(
+                handler.images.len(),
+                1,
+                "no image emitted for filter abbreviation /{abbrev}"
+            );
+            assert_eq!(
+                handler.images[0].filter,
+                Some(full_name.to_string()),
+                "filter mismatch for /{abbrev}: expected {full_name}"
+            );
+        }
+    }
+
+    // --- Marked content (BMC/BDC/EMC) tests ---
+
+    #[test]
+    fn bdc_with_mcid_sets_char_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 5>> BDC BT /F1 12 Tf (Hi) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].mcid, Some(5));
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(5));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+    }
+
+    #[test]
+    fn bmc_sets_tag_without_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/Artifact BMC BT /F1 12 Tf (X) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("Artifact"));
+        assert_eq!(handler.chars[0].mcid, None);
+    }
+
+    #[test]
+    fn nested_bdc_maintains_correct_stack() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 1>> BDC BT /F1 12 Tf (A) Tj /Span <</MCID 2>> BDC (B) Tj EMC (C) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 3);
+        assert_eq!(handler.chars[0].mcid, Some(1));
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(2));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("Span"));
+        assert_eq!(handler.chars[2].mcid, Some(1));
+        assert_eq!(handler.chars[2].tag.as_deref(), Some("P"));
+    }
+
+    #[test]
+    fn emc_without_matching_bmc_handled_gracefully() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"EMC BT /F1 12 Tf (A) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        let result = interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(handler.chars[0].mcid, None);
+        assert_eq!(handler.chars[0].tag, None);
+    }
+
+    #[test]
+    fn chars_outside_marked_content_have_none() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"BT /F1 12 Tf (A) Tj /P <</MCID 3>> BDC (B) Tj EMC (C) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 3);
+        assert_eq!(handler.chars[0].mcid, None);
+        assert_eq!(handler.chars[0].tag, None);
+        assert_eq!(handler.chars[1].mcid, Some(3));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[2].mcid, None);
+        assert_eq!(handler.chars[2].tag, None);
+    }
+
+    #[test]
+    fn nested_bmc_inside_bdc_inherits_mcid() {
+        let doc = lopdf::Document::with_version("1.7");
+        let resources = empty_resources();
+        let stream = b"/P <</MCID 7>> BDC BT /F1 12 Tf /Artifact BMC (A) Tj EMC (B) Tj ET EMC";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(handler.chars[0].tag.as_deref(), Some("Artifact"));
+        assert_eq!(handler.chars[0].mcid, Some(7));
+        assert_eq!(handler.chars[1].tag.as_deref(), Some("P"));
+        assert_eq!(handler.chars[1].mcid, Some(7));
     }
 }
