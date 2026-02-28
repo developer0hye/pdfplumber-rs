@@ -1,11 +1,11 @@
 use std::fs;
 use std::path::Path;
 
-use pdfplumber::{DrawStyle, SvgOptions, SvgRenderer, TableSettings};
+use pdfplumber::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer, TableSettings};
 
 use crate::shared::{open_pdf, resolve_pages};
 
-pub fn run(file: &Path, pages: Option<&str>, output: &Path) -> Result<(), i32> {
+pub fn run(file: &Path, pages: Option<&str>, output: &Path, tables: bool) -> Result<(), i32> {
     let pdf = open_pdf(file)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
 
@@ -24,22 +24,25 @@ pub fn run(file: &Path, pages: Option<&str>, output: &Path) -> Result<(), i32> {
             1
         })?;
 
-        let mut renderer = SvgRenderer::new(page.width(), page.height());
+        let svg = if tables {
+            // Table detection debug mode: show pipeline stages
+            page.debug_tablefinder_svg(&TableSettings::default(), &SvgDebugOptions::default())
+        } else {
+            // Standard debug mode: show all extracted objects
+            let mut renderer = SvgRenderer::new(page.width(), page.height());
 
-        // Draw all extracted objects with default styles
-        renderer.draw_chars(page.chars(), &DrawStyle::chars_default());
-        renderer.draw_lines(page.lines(), &DrawStyle::lines_default());
-        renderer.draw_rects(page.rects(), &DrawStyle::rects_default());
+            renderer.draw_chars(page.chars(), &DrawStyle::chars_default());
+            renderer.draw_lines(page.lines(), &DrawStyle::lines_default());
+            renderer.draw_rects(page.rects(), &DrawStyle::rects_default());
 
-        // Draw edges
-        let edges = page.edges();
-        renderer.draw_edges(&edges, &DrawStyle::edges_default());
+            let edges = page.edges();
+            renderer.draw_edges(&edges, &DrawStyle::edges_default());
 
-        // Draw tables
-        let tables = page.find_tables(&TableSettings::default());
-        renderer.draw_tables(&tables, &DrawStyle::tables_default());
+            let found_tables = page.find_tables(&TableSettings::default());
+            renderer.draw_tables(&found_tables, &DrawStyle::tables_default());
 
-        let svg = renderer.to_svg(&SvgOptions::default());
+            renderer.to_svg(&SvgOptions::default())
+        };
 
         let out_path = if multi_page {
             parent.join(format!("{stem}_page{}.{ext}", idx + 1))

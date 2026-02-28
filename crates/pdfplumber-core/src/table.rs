@@ -888,6 +888,22 @@ pub fn explicit_lines_to_edges(explicit: &ExplicitLines) -> Vec<Edge> {
     edges
 }
 
+/// Intermediate results from the table detection pipeline.
+///
+/// Returned by [`TableFinder::find_tables_debug`] to expose every stage of the
+/// pipeline for visual debugging (edges, intersections, cells, tables).
+#[derive(Debug, Clone)]
+pub struct TableFinderDebug {
+    /// Processed edges after filtering, snapping, and joining.
+    pub edges: Vec<Edge>,
+    /// Intersection points between horizontal and vertical edges.
+    pub intersections: Vec<Intersection>,
+    /// Cells constructed from the intersection grid.
+    pub cells: Vec<Cell>,
+    /// Final tables grouped from adjacent cells.
+    pub tables: Vec<Table>,
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -1054,6 +1070,127 @@ impl TableFinder {
 
         // Step 7: Group cells into tables
         cells_to_tables(cells)
+    }
+
+    /// Run the table detection pipeline and return intermediate results for debugging.
+    ///
+    /// Returns a [`TableFinderDebug`] containing the processed edges, intersections,
+    /// cells, and tables from each pipeline stage. This is used by the visual
+    /// debugging system to render the table detection process.
+    pub fn find_tables_debug(&self) -> TableFinderDebug {
+        // Step 1: Select edges based on strategy (same as find_tables)
+        let edges: Vec<Edge> = match self.settings.strategy {
+            Strategy::LatticeStrict => self
+                .edges
+                .iter()
+                .filter(|e| e.source == EdgeSource::Line)
+                .cloned()
+                .collect(),
+            Strategy::Stream => words_to_edges_stream(
+                &self.words,
+                self.settings.text_x_tolerance,
+                self.settings.text_y_tolerance,
+                self.settings.min_words_vertical,
+                self.settings.min_words_horizontal,
+            ),
+            Strategy::Explicit => {
+                let mut edges = self.edges.clone();
+                if let Some(ref explicit) = self.settings.explicit_lines {
+                    let mut min_x = f64::INFINITY;
+                    let mut max_x = f64::NEG_INFINITY;
+                    let mut min_y = f64::INFINITY;
+                    let mut max_y = f64::NEG_INFINITY;
+                    for e in &edges {
+                        min_x = min_x.min(e.x0);
+                        max_x = max_x.max(e.x1);
+                        min_y = min_y.min(e.top);
+                        max_y = max_y.max(e.bottom);
+                    }
+                    for &x in &explicit.vertical_lines {
+                        min_x = min_x.min(x);
+                        max_x = max_x.max(x);
+                    }
+                    for &y in &explicit.horizontal_lines {
+                        min_y = min_y.min(y);
+                        max_y = max_y.max(y);
+                    }
+                    if min_x <= max_x && min_y <= max_y {
+                        for &y in &explicit.horizontal_lines {
+                            edges.push(Edge {
+                                x0: min_x,
+                                top: y,
+                                x1: max_x,
+                                bottom: y,
+                                orientation: Orientation::Horizontal,
+                                source: EdgeSource::Explicit,
+                            });
+                        }
+                        for &x in &explicit.vertical_lines {
+                            edges.push(Edge {
+                                x0: x,
+                                top: min_y,
+                                x1: x,
+                                bottom: max_y,
+                                orientation: Orientation::Vertical,
+                                source: EdgeSource::Explicit,
+                            });
+                        }
+                    }
+                }
+                edges
+            }
+            Strategy::Lattice => self.edges.clone(),
+        };
+
+        // Step 2: Filter by minimum length
+        let min_len = self.settings.edge_min_length;
+        let edges: Vec<Edge> = edges
+            .into_iter()
+            .filter(|e| edge_length(e) >= min_len)
+            .collect();
+
+        if edges.is_empty() {
+            return TableFinderDebug {
+                edges: Vec::new(),
+                intersections: Vec::new(),
+                cells: Vec::new(),
+                tables: Vec::new(),
+            };
+        }
+
+        // Step 3: Snap
+        let edges = snap_edges(
+            edges,
+            self.settings.snap_x_tolerance,
+            self.settings.snap_y_tolerance,
+        );
+
+        // Step 4: Join
+        let edges = join_edge_group(
+            edges,
+            self.settings.join_x_tolerance,
+            self.settings.join_y_tolerance,
+        );
+
+        // Step 5: Intersections
+        let intersections = edges_to_intersections(
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
+
+        // Step 6: Cells
+        let cells = intersections_to_cells(&intersections);
+
+        // Step 7: Tables
+        let tables = cells_to_tables(cells.clone());
+
+        TableFinderDebug {
+            edges,
+            intersections,
+            cells,
+            tables,
+        }
     }
 }
 
@@ -3340,5 +3477,122 @@ mod tests {
 
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].cells.len(), 4); // 3x3 grid → 4 cells
+    }
+
+    // --- US-069 tests: TableFinderDebug ---
+
+    #[test]
+    fn test_find_tables_debug_returns_intermediate_results() {
+        // Build a simple 2x2 grid
+        let edges = vec![
+            // Horizontal edges
+            Edge {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 0.0,
+                orientation: Orientation::Horizontal,
+                source: EdgeSource::Line,
+            },
+            Edge {
+                x0: 0.0,
+                top: 50.0,
+                x1: 100.0,
+                bottom: 50.0,
+                orientation: Orientation::Horizontal,
+                source: EdgeSource::Line,
+            },
+            Edge {
+                x0: 0.0,
+                top: 100.0,
+                x1: 100.0,
+                bottom: 100.0,
+                orientation: Orientation::Horizontal,
+                source: EdgeSource::Line,
+            },
+            // Vertical edges
+            Edge {
+                x0: 0.0,
+                top: 0.0,
+                x1: 0.0,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: EdgeSource::Line,
+            },
+            Edge {
+                x0: 50.0,
+                top: 0.0,
+                x1: 50.0,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: EdgeSource::Line,
+            },
+            Edge {
+                x0: 100.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: EdgeSource::Line,
+            },
+        ];
+
+        let finder = TableFinder::new(edges, TableSettings::default());
+        let debug = finder.find_tables_debug();
+
+        // Should have edges from the pipeline
+        assert!(!debug.edges.is_empty(), "Should have processed edges");
+        // Should have intersections (6 edges in a grid = 9 intersections)
+        assert!(!debug.intersections.is_empty(), "Should have intersections");
+        // Should have cells
+        assert!(!debug.cells.is_empty(), "Should have cells");
+        // Should have tables
+        assert!(!debug.tables.is_empty(), "Should have tables");
+        // The tables from debug should match find_tables()
+        let tables = finder.find_tables();
+        assert_eq!(debug.tables.len(), tables.len());
+    }
+
+    #[test]
+    fn test_find_tables_debug_no_edges() {
+        let finder = TableFinder::new(vec![], TableSettings::default());
+        let debug = finder.find_tables_debug();
+
+        assert!(debug.edges.is_empty());
+        assert!(debug.intersections.is_empty());
+        assert!(debug.cells.is_empty());
+        assert!(debug.tables.is_empty());
+    }
+
+    #[test]
+    fn test_find_tables_debug_struct_fields() {
+        let edges = vec![
+            Edge {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 0.0,
+                orientation: Orientation::Horizontal,
+                source: EdgeSource::Line,
+            },
+            Edge {
+                x0: 0.0,
+                top: 0.0,
+                x1: 0.0,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: EdgeSource::Line,
+            },
+        ];
+
+        let finder = TableFinder::new(edges, TableSettings::default());
+        let debug = finder.find_tables_debug();
+
+        // Should have edges (at least the 2 input edges after processing)
+        assert!(!debug.edges.is_empty());
+        // Should have at least one intersection (where the edges meet)
+        assert!(!debug.intersections.is_empty());
+        assert_eq!(debug.intersections[0].x, 0.0);
+        assert_eq!(debug.intersections[0].y, 0.0);
     }
 }
