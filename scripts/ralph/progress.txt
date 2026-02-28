@@ -11,6 +11,7 @@
 - **CLI subcommand pattern**: New CLI commands: add variant to `Commands` enum in cli.rs → create `<name>_cmd.rs` with `run()`, `write_text()`, `write_json()`, `write_csv()` → wire up in main.rs match. Each output format follows the same structure (header + per-page iteration).
 - **Bookmark/outline pattern**: Document-level outlines follow: add `document_bookmarks()` to PdfBackend trait → implement in LopdfBackend walking outline tree via /First, /Next sibling links → cache in Pdf struct on open → expose via `Pdf::bookmarks()`. Resolve destinations using `doc.get_pages()` (1-indexed page map). Handle circular references with visited set + max depth limit.
 - **Search pattern**: Text search follows: add types (SearchMatch, SearchOptions) + algorithm (search_chars) in pdfplumber-core/search.rs → add Page::search() delegating to search_chars → add Pdf::search_all() iterating pages. Algorithm: concatenate char texts, map byte offsets→char indices, run regex, compute union bbox from matched chars.
+- **Dedupe pattern**: Character deduplication follows: add DedupeOptions struct + dedupe_chars() algorithm in pdfplumber-core/dedupe.rs → add Page::dedupe_chars() and CroppedPage::dedupe_chars() returning CroppedPage with filtered chars. Algorithm: iterate chars, check each against kept list (same text, positions within tolerance, extra_attrs match), keep first occurrence. Uses from_page_data() helper to build CroppedPage without coordinate adjustment.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
@@ -153,4 +154,23 @@ Started: 2026년  2월 28일 토요일 15시 35분 07초 KST
   - Invalid regex patterns return empty results (graceful degradation)
   - Page::search() delegates to search_chars() with the page's chars and page_number
   - Pdf::search_all() iterates all pages and collects matches
+---
+
+## 2026-02-28 - US-064
+- Implemented duplicate character deduplication
+- Files changed:
+  - `crates/pdfplumber-core/src/dedupe.rs` (NEW) — DedupeOptions struct, dedupe_chars() algorithm
+  - `crates/pdfplumber-core/src/lib.rs` — Added dedupe module and exports
+  - `crates/pdfplumber/src/page.rs` — Added Page::dedupe_chars() method
+  - `crates/pdfplumber/src/cropped_page.rs` — Added CroppedPage::dedupe_chars() method + from_page_data() helper
+  - `crates/pdfplumber/src/lib.rs` — Re-exported DedupeOptions
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (overlapping deduped, non-overlapping preserved, different font not deduped)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - Deduplication is a pure character filter — no backend trait changes needed
+  - The algorithm is O(n*k) where n=total chars, k=kept chars; fine for typical PDF pages
+  - CroppedPage can be constructed without coordinate adjustment via from_page_data() helper
+  - DedupeOptions uses Vec<String> for extra_attrs to match Python's flexible attribute matching
+  - Position comparison uses x0 and top within tolerance (not full bbox overlap)
+  - Different text content at same position is NOT deduped (e.g., overlapping "A" and "B")
 ---

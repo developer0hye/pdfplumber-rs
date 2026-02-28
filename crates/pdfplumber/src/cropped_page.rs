@@ -5,10 +5,10 @@
 //! Coordinates are adjusted relative to the crop origin.
 
 use pdfplumber_core::{
-    BBox, Char, Curve, Edge, Image, Line, Rect, Table, TableFinder, TableSettings, TextOptions,
-    Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
-    cluster_words_into_lines, derive_edges, extract_text_for_cells, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    BBox, Char, Curve, DedupeOptions, Edge, Image, Line, Rect, Table, TableFinder, TableSettings,
+    TextOptions, Word, WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A spatially filtered view of a PDF page.
@@ -136,6 +136,45 @@ impl CroppedPage {
     /// Return objects fully outside the bbox.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
+    }
+
+    /// Remove duplicate overlapping characters, returning a new view.
+    ///
+    /// Two characters are considered duplicates if their positions overlap
+    /// within `tolerance` and the specified `extra_attrs` match. The first
+    /// occurrence is kept; subsequent duplicates are discarded.
+    pub fn dedupe_chars(&self, options: &DedupeOptions) -> CroppedPage {
+        let deduped = dedupe_chars(&self.chars, options);
+        CroppedPage {
+            width: self.width,
+            height: self.height,
+            chars: deduped,
+            lines: self.lines.clone(),
+            rects: self.rects.clone(),
+            curves: self.curves.clone(),
+            images: self.images.clone(),
+        }
+    }
+}
+
+/// Create a `CroppedPage` from a set of chars and other page data (no coordinate adjustment).
+pub(crate) fn from_page_data(
+    width: f64,
+    height: f64,
+    chars: Vec<Char>,
+    lines: Vec<Line>,
+    rects: Vec<Rect>,
+    curves: Vec<Curve>,
+    images: Vec<Image>,
+) -> CroppedPage {
+    CroppedPage {
+        width,
+        height,
+        chars,
+        lines,
+        rects,
+        curves,
+        images,
     }
 }
 

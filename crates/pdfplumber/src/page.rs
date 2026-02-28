@@ -1,14 +1,14 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, Edge, ExtractWarning, Hyperlink, Image, Line, Rect, SearchMatch,
-    SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
-    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
-    extract_text_for_cells, search_chars, sort_blocks_reading_order, split_lines_at_columns,
-    words_to_text,
+    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, Hyperlink, Image, Line,
+    Rect, SearchMatch, SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word,
+    WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
-use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build};
+use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
 
 /// A single page from a PDF document.
 ///
@@ -432,6 +432,26 @@ impl Page {
     /// Coordinates are adjusted relative to the bbox origin.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
+    }
+
+    /// Remove duplicate overlapping characters, returning a new page view.
+    ///
+    /// Two characters are considered duplicates if their positions overlap
+    /// within `tolerance` and the specified `extra_attrs` match. The first
+    /// occurrence is kept; subsequent duplicates are discarded.
+    ///
+    /// The original page is not modified.
+    pub fn dedupe_chars(&self, options: &DedupeOptions) -> CroppedPage {
+        let deduped = dedupe_chars(&self.chars, options);
+        from_page_data(
+            self.width,
+            self.height,
+            deduped,
+            self.lines.clone(),
+            self.rects.clone(),
+            self.curves.clone(),
+            self.images.clone(),
+        )
     }
 
     /// Extract the largest table from this page as a 2D grid of cell text.

@@ -27,6 +27,8 @@
 pub mod annotation;
 /// PDF bookmark / outline / table of contents types.
 pub mod bookmark;
+/// Duplicate character deduplication.
+pub mod dedupe;
 /// Edge derivation from geometric primitives for table detection.
 pub mod edges;
 /// Font encoding mapping (Standard, Windows, Mac, Custom).
@@ -60,6 +62,7 @@ pub mod words;
 
 pub use annotation::{Annotation, AnnotationType};
 pub use bookmark::Bookmark;
+pub use dedupe::{DedupeOptions, dedupe_chars};
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
