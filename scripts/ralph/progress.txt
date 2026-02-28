@@ -38,3 +38,14 @@ Started: 2026년  2월 28일 토요일 09시 18분 01초 KST
   - Diagonal edges pass through unchanged
   - Snap only aligns positions, does NOT merge edges (merge is US-031 join_edge_group)
 ---
+
+## 2026-02-28 - US-031
+- Implemented `join_edge_group()` for merging overlapping/adjacent collinear edge segments
+- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `join_edge_group(edges, join_x_tolerance, join_y_tolerance)` takes owned Vec<Edge> and returns Vec<Edge>
+  - Uses `join_collinear()` helper: groups by collinear key (y for horizontal, x for vertical), sorts by span start, merges when gap ≤ tolerance
+  - Chain merging works naturally: sorted segments extend current span greedily
+  - Diagonal edges pass through unchanged (consistent with snap_edges)
+---
