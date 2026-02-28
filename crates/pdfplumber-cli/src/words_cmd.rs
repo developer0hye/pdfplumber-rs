@@ -3,8 +3,9 @@ use std::path::Path;
 use pdfplumber::{UnicodeNorm, WordOptions};
 
 use crate::cli::OutputFormat;
-use crate::shared::{ProgressReporter, direction_str, open_pdf_full, resolve_pages};
+use crate::shared::{ProgressReporter, direction_str, open_pdf_maybe_repair, resolve_pages};
 
+#[allow(clippy::too_many_arguments)]
 pub fn run(
     file: &Path,
     pages: Option<&str>,
@@ -13,8 +14,9 @@ pub fn run(
     y_tolerance: f64,
     unicode_norm: Option<UnicodeNorm>,
     password: Option<&str>,
+    repair: bool,
 ) -> Result<(), i32> {
-    let pdf = open_pdf_full(file, unicode_norm, password)?;
+    let pdf = open_pdf_maybe_repair(file, unicode_norm, password, repair)?;
     let page_indices = resolve_pages(pages, pdf.page_count())?;
     let progress = ProgressReporter::new(page_indices.len());
 

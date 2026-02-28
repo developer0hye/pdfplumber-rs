@@ -8,7 +8,8 @@ use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, FieldType,
-    FormField, Hyperlink, ImageContent, StructElement, ValidationIssue,
+    FormField, Hyperlink, ImageContent, RepairOptions, RepairResult, StructElement,
+    ValidationIssue,
 };
 
 /// A parsed PDF document backed by lopdf.
@@ -479,6 +480,13 @@ impl PdfBackend for LopdfBackend {
     fn validate(doc: &Self::Document) -> Result<Vec<ValidationIssue>, Self::Error> {
         validate_document(doc)
     }
+
+    fn repair(
+        bytes: &[u8],
+        options: &RepairOptions,
+    ) -> Result<(Vec<u8>, RepairResult), Self::Error> {
+        repair_document(bytes, options)
+    }
 }
 
 /// Validate a PDF document for specification violations.
@@ -823,6 +831,150 @@ fn resolve_ref<'a>(doc: &'a lopdf::Document, obj: &'a lopdf::Object) -> &'a lopd
     match obj {
         lopdf::Object::Reference(id) => doc.get_object(*id).unwrap_or(obj),
         _ => obj,
+    }
+}
+
+/// Attempt best-effort repair of common PDF issues.
+fn repair_document(
+    bytes: &[u8],
+    options: &RepairOptions,
+) -> Result<(Vec<u8>, RepairResult), BackendError> {
+    let mut doc = lopdf::Document::load_mem(bytes)
+        .map_err(|e| BackendError::Parse(format!("failed to parse PDF for repair: {e}")))?;
+
+    let mut result = RepairResult::new();
+
+    if options.fix_stream_lengths {
+        repair_stream_lengths(&mut doc, &mut result);
+    }
+
+    if options.remove_broken_objects {
+        repair_broken_references(&mut doc, &mut result);
+    }
+
+    // rebuild_xref: lopdf rebuilds xref automatically when saving,
+    // so just saving the document effectively rebuilds the xref table.
+    if options.rebuild_xref {
+        // Force xref rebuild by saving (lopdf always writes a fresh xref on save).
+        // Only log if we explicitly opted in and haven't already logged anything.
+    }
+
+    let mut buf = Vec::new();
+    doc.save_to(&mut buf)
+        .map_err(|e| BackendError::Parse(format!("failed to save repaired PDF: {e}")))?;
+
+    Ok((buf, result))
+}
+
+/// Fix stream `/Length` entries to match actual stream content size.
+fn repair_stream_lengths(doc: &mut lopdf::Document, result: &mut RepairResult) {
+    let obj_ids: Vec<lopdf::ObjectId> = doc.objects.keys().copied().collect();
+
+    for obj_id in obj_ids {
+        let needs_fix = if let Some(lopdf::Object::Stream(stream)) = doc.objects.get(&obj_id) {
+            let actual_len = stream.content.len() as i64;
+            match stream.dict.get(b"Length") {
+                Ok(lopdf::Object::Integer(stored_len)) => *stored_len != actual_len,
+                Ok(lopdf::Object::Reference(_)) => {
+                    // Length stored as indirect reference — skip, too complex to fix
+                    false
+                }
+                _ => true, // Missing Length key
+            }
+        } else {
+            false
+        };
+
+        if needs_fix {
+            if let Some(lopdf::Object::Stream(stream)) = doc.objects.get_mut(&obj_id) {
+                let actual_len = stream.content.len() as i64;
+                let old_len = stream.dict.get(b"Length").ok().and_then(|o| {
+                    if let lopdf::Object::Integer(v) = o {
+                        Some(*v)
+                    } else {
+                        None
+                    }
+                });
+                stream
+                    .dict
+                    .set("Length", lopdf::Object::Integer(actual_len));
+                match old_len {
+                    Some(old) => {
+                        result.log.push(format!(
+                            "fixed stream length for object {} {}: {} -> {}",
+                            obj_id.0, obj_id.1, old, actual_len
+                        ));
+                    }
+                    None => {
+                        result.log.push(format!(
+                            "added missing stream length for object {} {}: {}",
+                            obj_id.0, obj_id.1, actual_len
+                        ));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Remove broken object references, replacing them with Null.
+fn repair_broken_references(doc: &mut lopdf::Document, result: &mut RepairResult) {
+    let obj_ids: Vec<lopdf::ObjectId> = doc.objects.keys().copied().collect();
+    let existing_ids: std::collections::BTreeSet<lopdf::ObjectId> =
+        doc.objects.keys().copied().collect();
+
+    for obj_id in obj_ids {
+        if let Some(obj) = doc.objects.remove(&obj_id) {
+            let fixed = fix_references_in_object(obj, &existing_ids, obj_id, result);
+            doc.objects.insert(obj_id, fixed);
+        }
+    }
+}
+
+/// Recursively replace broken references with Null in an object tree.
+fn fix_references_in_object(
+    obj: lopdf::Object,
+    existing_ids: &std::collections::BTreeSet<lopdf::ObjectId>,
+    source_id: lopdf::ObjectId,
+    result: &mut RepairResult,
+) -> lopdf::Object {
+    match obj {
+        lopdf::Object::Reference(ref_id) => {
+            if existing_ids.contains(&ref_id) {
+                obj
+            } else {
+                result.log.push(format!(
+                    "removed broken reference to object {} {} (in object {} {})",
+                    ref_id.0, ref_id.1, source_id.0, source_id.1
+                ));
+                lopdf::Object::Null
+            }
+        }
+        lopdf::Object::Array(arr) => {
+            let fixed: Vec<lopdf::Object> = arr
+                .into_iter()
+                .map(|item| fix_references_in_object(item, existing_ids, source_id, result))
+                .collect();
+            lopdf::Object::Array(fixed)
+        }
+        lopdf::Object::Dictionary(dict) => {
+            let mut new_dict = lopdf::Dictionary::new();
+            for (key, value) in dict.into_iter() {
+                let fixed = fix_references_in_object(value, existing_ids, source_id, result);
+                new_dict.set(key, fixed);
+            }
+            lopdf::Object::Dictionary(new_dict)
+        }
+        lopdf::Object::Stream(mut stream) => {
+            let mut new_dict = lopdf::Dictionary::new();
+            for (key, value) in stream.dict.into_iter() {
+                let fixed = fix_references_in_object(value, existing_ids, source_id, result);
+                new_dict.set(key, fixed);
+            }
+            stream.dict = new_dict;
+            lopdf::Object::Stream(stream)
+        }
+        other => other,
     }
 }
 

@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
     },
     {
@@ -39,7 +39,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
     },
     {

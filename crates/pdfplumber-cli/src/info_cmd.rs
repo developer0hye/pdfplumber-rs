@@ -3,7 +3,7 @@ use std::path::Path;
 use pdfplumber::{BBox, TableSettings};
 
 use crate::cli::TextFormat;
-use crate::shared::{ProgressReporter, open_pdf_full, resolve_pages};
+use crate::shared::{ProgressReporter, open_pdf_maybe_repair, resolve_pages};
 
 fn format_bbox(b: &BBox) -> String {
     format!("[{:.2}, {:.2}, {:.2}, {:.2}]", b.x0, b.top, b.x1, b.bottom)
@@ -18,8 +18,9 @@ pub fn run(
     pages: Option<&str>,
     format: &TextFormat,
     password: Option<&str>,
+    repair: bool,
 ) -> Result<(), i32> {
-    let pdf = open_pdf_full(file, None, password)?;
+    let pdf = open_pdf_maybe_repair(file, None, password, repair)?;
     let page_count = pdf.page_count();
     let page_indices = resolve_pages(pages, page_count)?;
     let progress = ProgressReporter::new(page_indices.len());

@@ -1,7 +1,7 @@
 use std::io::{self, IsTerminal, Write};
 use std::path::Path;
 
-use pdfplumber::{ExtractOptions, Pdf, TextDirection, UnicodeNorm};
+use pdfplumber::{ExtractOptions, Pdf, RepairOptions, TextDirection, UnicodeNorm};
 
 use crate::page_range::parse_page_range;
 
@@ -10,6 +10,25 @@ pub fn open_pdf_full(
     file: &Path,
     unicode_norm: Option<UnicodeNorm>,
     password: Option<&str>,
+) -> Result<Pdf, i32> {
+    open_pdf_impl(file, unicode_norm, password, false)
+}
+
+/// Open a PDF file with optional repair before extraction.
+pub fn open_pdf_maybe_repair(
+    file: &Path,
+    unicode_norm: Option<UnicodeNorm>,
+    password: Option<&str>,
+    repair: bool,
+) -> Result<Pdf, i32> {
+    open_pdf_impl(file, unicode_norm, password, repair)
+}
+
+fn open_pdf_impl(
+    file: &Path,
+    unicode_norm: Option<UnicodeNorm>,
+    password: Option<&str>,
+    repair: bool,
 ) -> Result<Pdf, i32> {
     if !file.exists() {
         eprintln!("Error: file not found: {}", file.display());
@@ -21,16 +40,46 @@ pub fn open_pdf_full(
         ..ExtractOptions::default()
     });
 
-    let result = if let Some(pw) = password {
-        Pdf::open_file_with_password(file, pw.as_bytes(), options)
-    } else {
-        Pdf::open_file(file, options)
-    };
+    if repair {
+        let bytes = std::fs::read(file).map_err(|e| {
+            eprintln!("Error: failed to read file: {e}");
+            1
+        })?;
 
-    result.map_err(|e| {
-        eprintln!("Error: failed to open PDF: {e}");
-        1
-    })
+        // If password is provided with repair, fall back to password-only open
+        if let Some(pw) = password {
+            return Pdf::open_with_password(&bytes, pw.as_bytes(), options).map_err(|e| {
+                eprintln!("Error: failed to open PDF: {e}");
+                1
+            });
+        }
+
+        let (pdf, result) = Pdf::open_with_repair(&bytes, options, Some(RepairOptions::default()))
+            .map_err(|e| {
+                eprintln!("Error: failed to repair/open PDF: {e}");
+                1
+            })?;
+
+        if result.has_repairs() {
+            eprintln!("Repair: applied {} fix(es):", result.log.len());
+            for entry in &result.log {
+                eprintln!("  - {entry}");
+            }
+        }
+
+        Ok(pdf)
+    } else {
+        let result = if let Some(pw) = password {
+            Pdf::open_file_with_password(file, pw.as_bytes(), options)
+        } else {
+            Pdf::open_file(file, options)
+        };
+
+        result.map_err(|e| {
+            eprintln!("Error: failed to open PDF: {e}");
+            1
+        })
+    }
 }
 
 /// Resolve an optional page range string into 0-indexed page indices.
@@ -155,6 +204,16 @@ mod tests {
     #[test]
     fn open_pdf_file_not_found() {
         let result = open_pdf_full(Path::new("/nonexistent/file.pdf"), None, None);
+        assert!(result.is_err());
+        match result {
+            Err(code) => assert_eq!(code, 1),
+            Ok(_) => panic!("expected error"),
+        }
+    }
+
+    #[test]
+    fn open_pdf_maybe_repair_file_not_found() {
+        let result = open_pdf_maybe_repair(Path::new("/nonexistent/file.pdf"), None, None, true);
         assert!(result.is_err());
         match result {
             Err(code) => assert_eq!(code, 1),
