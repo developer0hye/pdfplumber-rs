@@ -50,7 +50,7 @@ pub fn run(
         total_tables += tables_count;
 
         match format {
-            TextFormat::Text => {
+            TextFormat::Text | TextFormat::Markdown => {
                 println!("Page {}:", idx + 1);
                 println!("  Dimensions: {:.2} x {:.2}", page.width(), page.height());
                 println!("  Rotation: {}°", page.rotation());
@@ -106,7 +106,7 @@ pub fn run(
     progress.finish();
 
     match format {
-        TextFormat::Text => {
+        TextFormat::Text | TextFormat::Markdown => {
             if !metadata.is_empty() {
                 println!();
                 println!("Metadata:");

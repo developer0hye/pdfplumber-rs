@@ -299,6 +299,8 @@ pub enum TextFormat {
     Text,
     /// JSON output
     Json,
+    /// Markdown output (headings, paragraphs, GFM tables, lists)
+    Markdown,
 }
 
 /// Output format for chars/words/tables subcommands.
