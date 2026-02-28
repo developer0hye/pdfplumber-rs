@@ -7,6 +7,8 @@ use pdfplumber_core::{
     split_lines_at_columns, words_to_text,
 };
 
+use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build};
+
 /// A single page from a PDF document.
 ///
 /// Provides access to characters, words, lines, rects, curves, and edges
@@ -263,6 +265,29 @@ impl Page {
     /// Returns the table with the most cells. If multiple tables have the same
     /// number of cells, returns the one with the largest bounding box area.
     /// Returns `None` if no tables are found.
+    /// Return a [`CroppedPage`] with objects whose centers fall within `bbox`.
+    ///
+    /// Coordinates in the returned page are adjusted relative to the crop origin.
+    pub fn crop(&self, bbox: BBox) -> CroppedPage {
+        filter_and_build(self, bbox, FilterMode::Crop)
+    }
+
+    /// Return a [`CroppedPage`] with objects fully contained within `bbox`.
+    ///
+    /// Only objects whose entire bounding box is inside `bbox` are included.
+    /// Coordinates are adjusted relative to the crop origin.
+    pub fn within_bbox(&self, bbox: BBox) -> CroppedPage {
+        filter_and_build(self, bbox, FilterMode::Within)
+    }
+
+    /// Return a [`CroppedPage`] with objects fully outside `bbox`.
+    ///
+    /// Only objects whose bounding box has no overlap with `bbox` are included.
+    /// Coordinates are adjusted relative to the bbox origin.
+    pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
+        filter_and_build(self, bbox, FilterMode::Outside)
+    }
+
     pub fn extract_table(&self, settings: &TableSettings) -> Option<Vec<Vec<Option<String>>>> {
         let tables = self.find_tables(settings);
         tables
@@ -281,6 +306,24 @@ impl Page {
                     .map(|row| row.into_iter().map(|cell| cell.text).collect())
                     .collect()
             })
+    }
+}
+
+impl PageData for Page {
+    fn chars_data(&self) -> &[Char] {
+        &self.chars
+    }
+    fn lines_data(&self) -> &[Line] {
+        &self.lines
+    }
+    fn rects_data(&self) -> &[Rect] {
+        &self.rects
+    }
+    fn curves_data(&self) -> &[Curve] {
+        &self.curves
+    }
+    fn images_data(&self) -> &[Image] {
+        &self.images
     }
 }
 

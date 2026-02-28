@@ -9,9 +9,11 @@
 //! - **pdfplumber-parse**: PDF parsing (Layer 1) and content stream interpreter (Layer 2)
 //! - **pdfplumber** (this crate): Public API that ties everything together
 
+mod cropped_page;
 mod page;
 mod pdf;
 
+pub use cropped_page::CroppedPage;
 pub use page::Page;
 pub use pdf::Pdf;
 pub use pdfplumber_core::{
