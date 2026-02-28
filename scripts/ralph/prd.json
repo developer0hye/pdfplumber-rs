@@ -1,84 +1,51 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/phase10-interpreter-fixes",
+  "description": "Phase 10: Critical Interpreter Fixes - Path operators and Extended Graphics State wiring",
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-086",
+      "title": "Wire path operators in content stream interpreter",
+      "description": "This work is ALREADY IMPLEMENTED in PR #121 (branch origin/fix/content-stream-path-ops, commit 6acba75b). Do NOT reimplement from scratch. Instead: (1) git fetch origin fix/content-stream-path-ops, (2) git cherry-pick 6acba75b, (3) resolve any merge conflicts with main, (4) run cargo fmt --all to fix formatting issues (PR #121 failed the Format CI check), (5) verify cargo test/clippy/check all pass, (6) commit the fixes. The original implementation wires path construction operators (m, l, c, v, y, h, re), painting operators (S, s, f, F, f*, B, B*, b, b*, n), clipping operators (W, W*), dictionary parsing in tokenizer, and marked content operators (BMC/BDC/EMC) into the interpreter. Resolves #71.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
+        "Cherry-pick commit 6acba75b from origin/fix/content-stream-path-ops successfully",
+        "All merge conflicts resolved cleanly",
+        "cargo fmt --all -- --check passes (the original PR failed this)",
+        "Interpreter matches path construction operators: m, l, c, v, y, h, re",
+        "Interpreter matches painting operators: S, s, f, F, f*, B, B*, b, b*, n",
+        "Interpreter matches clipping operators: W, W*",
+        "Tokenizer handles inline dictionaries (<< /Key value >>)",
+        "page.lines(), page.rects(), page.curves() return non-empty results for appropriate PDFs",
+        "Lattice table detection works on PDFs with bordered tables",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
+      "passes": false,
+      "relatedIssue": 71,
+      "notes": "DO NOT reimplement. Cherry-pick from existing PR #121 (commit 6acba75b). The PR had two issues: (1) cargo fmt failure, (2) merge conflicts with main after PR #119 was merged. Fix both and merge. After this story's PR is merged, close PR #121 as superseded: gh pr close 121 --comment 'Superseded by PR #N'"
     },
     {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
+      "id": "US-087",
+      "title": "Wire Extended Graphics State (gs operator) in interpreter",
+      "description": "The ExtGState struct and GraphicsState::apply_ext_gstate() already exist, but the interpreter never processes the gs operator. Wire the gs operator to look up named ExtGState from page resources and apply values (line width, dash pattern, stroke/fill alpha, font) to current graphics state. Resolves #73.",
       "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
+        "Interpreter handles 'gs' operator: looks up operand name in page /Resources /ExtGState dictionary",
+        "Parses ExtGState dictionary keys: /LW (line width), /D (dash pattern), /CA (stroke alpha), /ca (fill alpha), /Font (font array)",
+        "Applies parsed values to current GraphicsState via apply_ext_gstate()",
+        "Line width from ExtGState correctly affects subsequent path stroking",
+        "Dash pattern from ExtGState correctly affects subsequent path stroking",
+        "Alpha values from ExtGState available on extracted objects",
+        "Font changes from ExtGState correctly affect subsequent text rendering",
+        "Unknown ExtGState keys are silently ignored (forward compatibility)",
+        "Unit tests: gs operator applies line width, gs operator applies dash pattern, gs operator applies alpha, missing ExtGState name produces warning not error",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
-    },
-    {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
-      "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
-    },
-    {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
-      "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "relatedIssue": 73,
+      "notes": "ExtGState infrastructure exists — only interpreter wiring needed. Common in real-world PDFs for setting transparency and line styles."
     }
   ]
 }
