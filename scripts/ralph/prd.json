@@ -20,7 +20,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "pdfplumber Python repo: jsvine/pdfplumber, branch: stable. Existing fixtures in crates/pdfplumber/tests/fixtures/pdfs/. The make_xref.py file in tests/pdfs/ should be skipped (not a PDF). The issue-948.zip should also be skipped. License: MIT."
     },
     {
