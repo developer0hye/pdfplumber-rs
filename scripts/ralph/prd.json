@@ -1,84 +1,95 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/external-test-fixtures",
+  "description": "Phase 16: External Test Fixtures - Download real-world PDFs from pdfplumber Python, pdf.js, PDFBox, and poppler test suites. Focus on CJK/multilingual coverage gaps (Chinese, Japanese, Korean, Arabic/RTL, Cyrillic). Generate golden data and extend cross-validation tests.",
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-109",
+      "title": "Download pdfplumber Python test PDFs",
+      "description": "Create a bash script (scripts/download_test_fixtures.sh) that downloads all PDF test fixtures from jsvine/pdfplumber GitHub repo (stable branch, tests/pdfs/). Place them in crates/pdfplumber/tests/fixtures/pdfs/. Skip files already present (issue-33-lorem-ipsum.pdf, nics-background-checks-2015-11.pdf, pdffill-demo.pdf, scotus-transcript-p1.pdf). Use `gh api` to list files and `curl` to download raw content. The script must be idempotent (re-runnable without duplicating files). After downloading, list all files and verify count. Expected: ~60 new PDF files including annotations.pdf, page-boxes-example.pdf, empty.pdf, password-example.pdf, table-curves-example.pdf, federal-register-2020-17221.pdf, various issue-*.pdf regression files, la-precinct-bulletin-2014-p1.pdf, chelsea_pdta.pdf, cupertino_usd_4-6-16.pdf, senate-expenditures.pdf, WARN-Report, and from-oss-fuzz/*.pdf (fuzzing inputs). These PDFs are MIT licensed (same as pdfplumber Python). Also download nics-background-checks-2015-11-rotated.pdf for rotation testing.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
-        "cargo test --workspace passes",
+        "scripts/download_test_fixtures.sh exists and is executable",
+        "Script uses gh api repos/jsvine/pdfplumber/contents/tests/pdfs to list files",
+        "Script downloads each PDF via raw GitHub URL or gh api",
+        "Script skips already-existing files",
+        "Script also downloads from-oss-fuzz/load/*.pdf into fixtures/pdfs/oss-fuzz/ subdirectory",
+        "All downloaded PDFs are valid (non-zero size)",
+        "Script prints summary: N files downloaded, M files skipped",
+        "Running the script succeeds and downloads ~60 PDF files",
+        "cargo test --workspace passes (no compilation/test breakage from new files)",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
+      "passes": false,
+      "notes": "pdfplumber Python repo: jsvine/pdfplumber, branch: stable. Existing fixtures in crates/pdfplumber/tests/fixtures/pdfs/. The make_xref.py file in tests/pdfs/ should be skipped (not a PDF). The issue-948.zip should also be skipped. License: MIT."
     },
     {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
+      "id": "US-110",
+      "title": "Download CJK/encoding test PDFs from pdf.js",
+      "description": "Download CJK and encoding-related test PDFs from mozilla/pdf.js GitHub repo (master branch, test/pdfs/). These files test CID fonts, CMap encodings, Identity-H/V, Japanese/Chinese rendering, Arabic CID, and vertical writing. Target files (all inline, not .link files): issue3521.pdf (GBKp-EUC-H Chinese), noembed-eucjp.pdf (EUC-JP), noembed-sjis.pdf (Shift-JIS), noembed-jis7.pdf (JIS7), noembed-identity.pdf (Identity encoding), noembed-identity-2.pdf (Identity variant), vertical.pdf (CJK vertical writing), issue8570.pdf (Japanese chars not rendering), ArabicCIDTrueType.pdf (Arabic CID TrueType), cid_cff.pdf (CID-keyed CFF), text_clip_cff_cid.pdf (text clipping CFF CID), issue7696.pdf (Adobe-Japan1-UCS2 CMap), issue4875.pdf (CMap parsing), issue14117.pdf (encoding prevents rendering), issue9262_reduced.pdf (Japanese chars incorrectly rendered). Place in crates/pdfplumber/tests/fixtures/pdfs/pdfjs/ subdirectory. Use gh api to download raw content.",
       "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
+        "All 15 listed PDFs downloaded to crates/pdfplumber/tests/fixtures/pdfs/pdfjs/",
+        "Each file is non-zero size and is a valid PDF (starts with %PDF header)",
+        "Download integrated into scripts/download_test_fixtures.sh as a separate function",
+        "Script is idempotent for pdf.js downloads too",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
+      "passes": false,
+      "notes": "pdf.js repo: mozilla/pdf.js, branch: master. Files are in test/pdfs/ directory. Only download inline files (not .link files which reference external URLs that may be dead). License: Apache 2.0. Some files are large (issue9262_reduced.pdf is ~5.3MB) - include it but note the size."
     },
     {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
+      "id": "US-111",
+      "title": "Download CJK/multilingual test PDFs from PDFBox and poppler",
+      "description": "Download CJK and multilingual test PDFs from Apache PDFBox (GitHub) and poppler test data (GitLab). PDFBox files (from apache/pdfbox, trunk branch): (1) pdfbox/src/test/resources/input/PDFBOX-5350-JX57O5E5YG6XM4FZABPULQGTW4OXPCWA-p1-reduced.pdf (Korean: 사회복지법인), (2) pdfbox/src/test/resources/input/PDFBOX-3833-reduced.pdf (Japanese katakana: ターン), (3) pdfbox/src/test/resources/org/apache/pdfbox/text/BidiSample.pdf (Arabic bidi), (4) pdfbox/src/test/resources/input/FC60_Times.pdf (Arabic diacritics), (5) pdfbox/src/test/resources/input/hello3.pdf (mixed English/Arabic), (6) pdfbox/src/test/resources/input/PDFBOX-4531-bidi-ligature-1.pdf (Hebrew+Arabic ligature), (7) pdfbox/src/test/resources/input/PDFBOX-4531-bidi-ligature-2.pdf (Hebrew+Arabic ligature variant), (8) pdfbox/src/test/resources/input/PDFBOX-3127-RAU4G6QMOVRYBISJU7R6MOVZCRFUO7P4-VFont.pdf (vertical font), (9) pdfbox/src/test/resources/input/PDFBOX-4322-Empty-ToUnicode-reduced.pdf (empty ToUnicode CMap), (10) pdfbox/src/test/resources/input/PDFBOX-5747-unicode-surrogate-with-diacritic-reduced.pdf (surrogate pairs). Poppler files (from gitlab.freedesktop.org/poppler/test, master branch): (1) unittestcases/pdf20-utf8-test.pdf (PDF 2.0 UTF-8 with CJK+Persian+emoji), (2) unittestcases/russian.pdf (Cyrillic), (3) unittestcases/deseret.pdf (Unicode supplementary plane). Place PDFBox files in fixtures/pdfs/pdfbox/, poppler files in fixtures/pdfs/poppler/. Use gh api for PDFBox, curl for poppler (GitLab raw URL).",
       "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
+        "10 PDFBox files downloaded to crates/pdfplumber/tests/fixtures/pdfs/pdfbox/",
+        "3 poppler files downloaded to crates/pdfplumber/tests/fixtures/pdfs/poppler/",
+        "All files non-zero size and valid PDFs",
+        "Download functions integrated into scripts/download_test_fixtures.sh",
+        "Script is idempotent",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
+      "passes": false,
+      "notes": "PDFBox repo: apache/pdfbox, branch: trunk. License: Apache 2.0. Poppler test repo: https://gitlab.freedesktop.org/poppler/test, raw URL format: https://gitlab.freedesktop.org/poppler/test/-/raw/master/<path>. PDFBOX-5350 filename is very long - consider renaming to pdfbox-5350-korean-reduced.pdf for readability. Similarly shorten other long filenames: pdfbox-3833-japanese-reduced.pdf, pdfbox-4531-bidi-ligature-1.pdf, etc."
     },
     {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
+      "id": "US-112",
+      "title": "Generate golden data for new fixture PDFs",
+      "description": "Run scripts/generate_golden.py on all newly downloaded PDFs to create golden JSON data. Prerequisites: Python 3 with pdfplumber installed (check for .venv-golden or system pdfplumber). If Python pdfplumber is not available, create a helper script that installs it in a temporary venv. The script should: (1) Create .venv-golden if it doesn't exist, (2) pip install pdfplumber in it, (3) Run generate_golden.py. Note: generate_golden.py reads from fixtures/pdfs/ and writes to fixtures/golden/. It should process ALL PDFs in fixtures/pdfs/ including subdirectories (pdfjs/, pdfbox/, poppler/, oss-fuzz/). Update generate_golden.py if needed to recurse into subdirectories. After running, verify golden JSON files exist for all PDFs. Expected: ~90 new golden JSON files. Some PDFs may fail (encrypted, malformed) - that's OK, log failures but don't abort.",
       "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
+        "generate_golden.py updated to process PDFs in subdirectories (pdfjs/, pdfbox/, poppler/, oss-fuzz/)",
+        "Golden JSON output preserves subdirectory structure (golden/pdfjs/*.json, golden/pdfbox/*.json, etc.)",
+        "A helper script or updated docs for creating .venv-golden with pdfplumber",
+        "Golden JSON generated for all processable PDFs (some may fail gracefully)",
+        "Each golden JSON has: pages[].chars, pages[].words, pages[].text, pages[].lines, pages[].rects, pages[].tables",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "notes": "The current generate_golden.py only reads flat files from fixtures/pdfs/. It needs to be updated to walk subdirectories and create corresponding subdirectories in golden/. Password-protected PDFs (password-example.pdf) will fail unless we pass the password. OSS-fuzz PDFs may crash pdfplumber - wrap in try/except. Some pdfjs PDFs with non-embedded fonts may produce empty output - that's acceptable for golden data."
+    },
+    {
+      "id": "US-113",
+      "title": "Extend cross-validation tests for new fixture PDFs",
+      "description": "Extend crates/pdfplumber/tests/cross_validation.rs to run cross-validation against all new fixture PDFs that have golden data. The current test validates: chars (count + bbox accuracy), words (count + text accuracy), lines, rects, tables. Add new test functions or a data-driven test macro that iterates over all golden JSON files. For each golden file, run the same accuracy comparison. Group results by source (pdfplumber-python/, pdfjs/, pdfbox/, poppler/). Set initial thresholds conservatively: chars >= 80%, words >= 80% for CJK PDFs (we expect lower accuracy initially since CJK support is still maturing). For pdfplumber Python fixtures, use higher thresholds: chars >= 95%, words >= 95% (matching existing test quality). Create a test that prints a summary table showing accuracy per PDF. Mark tests that don't meet threshold as #[ignore] with a TODO comment explaining the gap, so they can be individually enabled as CJK support improves.",
+      "acceptanceCriteria": [
+        "cross_validation.rs updated with data-driven tests for all new golden files",
+        "Test loads golden JSON, opens corresponding PDF, compares chars/words/text/lines/rects/tables",
+        "Accuracy thresholds per source: pdfplumber-python >= 95%, pdfjs/pdfbox/poppler >= 80%",
+        "Tests that fail threshold are #[ignore] with explanatory comment",
+        "At least one summary test prints per-PDF accuracy table (with --nocapture)",
+        "All non-ignored tests pass: cargo test --workspace",
+        "cargo clippy --workspace -- -D warnings passes",
+        "No regression on existing 4 cross-validation tests (lorem, nics, pdffill, scotus)"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "Current cross-validation test file: crates/pdfplumber/tests/cross_validation.rs. Existing golden data: issue-33-lorem-ipsum.json, nics-background-checks-2015-11.json, pdffill-demo.json, scotus-transcript-p1.json. Consider using a macro like `cross_validate!(pdf_name, threshold)` to reduce boilerplate. Some PDFs may not have golden data (failed during generation) - skip gracefully. The oss-fuzz PDFs should be tested only for 'no panic' (open + extract without crashing), not accuracy."
     }
   ]
 }
