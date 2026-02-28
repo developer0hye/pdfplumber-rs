@@ -87,13 +87,16 @@ jobs:
           - os: macos
             runner: macos-latest
             target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
           - os: macos
             runner: macos-latest
             target: aarch64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
           # ── Windows ──
           - os: windows
             runner: windows-latest
             target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
     steps:
       - uses: actions/checkout@v4
 
@@ -114,7 +117,7 @@ jobs:
           args: >-
             --release
             --out dist
-            ${{ matrix.interpreter && format('--interpreter {0}', matrix.interpreter) || '--find-interpreter' }}
+            --interpreter ${{ matrix.interpreter }}
             --manifest-path crates/pdfplumber-py/Cargo.toml
           manylinux: ${{ matrix.manylinux || 'auto' }}
 
@@ -186,6 +189,8 @@ jobs:
         run: cp crates/pdfplumber-wasm/pdfplumber-wasm.d.ts crates/pdfplumber-wasm/pkg/pdfplumber_wasm.d.ts
 
       - name: Publish to npm
-        run: npm publish crates/pdfplumber-wasm/pkg --access public
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          npm publish crates/pdfplumber-wasm/pkg --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
