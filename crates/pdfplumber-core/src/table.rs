@@ -322,6 +322,69 @@ where
     result
 }
 
+/// An intersection point between horizontal and vertical edges.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Intersection {
+    /// X coordinate of the intersection point.
+    pub x: f64,
+    /// Y coordinate of the intersection point.
+    pub y: f64,
+}
+
+/// Find all intersection points between horizontal and vertical edges.
+///
+/// An intersection exists when a vertical edge's x-coordinate falls within a
+/// horizontal edge's x-span (within `x_tolerance`) AND the horizontal edge's
+/// y-coordinate falls within the vertical edge's y-span (within `y_tolerance`).
+///
+/// Only considers actual overlapping segments, not infinite line extensions.
+/// Diagonal edges are ignored.
+pub fn edges_to_intersections(
+    edges: &[Edge],
+    x_tolerance: f64,
+    y_tolerance: f64,
+) -> Vec<Intersection> {
+    use crate::geometry::Orientation;
+
+    let horizontals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Horizontal)
+        .collect();
+    let verticals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Vertical)
+        .collect();
+
+    let mut intersections = Vec::new();
+
+    for h in &horizontals {
+        let h_y = h.top; // horizontal edge: top == bottom
+        for v in &verticals {
+            let v_x = v.x0; // vertical edge: x0 == x1
+
+            // Check that the vertical's x is within the horizontal's x-span (with tolerance)
+            // and the horizontal's y is within the vertical's y-span (with tolerance)
+            if v_x >= h.x0 - x_tolerance
+                && v_x <= h.x1 + x_tolerance
+                && h_y >= v.top - y_tolerance
+                && h_y <= v.bottom + y_tolerance
+            {
+                intersections.push(Intersection { x: v_x, y: h_y });
+            }
+        }
+    }
+
+    // Sort and deduplicate intersection points at the same location
+    intersections.sort_by(|a, b| {
+        a.x.partial_cmp(&b.x)
+            .unwrap()
+            .then_with(|| a.y.partial_cmp(&b.y).unwrap())
+    });
+    intersections.dedup_by(|a, b| (a.x - b.x).abs() < 1e-9 && (a.y - b.y).abs() < 1e-9);
+
+    intersections
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -1129,5 +1192,196 @@ mod tests {
         assert_approx(ys[0], 50.0);
         assert_approx(ys[1], 50.0);
         assert_approx(ys[2], 50.1);
+    }
+
+    // --- edges_to_intersections tests ---
+
+    fn has_intersection(intersections: &[Intersection], x: f64, y: f64) -> bool {
+        intersections
+            .iter()
+            .any(|i| (i.x - x).abs() < 1e-6 && (i.y - y).abs() < 1e-6)
+    }
+
+    #[test]
+    fn test_intersections_empty_edges() {
+        let result = edges_to_intersections(&[], 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_simple_cross() {
+        // Horizontal edge at y=50 from x=0 to x=100
+        // Vertical edge at x=50 from y=0 to y=100
+        // Should intersect at (50, 50)
+        let edges = vec![make_h_edge(0.0, 50.0, 100.0), make_v_edge(50.0, 0.0, 100.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_t_intersection() {
+        // Horizontal edge at y=50 from x=0 to x=100
+        // Vertical edge at x=50 from y=50 to y=100 (starts at the horizontal edge)
+        // Should intersect at (50, 50)
+        let edges = vec![
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(50.0, 50.0, 100.0),
+        ];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_l_intersection_corner() {
+        // Horizontal edge at y=50 from x=50 to x=100
+        // Vertical edge at x=50 from y=0 to y=50
+        // Corner at (50, 50)
+        let edges = vec![make_h_edge(50.0, 50.0, 100.0), make_v_edge(50.0, 0.0, 50.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_no_intersection_parallel() {
+        // Two parallel horizontal edges — no intersections
+        let edges = vec![make_h_edge(0.0, 50.0, 100.0), make_h_edge(0.0, 80.0, 100.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_no_intersection_non_overlapping() {
+        // Horizontal edge at y=50 from x=0 to x=40
+        // Vertical edge at x=60 from y=0 to y=100
+        // They don't overlap in x-range (40 < 60 with tolerance 3 → 40+3=43 < 60)
+        let edges = vec![make_h_edge(0.0, 50.0, 40.0), make_v_edge(60.0, 0.0, 100.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_tolerance_based() {
+        // Horizontal edge at y=50 from x=0 to x=48
+        // Vertical edge at x=50 from y=0 to y=100
+        // Gap in x: 50 - 48 = 2, within tolerance 3 → should intersect
+        let edges = vec![make_h_edge(0.0, 50.0, 48.0), make_v_edge(50.0, 0.0, 100.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_tolerance_y_based() {
+        // Horizontal edge at y=50 from x=0 to x=100
+        // Vertical edge at x=50 from y=0 to y=48
+        // Gap in y: 50 - 48 = 2, within tolerance 3 → should intersect
+        let edges = vec![make_h_edge(0.0, 50.0, 100.0), make_v_edge(50.0, 0.0, 48.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_beyond_tolerance_no_match() {
+        // Horizontal edge at y=50 from x=0 to x=45
+        // Vertical edge at x=50 from y=0 to y=100
+        // Gap in x: 50 - 45 = 5, beyond tolerance 3 → no intersection
+        let edges = vec![make_h_edge(0.0, 50.0, 45.0), make_v_edge(50.0, 0.0, 100.0)];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_grid_2x2() {
+        // 2x2 grid: 3 horizontal edges × 3 vertical edges = 9 intersections
+        // H: y=0, y=50, y=100 (all from x=0 to x=100)
+        // V: x=0, x=50, x=100 (all from y=0 to y=100)
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_h_edge(0.0, 100.0, 100.0),
+            make_v_edge(0.0, 0.0, 100.0),
+            make_v_edge(50.0, 0.0, 100.0),
+            make_v_edge(100.0, 0.0, 100.0),
+        ];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 9);
+        // Check corners
+        assert!(has_intersection(&result, 0.0, 0.0));
+        assert!(has_intersection(&result, 100.0, 0.0));
+        assert!(has_intersection(&result, 0.0, 100.0));
+        assert!(has_intersection(&result, 100.0, 100.0));
+        // Check center
+        assert!(has_intersection(&result, 50.0, 50.0));
+    }
+
+    #[test]
+    fn test_intersections_ignores_diagonal_edges() {
+        // Diagonal edge should be ignored
+        let edges = vec![
+            Edge {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 100.0,
+                orientation: Orientation::Diagonal,
+                source: crate::edges::EdgeSource::Curve,
+            },
+            make_h_edge(0.0, 50.0, 100.0),
+        ];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_intersections_multiple_h_one_v() {
+        // Three horizontal edges at y=10, y=50, y=90 (x=0..100)
+        // One vertical edge at x=50 (y=0..100)
+        // Should yield 3 intersections at (50,10), (50,50), (50,90)
+        let edges = vec![
+            make_h_edge(0.0, 10.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_h_edge(0.0, 90.0, 100.0),
+            make_v_edge(50.0, 0.0, 100.0),
+        ];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 3);
+        assert!(has_intersection(&result, 50.0, 10.0));
+        assert!(has_intersection(&result, 50.0, 50.0));
+        assert!(has_intersection(&result, 50.0, 90.0));
+    }
+
+    #[test]
+    fn test_intersections_separate_x_y_tolerance() {
+        // Horizontal edge at y=50, x=0..48
+        // Vertical edge at x=50, y=0..100
+        // Gap in x is 2.0. With x_tolerance=1.0, should NOT intersect
+        let edges = vec![make_h_edge(0.0, 50.0, 48.0), make_v_edge(50.0, 0.0, 100.0)];
+        let result = edges_to_intersections(&edges, 1.0, 3.0);
+        assert!(result.is_empty());
+
+        // Same setup but with x_tolerance=3.0, should intersect
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_intersections_no_duplicate_points() {
+        // Two horizontal edges at the same y, one vertical edge
+        // Both horizontals cross the vertical at the same point
+        // Should produce only one intersection point (deduplicated)
+        let edges = vec![
+            make_h_edge(0.0, 50.0, 100.0),
+            make_h_edge(20.0, 50.0, 80.0),
+            make_v_edge(50.0, 0.0, 100.0),
+        ];
+        let result = edges_to_intersections(&edges, 3.0, 3.0);
+        // Both horizontals at y=50 cross vertical at x=50 → same point (50, 50)
+        // Should be deduplicated to 1 intersection
+        assert_eq!(result.len(), 1);
+        assert!(has_intersection(&result, 50.0, 50.0));
     }
 }
