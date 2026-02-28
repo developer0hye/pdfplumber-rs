@@ -138,3 +138,19 @@ Started: 2026년  2월 28일 토요일 14시 03분 29초 KST
   - Info uses `TextFormat` (text/json) from cli.rs — same as text subcommand, no CSV needed
   - JSON output uses `serde_json::to_string_pretty` for human-readable structured output (unlike JSON Lines in text cmd)
 ---
+
+## 2026-02-28 - US-057
+- Prepared pdfplumber-cli for crates.io publishing
+- Verified all Cargo.toml metadata: description, license, repository, keywords, categories (already set in earlier stories)
+- Version 0.1.0 matches workspace crates; version dependency on pdfplumber crate already configured
+- Created README.md with: installation (`cargo install pdfplumber-cli`), usage examples for all 5 subcommands, output format examples, page selection docs
+- Added 3 integration tests: --version flag, info subcommand --help, help lists info subcommand
+- `cargo publish --dry-run -p pdfplumber-cli` succeeds (20 files packaged, ~26KB compressed)
+- `pdfplumber --version` prints "pdfplumber 0.1.0"
+- Files changed: crates/pdfplumber-cli/{README.md (new), tests/cli_args.rs (3 new tests)}
+- No new dependencies
+- **Learnings for future iterations:**
+  - `cargo publish --dry-run` requires committed changes (use `--allow-dirty` for pre-commit verification)
+  - Most metadata was already in place from US-050 scaffolding — workspace inheritance covers license/repository
+  - clap's `#[command(version)]` attribute automatically uses `env!("CARGO_PKG_VERSION")`
+---
