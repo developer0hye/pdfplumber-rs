@@ -81,7 +81,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 72,
       "notes": "Critical for quality — synthetic tests miss real-world quirks. Keep fixtures minimal but representative."
     }
