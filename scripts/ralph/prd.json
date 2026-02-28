@@ -181,7 +181,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "Final story - after this, the library is ready for v1.0 release."
     }
   ]

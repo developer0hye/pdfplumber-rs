@@ -2,11 +2,14 @@
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point {
+    /// X coordinate.
     pub x: f64,
+    /// Y coordinate.
     pub y: f64,
 }
 
 impl Point {
+    /// Create a new point at `(x, y)`.
     pub fn new(x: f64, y: f64) -> Self {
         Self { x, y }
     }
@@ -24,11 +27,17 @@ impl Point {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ctm {
+    /// Scale X (horizontal scaling).
     pub a: f64,
+    /// Shear Y.
     pub b: f64,
+    /// Shear X.
     pub c: f64,
+    /// Scale Y (vertical scaling).
     pub d: f64,
+    /// Translate X.
     pub e: f64,
+    /// Translate Y.
     pub f: f64,
 }
 
@@ -81,8 +90,11 @@ impl Ctm {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Orientation {
+    /// Horizontal (left-to-right or right-to-left).
     Horizontal,
+    /// Vertical (top-to-bottom or bottom-to-top).
     Vertical,
+    /// Diagonal (neither purely horizontal nor vertical).
     Diagonal,
 }
 
@@ -96,13 +108,18 @@ pub enum Orientation {
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BBox {
+    /// Left edge x coordinate.
     pub x0: f64,
+    /// Top edge y coordinate (distance from top of page).
     pub top: f64,
+    /// Right edge x coordinate.
     pub x1: f64,
+    /// Bottom edge y coordinate (distance from top of page).
     pub bottom: f64,
 }
 
 impl BBox {
+    /// Create a new bounding box from `(x0, top)` to `(x1, bottom)`.
     pub fn new(x0: f64, top: f64, x1: f64, bottom: f64) -> Self {
         Self {
             x0,

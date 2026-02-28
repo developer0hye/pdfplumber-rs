@@ -11,14 +11,22 @@ use pdfplumber_core::geometry::Ctm;
 /// Determines how character glyphs are painted (filled, stroked, clipped, etc.).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum TextRenderMode {
+    /// Fill character glyphs (default).
     #[default]
     Fill = 0,
+    /// Stroke (outline) character glyphs.
     Stroke = 1,
+    /// Fill and stroke character glyphs.
     FillStroke = 2,
+    /// Neither fill nor stroke (invisible text).
     Invisible = 3,
+    /// Fill and add to clipping path.
     FillClip = 4,
+    /// Stroke and add to clipping path.
     StrokeClip = 5,
+    /// Fill, stroke, and add to clipping path.
     FillStrokeClip = 6,
+    /// Add to clipping path only.
     Clip = 7,
 }
 

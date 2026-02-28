@@ -9,7 +9,14 @@ pub enum PathSegment {
     /// Straight line from current point to target.
     LineTo(Point),
     /// Cubic Bezier curve with two control points and an endpoint.
-    CurveTo { cp1: Point, cp2: Point, end: Point },
+    CurveTo {
+        /// First control point.
+        cp1: Point,
+        /// Second control point.
+        cp2: Point,
+        /// Endpoint of the curve.
+        end: Point,
+    },
     /// Close the current subpath (line back to the subpath start).
     ClosePath,
 }
@@ -18,6 +25,7 @@ pub enum PathSegment {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Path {
+    /// The path segments.
     pub segments: Vec<PathSegment>,
 }
 
