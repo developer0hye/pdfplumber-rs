@@ -33,6 +33,8 @@ pub struct TextOptions {
     pub y_density: f64,
     /// Minimum horizontal gap to detect column boundaries (in points).
     pub x_density: f64,
+    /// If true, expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
+    pub expand_ligatures: bool,
 }
 
 impl Default for TextOptions {
@@ -42,6 +44,7 @@ impl Default for TextOptions {
             y_tolerance: 3.0,
             y_density: 10.0,
             x_density: 10.0,
+            expand_ligatures: true,
         }
     }
 }

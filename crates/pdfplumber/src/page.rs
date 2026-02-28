@@ -360,6 +360,7 @@ impl Page {
     pub fn extract_text(&self, options: &TextOptions) -> String {
         let words = self.extract_words(&WordOptions {
             y_tolerance: options.y_tolerance,
+            expand_ligatures: options.expand_ligatures,
             ..WordOptions::default()
         });
 
