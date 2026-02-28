@@ -21,6 +21,8 @@ Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
 - `extract_text()` in Page API creates WordOptions from TextOptions and calls `extract_words()` — new options must be forwarded there
 - `WordExtractor::make_word()` is called from 3 places in `extract()` — all must be updated when changing its signature
 - pdfplumber-py tests fail locally due to missing Python 3.11 dylib (pre-existing, not a regression)
+- **Image struct fields**: When adding new Optional fields to Image, also update: image_from_ctm(), test helpers in page.rs/cropped_page.rs, serde_roundtrip.rs, pdfplumber-py test, and any direct Image{} constructors
+- **ImageEvent→Image flow**: Interpreter extracts metadata from stream dict → emits ImageEvent → pdf.rs converts to Image via image_from_ctm(). New image metadata fields must be added to ImageEvent in handler.rs and extracted in interpreter.rs handle_image_xobject()
 
 ---
 
@@ -35,4 +37,28 @@ Started: 2026년  3월  1일 일요일 02시 21분 40초 KST
   - make_word is called from 3 locations in extract() — easy to miss one with simple search-replace
   - Unicode normalization (NFKC/NFKD) already exists in unicode_norm.rs and also expands ligatures, but the dedicated expand_ligatures option is simpler and independent
   - U+FB05 maps to ſt (long s + t), not "st" — preserve the archaic long s character
+---
+
+## 2026-03-01 - US-089
+- **What was implemented**: Added `ImageFilter` enum (8 variants: DCTDecode, FlateDecode, CCITTFaxDecode, JBIG2Decode, JPXDecode, LZWDecode, RunLengthDecode, Raw) with `mime_type()` and `from_pdf_name()` methods. Extended `Image` struct with `data: Option<Vec<u8>>`, `filter: Option<ImageFilter>`, `mime_type: Option<String>`. Added `extract_image_data: bool` (default false) to `ExtractOptions`. Extended `ImageEvent` with `filter: Option<String>` field. Interpreter now extracts filter name from image XObject stream dictionary. In `Pdf::page()`, when `extract_image_data` is enabled, image data is extracted using existing `LopdfBackend::extract_image_content()` and populated into Image struct. Filter and MIME type are set even without data extraction opt-in.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/images.rs` — ImageFilter enum, Image struct new fields, unit tests (10 new)
+  - `crates/pdfplumber-core/src/error.rs` — ExtractOptions.extract_image_data field
+  - `crates/pdfplumber-core/src/lib.rs` — Re-export ImageFilter
+  - `crates/pdfplumber-parse/src/handler.rs` — ImageEvent.filter field, tests
+  - `crates/pdfplumber-parse/src/interpreter.rs` — Extract filter from stream dict in handle_image_xobject
+  - `crates/pdfplumber-parse/src/backend.rs` — Mock backend filter field
+  - `crates/pdfplumber/src/pdf.rs` — Populate filter/mime_type/data in page(), 4 new integration tests
+  - `crates/pdfplumber/src/lib.rs` — Re-export ImageFilter
+  - `crates/pdfplumber/src/page.rs` — Test helper update
+  - `crates/pdfplumber/src/cropped_page.rs` — Test helper update
+  - `crates/pdfplumber-py/src/lib.rs` — Test update
+  - `crates/pdfplumber-core/tests/serde_roundtrip.rs` — Test update
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Image struct has `data: Option<Vec<u8>>` — adding large optional fields to structs is OK when gated behind opt-in options
+  - `ImageFilter` is distinct from `ImageFormat` — filter is the PDF encoding method, format is the output format for extracted data
+  - Adding fields to struct with many existing constructions: use `..Default::default()` pattern in existing code to avoid mass updates
+  - All ExtractOptions constructions already used `..ExtractOptions::default()` — new fields with defaults propagate automatically
+  - Filter info (filter + mime_type) is set regardless of `extract_image_data` — useful for metadata queries without memory cost
 ---

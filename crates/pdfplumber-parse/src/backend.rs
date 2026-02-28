@@ -523,6 +523,7 @@ mod tests {
                 height: 300,
                 colorspace: Some("DeviceRGB".to_string()),
                 bits_per_component: Some(8),
+                filter: None,
             });
 
             Ok(())

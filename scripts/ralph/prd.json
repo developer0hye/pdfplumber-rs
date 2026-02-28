@@ -40,7 +40,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "relatedIssue": 78,
       "notes": "Opt-in to avoid memory bloat. ImageContent struct may already exist — unify or extend."
     },

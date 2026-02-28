@@ -1153,6 +1153,9 @@ mod tests {
             src_height: Some(200),
             bits_per_component: Some(8),
             color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
         };
         Python::with_gil(|py| {
             let dict_obj = image_to_dict(py, &img).expect("image_to_dict");
