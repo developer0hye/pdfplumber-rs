@@ -98,7 +98,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "Requires access to the PDF document for stream decoding. Add image extraction to pdfplumber-parse, types to pdfplumber-core."
     },
     {
