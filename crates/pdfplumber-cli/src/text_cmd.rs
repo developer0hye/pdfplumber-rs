@@ -1,23 +1,23 @@
 use std::path::Path;
 
-use pdfplumber::{Pdf, TextOptions};
+use pdfplumber::TextOptions;
 
 use crate::cli::TextFormat;
-use crate::page_range::parse_page_range;
+use crate::shared::{ProgressReporter, open_pdf, resolve_pages};
 
 pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat, layout: bool) -> Result<(), i32> {
-    // Open PDF with user-friendly error messages
     let pdf = open_pdf(file)?;
-
-    // Resolve page indices
     let page_indices = resolve_pages(pages, pdf.page_count())?;
+    let progress = ProgressReporter::new(page_indices.len());
 
     let text_options = TextOptions {
         layout,
         ..TextOptions::default()
     };
 
-    for &idx in &page_indices {
+    for (i, &idx) in page_indices.iter().enumerate() {
+        progress.report(i + 1);
+
         let page = pdf.page(idx).map_err(|e| {
             eprintln!("Error reading page {}: {e}", idx + 1);
             1
@@ -40,27 +40,6 @@ pub fn run(file: &Path, pages: Option<&str>, format: &TextFormat, layout: bool) 
         }
     }
 
+    progress.finish();
     Ok(())
-}
-
-fn open_pdf(file: &Path) -> Result<Pdf, i32> {
-    if !file.exists() {
-        eprintln!("Error: file not found: {}", file.display());
-        return Err(1);
-    }
-
-    Pdf::open_file(file, None).map_err(|e| {
-        eprintln!("Error: failed to open PDF: {e}");
-        1
-    })
-}
-
-fn resolve_pages(pages: Option<&str>, page_count: usize) -> Result<Vec<usize>, i32> {
-    match pages {
-        Some(range) => parse_page_range(range, page_count).map_err(|e| {
-            eprintln!("Error: {e}");
-            1
-        }),
-        None => Ok((0..page_count).collect()),
-    }
 }

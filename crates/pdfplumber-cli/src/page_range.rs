@@ -113,4 +113,78 @@ mod tests {
             vec![0, 2, 3, 4]
         );
     }
+
+    #[test]
+    fn empty_string_returns_empty() {
+        assert_eq!(parse_page_range("", 5).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn reversed_range_returns_empty() {
+        // "5-3" means 5..=3 which produces no elements
+        assert_eq!(parse_page_range("5-3", 5).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn single_page_range() {
+        // "3-3" should produce just page 3 (0-indexed: 2)
+        assert_eq!(parse_page_range("3-3", 5).unwrap(), vec![2]);
+    }
+
+    #[test]
+    fn trailing_comma_ignored() {
+        assert_eq!(parse_page_range("1,2,", 5).unwrap(), vec![0, 1]);
+    }
+
+    #[test]
+    fn non_numeric_input() {
+        let err = parse_page_range("abc", 5).unwrap_err();
+        assert!(err.contains("invalid page number"));
+    }
+
+    #[test]
+    fn range_with_non_numeric() {
+        let err = parse_page_range("1-abc", 5).unwrap_err();
+        assert!(err.contains("invalid page number"));
+    }
+
+    #[test]
+    fn page_zero_in_range_start() {
+        let err = parse_page_range("0-3", 5).unwrap_err();
+        assert!(err.contains("page 0 is invalid"));
+    }
+
+    #[test]
+    fn page_zero_in_range_end() {
+        let err = parse_page_range("1-0", 5).unwrap_err();
+        assert!(err.contains("page 0 is invalid"));
+    }
+
+    #[test]
+    fn range_end_exceeds_page_count() {
+        let err = parse_page_range("1-10", 5).unwrap_err();
+        assert!(err.contains("exceeds document page count (5)"));
+    }
+
+    #[test]
+    fn exact_error_message_for_page_zero() {
+        let err = parse_page_range("0", 5).unwrap_err();
+        assert_eq!(err, "page 0 is invalid (pages start at 1)");
+    }
+
+    #[test]
+    fn exact_error_message_for_exceeds() {
+        let err = parse_page_range("99", 5).unwrap_err();
+        assert_eq!(err, "page 99 exceeds document page count (5)");
+    }
+
+    #[test]
+    fn all_pages_via_range() {
+        assert_eq!(parse_page_range("1-5", 5).unwrap(), vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn overlapping_ranges_deduped() {
+        assert_eq!(parse_page_range("1-3,2-4", 5).unwrap(), vec![0, 1, 2, 3]);
+    }
 }
