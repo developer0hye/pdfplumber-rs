@@ -64,6 +64,8 @@ pub mod repair;
 pub mod search;
 /// Shape extraction: Lines, Rects, Curves from painted paths.
 pub mod shapes;
+/// PDF digital signature information types.
+pub mod signature;
 /// PDF structure tree types for tagged PDF access.
 pub mod struct_tree;
 /// SVG rendering for visual debugging of PDF pages.
@@ -102,6 +104,7 @@ pub use path::{Path, PathBuilder, PathSegment};
 pub use repair::{RepairOptions, RepairResult};
 pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
+pub use signature::SignatureInfo;
 pub use struct_tree::StructElement;
 pub use svg::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer};
 pub use table::{

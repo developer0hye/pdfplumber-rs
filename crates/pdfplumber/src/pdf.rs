@@ -3,7 +3,7 @@
 use pdfplumber_core::{
     Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
     ImageContent, ImageMetadata, PdfError, RepairOptions, RepairResult, SearchMatch, SearchOptions,
-    StructElement, UnicodeNorm, ValidationIssue, image_from_ctm, normalize_chars,
+    SignatureInfo, StructElement, UnicodeNorm, ValidationIssue, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -566,6 +566,21 @@ impl Pdf {
     /// to perform validation.
     pub fn validate(&self) -> Result<Vec<ValidationIssue>, PdfError> {
         LopdfBackend::validate(&self.doc).map_err(PdfError::from)
+    }
+
+    /// Extract digital signature information from the document.
+    ///
+    /// Returns a list of [`SignatureInfo`]s for each signature field found
+    /// in the document's `/AcroForm` dictionary. Both signed and unsigned
+    /// signature fields are included.
+    ///
+    /// Returns an empty Vec if the document has no signature fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the AcroForm exists but is malformed.
+    pub fn signatures(&self) -> Result<Vec<SignatureInfo>, PdfError> {
+        LopdfBackend::document_signatures(&self.doc).map_err(PdfError::from)
     }
 }
 

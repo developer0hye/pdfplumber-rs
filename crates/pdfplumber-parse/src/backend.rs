@@ -5,7 +5,8 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
-    ImageContent, PdfError, RepairOptions, RepairResult, StructElement, ValidationIssue,
+    ImageContent, PdfError, RepairOptions, RepairResult, SignatureInfo, StructElement,
+    ValidationIssue,
 };
 
 use crate::handler::ContentHandler;
@@ -261,6 +262,22 @@ pub trait PdfBackend {
         Ok(Vec::new())
     }
 
+    /// Extract digital signature information from the document.
+    ///
+    /// Returns a list of [`SignatureInfo`]s for each signature field
+    /// (`/FT /Sig`) found in the `/AcroForm` dictionary. Both signed
+    /// and unsigned signature fields are included.
+    ///
+    /// Returns an empty Vec if the document has no signature fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the AcroForm exists but is malformed.
+    fn document_signatures(doc: &Self::Document) -> Result<Vec<SignatureInfo>, Self::Error> {
+        let _ = doc;
+        Ok(Vec::new())
+    }
+
     /// Attempt to repair common PDF issues in the raw bytes.
     ///
     /// Takes the original PDF bytes and repair options, applies best-effort
@@ -435,6 +452,10 @@ mod tests {
         }
 
         fn document_form_fields(_doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
+            Ok(Vec::new())
+        }
+
+        fn document_signatures(_doc: &Self::Document) -> Result<Vec<SignatureInfo>, Self::Error> {
             Ok(Vec::new())
         }
 
