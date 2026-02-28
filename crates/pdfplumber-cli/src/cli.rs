@@ -182,6 +182,10 @@ pub enum Commands {
         /// Output SVG file path
         #[arg(long, value_name = "FILE")]
         output: PathBuf,
+
+        /// Show table detection pipeline (edges, intersections, cells, tables)
+        #[arg(long)]
+        tables: bool,
     },
 
     /// Search for text patterns with position information
@@ -755,10 +759,30 @@ mod tests {
                 ref file,
                 ref pages,
                 ref output,
+                tables,
             } => {
                 assert_eq!(file, &PathBuf::from("test.pdf"));
                 assert!(pages.is_none());
                 assert_eq!(output, &PathBuf::from("out.svg"));
+                assert!(!tables);
+            }
+            _ => panic!("expected Debug subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_debug_with_tables_flag() {
+        let cli = Cli::parse_from([
+            "pdfplumber",
+            "debug",
+            "test.pdf",
+            "--tables",
+            "--output",
+            "out.svg",
+        ]);
+        match cli.command {
+            Commands::Debug { tables, .. } => {
+                assert!(tables);
             }
             _ => panic!("expected Debug subcommand"),
         }

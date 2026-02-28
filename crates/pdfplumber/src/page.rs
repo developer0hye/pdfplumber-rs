@@ -529,6 +529,47 @@ impl Page {
         renderer.to_svg(options)
     }
 
+    /// Generate a debug SVG showing the table detection pipeline.
+    ///
+    /// Runs the table detection pipeline and renders intermediate results:
+    /// detected edges (red), intersection points (circles), cell boundaries
+    /// (dashed lines), and table regions (light blue rectangles).
+    ///
+    /// # Arguments
+    ///
+    /// * `settings` - Table detection settings (strategy, tolerances, etc.)
+    /// * `options` - Controls which pipeline stages are rendered
+    pub fn debug_tablefinder_svg(
+        &self,
+        settings: &TableSettings,
+        options: &pdfplumber_core::SvgDebugOptions,
+    ) -> String {
+        let edges = self.edges();
+        let words = self.extract_words(&WordOptions::default());
+        let finder = TableFinder::new_with_words(edges, words, settings.clone());
+        let debug = finder.find_tables_debug();
+
+        let mut renderer = pdfplumber_core::SvgRenderer::new(self.width, self.height);
+
+        if options.show_edges {
+            renderer.draw_edges(&debug.edges, &pdfplumber_core::DrawStyle::edges_default());
+        }
+        if options.show_intersections {
+            renderer.draw_intersections(
+                &debug.intersections,
+                &pdfplumber_core::DrawStyle::intersections_default(),
+            );
+        }
+        if options.show_cells {
+            renderer.draw_cells(&debug.cells, &pdfplumber_core::DrawStyle::cells_default());
+        }
+        if options.show_tables {
+            renderer.draw_tables(&debug.tables, &pdfplumber_core::DrawStyle::tables_default());
+        }
+
+        renderer.to_svg(&pdfplumber_core::SvgOptions::default())
+    }
+
     /// Extract the largest table from this page as a 2D grid of cell text.
     ///
     /// Returns `None` if no tables are found. If multiple tables exist,

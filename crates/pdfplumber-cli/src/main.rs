@@ -98,7 +98,8 @@ fn main() {
             ref file,
             ref pages,
             ref output,
-        } => debug_cmd::run(file, pages.as_deref(), output),
+            tables,
+        } => debug_cmd::run(file, pages.as_deref(), output, tables),
         cli::Commands::Search {
             ref file,
             ref pattern,

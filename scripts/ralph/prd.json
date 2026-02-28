@@ -58,7 +58,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Depends on US-067 and US-068. This is the killer debugging feature."
     },
     {

@@ -8,7 +8,7 @@
 use crate::edges::Edge;
 use crate::geometry::BBox;
 use crate::shapes::{Line, Rect};
-use crate::table::Table;
+use crate::table::{Cell, Intersection, Table};
 use crate::text::Char;
 
 /// Style options for drawing overlays on the SVG page.
@@ -86,6 +86,26 @@ impl DrawStyle {
         }
     }
 
+    /// Default style for intersection points (red filled circles).
+    pub fn intersections_default() -> Self {
+        Self {
+            fill: Some("red".to_string()),
+            stroke: Some("darkred".to_string()),
+            stroke_width: 0.5,
+            opacity: 0.9,
+        }
+    }
+
+    /// Default style for cell boundaries (dashed pink outline).
+    pub fn cells_default() -> Self {
+        Self {
+            fill: None,
+            stroke: Some("magenta".to_string()),
+            stroke_width: 0.5,
+            opacity: 0.6,
+        }
+    }
+
     /// Build the SVG style attribute string.
     fn to_svg_style(&self) -> String {
         let mut parts = Vec::new();
@@ -123,6 +143,33 @@ impl Default for SvgOptions {
             width: None,
             height: None,
             scale: 1.0,
+        }
+    }
+}
+
+/// Options for the debug_tablefinder SVG output.
+///
+/// Controls which pipeline stages are rendered in the debug SVG.
+/// All flags default to `true`.
+#[derive(Debug, Clone)]
+pub struct SvgDebugOptions {
+    /// Show detected edges (red lines).
+    pub show_edges: bool,
+    /// Show intersection points (small circles).
+    pub show_intersections: bool,
+    /// Show cell boundaries (dashed lines).
+    pub show_cells: bool,
+    /// Show table bounding boxes (light blue rectangles).
+    pub show_tables: bool,
+}
+
+impl Default for SvgDebugOptions {
+    fn default() -> Self {
+        Self {
+            show_edges: true,
+            show_intersections: true,
+            show_cells: true,
+            show_tables: true,
         }
     }
 }
@@ -203,6 +250,32 @@ impl SvgRenderer {
             self.elements.push(format!(
                 "  <line x1=\"{}\" y1=\"{}\" x2=\"{}\" y2=\"{}\" style=\"{style_attr}\"/>\n",
                 e.x0, e.top, e.x1, e.bottom,
+            ));
+        }
+    }
+
+    /// Draw intersection points as small circles onto the SVG.
+    pub fn draw_intersections(&mut self, intersections: &[Intersection], style: &DrawStyle) {
+        let style_attr = style.to_svg_style();
+        let radius = 3.0;
+        for pt in intersections {
+            self.elements.push(format!(
+                "  <circle cx=\"{}\" cy=\"{}\" r=\"{radius}\" style=\"{style_attr}\"/>\n",
+                pt.x, pt.y,
+            ));
+        }
+    }
+
+    /// Draw cell boundaries as dashed rectangles onto the SVG.
+    pub fn draw_cells(&mut self, cells: &[Cell], style: &DrawStyle) {
+        let style_attr = style.to_svg_style();
+        for cell in cells {
+            self.elements.push(format!(
+                "  <rect x=\"{}\" y=\"{}\" width=\"{}\" height=\"{}\" style=\"{style_attr}\" stroke-dasharray=\"4,2\"/>\n",
+                cell.bbox.x0,
+                cell.bbox.top,
+                cell.bbox.width(),
+                cell.bbox.height(),
             ));
         }
     }
@@ -716,5 +789,229 @@ mod tests {
         // Only the page boundary rect
         let rect_count = svg.matches("<rect").count();
         assert_eq!(rect_count, 1);
+    }
+
+    // --- US-069 tests: SvgDebugOptions ---
+
+    #[test]
+    fn test_svg_debug_options_default() {
+        let opts = SvgDebugOptions::default();
+        assert!(opts.show_edges);
+        assert!(opts.show_intersections);
+        assert!(opts.show_cells);
+        assert!(opts.show_tables);
+    }
+
+    #[test]
+    fn test_svg_debug_options_selective() {
+        let opts = SvgDebugOptions {
+            show_edges: true,
+            show_intersections: false,
+            show_cells: false,
+            show_tables: true,
+        };
+        assert!(opts.show_edges);
+        assert!(!opts.show_intersections);
+        assert!(!opts.show_cells);
+        assert!(opts.show_tables);
+    }
+
+    // --- US-069 tests: DrawStyle defaults for debug ---
+
+    #[test]
+    fn test_draw_style_intersections_default() {
+        let style = DrawStyle::intersections_default();
+        // Intersections should be filled circles
+        assert!(style.fill.is_some());
+        assert!(style.stroke.is_some());
+    }
+
+    #[test]
+    fn test_draw_style_cells_default() {
+        let style = DrawStyle::cells_default();
+        // Cells should have dashed stroke
+        assert!(style.stroke.is_some());
+    }
+
+    // --- US-069 tests: draw_intersections ---
+
+    #[test]
+    fn test_draw_intersections_adds_circle_elements() {
+        let mut renderer = SvgRenderer::new(200.0, 200.0);
+        let intersections = vec![
+            Intersection { x: 50.0, y: 50.0 },
+            Intersection { x: 100.0, y: 50.0 },
+            Intersection { x: 50.0, y: 100.0 },
+        ];
+        renderer.draw_intersections(&intersections, &DrawStyle::intersections_default());
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        let circle_count = svg.matches("<circle").count();
+        assert_eq!(circle_count, 3, "Should have 3 intersection circles");
+    }
+
+    #[test]
+    fn test_draw_intersections_correct_coordinates() {
+        let mut renderer = SvgRenderer::new(200.0, 200.0);
+        let intersections = vec![Intersection { x: 75.0, y: 125.0 }];
+        renderer.draw_intersections(&intersections, &DrawStyle::intersections_default());
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        assert!(svg.contains("cx=\"75\""));
+        assert!(svg.contains("cy=\"125\""));
+    }
+
+    #[test]
+    fn test_draw_intersections_empty_slice() {
+        let mut renderer = SvgRenderer::new(100.0, 100.0);
+        renderer.draw_intersections(&[], &DrawStyle::intersections_default());
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        let circle_count = svg.matches("<circle").count();
+        assert_eq!(circle_count, 0);
+    }
+
+    // --- US-069 tests: draw_cells (dashed lines) ---
+
+    #[test]
+    fn test_draw_cells_adds_rect_elements_with_dashed_style() {
+        let mut renderer = SvgRenderer::new(200.0, 200.0);
+        let cells = vec![
+            Cell {
+                bbox: BBox::new(10.0, 10.0, 100.0, 50.0),
+                text: None,
+            },
+            Cell {
+                bbox: BBox::new(100.0, 10.0, 200.0, 50.0),
+                text: None,
+            },
+        ];
+        renderer.draw_cells(&cells, &DrawStyle::cells_default());
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        // 1 page boundary + 2 cell rects
+        let rect_count = svg.matches("<rect").count();
+        assert_eq!(rect_count, 3);
+        // Cell rects should have dashed stroke
+        assert!(svg.contains("stroke-dasharray"));
+    }
+
+    #[test]
+    fn test_draw_cells_correct_coordinates() {
+        let mut renderer = SvgRenderer::new(200.0, 200.0);
+        let cells = vec![Cell {
+            bbox: BBox::new(20.0, 30.0, 80.0, 90.0),
+            text: None,
+        }];
+        renderer.draw_cells(&cells, &DrawStyle::cells_default());
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        assert!(svg.contains("x=\"20\""));
+        assert!(svg.contains("y=\"30\""));
+        assert!(svg.contains("width=\"60\"")); // 80 - 20
+        assert!(svg.contains("height=\"60\"")); // 90 - 30
+    }
+
+    // --- US-069 tests: debug_tablefinder_svg via SvgRenderer ---
+
+    #[test]
+    fn test_debug_tablefinder_svg_with_table() {
+        let mut renderer = SvgRenderer::new(300.0, 200.0);
+
+        // Simulate table detection pipeline outputs
+        let edges = vec![
+            make_edge(10.0, 10.0, 200.0, 10.0),
+            make_edge(10.0, 50.0, 200.0, 50.0),
+            make_edge(10.0, 100.0, 200.0, 100.0),
+        ];
+        let intersections = vec![
+            Intersection { x: 10.0, y: 10.0 },
+            Intersection { x: 200.0, y: 10.0 },
+            Intersection { x: 10.0, y: 50.0 },
+            Intersection { x: 200.0, y: 50.0 },
+        ];
+        let cells = vec![Cell {
+            bbox: BBox::new(10.0, 10.0, 200.0, 50.0),
+            text: None,
+        }];
+        let tables = vec![Table {
+            bbox: BBox::new(10.0, 10.0, 200.0, 100.0),
+            cells: cells.clone(),
+            rows: vec![],
+            columns: vec![],
+        }];
+
+        let debug_opts = SvgDebugOptions::default();
+
+        if debug_opts.show_edges {
+            renderer.draw_edges(&edges, &DrawStyle::edges_default());
+        }
+        if debug_opts.show_intersections {
+            renderer.draw_intersections(&intersections, &DrawStyle::intersections_default());
+        }
+        if debug_opts.show_cells {
+            renderer.draw_cells(&cells, &DrawStyle::cells_default());
+        }
+        if debug_opts.show_tables {
+            renderer.draw_tables(&tables, &DrawStyle::tables_default());
+        }
+
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        // Edges rendered as lines (red)
+        assert!(svg.contains("<line"), "Should contain edge lines");
+        // Intersections rendered as circles
+        assert!(
+            svg.contains("<circle"),
+            "Should contain intersection circles"
+        );
+        // Cells rendered as dashed rects
+        assert!(
+            svg.contains("stroke-dasharray"),
+            "Should contain dashed cell boundaries"
+        );
+        // Tables rendered as filled rects
+        assert!(svg.contains("fill:lightblue"), "Should contain table fill");
+    }
+
+    #[test]
+    fn test_debug_tablefinder_svg_no_tables() {
+        let renderer = SvgRenderer::new(300.0, 200.0);
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        // No edges, intersections, cells, or tables - just the page boundary
+        assert!(svg.contains("<svg"));
+        assert!(svg.contains("</svg>"));
+        let rect_count = svg.matches("<rect").count();
+        assert_eq!(rect_count, 1, "Only page boundary rect");
+    }
+
+    #[test]
+    fn test_debug_tablefinder_svg_selective_show() {
+        let mut renderer = SvgRenderer::new(200.0, 200.0);
+
+        let edges = vec![make_edge(10.0, 10.0, 200.0, 10.0)];
+        let intersections = vec![Intersection { x: 10.0, y: 10.0 }];
+
+        let debug_opts = SvgDebugOptions {
+            show_edges: true,
+            show_intersections: false,
+            show_cells: false,
+            show_tables: false,
+        };
+
+        if debug_opts.show_edges {
+            renderer.draw_edges(&edges, &DrawStyle::edges_default());
+        }
+        if debug_opts.show_intersections {
+            renderer.draw_intersections(&intersections, &DrawStyle::intersections_default());
+        }
+
+        let svg = renderer.to_svg(&SvgOptions::default());
+
+        // Edges should be present
+        assert!(svg.contains("<line"), "Edges should be shown");
+        // Intersections should NOT be present
+        assert!(!svg.contains("<circle"), "Intersections should be hidden");
     }
 }
