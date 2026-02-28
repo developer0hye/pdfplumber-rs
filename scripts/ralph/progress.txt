@@ -11,6 +11,7 @@
 - **Spatial filtering pattern**: `PageData` trait provides shared access to page data (chars, lines, rects, curves, images). Both `Page` and `CroppedPage` implement it. `filter_and_build()` takes `&dyn PageData` + `BBox` + `FilterMode` to produce a `CroppedPage`. Coordinates adjusted by subtracting crop origin.
 - **Serde feature flag pattern**: Use `#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]` on all public data types. Feature in pdfplumber-core, forwarded from pdfplumber via `pdfplumber-core/serde`. serde_json as dev-dependency for tests.
 - **Parallel feature pattern**: `parallel = ["dep:rayon"]` in pdfplumber Cargo.toml. Methods gated with `#[cfg(feature = "parallel")]`. `Pdf` is naturally `Sync` (lopdf::Document is Send+Sync), so `&Pdf` can be shared across rayon threads. Test helpers for parallel-only code also need `#[cfg(feature = "parallel")]`.
+- **Warning collection pattern**: `ExtractWarning` has `description`, `page`, `element`, `operator_index`, `font_name` fields. Interpreter emits warnings via `handler.on_warning()` gated by `options.collect_warnings`. The handler decorates warnings with page context. Page exposes `warnings()` accessor. Warnings are purely informational and never affect extraction output.
 
 # Ralph Progress Log
 Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
@@ -83,4 +84,20 @@ Started: 2026년  2월 28일 토요일 10시 21분 21초 KST
   - `Pdf::page()` takes `&self` and all internal state (`doc`, `page_heights`, `raw_page_heights`, `options`) is read-only — inherently thread-safe
   - Test helpers used only with a feature must be gated with `#[cfg(feature = "...")]` to avoid dead_code warnings
   - `dep:rayon` syntax (not `rayon = ["rayon"]`) is the modern Cargo way to declare optional features
+---
+
+## 2026-02-28 - US-045
+- Refined error/warning model: added context fields to ExtractWarning, wired up warning collection through the interpreter pipeline
+- Modified: `crates/pdfplumber-core/src/error.rs` — Added `operator_index` and `font_name` fields to ExtractWarning, new `with_operator_context()` constructor, updated Display impl to show font/operator context
+- Modified: `crates/pdfplumber-parse/src/handler.rs` — Added `on_warning(ExtractWarning)` to ContentHandler trait with default no-op
+- Modified: `crates/pdfplumber-parse/src/interpreter.rs` — Emit warnings for font-not-found and font-metrics-failed; pass handler/options to load_font_if_needed; track operator index in loop
+- Modified: `crates/pdfplumber/src/page.rs` — Added `warnings: Vec<ExtractWarning>` field and `warnings()` accessor
+- Modified: `crates/pdfplumber/src/pdf.rs` — CollectingHandler now collects warnings with page context; wired through to Page construction
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - The codebase already had zero unwrap/expect/panic — defensive `unwrap_or` patterns were used throughout
+  - Warning emission is best placed at the source (load_font_if_needed) with page context decorated by the handler
+  - `collect_warnings: false` gates at the interpreter level (skips on_warning call entirely) for zero overhead
+  - ContentHandler's `on_warning` default no-op keeps backward compatibility with existing handler implementations
+  - The handler-decorator pattern (handler adds page number) keeps the interpreter page-agnostic
 ---

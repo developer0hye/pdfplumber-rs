@@ -4,7 +4,7 @@
 //! interpreter) and Layer 3 (object extraction). The interpreter calls handler
 //! methods as it processes PDF content stream operators.
 
-use pdfplumber_core::{Color, DashPattern, FillRule, PathSegment};
+use pdfplumber_core::{Color, DashPattern, ExtractWarning, FillRule, PathSegment};
 
 /// The type of paint operation applied to a path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -125,6 +125,13 @@ pub trait ContentHandler {
 
     /// Called when an image XObject is placed on the page.
     fn on_image(&mut self, _event: ImageEvent) {}
+
+    /// Called when a non-fatal warning is encountered during interpretation.
+    ///
+    /// Warnings indicate best-effort degradation (e.g., missing font metrics,
+    /// unresolvable references). They do not affect extraction correctness —
+    /// the interpreter continues with sensible defaults.
+    fn on_warning(&mut self, _warning: ExtractWarning) {}
 }
 
 #[cfg(test)]
@@ -138,6 +145,7 @@ mod tests {
         chars: Vec<CharEvent>,
         paths: Vec<PathEvent>,
         images: Vec<ImageEvent>,
+        warnings: Vec<ExtractWarning>,
     }
 
     impl CollectingHandler {
@@ -146,6 +154,7 @@ mod tests {
                 chars: Vec::new(),
                 paths: Vec::new(),
                 images: Vec::new(),
+                warnings: Vec::new(),
             }
         }
     }
@@ -161,6 +170,10 @@ mod tests {
 
         fn on_image(&mut self, event: ImageEvent) {
             self.images.push(event);
+        }
+
+        fn on_warning(&mut self, warning: ExtractWarning) {
+            self.warnings.push(warning);
         }
     }
 
@@ -396,5 +409,40 @@ mod tests {
         let handler_ref: &mut dyn ContentHandler = &mut handler;
         handler_ref.on_char(sample_char_event());
         // Verifies the trait can be used as a trait object
+    }
+
+    // --- on_warning tests ---
+
+    #[test]
+    fn noop_handler_on_warning_does_nothing() {
+        let mut handler = NoopHandler;
+        handler.on_warning(ExtractWarning::new("test warning"));
+        // No panics — verifies default no-op implementation works
+    }
+
+    #[test]
+    fn collecting_handler_receives_warnings() {
+        let mut handler = CollectingHandler::new();
+        handler.on_warning(ExtractWarning::new("warning 1"));
+        handler.on_warning(ExtractWarning::on_page("warning 2", 0));
+        handler.on_warning(ExtractWarning::with_operator_context(
+            "font issue",
+            5,
+            "Helvetica",
+        ));
+
+        assert_eq!(handler.warnings.len(), 3);
+        assert_eq!(handler.warnings[0].description, "warning 1");
+        assert_eq!(handler.warnings[1].page, Some(0));
+        assert_eq!(handler.warnings[2].font_name, Some("Helvetica".to_string()));
+    }
+
+    #[test]
+    fn on_warning_via_trait_object() {
+        let mut handler = CollectingHandler::new();
+        let handler_ref: &mut dyn ContentHandler = &mut handler;
+        handler_ref.on_warning(ExtractWarning::new("test"));
+
+        assert_eq!(handler.warnings.len(), 1);
     }
 }

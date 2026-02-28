@@ -52,15 +52,20 @@ impl From<std::io::Error> for PdfError {
 ///
 /// Warnings allow best-effort continuation when issues are encountered
 /// (e.g., missing font metrics, unknown operators). They include a
-/// description and optional source location context.
+/// description and optional source location context such as page number,
+/// operator index, and font name.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ExtractWarning {
     /// Human-readable description of the warning.
     pub description: String,
     /// Page number where the warning occurred (0-indexed), if applicable.
     pub page: Option<usize>,
-    /// Element context (e.g., "font Helvetica", "char at offset 42").
+    /// Element context (e.g., "char at offset 42").
     pub element: Option<String>,
+    /// Index of the operator in the content stream where the warning occurred.
+    pub operator_index: Option<usize>,
+    /// Font name associated with the warning, if applicable.
+    pub font_name: Option<String>,
 }
 
 impl ExtractWarning {
@@ -70,6 +75,8 @@ impl ExtractWarning {
             description: description.into(),
             page: None,
             element: None,
+            operator_index: None,
+            font_name: None,
         }
     }
 
@@ -79,6 +86,8 @@ impl ExtractWarning {
             description: description.into(),
             page: Some(page),
             element: None,
+            operator_index: None,
+            font_name: None,
         }
     }
 
@@ -92,6 +101,26 @@ impl ExtractWarning {
             description: description.into(),
             page: Some(page),
             element: Some(element.into()),
+            operator_index: None,
+            font_name: None,
+        }
+    }
+
+    /// Create a warning with operator and font context.
+    ///
+    /// Includes the operator index in the content stream and the font name,
+    /// useful for diagnosing font-related issues during text extraction.
+    pub fn with_operator_context(
+        description: impl Into<String>,
+        operator_index: usize,
+        font_name: impl Into<String>,
+    ) -> Self {
+        Self {
+            description: description.into(),
+            page: None,
+            element: None,
+            operator_index: Some(operator_index),
+            font_name: Some(font_name.into()),
         }
     }
 }
@@ -101,6 +130,12 @@ impl fmt::Display for ExtractWarning {
         write!(f, "{}", self.description)?;
         if let Some(page) = self.page {
             write!(f, " (page {page})")?;
+        }
+        if let Some(ref font_name) = self.font_name {
+            write!(f, " [font {font_name}]")?;
+        }
+        if let Some(index) = self.operator_index {
+            write!(f, " [operator #{index}]")?;
         }
         if let Some(ref element) = self.element {
             write!(f, " [{element}]")?;
@@ -246,6 +281,8 @@ mod tests {
         assert_eq!(w.description, "missing font metrics");
         assert_eq!(w.page, None);
         assert_eq!(w.element, None);
+        assert_eq!(w.operator_index, None);
+        assert_eq!(w.font_name, None);
         assert_eq!(w.to_string(), "missing font metrics");
     }
 
@@ -255,21 +292,62 @@ mod tests {
         assert_eq!(w.description, "unknown operator");
         assert_eq!(w.page, Some(3));
         assert_eq!(w.element, None);
+        assert_eq!(w.operator_index, None);
+        assert_eq!(w.font_name, None);
         assert_eq!(w.to_string(), "unknown operator (page 3)");
     }
 
     #[test]
     fn warning_with_full_context() {
-        let w = ExtractWarning::with_context("missing width", 1, "font Helvetica");
+        let w = ExtractWarning::with_context("missing width", 1, "char at offset 42");
         assert_eq!(w.description, "missing width");
         assert_eq!(w.page, Some(1));
-        assert_eq!(w.element, Some("font Helvetica".to_string()));
-        assert_eq!(w.to_string(), "missing width (page 1) [font Helvetica]");
+        assert_eq!(w.element, Some("char at offset 42".to_string()));
+        assert_eq!(w.operator_index, None);
+        assert_eq!(w.font_name, None);
+        assert_eq!(w.to_string(), "missing width (page 1) [char at offset 42]");
+    }
+
+    #[test]
+    fn warning_with_operator_context() {
+        let w =
+            ExtractWarning::with_operator_context("font not found in resources", 5, "Helvetica");
+        assert_eq!(w.description, "font not found in resources");
+        assert_eq!(w.page, None);
+        assert_eq!(w.element, None);
+        assert_eq!(w.operator_index, Some(5));
+        assert_eq!(w.font_name, Some("Helvetica".to_string()));
+        assert_eq!(
+            w.to_string(),
+            "font not found in resources [font Helvetica] [operator #5]"
+        );
+    }
+
+    #[test]
+    fn warning_display_with_all_fields() {
+        let w = ExtractWarning {
+            description: "test warning".to_string(),
+            page: Some(2),
+            element: Some("extra context".to_string()),
+            operator_index: Some(10),
+            font_name: Some("Arial".to_string()),
+        };
+        assert_eq!(
+            w.to_string(),
+            "test warning (page 2) [font Arial] [operator #10] [extra context]"
+        );
     }
 
     #[test]
     fn warning_clone_and_eq() {
         let w1 = ExtractWarning::on_page("test warning", 0);
+        let w2 = w1.clone();
+        assert_eq!(w1, w2);
+    }
+
+    #[test]
+    fn warning_with_operator_context_clone_and_eq() {
+        let w1 = ExtractWarning::with_operator_context("test", 3, "Times");
         let w2 = w1.clone();
         assert_eq!(w1, w2);
     }

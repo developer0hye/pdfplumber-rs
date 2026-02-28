@@ -21,7 +21,7 @@ use crate::text_renderer::{
 };
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
-use pdfplumber_core::ExtractOptions;
+use pdfplumber_core::{ExtractOptions, ExtractWarning};
 
 /// Cached font information for the interpreter.
 struct CachedFont {
@@ -75,7 +75,7 @@ pub(crate) fn interpret_content_stream(
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
 
-    for op in &operators {
+    for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
             // --- Graphics state operators ---
             "q" => gstate.save_state(),
@@ -161,7 +161,15 @@ pub(crate) fn interpret_content_stream(
                     let font_name = operand_to_name(&op.operands[0]);
                     let size = get_f64(&op.operands, 1).unwrap_or(0.0);
                     tstate.set_font(font_name.clone(), size);
-                    load_font_if_needed(doc, resources, &font_name, &mut font_cache);
+                    load_font_if_needed(
+                        doc,
+                        resources,
+                        &font_name,
+                        &mut font_cache,
+                        handler,
+                        options,
+                        op_index,
+                    );
                 }
             }
             "Tm" => {
@@ -314,11 +322,15 @@ fn operand_to_string_bytes(o: &Operand) -> Option<&[u8]> {
 
 // --- Font loading ---
 
+#[allow(clippy::too_many_arguments)]
 fn load_font_if_needed(
     doc: &lopdf::Document,
     resources: &lopdf::Dictionary,
     font_name: &str,
     cache: &mut HashMap<String, CachedFont>,
+    handler: &mut dyn ContentHandler,
+    options: &ExtractOptions,
+    op_index: usize,
 ) {
     if cache.contains_key(font_name) {
         return;
@@ -351,6 +363,13 @@ fn load_font_if_needed(
                         cm.font_bbox(),
                     )
                 } else {
+                    if options.collect_warnings {
+                        handler.on_warning(ExtractWarning::with_operator_context(
+                            "CID font metrics not available, using defaults",
+                            op_index,
+                            font_name,
+                        ));
+                    }
                     FontMetrics::default_metrics()
                 };
 
@@ -367,8 +386,19 @@ fn load_font_if_needed(
                 (metrics, cmap, base_name, cid_met, true, wm)
             } else {
                 // Simple font
-                let metrics = extract_font_metrics(doc, fd)
-                    .unwrap_or_else(|_| FontMetrics::default_metrics());
+                let metrics = match extract_font_metrics(doc, fd) {
+                    Ok(m) => m,
+                    Err(_) => {
+                        if options.collect_warnings {
+                            handler.on_warning(ExtractWarning::with_operator_context(
+                                "failed to extract font metrics, using defaults",
+                                op_index,
+                                font_name,
+                            ));
+                        }
+                        FontMetrics::default_metrics()
+                    }
+                };
                 let cmap = extract_tounicode_cmap(doc, fd);
                 let raw_base_name = fd
                     .get(b"BaseFont")
@@ -380,6 +410,14 @@ fn load_font_if_needed(
                 (metrics, cmap, base_name, None, false, 0)
             }
         } else {
+            // Font not found in page resources — use defaults
+            if options.collect_warnings {
+                handler.on_warning(ExtractWarning::with_operator_context(
+                    "font not found in page resources, using defaults",
+                    op_index,
+                    font_name,
+                ));
+            }
             (
                 FontMetrics::default_metrics(),
                 None,
@@ -770,6 +808,7 @@ mod tests {
     struct CollectingHandler {
         chars: Vec<CharEvent>,
         images: Vec<ImageEvent>,
+        warnings: Vec<ExtractWarning>,
     }
 
     impl CollectingHandler {
@@ -777,6 +816,7 @@ mod tests {
             Self {
                 chars: Vec::new(),
                 images: Vec::new(),
+                warnings: Vec::new(),
             }
         }
     }
@@ -787,6 +827,9 @@ mod tests {
         }
         fn on_image(&mut self, event: ImageEvent) {
             self.images.push(event);
+        }
+        fn on_warning(&mut self, warning: ExtractWarning) {
+            self.warnings.push(warning);
         }
     }
 
@@ -1221,5 +1264,171 @@ mod tests {
         assert_eq!(handler.chars.len(), 1);
         assert_eq!(handler.chars[0].char_code, 0x4E2D);
         assert_eq!(handler.chars[0].unicode, Some("中".to_string()));
+    }
+
+    // --- Warning emission tests ---
+
+    #[test]
+    fn interpret_missing_font_emits_warning() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources(); // No fonts defined
+        // Use font F1 which is not in resources
+        let stream = b"BT /F1 12 Tf (Hi) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // Should emit a warning about missing font
+        assert!(!handler.warnings.is_empty());
+        assert!(
+            handler.warnings[0]
+                .description
+                .contains("font not found in page resources"),
+            "expected 'font not found' warning, got: {}",
+            handler.warnings[0].description
+        );
+        assert_eq!(
+            handler.warnings[0].font_name,
+            Some("F1".to_string()),
+            "warning should include font name"
+        );
+        assert!(
+            handler.warnings[0].operator_index.is_some(),
+            "warning should include operator index"
+        );
+
+        // Characters should still be extracted (using default metrics)
+        assert_eq!(handler.chars.len(), 2);
+    }
+
+    #[test]
+    fn interpret_no_warnings_when_collection_disabled() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        let stream = b"BT /F1 12 Tf (Hi) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        let opts = ExtractOptions {
+            collect_warnings: false,
+            ..ExtractOptions::default()
+        };
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &opts,
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // No warnings should be collected
+        assert!(handler.warnings.is_empty());
+
+        // Characters should still be extracted normally
+        assert_eq!(handler.chars.len(), 2);
+    }
+
+    #[test]
+    fn interpret_warnings_do_not_affect_output() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = empty_resources();
+        let stream = b"BT /F1 12 Tf (AB) Tj ET";
+
+        // With warnings enabled
+        let mut handler_on = CollectingHandler::new();
+        let mut gstate_on = InterpreterState::new();
+        let mut tstate_on = TextState::new();
+        let opts_on = ExtractOptions {
+            collect_warnings: true,
+            ..ExtractOptions::default()
+        };
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler_on,
+            &opts_on,
+            0,
+            &mut gstate_on,
+            &mut tstate_on,
+        )
+        .unwrap();
+
+        // With warnings disabled
+        let mut handler_off = CollectingHandler::new();
+        let mut gstate_off = InterpreterState::new();
+        let mut tstate_off = TextState::new();
+        let opts_off = ExtractOptions {
+            collect_warnings: false,
+            ..ExtractOptions::default()
+        };
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler_off,
+            &opts_off,
+            0,
+            &mut gstate_off,
+            &mut tstate_off,
+        )
+        .unwrap();
+
+        // Same output regardless of warning collection
+        assert_eq!(handler_on.chars.len(), handler_off.chars.len());
+        for (a, b) in handler_on.chars.iter().zip(handler_off.chars.iter()) {
+            assert_eq!(a.char_code, b.char_code);
+        }
+    }
+
+    #[test]
+    fn interpret_valid_font_no_warnings() {
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_cid_font_resources(&mut doc);
+        let stream = b"BT /F1 12 Tf <4E2D> Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // Valid font should not produce warnings
+        assert!(
+            handler.warnings.is_empty(),
+            "expected no warnings for valid font, got: {:?}",
+            handler.warnings
+        );
+        assert_eq!(handler.chars.len(), 1);
     }
 }
