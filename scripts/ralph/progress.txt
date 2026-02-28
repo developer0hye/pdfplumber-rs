@@ -13,35 +13,26 @@
 - **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
 - **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
 - **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
+- WordOptions is in `crates/pdfplumber-core/src/words.rs`, TextOptions in `crates/pdfplumber-core/src/layout.rs`
+- `extract_text()` in Page API creates WordOptions from TextOptions and calls `extract_words()` — new options must be forwarded there
+- `WordExtractor::make_word()` is called from 3 places in `extract()` — all must be updated when changing its signature
+- pdfplumber-py tests fail locally due to missing Python 3.11 dylib (pre-existing, not a regression)
 
 ---
 
-# Ralph Progress Log - Phase 10: Interpreter Fixes - Path Operators, Extended Graphics State
-Started: 2026년  3월  1일 일요일 02시 00분 49초 KST
+# Ralph Progress Log - Phase 11: Text & Image - Ligature Expansion, Image Data, Inline Images, Real-world Tests
+Started: 2026년  3월  1일 일요일 02시 21분 39초 KST
 ---
 
-## 2026-03-01 - US-086
-- What was implemented: Wired path operators (m, l, c, v, y, h, re), painting operators (S, s, f, F, f*, B, B*, b, b*, n), clipping operators (W, W*), marked content operators (BMC/BDC/EMC) into the interpreter. Added dictionary parsing to tokenizer for inline dictionaries. Based on PR #121 cherry-pick with merge conflict resolution.
-- Files changed:
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Added set_ctm() to path construction operators, replaced painting operators to use PathBuilder painting methods, new emit_path_event using PaintedPath, added marked content operator handling
-  - `crates/pdfplumber-parse/src/tokenizer.rs` — Added Dictionary variant to Operand enum, replaced skip_dict with parse_dictionary/parse_dictionary_value functions, updated tests
-  - `Cargo.lock` — Auto-updated
-- Dependencies added: None
+## 2026-03-01 - US-088
+- **What was implemented**: Added `expand_ligatures: bool` field (default true) to WordOptions and TextOptions. Implemented ligature expansion function covering U+FB00-U+FB06. Integrated into `WordExtractor::make_word()`. Forwarded option from TextOptions to WordOptions in Page API.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/words.rs` — WordOptions field, expand_ligatures_in_text(), make_word(), 5 unit tests
+  - `crates/pdfplumber-core/src/layout.rs` — TextOptions field
+  - `crates/pdfplumber/src/page.rs` — Forward expand_ligatures in extract_text()
+- **Dependencies added**: None
 - **Learnings for future iterations:**
-  - HEAD already had most of the pdf.rs/page.rs changes from prior PRs — cherry-pick conflicts were only in interpreter.rs and tokenizer.rs
-  - The emit_path_event approach changed: old version took &mut PathBuilder and called take_and_reset(), new version takes PaintedPath from PathBuilder painting methods (stroke(), fill(), etc.)
-  - The DashPattern import was no longer needed in interpreter.rs after switching to PaintedPath-based emit_path_event
-  - `pdfplumber-py` tests fail with libpython3.11.dylib not found — pre-existing environment issue, not related to code changes
----
-
-## 2026-03-01 - US-087
-- What was implemented: Wired the gs operator in the interpreter to look up named ExtGState from page resources and apply values to the current graphics state. Handles /LW (line width), /D (dash pattern), /CA (stroke alpha), /ca (fill alpha), /Font (font array). Unknown keys are silently ignored.
-- Files changed:
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Separated "gs" from the ignored operators group, added apply_ext_gstate() helper function, added 5 unit tests
-- Dependencies added: None
-- **Learnings for future iterations:**
-  - ExtGState struct and GraphicsState::apply_ext_gstate() already existed in pdfplumber-core painting.rs — only the interpreter wiring was missing
-  - lopdf Object::Real stores as f32, causing precision loss (0.7 → 0.699999988079071) — use wider tolerance (1e-6) for float comparisons in tests instead of f64::EPSILON
-  - Resource lookup pattern: resources.get(b"ExtGState") → resolve_ref → as_dict() → get(name) → resolve_ref → as_dict()
-  - The /Font entry in ExtGState is an array [fontRef size], not a dictionary
+  - make_word is called from 3 locations in extract() — easy to miss one with simple search-replace
+  - Unicode normalization (NFKC/NFKD) already exists in unicode_norm.rs and also expands ligatures, but the dedicated expand_ligatures option is simpler and independent
+  - U+FB05 maps to ſt (long s + t), not "st" — preserve the archaic long s character
 ---

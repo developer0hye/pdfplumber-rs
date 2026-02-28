@@ -1,51 +1,89 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase10-interpreter-fixes",
-  "description": "Phase 10: Critical Interpreter Fixes - Path operators and Extended Graphics State wiring",
+  "branchName": "ralph/phase11-text-image",
+  "description": "Phase 11: Text & Image Enhancement - Ligature expansion, image data extraction, inline images, real-world test suite",
   "userStories": [
     {
-      "id": "US-086",
-      "title": "Wire path operators in content stream interpreter",
-      "description": "This work is ALREADY IMPLEMENTED in PR #121 (branch origin/fix/content-stream-path-ops, commit 6acba75b). Do NOT reimplement from scratch. Instead: (1) git fetch origin fix/content-stream-path-ops, (2) git cherry-pick 6acba75b, (3) resolve any merge conflicts with main, (4) run cargo fmt --all to fix formatting issues (PR #121 failed the Format CI check), (5) verify cargo test/clippy/check all pass, (6) commit the fixes. The original implementation wires path construction operators (m, l, c, v, y, h, re), painting operators (S, s, f, F, f*, B, B*, b, b*, n), clipping operators (W, W*), dictionary parsing in tokenizer, and marked content operators (BMC/BDC/EMC) into the interpreter. Resolves #71.",
+      "id": "US-088",
+      "title": "Add ligature expansion option",
+      "description": "PDF fonts store typographic ligatures (fi, fl, ffi, ffl, etc.) as single glyphs. Add an expand_ligatures boolean (default true) to WordOptions and TextOptions that expands common Latin ligatures (U+FB00-U+FB06) during extraction. Resolves #75.",
       "acceptanceCriteria": [
-        "Cherry-pick commit 6acba75b from origin/fix/content-stream-path-ops successfully",
-        "All merge conflicts resolved cleanly",
-        "cargo fmt --all -- --check passes (the original PR failed this)",
-        "Interpreter matches path construction operators: m, l, c, v, y, h, re",
-        "Interpreter matches painting operators: S, s, f, F, f*, B, B*, b, b*, n",
-        "Interpreter matches clipping operators: W, W*",
-        "Tokenizer handles inline dictionaries (<< /Key value >>)",
-        "page.lines(), page.rects(), page.curves() return non-empty results for appropriate PDFs",
-        "Lattice table detection works on PDFs with bordered tables",
+        "expand_ligatures: bool field added to WordOptions and TextOptions (default true)",
+        "Ligature map covers U+FB00 (ff), U+FB01 (fi), U+FB02 (fl), U+FB03 (ffi), U+FB04 (ffl), U+FB05 (long st), U+FB06 (st)",
+        "When enabled, ligature characters in extracted text are replaced with their multi-character equivalents",
+        "When disabled, ligature characters pass through unchanged",
+        "Works with both extract_text() and extract_words()",
+        "Unit tests: text with fi ligature expanded, disabled option preserves ligature, all 7 ligatures mapped correctly",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "relatedIssue": 71,
-      "notes": "DO NOT reimplement. Cherry-pick from existing PR #121 (commit 6acba75b). The PR had two issues: (1) cargo fmt failure, (2) merge conflicts with main after PR #119 was merged. Fix both and merge. After this story's PR is merged, close PR #121 as superseded: gh pr close 121 --comment 'Superseded by PR #N'"
+      "relatedIssue": 75,
+      "notes": "Simple feature — mapping table + option flag. Improves text search and comparison accuracy."
     },
     {
-      "id": "US-087",
-      "title": "Wire Extended Graphics State (gs operator) in interpreter",
-      "description": "The ExtGState struct and GraphicsState::apply_ext_gstate() already exist, but the interpreter never processes the gs operator. Wire the gs operator to look up named ExtGState from page resources and apply values (line width, dash pattern, stroke/fill alpha, font) to current graphics state. Resolves #73.",
+      "id": "US-089",
+      "title": "Extract image stream data (pixel bytes)",
+      "description": "Currently Image extraction captures only positional metadata. Add data: Option<Vec<u8>> and filter: Option<ImageFilter> fields to Image struct, supporting JPEG (DCTDecode), FlateDecode, CCITT Fax, JPEG 2000, LZW, and raw formats. Image data extraction should be opt-in via ExtractOptions. Resolves #78.",
       "acceptanceCriteria": [
-        "Interpreter handles 'gs' operator: looks up operand name in page /Resources /ExtGState dictionary",
-        "Parses ExtGState dictionary keys: /LW (line width), /D (dash pattern), /CA (stroke alpha), /ca (fill alpha), /Font (font array)",
-        "Applies parsed values to current GraphicsState via apply_ext_gstate()",
-        "Line width from ExtGState correctly affects subsequent path stroking",
-        "Dash pattern from ExtGState correctly affects subsequent path stroking",
-        "Alpha values from ExtGState available on extracted objects",
-        "Font changes from ExtGState correctly affect subsequent text rendering",
-        "Unknown ExtGState keys are silently ignored (forward compatibility)",
-        "Unit tests: gs operator applies line width, gs operator applies dash pattern, gs operator applies alpha, missing ExtGState name produces warning not error",
+        "ImageFilter enum: DCTDecode (JPEG), FlateDecode, CCITTFaxDecode, JBIG2Decode, JPXDecode (JPEG2000), LZWDecode, RunLengthDecode, Raw",
+        "Image struct gains: data (Option<Vec<u8>>), filter (Option<ImageFilter>), mime_type (Option<String>)",
+        "ExtractOptions gains: extract_image_data (bool, default false) to opt-in to data extraction",
+        "When opt-in enabled, raw stream bytes are extracted from image XObjects",
+        "JPEG images (DCTDecode) returned as-is without re-encoding",
+        "FlateDecode images decompressed to raw pixel bytes",
+        "mime_type set correctly based on filter (image/jpeg, image/png, etc.)",
+        "Memory-safe: large images don't cause OOM (respect existing resource limits)",
+        "Unit tests: JPEG image data extraction, FlateDecode decompression, opt-in disabled returns None",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "relatedIssue": 73,
-      "notes": "ExtGState infrastructure exists — only interpreter wiring needed. Common in real-world PDFs for setting transparency and line styles."
+      "passes": false,
+      "relatedIssue": 78,
+      "notes": "Opt-in to avoid memory bloat. ImageContent struct may already exist — unify or extend."
+    },
+    {
+      "id": "US-090",
+      "title": "Handle inline images (BI/ID/EI operators)",
+      "description": "The tokenizer recognizes BI/ID/EI operators for inline images, but the interpreter does not process them. Only Do-based XObject images are currently extracted. Handle inline images by parsing image dictionary entries after BI, reading data bytes between ID and EI, and emitting Image objects. Resolves #79.",
+      "acceptanceCriteria": [
+        "Interpreter handles BI operator: begins inline image, parses key-value pairs until ID",
+        "Maps abbreviated keys to full names: /W->/Width, /H->/Height, /BPC->/BitsPerComponent, /CS->/ColorSpace, /F->/Filter, /DP->/DecodeParms",
+        "Maps abbreviated color space names: /G->DeviceGray, /RGB->DeviceRGB, /CMYK->DeviceCMYK",
+        "Maps abbreviated filter names: /AHx->ASCIIHexDecode, /A85->ASCII85Decode, /LZW->LZWDecode, /Fl->FlateDecode, /RL->RunLengthDecode, /CCF->CCITTFaxDecode, /DCT->DCTDecode",
+        "Reads raw bytes between ID and EI markers",
+        "Emits Image object with position from current CTM, dimensions from dictionary",
+        "Inline images included in page.images() results",
+        "Unit tests: inline JPEG image extraction, inline raw image with abbreviated keys",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "relatedIssue": 79,
+      "notes": "Inline images are common for small icons, decorative elements, and watermarks."
+    },
+    {
+      "id": "US-091",
+      "title": "Add real-world PDF test suite",
+      "description": "All test PDFs are currently generated programmatically with lopdf. Add a comprehensive test suite with real-world PDF fixtures covering diverse generators, fonts, encodings, and edge cases. Resolves #72.",
+      "acceptanceCriteria": [
+        "tests/fixtures/real-world/ directory with categorized subdirectories",
+        "At least 5 fixture categories: fonts-encoding, layout, tables, images, edge-cases",
+        "Each fixture has a companion .expected.json or inline assertions for expected extraction results",
+        "Integration tests verify: character extraction accuracy, word grouping correctness, table detection on bordered tables, image metadata extraction",
+        "Test PDFs kept small (<100KB each) to avoid bloating repository",
+        "Document each fixture's source and purpose in tests/fixtures/real-world/README.md",
+        "Tests handle platform-specific floating point differences with appropriate tolerance",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "relatedIssue": 72,
+      "notes": "Critical for quality — synthetic tests miss real-world quirks. Keep fixtures minimal but representative."
     }
   ]
 }
