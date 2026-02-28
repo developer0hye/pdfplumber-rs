@@ -14,7 +14,7 @@ use crate::cmap::CMap;
 use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
-use crate::handler::{CharEvent, ContentHandler, ImageEvent};
+use crate::handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 use crate::interpreter_state::InterpreterState;
 use crate::lopdf_backend::object_to_f64;
 use crate::text_renderer::{
@@ -23,7 +23,8 @@ use crate::text_renderer::{
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
 use pdfplumber_core::{
-    ExtractOptions, ExtractWarning, FontEncoding, StandardEncoding, glyph_name_to_char,
+    DashPattern, ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder,
+    StandardEncoding, glyph_name_to_char,
 };
 
 /// Cached font information for the interpreter.
@@ -79,6 +80,7 @@ pub(crate) fn interpret_content_stream(
 
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
+    let mut path_builder = PathBuilder::new(*gstate.ctm());
 
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
@@ -86,6 +88,7 @@ pub(crate) fn interpret_content_stream(
             "q" => gstate.save_state(),
             "Q" => {
                 gstate.restore_state();
+                path_builder.set_ctm(*gstate.ctm());
             }
             "cm" => {
                 if op.operands.len() >= 6 {
@@ -96,12 +99,31 @@ pub(crate) fn interpret_content_stream(
                     let e = get_f64(&op.operands, 4).unwrap_or(0.0);
                     let f = get_f64(&op.operands, 5).unwrap_or(0.0);
                     gstate.concat_matrix(a, b, c, d, e, f);
+                    path_builder.set_ctm(*gstate.ctm());
                 }
             }
             "w" => {
                 if let Some(v) = get_f64(&op.operands, 0) {
                     gstate.set_line_width(v);
                 }
+            }
+            "d" => {
+                // Dash pattern: [array] phase d
+                if op.operands.len() >= 2 {
+                    if let Operand::Array(ref arr) = op.operands[0] {
+                        let dash_array: Vec<f64> = arr.iter().filter_map(|o| match o {
+                            Operand::Integer(i) => Some(*i as f64),
+                            Operand::Real(f) => Some(*f),
+                            _ => None,
+                        }).collect();
+                        let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
+                        gstate.set_dash_pattern(dash_array, phase);
+                    }
+                }
+            }
+            "J" | "j" | "M" | "i" | "gs" | "ri" => {
+                // Line cap, line join, miter limit, flatness, ExtGState, rendering intent
+                // Not yet fully implemented — ignore
             }
 
             // --- Color operators ---
@@ -287,7 +309,115 @@ pub(crate) fn interpret_content_stream(
                 }
             }
 
-            // Other operators (paths, etc.) - not yet handled for this story
+            // --- Path construction operators ---
+            "m" => {
+                // moveto
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.move_to(x, y);
+                }
+            }
+            "l" => {
+                // lineto
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.line_to(x, y);
+                }
+            }
+            "c" => {
+                // curveto (6 args)
+                if op.operands.len() >= 6 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x2 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 4).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 5).unwrap_or(0.0);
+                    path_builder.curve_to(x1, y1, x2, y2, x3, y3);
+                }
+            }
+            "v" => {
+                // curveto variant: first CP = current point (4 args)
+                if op.operands.len() >= 4 {
+                    let x2 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_v(x2, y2, x3, y3);
+                }
+            }
+            "y" => {
+                // curveto variant: last CP = endpoint (4 args)
+                if op.operands.len() >= 4 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_y(x1, y1, x3, y3);
+                }
+            }
+            "re" => {
+                // rectangle
+                if op.operands.len() >= 4 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let w = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let h = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.rectangle(x, y, w, h);
+                }
+            }
+            "h" => {
+                // closepath
+                path_builder.close_path();
+            }
+
+            // --- Path painting operators ---
+            "S" => {
+                // Stroke
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Stroke, FillRule::NonZeroWinding);
+            }
+            "s" => {
+                // Close and stroke
+                path_builder.close_path();
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Stroke, FillRule::NonZeroWinding);
+            }
+            "f" | "F" => {
+                // Fill (nonzero winding)
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Fill, FillRule::NonZeroWinding);
+            }
+            "f*" => {
+                // Fill (even-odd rule)
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::Fill, FillRule::EvenOdd);
+            }
+            "B" => {
+                // Fill and stroke (nonzero winding)
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::NonZeroWinding);
+            }
+            "B*" => {
+                // Fill and stroke (even-odd rule)
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::EvenOdd);
+            }
+            "b" => {
+                // Close, fill, and stroke (nonzero winding)
+                path_builder.close_path();
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::NonZeroWinding);
+            }
+            "b*" => {
+                // Close, fill, and stroke (even-odd rule)
+                path_builder.close_path();
+                emit_path_event(&mut path_builder, gstate, handler, PaintOp::FillAndStroke, FillRule::EvenOdd);
+            }
+            "n" => {
+                // End path without painting (no-op, used with clipping)
+                path_builder.take_and_reset();
+            }
+            "W" | "W*" => {
+                // Clipping path — no-op for extraction purposes
+            }
+
+            // Other operators not yet handled
             _ => {}
         }
     }
@@ -707,6 +837,39 @@ fn emit_char_events(
             rise: tstate.rise,
         });
     }
+}
+
+// --- Path painting ---
+
+fn emit_path_event(
+    path_builder: &mut PathBuilder,
+    gstate: &InterpreterState,
+    handler: &mut dyn ContentHandler,
+    paint_op: PaintOp,
+    fill_rule: FillRule,
+) {
+    let path = path_builder.take_and_reset();
+    if path.segments.is_empty() {
+        return;
+    }
+
+    let gs = gstate.graphics_state();
+    let dp = &gs.dash_pattern;
+
+    handler.on_path_painted(PathEvent {
+        segments: path.segments,
+        paint_op,
+        line_width: gs.line_width,
+        stroking_color: Some(gs.stroke_color.clone()),
+        non_stroking_color: Some(gs.fill_color.clone()),
+        ctm: gstate.ctm_array(),
+        dash_pattern: if dp.is_solid() {
+            None
+        } else {
+            Some(DashPattern::new(dp.dash_array.clone(), dp.dash_phase))
+        },
+        fill_rule: Some(fill_rule),
+    });
 }
 
 // --- Do operator: XObject handling ---

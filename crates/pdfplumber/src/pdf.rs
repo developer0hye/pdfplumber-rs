@@ -1,13 +1,14 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
-    ImageContent, ImageMetadata, PdfError, RepairOptions, RepairResult, SearchMatch, SearchOptions,
-    SignatureInfo, StructElement, UnicodeNorm, ValidationIssue, image_from_ctm, normalize_chars,
+    Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
+    ExtractWarning, FormField, Image, ImageContent, ImageMetadata, Line, PaintedPath,
+    Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
+    StructElement, UnicodeNorm, ValidationIssue, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
-    CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
-    PathEvent, PdfBackend, char_from_event,
+    CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PaintOp,
+    PageGeometry, PathEvent, PdfBackend, char_from_event,
 };
 
 use crate::Page;
@@ -70,6 +71,7 @@ pub struct Pdf {
 /// Internal handler that collects content stream events during interpretation.
 struct CollectingHandler {
     chars: Vec<CharEvent>,
+    paths: Vec<PathEvent>,
     images: Vec<ImageEvent>,
     warnings: Vec<ExtractWarning>,
     page_index: usize,
@@ -80,6 +82,7 @@ impl CollectingHandler {
     fn new(page_index: usize, collect_warnings: bool) -> Self {
         Self {
             chars: Vec::new(),
+            paths: Vec::new(),
             images: Vec::new(),
             warnings: Vec::new(),
             page_index,
@@ -93,9 +96,8 @@ impl ContentHandler for CollectingHandler {
         self.chars.push(event);
     }
 
-    fn on_path_painted(&mut self, _event: PathEvent) {
-        // Path painting operators are not yet implemented in the interpreter,
-        // so this is a no-op for now.
+    fn on_path_painted(&mut self, event: PathEvent) {
+        self.paths.push(event);
     }
 
     fn on_image(&mut self, event: ImageEvent) {
@@ -477,6 +479,19 @@ impl Pdf {
             chars = normalize_chars(&chars, &self.options.unicode_norm);
         }
 
+        // Convert PathEvents to Lines/Rects/Curves via PaintedPath + extract_shapes
+        let mut all_lines: Vec<Line> = Vec::new();
+        let mut all_rects: Vec<Rect> = Vec::new();
+        let mut all_curves: Vec<Curve> = Vec::new();
+
+        for path_event in &handler.paths {
+            let painted = path_event_to_painted_path(path_event);
+            let (lines, rects, curves) = extract_shapes(&painted, page_height);
+            all_lines.extend(lines);
+            all_rects.extend(rects);
+            all_curves.extend(curves);
+        }
+
         // Convert ImageEvents to Images
         let images: Vec<Image> = handler
             .images
@@ -542,6 +557,9 @@ impl Pdf {
             bleed_box,
             art_box,
             chars,
+            all_lines,
+            all_rects,
+            all_curves,
             images,
             annotations,
             hyperlinks,
@@ -586,6 +604,33 @@ impl Pdf {
 
 /// Filter structure tree elements to only include those belonging to a specific page.
 ///
+/// Convert a `PathEvent` from the interpreter into a `PaintedPath` for shape extraction.
+fn path_event_to_painted_path(event: &PathEvent) -> PaintedPath {
+    let (stroke, fill) = match event.paint_op {
+        PaintOp::Stroke => (true, false),
+        PaintOp::Fill => (false, true),
+        PaintOp::FillAndStroke => (true, true),
+    };
+
+    PaintedPath {
+        path: Path {
+            segments: event.segments.clone(),
+        },
+        stroke,
+        fill,
+        fill_rule: event.fill_rule.unwrap_or_default(),
+        line_width: event.line_width,
+        stroke_color: event.stroking_color.clone().unwrap_or(Color::black()),
+        fill_color: event.non_stroking_color.clone().unwrap_or(Color::black()),
+        dash_pattern: event
+            .dash_pattern
+            .clone()
+            .unwrap_or_else(DashPattern::solid),
+        stroke_alpha: 1.0,
+        fill_alpha: 1.0,
+    }
+}
+
 /// Recursively walks the structure tree and includes elements whose `page_index`
 /// matches the target page. Elements without a page_index are included if any of
 /// their children belong to the page.
