@@ -56,14 +56,64 @@ impl From<std::io::Error> for PdfError {
     }
 }
 
+/// Machine-readable warning code for categorizing extraction issues.
+///
+/// Each variant represents a specific category of non-fatal issue that
+/// can occur during PDF extraction. Use [`Other`](ExtractWarningCode::Other)
+/// for custom or uncategorized warnings.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(tag = "type", content = "detail")
+)]
+pub enum ExtractWarningCode {
+    /// A referenced font was not found in page resources.
+    MissingFont,
+    /// An unsupported PDF content stream operator was encountered.
+    UnsupportedOperator,
+    /// A PDF object is malformed or has unexpected structure.
+    MalformedObject,
+    /// A configured resource limit was reached during extraction.
+    ResourceLimitReached,
+    /// Character encoding fell back to a default mapping.
+    EncodingFallback,
+    /// Any other warning not covered by specific variants.
+    Other(String),
+}
+
+impl ExtractWarningCode {
+    /// Returns the string tag for this warning code.
+    pub fn as_str(&self) -> &str {
+        match self {
+            ExtractWarningCode::MissingFont => "MISSING_FONT",
+            ExtractWarningCode::UnsupportedOperator => "UNSUPPORTED_OPERATOR",
+            ExtractWarningCode::MalformedObject => "MALFORMED_OBJECT",
+            ExtractWarningCode::ResourceLimitReached => "RESOURCE_LIMIT_REACHED",
+            ExtractWarningCode::EncodingFallback => "ENCODING_FALLBACK",
+            ExtractWarningCode::Other(_) => "OTHER",
+        }
+    }
+}
+
+impl fmt::Display for ExtractWarningCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 /// A non-fatal warning encountered during extraction.
 ///
 /// Warnings allow best-effort continuation when issues are encountered
 /// (e.g., missing font metrics, unknown operators). They include a
-/// description and optional source location context such as page number,
-/// operator index, and font name.
+/// structured [`code`](ExtractWarning::code), a human-readable description,
+/// and optional source location context such as page number, operator index,
+/// and font name.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtractWarning {
+    /// Machine-readable warning code.
+    pub code: ExtractWarningCode,
     /// Human-readable description of the warning.
     pub description: String,
     /// Page number where the warning occurred (0-indexed), if applicable.
@@ -78,8 +128,24 @@ pub struct ExtractWarning {
 
 impl ExtractWarning {
     /// Create a warning with just a description.
+    ///
+    /// Uses [`ExtractWarningCode::Other`] as the default code.
     pub fn new(description: impl Into<String>) -> Self {
+        let desc = description.into();
         Self {
+            code: ExtractWarningCode::Other(desc.clone()),
+            description: desc,
+            page: None,
+            element: None,
+            operator_index: None,
+            font_name: None,
+        }
+    }
+
+    /// Create a warning with a specific code and description.
+    pub fn with_code(code: ExtractWarningCode, description: impl Into<String>) -> Self {
+        Self {
+            code,
             description: description.into(),
             page: None,
             element: None,
@@ -90,8 +156,10 @@ impl ExtractWarning {
 
     /// Create a warning with page context.
     pub fn on_page(description: impl Into<String>, page: usize) -> Self {
+        let desc = description.into();
         Self {
-            description: description.into(),
+            code: ExtractWarningCode::Other(desc.clone()),
+            description: desc,
             page: Some(page),
             element: None,
             operator_index: None,
@@ -105,8 +173,10 @@ impl ExtractWarning {
         page: usize,
         element: impl Into<String>,
     ) -> Self {
+        let desc = description.into();
         Self {
-            description: description.into(),
+            code: ExtractWarningCode::Other(desc.clone()),
+            description: desc,
             page: Some(page),
             element: Some(element.into()),
             operator_index: None,
@@ -123,19 +193,34 @@ impl ExtractWarning {
         operator_index: usize,
         font_name: impl Into<String>,
     ) -> Self {
+        let desc = description.into();
         Self {
-            description: description.into(),
+            code: ExtractWarningCode::Other(desc.clone()),
+            description: desc,
             page: None,
             element: None,
             operator_index: Some(operator_index),
             font_name: Some(font_name.into()),
         }
     }
+
+    /// Set the warning code, returning the modified warning (builder pattern).
+    pub fn set_code(mut self, code: ExtractWarningCode) -> Self {
+        self.code = code;
+        self
+    }
+
+    /// Convert this warning into a [`PdfError`].
+    ///
+    /// Used by strict mode to escalate warnings to errors.
+    pub fn to_error(&self) -> PdfError {
+        PdfError::Other(self.to_string())
+    }
 }
 
 impl fmt::Display for ExtractWarning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.description)?;
+        write!(f, "[{}] {}", self.code, self.description)?;
         if let Some(page) = self.page {
             write!(f, " (page {page})")?;
         }
@@ -207,6 +292,8 @@ pub struct ExtractOptions {
     pub collect_warnings: bool,
     /// Unicode normalization form to apply to extracted character text (default: None).
     pub unicode_norm: UnicodeNorm,
+    /// When true, any warning is escalated to an error (default: false).
+    pub strict_mode: bool,
 }
 
 impl Default for ExtractOptions {
@@ -217,6 +304,7 @@ impl Default for ExtractOptions {
             max_stream_bytes: 100 * 1024 * 1024,
             collect_warnings: true,
             unicode_norm: UnicodeNorm::None,
+            strict_mode: false,
         }
     }
 }
@@ -317,11 +405,12 @@ mod tests {
     fn warning_new_with_description_only() {
         let w = ExtractWarning::new("missing font metrics");
         assert_eq!(w.description, "missing font metrics");
+        assert!(matches!(w.code, ExtractWarningCode::Other(_)));
         assert_eq!(w.page, None);
         assert_eq!(w.element, None);
         assert_eq!(w.operator_index, None);
         assert_eq!(w.font_name, None);
-        assert_eq!(w.to_string(), "missing font metrics");
+        assert_eq!(w.to_string(), "[OTHER] missing font metrics");
     }
 
     #[test]
@@ -332,7 +421,7 @@ mod tests {
         assert_eq!(w.element, None);
         assert_eq!(w.operator_index, None);
         assert_eq!(w.font_name, None);
-        assert_eq!(w.to_string(), "unknown operator (page 3)");
+        assert_eq!(w.to_string(), "[OTHER] unknown operator (page 3)");
     }
 
     #[test]
@@ -343,7 +432,10 @@ mod tests {
         assert_eq!(w.element, Some("char at offset 42".to_string()));
         assert_eq!(w.operator_index, None);
         assert_eq!(w.font_name, None);
-        assert_eq!(w.to_string(), "missing width (page 1) [char at offset 42]");
+        assert_eq!(
+            w.to_string(),
+            "[OTHER] missing width (page 1) [char at offset 42]"
+        );
     }
 
     #[test]
@@ -357,13 +449,14 @@ mod tests {
         assert_eq!(w.font_name, Some("Helvetica".to_string()));
         assert_eq!(
             w.to_string(),
-            "font not found in resources [font Helvetica] [operator #5]"
+            "[OTHER] font not found in resources [font Helvetica] [operator #5]"
         );
     }
 
     #[test]
     fn warning_display_with_all_fields() {
         let w = ExtractWarning {
+            code: ExtractWarningCode::MissingFont,
             description: "test warning".to_string(),
             page: Some(2),
             element: Some("extra context".to_string()),
@@ -372,7 +465,7 @@ mod tests {
         };
         assert_eq!(
             w.to_string(),
-            "test warning (page 2) [font Arial] [operator #10] [extra context]"
+            "[MISSING_FONT] test warning (page 2) [font Arial] [operator #10] [extra context]"
         );
     }
 
@@ -453,11 +546,13 @@ mod tests {
             max_stream_bytes: 10 * 1024 * 1024,
             collect_warnings: false,
             unicode_norm: UnicodeNorm::None,
+            strict_mode: true,
         };
         assert_eq!(opts.max_recursion_depth, 5);
         assert_eq!(opts.max_objects_per_page, 50_000);
         assert_eq!(opts.max_stream_bytes, 10 * 1024 * 1024);
         assert!(!opts.collect_warnings);
+        assert!(opts.strict_mode);
     }
 
     #[test]
@@ -466,5 +561,152 @@ mod tests {
         let opts2 = opts1.clone();
         assert_eq!(opts2.max_recursion_depth, opts1.max_recursion_depth);
         assert_eq!(opts2.collect_warnings, opts1.collect_warnings);
+    }
+
+    // --- US-096: ExtractWarningCode tests ---
+
+    #[test]
+    fn warning_code_missing_font() {
+        let code = ExtractWarningCode::MissingFont;
+        assert_eq!(code.as_str(), "MISSING_FONT");
+    }
+
+    #[test]
+    fn warning_code_unsupported_operator() {
+        let code = ExtractWarningCode::UnsupportedOperator;
+        assert_eq!(code.as_str(), "UNSUPPORTED_OPERATOR");
+    }
+
+    #[test]
+    fn warning_code_malformed_object() {
+        let code = ExtractWarningCode::MalformedObject;
+        assert_eq!(code.as_str(), "MALFORMED_OBJECT");
+    }
+
+    #[test]
+    fn warning_code_resource_limit_reached() {
+        let code = ExtractWarningCode::ResourceLimitReached;
+        assert_eq!(code.as_str(), "RESOURCE_LIMIT_REACHED");
+    }
+
+    #[test]
+    fn warning_code_encoding_fallback() {
+        let code = ExtractWarningCode::EncodingFallback;
+        assert_eq!(code.as_str(), "ENCODING_FALLBACK");
+    }
+
+    #[test]
+    fn warning_code_other_preserves_custom_message() {
+        let code = ExtractWarningCode::Other("custom issue".to_string());
+        assert_eq!(code.as_str(), "OTHER");
+        if let ExtractWarningCode::Other(msg) = &code {
+            assert_eq!(msg, "custom issue");
+        } else {
+            panic!("expected Other variant");
+        }
+    }
+
+    #[test]
+    fn warning_code_clone_and_eq() {
+        let code1 = ExtractWarningCode::MissingFont;
+        let code2 = code1.clone();
+        assert_eq!(code1, code2);
+
+        let code3 = ExtractWarningCode::Other("test".to_string());
+        let code4 = code3.clone();
+        assert_eq!(code3, code4);
+    }
+
+    #[test]
+    fn warning_with_code_field() {
+        let w = ExtractWarning::new("missing font metrics");
+        // new() should default to Other code
+        assert!(matches!(w.code, ExtractWarningCode::Other(_)));
+    }
+
+    #[test]
+    fn warning_with_explicit_code() {
+        let w = ExtractWarning {
+            code: ExtractWarningCode::MissingFont,
+            description: "font not found".to_string(),
+            page: Some(0),
+            element: None,
+            operator_index: None,
+            font_name: None,
+        };
+        assert_eq!(w.code, ExtractWarningCode::MissingFont);
+        assert_eq!(w.page, Some(0));
+    }
+
+    #[test]
+    fn warning_display_format_with_code() {
+        let w = ExtractWarning {
+            code: ExtractWarningCode::MissingFont,
+            description: "font not found".to_string(),
+            page: Some(2),
+            element: None,
+            operator_index: None,
+            font_name: None,
+        };
+        assert_eq!(w.to_string(), "[MISSING_FONT] font not found (page 2)");
+    }
+
+    #[test]
+    fn warning_display_format_with_code_no_page() {
+        let w = ExtractWarning {
+            code: ExtractWarningCode::UnsupportedOperator,
+            description: "unknown op".to_string(),
+            page: None,
+            element: None,
+            operator_index: None,
+            font_name: None,
+        };
+        assert_eq!(w.to_string(), "[UNSUPPORTED_OPERATOR] unknown op");
+    }
+
+    #[test]
+    fn warning_display_format_other_code() {
+        let w = ExtractWarning {
+            code: ExtractWarningCode::Other("custom".to_string()),
+            description: "something happened".to_string(),
+            page: Some(5),
+            element: None,
+            operator_index: None,
+            font_name: None,
+        };
+        assert_eq!(w.to_string(), "[OTHER] something happened (page 5)");
+    }
+
+    #[test]
+    fn strict_mode_default_false() {
+        let opts = ExtractOptions::default();
+        assert!(!opts.strict_mode);
+    }
+
+    #[test]
+    fn strict_mode_converts_warning_to_error() {
+        let warning = ExtractWarning {
+            code: ExtractWarningCode::MissingFont,
+            description: "font not found".to_string(),
+            page: Some(0),
+            element: None,
+            operator_index: None,
+            font_name: None,
+        };
+        let err: PdfError = warning.to_error();
+        assert!(matches!(err, PdfError::Other(_)));
+        assert!(err.to_string().contains("font not found"));
+    }
+
+    #[test]
+    fn warning_code_display() {
+        assert_eq!(
+            format!("{}", ExtractWarningCode::MissingFont),
+            "MISSING_FONT"
+        );
+        assert_eq!(
+            format!("{}", ExtractWarningCode::Other("x".into())),
+            "OTHER"
+        );
     }
 }

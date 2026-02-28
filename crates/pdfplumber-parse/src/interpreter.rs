@@ -23,8 +23,8 @@ use crate::text_renderer::{
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
 use pdfplumber_core::{
-    DashPattern, ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder,
-    StandardEncoding, glyph_name_to_char,
+    DashPattern, ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule, FontEncoding,
+    PathBuilder, StandardEncoding, glyph_name_to_char,
 };
 
 /// Cached font information for the interpreter.
@@ -564,11 +564,14 @@ fn load_font_if_needed(
                     )
                 } else {
                     if options.collect_warnings {
-                        handler.on_warning(ExtractWarning::with_operator_context(
-                            "CID font metrics not available, using defaults",
-                            op_index,
-                            font_name,
-                        ));
+                        handler.on_warning(
+                            ExtractWarning::with_operator_context(
+                                "CID font metrics not available, using defaults",
+                                op_index,
+                                font_name,
+                            )
+                            .set_code(ExtractWarningCode::MissingFont),
+                        );
                     }
                     FontMetrics::default_metrics()
                 };
@@ -590,11 +593,14 @@ fn load_font_if_needed(
                     Ok(m) => m,
                     Err(_) => {
                         if options.collect_warnings {
-                            handler.on_warning(ExtractWarning::with_operator_context(
-                                "failed to extract font metrics, using defaults",
-                                op_index,
-                                font_name,
-                            ));
+                            handler.on_warning(
+                                ExtractWarning::with_operator_context(
+                                    "failed to extract font metrics, using defaults",
+                                    op_index,
+                                    font_name,
+                                )
+                                .set_code(ExtractWarningCode::MissingFont),
+                            );
                         }
                         FontMetrics::default_metrics()
                     }
@@ -613,11 +619,14 @@ fn load_font_if_needed(
         } else {
             // Font not found in page resources — use defaults
             if options.collect_warnings {
-                handler.on_warning(ExtractWarning::with_operator_context(
-                    "font not found in page resources, using defaults",
-                    op_index,
-                    font_name,
-                ));
+                handler.on_warning(
+                    ExtractWarning::with_operator_context(
+                        "font not found in page resources, using defaults",
+                        op_index,
+                        font_name,
+                    )
+                    .set_code(ExtractWarningCode::MissingFont),
+                );
             }
             (
                 FontMetrics::default_metrics(),
