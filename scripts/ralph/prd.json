@@ -39,7 +39,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-parse/src/font_metrics.rs. The fallback goes after line ~159 where empty widths is determined. Use crate::cid_font::strip_subset_prefix (at cid_font.rs:621) for subset prefix handling. parse_font_descriptor() already exists in font_metrics.rs."
     },
     {
