@@ -171,16 +171,23 @@ impl WordExtractor {
     }
 
     /// Check if two horizontally-adjacent chars should be split into separate words.
+    ///
+    /// Uses `abs(x_gap)` to also split on large backward jumps (negative gap),
+    /// matching Python pdfplumber behavior. This prevents chars on opposite
+    /// sides of a page from being grouped when they share a similar y-position.
     fn should_split_horizontal(last: &Char, current: &Char, options: &WordOptions) -> bool {
-        let x_gap = current.bbox.x0 - last.bbox.x1;
+        let x_gap = (current.bbox.x0 - last.bbox.x1).abs();
         let y_diff = (current.bbox.top - last.bbox.top).abs();
         let x_tol = Self::effective_x_tolerance(last, current, options.x_tolerance);
         x_gap > x_tol || y_diff > options.y_tolerance
     }
 
     /// Check if two vertically-adjacent chars should be split into separate words.
+    ///
+    /// Uses `abs(y_gap)` to also split on large backward jumps, matching
+    /// the horizontal split logic.
     fn should_split_vertical(last: &Char, current: &Char, options: &WordOptions) -> bool {
-        let y_gap = current.bbox.top - last.bbox.bottom;
+        let y_gap = (current.bbox.top - last.bbox.bottom).abs();
         let x_diff = (current.bbox.x0 - last.bbox.x0).abs();
         let y_tol = Self::effective_y_tolerance(last, current, options.y_tolerance);
         y_gap > y_tol || x_diff > options.x_tolerance
@@ -412,11 +419,12 @@ mod tests {
 
     #[test]
     fn test_word_bbox_is_union_of_char_bboxes() {
-        // Characters with varying heights
+        // Characters with varying heights; tops increase left-to-right
+        // so spatial sort preserves left-to-right order.
         let chars = vec![
-            make_char("A", 10.0, 98.0, 20.0, 112.0),
-            make_char("b", 20.0, 100.0, 28.0, 110.0),
-            make_char("C", 28.0, 97.0, 38.0, 113.0),
+            make_char("A", 10.0, 97.0, 20.0, 112.0),
+            make_char("b", 20.0, 98.0, 28.0, 110.0),
+            make_char("C", 28.0, 99.0, 38.0, 113.0),
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
@@ -437,20 +445,29 @@ mod tests {
 
     #[test]
     fn test_use_text_flow_preserves_order() {
-        // Chars in PDF content stream order (reverse of spatial)
+        // Chars in PDF content stream order (reverse of spatial).
+        // With text_flow=true, stream order is preserved, but since the
+        // backward x-gap is large (abs(10-30)=20 > 3), they split into
+        // separate words — matching Python pdfplumber behavior.
         let chars = vec![
             make_char("B", 20.0, 100.0, 30.0, 112.0),
             make_char("A", 10.0, 100.0, 20.0, 112.0),
         ];
+
+        // Without text_flow: sorted left-to-right → [A, B] → gap=0 → "AB"
+        let normal = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(normal.len(), 1);
+        assert_eq!(normal[0].text, "AB");
+
+        // With text_flow: stream order [B, A] → gap=abs(10-30)=20>3 → split
         let opts = WordOptions {
             use_text_flow: true,
             ..WordOptions::default()
         };
         let words = WordExtractor::extract(&chars, &opts);
-        // With text_flow, order preserved: "B" first, "A" second
-        // x_gap = A.x0(10) - B.x1(30) = -20 <= 3, so they group
-        assert_eq!(words.len(), 1);
-        assert_eq!(words[0].text, "BA");
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "B");
+        assert_eq!(words[1].text, "A");
     }
 
     #[test]

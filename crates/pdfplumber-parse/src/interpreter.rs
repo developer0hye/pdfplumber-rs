@@ -14,7 +14,7 @@ use crate::cmap::CMap;
 use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
-use crate::handler::{CharEvent, ContentHandler, ImageEvent};
+use crate::handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 use crate::interpreter_state::InterpreterState;
 use crate::lopdf_backend::object_to_f64;
 use crate::text_renderer::{
@@ -22,7 +22,10 @@ use crate::text_renderer::{
 };
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, tokenize};
-use pdfplumber_core::{ExtractOptions, ExtractWarning};
+use pdfplumber_core::{
+    DashPattern, ExtractOptions, ExtractWarning, FillRule, FontEncoding, PathBuilder,
+    StandardEncoding, glyph_name_to_char,
+};
 
 /// Cached font information for the interpreter.
 struct CachedFont {
@@ -37,6 +40,8 @@ struct CachedFont {
     /// Used in US-041 for vertical writing mode support.
     #[allow(dead_code)]
     writing_mode: u8,
+    /// Font encoding from the /Encoding entry (for simple fonts).
+    encoding: Option<FontEncoding>,
 }
 
 /// Interpret a content stream and emit events to the handler.
@@ -75,6 +80,7 @@ pub(crate) fn interpret_content_stream(
 
     let operators = tokenize(stream_bytes)?;
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
+    let mut path_builder = PathBuilder::new(*gstate.ctm());
 
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
@@ -82,6 +88,7 @@ pub(crate) fn interpret_content_stream(
             "q" => gstate.save_state(),
             "Q" => {
                 gstate.restore_state();
+                path_builder.set_ctm(*gstate.ctm());
             }
             "cm" => {
                 if op.operands.len() >= 6 {
@@ -92,12 +99,34 @@ pub(crate) fn interpret_content_stream(
                     let e = get_f64(&op.operands, 4).unwrap_or(0.0);
                     let f = get_f64(&op.operands, 5).unwrap_or(0.0);
                     gstate.concat_matrix(a, b, c, d, e, f);
+                    path_builder.set_ctm(*gstate.ctm());
                 }
             }
             "w" => {
                 if let Some(v) = get_f64(&op.operands, 0) {
                     gstate.set_line_width(v);
                 }
+            }
+            "d" => {
+                // Dash pattern: [array] phase d
+                if op.operands.len() >= 2 {
+                    if let Operand::Array(ref arr) = op.operands[0] {
+                        let dash_array: Vec<f64> = arr
+                            .iter()
+                            .filter_map(|o| match o {
+                                Operand::Integer(i) => Some(*i as f64),
+                                Operand::Real(f) => Some(*f),
+                                _ => None,
+                            })
+                            .collect();
+                        let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
+                        gstate.set_dash_pattern(dash_array, phase);
+                    }
+                }
+            }
+            "J" | "j" | "M" | "i" | "gs" | "ri" => {
+                // Line cap, line join, miter limit, flatness, ExtGState, rendering intent
+                // Not yet fully implemented — ignore
             }
 
             // --- Color operators ---
@@ -283,7 +312,163 @@ pub(crate) fn interpret_content_stream(
                 }
             }
 
-            // Other operators (paths, etc.) - not yet handled for this story
+            // --- Path construction operators ---
+            "m" => {
+                // moveto
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.move_to(x, y);
+                }
+            }
+            "l" => {
+                // lineto
+                if op.operands.len() >= 2 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    path_builder.line_to(x, y);
+                }
+            }
+            "c" => {
+                // curveto (6 args)
+                if op.operands.len() >= 6 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x2 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 4).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 5).unwrap_or(0.0);
+                    path_builder.curve_to(x1, y1, x2, y2, x3, y3);
+                }
+            }
+            "v" => {
+                // curveto variant: first CP = current point (4 args)
+                if op.operands.len() >= 4 {
+                    let x2 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y2 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_v(x2, y2, x3, y3);
+                }
+            }
+            "y" => {
+                // curveto variant: last CP = endpoint (4 args)
+                if op.operands.len() >= 4 {
+                    let x1 = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y1 = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let x3 = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let y3 = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.curve_to_y(x1, y1, x3, y3);
+                }
+            }
+            "re" => {
+                // rectangle
+                if op.operands.len() >= 4 {
+                    let x = get_f64(&op.operands, 0).unwrap_or(0.0);
+                    let y = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    let w = get_f64(&op.operands, 2).unwrap_or(0.0);
+                    let h = get_f64(&op.operands, 3).unwrap_or(0.0);
+                    path_builder.rectangle(x, y, w, h);
+                }
+            }
+            "h" => {
+                // closepath
+                path_builder.close_path();
+            }
+
+            // --- Path painting operators ---
+            "S" => {
+                // Stroke
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Stroke,
+                    FillRule::NonZeroWinding,
+                );
+            }
+            "s" => {
+                // Close and stroke
+                path_builder.close_path();
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Stroke,
+                    FillRule::NonZeroWinding,
+                );
+            }
+            "f" | "F" => {
+                // Fill (nonzero winding)
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Fill,
+                    FillRule::NonZeroWinding,
+                );
+            }
+            "f*" => {
+                // Fill (even-odd rule)
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::Fill,
+                    FillRule::EvenOdd,
+                );
+            }
+            "B" => {
+                // Fill and stroke (nonzero winding)
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::NonZeroWinding,
+                );
+            }
+            "B*" => {
+                // Fill and stroke (even-odd rule)
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::EvenOdd,
+                );
+            }
+            "b" => {
+                // Close, fill, and stroke (nonzero winding)
+                path_builder.close_path();
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::NonZeroWinding,
+                );
+            }
+            "b*" => {
+                // Close, fill, and stroke (even-odd rule)
+                path_builder.close_path();
+                emit_path_event(
+                    &mut path_builder,
+                    gstate,
+                    handler,
+                    PaintOp::FillAndStroke,
+                    FillRule::EvenOdd,
+                );
+            }
+            "n" => {
+                // End path without painting (no-op, used with clipping)
+                path_builder.take_and_reset();
+            }
+            "W" | "W*" => {
+                // Clipping path — no-op for extraction purposes
+            }
+
+            // Other operators not yet handled
             _ => {}
         }
     }
@@ -361,7 +546,7 @@ fn load_font_if_needed(
         font_obj.as_dict().ok()
     })();
 
-    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode) =
+    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode, encoding) =
         if let Some(fd) = font_dict {
             if is_type0_font(fd) {
                 // Type0 (composite/CID) font
@@ -398,7 +583,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, cid_met, true, wm)
+                (metrics, cmap, base_name, cid_met, true, wm, None)
             } else {
                 // Simple font
                 let metrics = match extract_font_metrics(doc, fd) {
@@ -415,6 +600,7 @@ fn load_font_if_needed(
                     }
                 };
                 let cmap = extract_tounicode_cmap(doc, fd);
+                let encoding = extract_font_encoding(doc, fd);
                 let raw_base_name = fd
                     .get(b"BaseFont")
                     .ok()
@@ -422,7 +608,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, None, false, 0)
+                (metrics, cmap, base_name, None, false, 0, encoding)
             }
         } else {
             // Font not found in page resources — use defaults
@@ -440,6 +626,7 @@ fn load_font_if_needed(
                 None,
                 false,
                 0,
+                None,
             )
         };
 
@@ -452,6 +639,7 @@ fn load_font_if_needed(
             cid_metrics,
             is_cid_font,
             writing_mode,
+            encoding,
         },
     );
 }
@@ -463,6 +651,84 @@ fn extract_tounicode_cmap(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Opti
     let stream = tounicode_obj.as_stream().ok()?;
     let data = decode_stream(stream).ok()?;
     CMap::parse(&data).ok()
+}
+
+/// Extract font encoding from a simple font dictionary's /Encoding entry.
+fn extract_font_encoding(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Option<FontEncoding> {
+    let encoding_obj = fd.get(b"Encoding").ok()?;
+    let encoding_obj = resolve_ref(doc, encoding_obj);
+
+    // Case 1: /Encoding is a name (e.g., /WinAnsiEncoding)
+    if let Ok(name) = encoding_obj.as_name_str() {
+        let std_enc = match name {
+            "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+            "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+            "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+            "StandardEncoding" => Some(StandardEncoding::Standard),
+            _ => None,
+        };
+        return std_enc.map(FontEncoding::from_standard);
+    }
+
+    // Case 2: /Encoding is a dictionary with /BaseEncoding and/or /Differences
+    if let Ok(enc_dict) = encoding_obj.as_dict() {
+        let base = enc_dict
+            .get(b"BaseEncoding")
+            .ok()
+            .and_then(|o| o.as_name_str().ok())
+            .and_then(|name| match name {
+                "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+                "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+                "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+                "StandardEncoding" => Some(StandardEncoding::Standard),
+                _ => None,
+            })
+            .unwrap_or(StandardEncoding::Standard);
+
+        let mut enc = FontEncoding::from_standard(base);
+
+        // Apply /Differences array
+        if let Ok(diff_obj) = enc_dict.get(b"Differences") {
+            let diff_obj = resolve_ref(doc, diff_obj);
+            if let Ok(diff_arr) = diff_obj.as_array() {
+                let differences = parse_differences_array(diff_arr);
+                enc.apply_differences(&differences);
+            }
+        }
+
+        return Some(enc);
+    }
+
+    None
+}
+
+/// Parse a PDF /Differences array into (code, char) pairs.
+///
+/// Format: `[code1 /name1 /name2 ... codeN /nameN ...]`
+/// Each integer starts a run; subsequent names are assigned consecutive codes.
+fn parse_differences_array(arr: &[lopdf::Object]) -> Vec<(u8, char)> {
+    let mut result = Vec::new();
+    let mut current_code: Option<u8> = None;
+
+    for obj in arr {
+        match obj {
+            lopdf::Object::Integer(i) => {
+                current_code = Some(*i as u8);
+            }
+            lopdf::Object::Name(name_bytes) => {
+                if let Some(code) = current_code {
+                    let name = String::from_utf8_lossy(name_bytes);
+                    if let Some(ch) = glyph_name_to_char(&name) {
+                        result.push((code, ch));
+                    }
+                    current_code = Some(code.wrapping_add(1));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    result
 }
 
 /// Load CID font information from a Type0 font dictionary.
@@ -570,11 +836,30 @@ fn emit_char_events(
     let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
 
     for rc in raw_chars {
-        let unicode = cached.and_then(|c| {
-            c.cmap
-                .as_ref()
-                .and_then(|cm| cm.lookup(rc.char_code).map(|s| s.to_string()))
-        });
+        // Unicode resolution chain: CMap → FontEncoding → char::from_u32
+        let unicode = cached
+            .and_then(|c| {
+                // 1. Try ToUnicode CMap (highest priority)
+                c.cmap
+                    .as_ref()
+                    .and_then(|cm| cm.lookup(rc.char_code).map(|s| s.to_string()))
+            })
+            .or_else(|| {
+                // 2. Try font encoding (for simple fonts)
+                cached.and_then(|c| {
+                    c.encoding.as_ref().and_then(|enc| {
+                        if rc.char_code <= 255 {
+                            enc.decode(rc.char_code as u8).map(|ch| ch.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                })
+            })
+            .or_else(|| {
+                // 3. Fallback: char::from_u32 for ASCII-range codes
+                char::from_u32(rc.char_code).map(|ch| ch.to_string())
+            });
 
         // Use CID font metrics for displacement if available
         let displacement = match cached {
@@ -600,6 +885,39 @@ fn emit_char_events(
             rise: tstate.rise,
         });
     }
+}
+
+// --- Path painting ---
+
+fn emit_path_event(
+    path_builder: &mut PathBuilder,
+    gstate: &InterpreterState,
+    handler: &mut dyn ContentHandler,
+    paint_op: PaintOp,
+    fill_rule: FillRule,
+) {
+    let path = path_builder.take_and_reset();
+    if path.segments.is_empty() {
+        return;
+    }
+
+    let gs = gstate.graphics_state();
+    let dp = &gs.dash_pattern;
+
+    handler.on_path_painted(PathEvent {
+        segments: path.segments,
+        paint_op,
+        line_width: gs.line_width,
+        stroking_color: Some(gs.stroke_color.clone()),
+        non_stroking_color: Some(gs.fill_color.clone()),
+        ctm: gstate.ctm_array(),
+        dash_pattern: if dp.is_solid() {
+            None
+        } else {
+            Some(DashPattern::new(dp.dash_array.clone(), dp.dash_phase))
+        },
+        fill_rule: Some(fill_rule),
+    });
 }
 
 // --- Do operator: XObject handling ---

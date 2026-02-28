@@ -44,19 +44,11 @@ pub fn char_from_event(
     let trm = font_matrix.concat(&tm).concat(&ctm);
 
     // Character width in glyph-normalized space.
-    // Per PDF spec: advance = ((w0/1000)*Tfs + Tc + Tw) * Th
-    // In glyph-norm space (Trm x-axis scales by Tfs*Th):
-    //   w_norm = advance / (Tfs*Th) = w0/1000 + (Tc + Tw) / Tfs
-    let word_spacing = if event.char_code == 32 {
-        event.word_spacing
-    } else {
-        0.0
-    };
-    let w_norm = if font_size.abs() > f64::EPSILON {
-        event.displacement / 1000.0 + (event.char_spacing + word_spacing) / font_size
-    } else {
-        event.displacement / 1000.0
-    };
+    // The bounding box should cover only the glyph's visual extent (w0/1000),
+    // NOT the full advance width which includes char_spacing and word_spacing.
+    // Those inter-glyph spacings affect text position advance (handled in
+    // text_renderer.rs) but not the individual character's visual bbox.
+    let w_norm = event.displacement / 1000.0;
 
     // Ascent/descent in glyph-normalized space (1/1000 units → normalized)
     let ascent_norm = metrics.ascent() / 1000.0;
@@ -308,29 +300,30 @@ mod tests {
         assert_approx(ch.bbox.bottom, 25.0, "bottom");
     }
 
-    // ===== Test 6: Char spacing affects width =====
+    // ===== Test 6: Char spacing does NOT affect bbox width =====
 
     #[test]
-    fn char_spacing_increases_width() {
+    fn char_spacing_does_not_affect_bbox_width() {
         let event = CharEvent {
-            char_spacing: 2.0, // 2 units extra spacing
+            char_spacing: 2.0, // 2 units extra spacing (inter-glyph, not visual)
             ..default_event()
         };
         let metrics = default_metrics();
 
         let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
 
-        // w_norm = 667/1000 + 2.0/12.0 = 0.667 + 0.1667 = 0.8337
-        // Width in page space = 12 * 0.8337 = 10.004 (vs 8.004 without spacing)
-        assert_approx(ch.bbox.width(), 10.004, "width with char_spacing");
+        // char_spacing is inter-glyph spacing, not part of the glyph's visual bbox.
+        // w_norm = 667/1000 = 0.667 (same as without spacing)
+        // Width in page space = 12 * 0.667 = 8.004
+        assert_approx(ch.bbox.width(), 8.004, "width unaffected by char_spacing");
         // Height unchanged
         assert_approx(ch.bbox.height(), 12.0, "height");
     }
 
-    // ===== Test 7: Word spacing for space character =====
+    // ===== Test 7: Word spacing does NOT affect bbox width =====
 
     #[test]
-    fn word_spacing_applied_for_space() {
+    fn word_spacing_does_not_affect_bbox_width() {
         let event = CharEvent {
             char_code: 32, // space
             unicode: Some(" ".to_string()),
@@ -342,9 +335,10 @@ mod tests {
 
         let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
 
-        // w_norm = 250/1000 + (0 + 3)/12 = 0.25 + 0.25 = 0.5
-        // Width in page space = 12 * 0.5 = 6.0
-        assert_approx(ch.bbox.width(), 6.0, "width with word_spacing");
+        // word_spacing is inter-glyph spacing, not part of the glyph's visual bbox.
+        // w_norm = 250/1000 = 0.25 (glyph width only)
+        // Width in page space = 12 * 0.25 = 3.0
+        assert_approx(ch.bbox.width(), 3.0, "width unaffected by word_spacing");
     }
 
     #[test]
@@ -590,10 +584,10 @@ mod tests {
         assert_eq!(ch.size, 0.0);
     }
 
-    // ===== Test 17: Combined char_spacing and word_spacing =====
+    // ===== Test 17: Combined spacing does NOT affect bbox width =====
 
     #[test]
-    fn combined_spacing_for_space() {
+    fn combined_spacing_does_not_affect_bbox_width() {
         let event = CharEvent {
             char_code: 32,
             unicode: Some(" ".to_string()),
@@ -606,8 +600,9 @@ mod tests {
 
         let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
 
-        // w_norm = 250/1000 + (1.0 + 2.0)/12.0 = 0.25 + 0.25 = 0.5
-        // Width = 12 * 0.5 = 6.0
-        assert_approx(ch.bbox.width(), 6.0, "width with combined spacing");
+        // Both char_spacing and word_spacing are inter-glyph, not visual.
+        // w_norm = 250/1000 = 0.25 (glyph width only)
+        // Width = 12 * 0.25 = 3.0
+        assert_approx(ch.bbox.width(), 3.0, "width unaffected by combined spacing");
     }
 }
