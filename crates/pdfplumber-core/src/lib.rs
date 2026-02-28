@@ -36,6 +36,8 @@ pub mod edges;
 pub mod encoding;
 /// Error and warning types for PDF processing.
 pub mod error;
+/// PDF form field types for AcroForm extraction.
+pub mod form_field;
 /// Geometric primitives: Point, BBox, CTM, Orientation.
 pub mod geometry;
 /// HTML rendering for PDF page content.
@@ -77,6 +79,7 @@ pub use dedupe::{DedupeOptions, dedupe_chars};
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding};
 pub use error::{ExtractOptions, ExtractResult, ExtractWarning, PdfError};
+pub use form_field::{FieldType, FormField};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use html::{HtmlOptions, HtmlRenderer};
 pub use hyperlink::Hyperlink;

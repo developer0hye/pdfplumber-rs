@@ -7,8 +7,8 @@ use crate::backend::PdfBackend;
 use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
-    Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink,
-    ImageContent,
+    Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, FieldType,
+    FormField, Hyperlink, ImageContent,
 };
 
 /// A parsed PDF document backed by lopdf.
@@ -264,6 +264,10 @@ impl PdfBackend for LopdfBackend {
 
     fn document_bookmarks(doc: &Self::Document) -> Result<Vec<Bookmark>, Self::Error> {
         extract_document_bookmarks(&doc.inner)
+    }
+
+    fn document_form_fields(doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
+        extract_document_form_fields(&doc.inner)
     }
 
     fn page_annotations(
@@ -1062,6 +1066,361 @@ fn lookup_name_tree(
     }
 
     None
+}
+
+/// Extract form fields from the document catalog's /AcroForm dictionary.
+///
+/// Walks the `/Fields` array recursively (handling `/Kids` for hierarchical
+/// fields) and extracts field name, type, value, default value, options,
+/// rect, and flags for each terminal field.
+fn extract_document_form_fields(doc: &lopdf::Document) -> Result<Vec<FormField>, BackendError> {
+    // Get the catalog dictionary
+    let catalog_ref = match doc.trailer.get(b"Root") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let catalog = match catalog_ref {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => match obj.as_dict() {
+                Ok(dict) => dict,
+                Err(_) => return Ok(Vec::new()),
+            },
+            Err(_) => return Ok(Vec::new()),
+        },
+        lopdf::Object::Dictionary(dict) => dict,
+        _ => return Ok(Vec::new()),
+    };
+
+    // Get /AcroForm dictionary
+    let acroform_obj = match catalog.get(b"AcroForm") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()), // No AcroForm in this document
+    };
+
+    let acroform_obj = match acroform_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+
+    let acroform_dict = match acroform_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    // Get /Fields array
+    let fields_obj = match acroform_dict.get(b"Fields") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let fields_obj = match fields_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+
+    let fields_array = match fields_obj.as_array() {
+        Ok(arr) => arr,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    // Build page map for resolving page references
+    let pages_map = doc.get_pages();
+
+    let mut form_fields = Vec::new();
+    let max_depth = 64; // Prevent circular references
+
+    for field_entry in fields_array {
+        let field_ref = match field_entry {
+            lopdf::Object::Reference(id) => *id,
+            _ => continue,
+        };
+        walk_field_tree(
+            doc,
+            field_ref,
+            None, // No parent name prefix
+            None, // No inherited field type
+            0,
+            max_depth,
+            &pages_map,
+            &mut form_fields,
+        );
+    }
+
+    Ok(form_fields)
+}
+
+/// Recursively walk the form field tree, collecting terminal form fields.
+///
+/// Handles hierarchical fields where intermediate nodes carry partial
+/// names (joined with `.`) and field type may be inherited from parents.
+#[allow(clippy::too_many_arguments)]
+fn walk_field_tree(
+    doc: &lopdf::Document,
+    field_id: lopdf::ObjectId,
+    parent_name: Option<&str>,
+    inherited_ft: Option<&FieldType>,
+    depth: usize,
+    max_depth: usize,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+    fields: &mut Vec<FormField>,
+) {
+    if depth >= max_depth {
+        return;
+    }
+
+    let field_obj = match doc.get_object(field_id) {
+        Ok(obj) => obj,
+        Err(_) => return,
+    };
+
+    let field_dict = match field_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return,
+    };
+
+    // Extract partial name /T
+    let partial_name = extract_string_from_dict(doc, field_dict, b"T");
+
+    // Build full qualified name
+    let full_name = match (&parent_name, &partial_name) {
+        (Some(parent), Some(name)) => format!("{parent}.{name}"),
+        (Some(parent), None) => parent.to_string(),
+        (None, Some(name)) => name.clone(),
+        (None, None) => String::new(),
+    };
+
+    // Extract /FT (field type) — may be inherited from parent
+    let field_type = match field_dict.get(b"FT") {
+        Ok(lopdf::Object::Name(name)) => FieldType::from_pdf_name(&String::from_utf8_lossy(name)),
+        _ => inherited_ft.cloned(),
+    };
+
+    // Check for /Kids — if present, this is an intermediate node
+    if let Ok(kids_obj) = field_dict.get(b"Kids") {
+        let kids_obj = match kids_obj {
+            lopdf::Object::Reference(id) => match doc.get_object(*id) {
+                Ok(obj) => obj,
+                Err(_) => return,
+            },
+            other => other,
+        };
+
+        if let Ok(kids_array) = kids_obj.as_array() {
+            // Check if /Kids contains widget annotations or child fields.
+            // If a kid has /T, it's a child field; otherwise it's a widget annotation.
+            let has_child_fields = kids_array.iter().any(|kid| {
+                let kid_obj = match kid {
+                    lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+                    _ => Some(kid),
+                };
+                kid_obj
+                    .and_then(|o| o.as_dict().ok())
+                    .is_some_and(|d| d.get(b"T").is_ok())
+            });
+
+            if has_child_fields {
+                // Recurse into child fields
+                for kid in kids_array {
+                    if let lopdf::Object::Reference(kid_id) = kid {
+                        walk_field_tree(
+                            doc,
+                            *kid_id,
+                            Some(&full_name),
+                            field_type.as_ref(),
+                            depth + 1,
+                            max_depth,
+                            pages_map,
+                            fields,
+                        );
+                    }
+                }
+                return;
+            }
+            // If kids are only widgets (no /T), fall through to extract this as a terminal field.
+        }
+    }
+
+    // Terminal field — extract all properties
+    let Some(field_type) = field_type else {
+        return; // Skip fields without a type
+    };
+
+    // Extract /V (value)
+    let value = extract_field_value(doc, field_dict, b"V");
+
+    // Extract /DV (default value)
+    let default_value = extract_field_value(doc, field_dict, b"DV");
+
+    // Extract /Rect (bounding box)
+    let bbox = extract_field_bbox(doc, field_dict).unwrap_or(BBox::new(0.0, 0.0, 0.0, 0.0));
+
+    // Extract /Opt (options for choice fields)
+    let options = extract_field_options(doc, field_dict);
+
+    // Extract /Ff (field flags)
+    let flags = match field_dict.get(b"Ff") {
+        Ok(lopdf::Object::Integer(n)) => *n as u32,
+        _ => 0,
+    };
+
+    // Try to determine page index from /P reference or widget annotations
+    let page_index = resolve_field_page(doc, field_dict, pages_map);
+
+    fields.push(FormField {
+        name: full_name,
+        field_type,
+        value,
+        default_value,
+        bbox,
+        options,
+        flags,
+        page_index,
+    });
+}
+
+/// Extract a field value from /V or /DV entry.
+///
+/// Handles strings, names, and arrays of strings.
+fn extract_field_value(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    key: &[u8],
+) -> Option<String> {
+    let obj = dict.get(key).ok()?;
+    let obj = match obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+    match obj {
+        lopdf::Object::String(bytes, _) => Some(decode_pdf_string(bytes)),
+        lopdf::Object::Name(name) => Some(String::from_utf8_lossy(name).into_owned()),
+        lopdf::Object::Array(arr) => {
+            // Multi-select: join values
+            let vals: Vec<String> = arr
+                .iter()
+                .filter_map(|item| match item {
+                    lopdf::Object::String(bytes, _) => Some(decode_pdf_string(bytes)),
+                    lopdf::Object::Name(name) => Some(String::from_utf8_lossy(name).into_owned()),
+                    _ => None,
+                })
+                .collect();
+            if vals.is_empty() {
+                None
+            } else {
+                Some(vals.join(", "))
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Decode a PDF string, handling UTF-16 BE BOM and Latin-1.
+fn decode_pdf_string(bytes: &[u8]) -> String {
+    if bytes.len() >= 2 && bytes[0] == 0xFE && bytes[1] == 0xFF {
+        // UTF-16 BE
+        let chars: Vec<u16> = bytes[2..]
+            .chunks(2)
+            .filter_map(|c| {
+                if c.len() == 2 {
+                    Some(u16::from_be_bytes([c[0], c[1]]))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        String::from_utf16_lossy(&chars)
+    } else {
+        String::from_utf8_lossy(bytes).into_owned()
+    }
+}
+
+/// Extract bounding box from a field's /Rect entry.
+fn extract_field_bbox(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> Option<BBox> {
+    let rect_obj = dict.get(b"Rect").ok()?;
+    let rect_obj = match rect_obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+    let arr = rect_obj.as_array().ok()?;
+    extract_bbox_from_array(arr).ok()
+}
+
+/// Extract options from a choice field's /Opt entry.
+fn extract_field_options(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> Vec<String> {
+    let opt_obj = match dict.get(b"Opt") {
+        Ok(obj) => obj,
+        Err(_) => return Vec::new(),
+    };
+    let opt_obj = match opt_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Vec::new(),
+        },
+        other => other,
+    };
+    let opt_array = match opt_obj.as_array() {
+        Ok(arr) => arr,
+        Err(_) => return Vec::new(),
+    };
+
+    opt_array
+        .iter()
+        .filter_map(|item| {
+            let item = match item {
+                lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+                other => other,
+            };
+            match item {
+                lopdf::Object::String(bytes, _) => Some(decode_pdf_string(bytes)),
+                lopdf::Object::Name(name) => Some(String::from_utf8_lossy(name).into_owned()),
+                // Option can be [export_value, display_value] pair
+                lopdf::Object::Array(pair) => {
+                    if pair.len() >= 2 {
+                        // Use display value (second element)
+                        match &pair[1] {
+                            lopdf::Object::String(bytes, _) => Some(decode_pdf_string(bytes)),
+                            lopdf::Object::Name(name) => {
+                                Some(String::from_utf8_lossy(name).into_owned())
+                            }
+                            _ => None,
+                        }
+                    } else {
+                        None
+                    }
+                }
+                _ => None,
+            }
+        })
+        .collect()
+}
+
+/// Resolve a form field's page index from /P reference.
+fn resolve_field_page(
+    _doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+    pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
+) -> Option<usize> {
+    // Try /P (page reference)
+    let page_ref = match dict.get(b"P") {
+        Ok(lopdf::Object::Reference(id)) => *id,
+        _ => return None,
+    };
+
+    // Resolve page reference to 0-based index
+    pages_map.iter().find_map(|(&page_num, &page_id)| {
+        if page_id == page_ref {
+            Some((page_num - 1) as usize) // lopdf pages are 1-indexed
+        } else {
+            None
+        }
+    })
 }
 
 /// Extract annotations from a page's /Annots array.
@@ -2807,5 +3166,219 @@ mod tests {
         assert!(result.is_ok());
         let doc = result.unwrap();
         assert_eq!(LopdfBackend::page_count(&doc), 1);
+    }
+
+    // --- Form field extraction tests ---
+
+    /// Create a PDF with form fields for testing AcroForm extraction.
+    fn create_test_pdf_with_form_fields() -> Vec<u8> {
+        use lopdf::{Document, Object, ObjectId, dictionary};
+
+        let mut doc = Document::with_version("1.7");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        // Create a page
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::Reference(page_id)],
+                "Count" => Object::Integer(1),
+            }),
+        );
+
+        // Text field
+        let text_field_id = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "T" => Object::string_literal("name"),
+            "FT" => "Tx",
+            "V" => Object::string_literal("John Doe"),
+            "DV" => Object::string_literal(""),
+            "Rect" => vec![50.into(), 700.into(), 200.into(), 720.into()],
+            "Ff" => Object::Integer(0),
+            "P" => Object::Reference(page_id),
+        });
+
+        // Checkbox field (Button)
+        let checkbox_field_id = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "T" => Object::string_literal("agree"),
+            "FT" => "Btn",
+            "V" => "Yes",
+            "DV" => "Off",
+            "Rect" => vec![50.into(), 650.into(), 70.into(), 670.into()],
+            "Ff" => Object::Integer(0),
+            "P" => Object::Reference(page_id),
+        });
+
+        // Radio button field (Button with flags)
+        let radio_field_id = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "T" => Object::string_literal("gender"),
+            "FT" => "Btn",
+            "V" => "Male",
+            "Rect" => vec![50.into(), 600.into(), 70.into(), 620.into()],
+            "Ff" => Object::Integer(49152), // Radio flag (bit 15) + NoToggleToOff (bit 14)
+            "P" => Object::Reference(page_id),
+        });
+
+        // Dropdown field (Choice)
+        let dropdown_field_id = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "T" => Object::string_literal("country"),
+            "FT" => "Ch",
+            "V" => Object::string_literal("US"),
+            "Rect" => vec![50.into(), 550.into(), 200.into(), 570.into()],
+            "Opt" => vec![
+                Object::string_literal("US"),
+                Object::string_literal("UK"),
+                Object::string_literal("FR"),
+            ],
+            "Ff" => Object::Integer(0),
+            "P" => Object::Reference(page_id),
+        });
+
+        // Field with no value
+        let empty_field_id = doc.add_object(dictionary! {
+            "Type" => "Annot",
+            "Subtype" => "Widget",
+            "T" => Object::string_literal("email"),
+            "FT" => "Tx",
+            "Rect" => vec![50.into(), 500.into(), 200.into(), 520.into()],
+            "Ff" => Object::Integer(0),
+            "P" => Object::Reference(page_id),
+        });
+
+        // AcroForm dictionary
+        let acroform_id = doc.add_object(dictionary! {
+            "Fields" => vec![
+                Object::Reference(text_field_id),
+                Object::Reference(checkbox_field_id),
+                Object::Reference(radio_field_id),
+                Object::Reference(dropdown_field_id),
+                Object::Reference(empty_field_id),
+            ],
+        });
+
+        // Catalog
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+            "AcroForm" => Object::Reference(acroform_id),
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("failed to save test PDF");
+        buf
+    }
+
+    #[test]
+    fn form_fields_text_field() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let text_field = fields.iter().find(|f| f.name == "name").unwrap();
+        assert_eq!(text_field.field_type, FieldType::Text);
+        assert_eq!(text_field.value.as_deref(), Some("John Doe"));
+        assert_eq!(text_field.default_value.as_deref(), Some(""));
+    }
+
+    #[test]
+    fn form_fields_checkbox() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let checkbox = fields.iter().find(|f| f.name == "agree").unwrap();
+        assert_eq!(checkbox.field_type, FieldType::Button);
+        assert_eq!(checkbox.value.as_deref(), Some("Yes"));
+        assert_eq!(checkbox.default_value.as_deref(), Some("Off"));
+    }
+
+    #[test]
+    fn form_fields_radio_button() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let radio = fields.iter().find(|f| f.name == "gender").unwrap();
+        assert_eq!(radio.field_type, FieldType::Button);
+        assert_eq!(radio.value.as_deref(), Some("Male"));
+        assert_eq!(radio.flags, 49152); // Radio flags
+    }
+
+    #[test]
+    fn form_fields_dropdown_with_options() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let dropdown = fields.iter().find(|f| f.name == "country").unwrap();
+        assert_eq!(dropdown.field_type, FieldType::Choice);
+        assert_eq!(dropdown.value.as_deref(), Some("US"));
+        assert_eq!(dropdown.options, vec!["US", "UK", "FR"]);
+    }
+
+    #[test]
+    fn form_fields_no_value() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let empty = fields.iter().find(|f| f.name == "email").unwrap();
+        assert_eq!(empty.field_type, FieldType::Text);
+        assert!(empty.value.is_none());
+        assert!(empty.default_value.is_none());
+    }
+
+    #[test]
+    fn form_fields_count() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+        assert_eq!(fields.len(), 5);
+    }
+
+    #[test]
+    fn form_fields_no_acroform_returns_empty() {
+        let pdf_bytes = create_test_pdf(1);
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+        assert!(fields.is_empty());
+    }
+
+    #[test]
+    fn form_fields_have_bbox() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        let text_field = fields.iter().find(|f| f.name == "name").unwrap();
+        assert!((text_field.bbox.x0 - 50.0).abs() < 0.1);
+        assert!((text_field.bbox.x1 - 200.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn form_fields_have_page_index() {
+        let pdf_bytes = create_test_pdf_with_form_fields();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let fields = LopdfBackend::document_form_fields(&doc).unwrap();
+
+        // All fields reference page 0
+        for field in &fields {
+            assert_eq!(field.page_index, Some(0));
+        }
     }
 }

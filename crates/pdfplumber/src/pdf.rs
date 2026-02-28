@@ -1,8 +1,8 @@
 //! Top-level PDF document type for opening and extracting content.
 
 use pdfplumber_core::{
-    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, Image, ImageContent,
-    ImageMetadata, PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm,
+    Bookmark, Char, Ctm, DocumentMetadata, ExtractOptions, ExtractWarning, FormField, Image,
+    ImageContent, ImageMetadata, PdfError, SearchMatch, SearchOptions, UnicodeNorm, image_from_ctm,
     normalize_chars,
 };
 use pdfplumber_parse::{
@@ -264,6 +264,18 @@ impl Pdf {
         &self.bookmarks
     }
 
+    /// Extract all form fields from the document's AcroForm dictionary.
+    ///
+    /// Returns a list of [`FormField`]s from the `/AcroForm` dictionary.
+    /// Returns an empty Vec if the document has no AcroForm.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the AcroForm exists but is malformed.
+    pub fn form_fields(&self) -> Result<Vec<FormField>, PdfError> {
+        LopdfBackend::document_form_fields(&self.doc).map_err(PdfError::from)
+    }
+
     /// Search all pages for a text pattern and return matches with bounding boxes.
     ///
     /// Iterates through every page in the document, searches each page's
@@ -469,6 +481,14 @@ impl Pdf {
         let hyperlinks =
             LopdfBackend::page_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
 
+        // Extract form fields for this page (filtered from document AcroForm)
+        let all_form_fields =
+            LopdfBackend::document_form_fields(&self.doc).map_err(PdfError::from)?;
+        let form_fields: Vec<FormField> = all_form_fields
+            .into_iter()
+            .filter(|f| f.page_index == Some(index))
+            .collect();
+
         Ok(Page::from_extraction(
             index,
             geometry.width(),
@@ -483,6 +503,7 @@ impl Pdf {
             images,
             annotations,
             hyperlinks,
+            form_fields,
             handler.warnings,
         ))
     }

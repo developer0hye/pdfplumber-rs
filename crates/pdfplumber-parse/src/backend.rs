@@ -4,7 +4,8 @@
 //! This enables pluggable backends (e.g., lopdf, pdf-rs) for PDF reading.
 
 use pdfplumber_core::{
-    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, Hyperlink, ImageContent, PdfError,
+    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
+    ImageContent, PdfError,
 };
 
 use crate::handler::ContentHandler;
@@ -201,6 +202,18 @@ pub trait PdfBackend {
         options: &ExtractOptions,
     ) -> Result<(), Self::Error>;
 
+    /// Extract form fields from the document's AcroForm dictionary.
+    ///
+    /// Returns a list of [`FormField`]s from the `/AcroForm` dictionary in
+    /// the document catalog. Walks the field tree recursively, handling
+    /// `/Kids` for hierarchical fields. Returns an empty Vec if the document
+    /// has no AcroForm.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the AcroForm exists but is malformed.
+    fn document_form_fields(doc: &Self::Document) -> Result<Vec<FormField>, Self::Error>;
+
     /// Extract image content (raw bytes) from a named image XObject on a page.
     ///
     /// Locates the image XObject by name in the page's `/Resources/XObject`
@@ -371,6 +384,10 @@ mod tests {
         }
 
         fn document_bookmarks(_doc: &Self::Document) -> Result<Vec<Bookmark>, Self::Error> {
+            Ok(Vec::new())
+        }
+
+        fn document_form_fields(_doc: &Self::Document) -> Result<Vec<FormField>, Self::Error> {
             Ok(Vec::new())
         }
 

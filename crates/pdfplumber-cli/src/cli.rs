@@ -201,6 +201,25 @@ pub enum Commands {
         password: Option<String>,
     },
 
+    /// Extract form fields from PDF pages
+    Forms {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = OutputFormat::Text)]
+        format: OutputFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+    },
+
     /// Generate debug SVG with object overlays
     Debug {
         /// Path to the PDF file
@@ -1032,6 +1051,74 @@ mod tests {
                 assert_eq!(password.as_deref(), Some("pw"));
             }
             _ => panic!("expected Search subcommand"),
+        }
+    }
+
+    // --- Forms subcommand tests ---
+
+    #[test]
+    fn parse_forms_subcommand() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf"]);
+        match cli.command {
+            Commands::Forms { ref file, .. } => {
+                assert_eq!(file, &PathBuf::from("test.pdf"));
+            }
+            _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_forms_with_json_format() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf", "--format", "json"]);
+        match cli.command {
+            Commands::Forms { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Json));
+            }
+            _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_forms_with_csv_format() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf", "--format", "csv"]);
+        match cli.command {
+            Commands::Forms { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Csv));
+            }
+            _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    #[test]
+    fn forms_default_format_is_text() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf"]);
+        match cli.command {
+            Commands::Forms { ref format, .. } => {
+                assert!(matches!(format, OutputFormat::Text));
+            }
+            _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_forms_with_pages() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf", "--pages", "1-3"]);
+        match cli.command {
+            Commands::Forms { ref pages, .. } => {
+                assert_eq!(pages.as_deref(), Some("1-3"));
+            }
+            _ => panic!("expected Forms subcommand"),
+        }
+    }
+
+    #[test]
+    fn parse_forms_with_password() {
+        let cli = Cli::parse_from(["pdfplumber", "forms", "test.pdf", "--password", "secret"]);
+        match cli.command {
+            Commands::Forms { ref password, .. } => {
+                assert_eq!(password.as_deref(), Some("secret"));
+            }
+            _ => panic!("expected Forms subcommand"),
         }
     }
 }

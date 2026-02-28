@@ -1,12 +1,12 @@
 //! Page type for accessing extracted content from a PDF page.
 
 use pdfplumber_core::{
-    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, HtmlOptions, HtmlRenderer,
-    Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect, SearchMatch,
-    SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
-    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
-    derive_edges, extract_text_for_cells, search_chars, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    Annotation, BBox, Char, Curve, DedupeOptions, Edge, ExtractWarning, FormField, HtmlOptions,
+    HtmlRenderer, Hyperlink, Image, Line, MarkdownOptions, MarkdownRenderer, PageObject, Rect,
+    SearchMatch, SearchOptions, Table, TableFinder, TableSettings, TextOptions, Word,
+    WordExtractor, WordOptions, blocks_to_text, cluster_lines_into_blocks,
+    cluster_words_into_lines, dedupe_chars, derive_edges, extract_text_for_cells, search_chars,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -48,6 +48,8 @@ pub struct Page {
     annotations: Vec<Annotation>,
     /// Hyperlinks extracted from Link annotations with resolved URIs.
     hyperlinks: Vec<Hyperlink>,
+    /// Form fields belonging to this page (from document AcroForm, filtered by page).
+    form_fields: Vec<FormField>,
     /// Non-fatal warnings collected during extraction.
     warnings: Vec<ExtractWarning>,
 }
@@ -73,6 +75,7 @@ impl Page {
             images: Vec::new(),
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            form_fields: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -105,6 +108,7 @@ impl Page {
             images: Vec::new(),
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            form_fields: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -139,6 +143,7 @@ impl Page {
             images,
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            form_fields: Vec::new(),
             warnings: Vec::new(),
         }
     }
@@ -162,6 +167,7 @@ impl Page {
         images: Vec<Image>,
         annotations: Vec<Annotation>,
         hyperlinks: Vec<Hyperlink>,
+        form_fields: Vec<FormField>,
         warnings: Vec<ExtractWarning>,
     ) -> Self {
         Self {
@@ -181,6 +187,7 @@ impl Page {
             images,
             annotations,
             hyperlinks,
+            form_fields,
             warnings,
         }
     }
@@ -283,6 +290,14 @@ impl Page {
     /// Each hyperlink has a bounding box and a URI string.
     pub fn hyperlinks(&self) -> &[Hyperlink] {
         &self.hyperlinks
+    }
+
+    /// Returns the form fields belonging to this page.
+    ///
+    /// Form fields are extracted from the document's AcroForm dictionary
+    /// and filtered to this page based on the field's `/P` reference.
+    pub fn form_fields(&self) -> &[FormField] {
+        &self.form_fields
     }
 
     /// Returns non-fatal warnings collected during page extraction.
