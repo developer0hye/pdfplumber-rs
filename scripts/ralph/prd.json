@@ -1,41 +1,41 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-184-tagged-pdf",
-  "description": "Issue #184: Tagged PDF / Structure Tree support",
-  "relatedIssue": 184,
+  "branchName": "ralph/issue-185-bidi-support",
+  "description": "Issue #185: Unicode Bidirectional (BiDi) text support for Arabic/Hebrew",
+  "relatedIssue": 185,
   "userStories": [
     {
-      "id": "US-184-1",
-      "title": "Parse StructTreeRoot and structure elements",
-      "description": "Parse the /StructTreeRoot dictionary from the document catalog. Extract the structure tree hierarchy including structure elements (StructElem), their types (P, H1-H6, Table, Figure, Span, etc.), and MCID references. Store the structure tree in a queryable data structure.",
+      "id": "US-185-1",
+      "title": "Integrate Unicode BiDi algorithm for RTL text detection",
+      "description": "Use the unicode-bidi crate to determine per-character text direction for Arabic, Hebrew, and mixed BiDi content. RTL characters should be tagged with direction=Rtl so the word extractor can group them correctly.",
       "acceptanceCriteria": [
-        "StructTreeRoot is parsed from PDF catalog when present",
-        "Structure elements are extracted with type, MCID, and parent/child relationships",
-        "mcid_example.pdf structure tree is successfully parsed",
-        "figure_structure.pdf structure tree is successfully parsed",
-        "API: Page::structure_elements() returns structure elements for the page",
+        "unicode-bidi crate is integrated for BiDi level resolution",
+        "Arabic/Hebrew characters are correctly tagged with direction=Rtl",
+        "BidiSample.pdf chars >= 80% (currently 60.1%)",
+        "No regression on LTR-only PDFs",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Key structure: /StructTreeRoot → /K (children) → /Type /StructElem entries. Each StructElem has /S (structure type), /K (content items or child elements), /P (parent). Content items reference MCIDs. The cross_validation entries for figure_structure, pdf_structure, hello_structure may just need updating since char extraction already works. Focus on mcid_example.pdf which still fails."
+      "passes": false,
+      "notes": "The unicode-bidi crate implements UAX #9 (Unicode Bidirectional Algorithm). Key steps: 1) After char extraction, run BiDi algorithm on each line's text, 2) Assign per-char direction based on BiDi levels (even=LTR, odd=RTL), 3) Update char.direction field. This feeds into the per-char direction detection from #181."
     },
     {
-      "id": "US-184-2",
-      "title": "Map MCID tags to content for semantic reading order",
-      "description": "Connect Marked Content IDs (MCIDs) from BMC/BDC/EMC operators in content streams to structure elements from the structure tree. This enables semantic reading order extraction — text ordered by document structure rather than content stream order.",
+      "id": "US-185-2",
+      "title": "RTL word grouping and Arabic shaping",
+      "description": "Implement RTL word grouping in the word extractor — characters with direction=Rtl should be grouped right-to-left. Handle Arabic contextual forms (initial, medial, final, isolated) and diacritical mark combining.",
       "acceptanceCriteria": [
-        "MCID tags from content streams are associated with structure elements",
-        "Characters can be grouped by their parent structure element",
-        "Semantic reading order is available via API",
-        "mcid_example.pdf cross_validation upgraded from ignored to passing",
+        "RTL characters are grouped into words right-to-left",
+        "Arabic diacritics are combined with their base characters",
+        "FC60_Times.pdf words > 30% (currently 0%)",
+        "pdfbox-4531-bidi-ligature-1.pdf chars > 30% (currently 0%)",
+        "pdfbox-5747-surrogate-diacritic-reduced.pdf chars > 30% (currently 0%)",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "BMC/BDC operators already handled (skipped) by the interpreter. Need to: 1) Track current MCID during content stream interpretation, 2) Associate extracted chars with their MCID, 3) Use structure tree to determine reading order. The interpreter already has marked content handling from issue-167 fixes."
+      "passes": false,
+      "notes": "Arabic shaping: Unicode characters have contextual forms (U+FE80-U+FEFC) that map to base letters. Diacritical marks (U+0610-U+061A, U+064B-U+065F) should be combined with preceding base chars. The word extractor needs to handle RTL runs within should_split_horizontal by checking chars in reverse x-order."
     }
   ]
 }
