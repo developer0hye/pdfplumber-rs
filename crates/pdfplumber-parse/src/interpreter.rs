@@ -125,9 +125,11 @@ pub(crate) fn interpret_content_stream(
     for (op_index, op) in operators.iter().enumerate() {
         match op.name.as_str() {
             // --- Graphics state operators ---
-            "q" => gstate.save_state(),
+            "q" => gstate.save_state_with_text(tstate.save_snapshot()),
             "Q" => {
-                gstate.restore_state();
+                if let Some(Some(snapshot)) = gstate.restore_state_with_text() {
+                    tstate.restore_snapshot(snapshot);
+                }
                 path_builder.set_ctm(*gstate.ctm());
             }
             "cm" => {
@@ -1317,8 +1319,8 @@ fn handle_form_xobject(
     gstate: &mut InterpreterState,
     tstate: &mut TextState,
 ) -> Result<(), BackendError> {
-    // Save graphics state
-    gstate.save_state();
+    // Save graphics state (including text state per PDF spec Table 52)
+    gstate.save_state_with_text(tstate.save_snapshot());
 
     // Apply /Matrix if present (transforms Form XObject space to parent space)
     if let Ok(matrix_obj) = stream.dict.get(b"Matrix") {
@@ -1381,8 +1383,10 @@ fn handle_form_xobject(
         tstate,
     )?;
 
-    // Restore graphics state
-    gstate.restore_state();
+    // Restore graphics state (including text state per PDF spec Table 52)
+    if let Some(Some(snapshot)) = gstate.restore_state_with_text() {
+        tstate.restore_snapshot(snapshot);
+    }
 
     Ok(())
 }

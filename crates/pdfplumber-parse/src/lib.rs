@@ -52,5 +52,5 @@ pub use text_renderer::{
     RawChar, TjElement, double_quote_show_string, quote_show_string, show_string, show_string_cid,
     show_string_with_positioning, show_string_with_positioning_mode,
 };
-pub use text_state::{TextRenderMode, TextState};
+pub use text_state::{TextRenderMode, TextState, TextStateSnapshot};
 pub use tokenizer::{Operand, Operator, tokenize};
