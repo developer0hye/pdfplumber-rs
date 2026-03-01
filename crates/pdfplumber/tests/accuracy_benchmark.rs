@@ -831,6 +831,86 @@ fn accuracy_pdf_structure() {
 }
 
 // ---------------------------------------------------------------------------
+// Government docs & page-box PDF tests (US-167-2)
+//
+// PDFs with page box variations, CIDFont/Type1C fonts, extra dictionary
+// attributes, and malformed content. Historically produced 0% extraction.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_senate_expenditures() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "senate-expenditures.pdf", "senate-expenditures")
+        .expect("senate-expenditures.pdf should parse");
+    print_text_summary("senate-expenditures.pdf", &cf1, &wf1);
+    // US-167-2: Char extraction — Python expects 3880 chars
+    assert!(
+        cf1.f1 >= 0.90,
+        "senate-expenditures chars F1 {:.3} < 0.90",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_la_precinct_bulletin() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "la-precinct-bulletin-2014-p1.pdf",
+        "la-precinct-bulletin-2014-p1",
+    )
+    .expect("la-precinct-bulletin-2014-p1.pdf should parse");
+    print_text_summary("la-precinct-bulletin-2014-p1.pdf", &cf1, &wf1);
+    // US-167-2: Char extraction — Python expects 1996 chars
+    assert!(
+        cf1.f1 >= 0.50,
+        "la-precinct-bulletin chars F1 {:.3} < 0.50",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_page_boxes_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "page-boxes-example.pdf", "page-boxes-example")
+        .expect("page-boxes-example.pdf should parse");
+    print_text_summary("page-boxes-example.pdf", &cf1, &wf1);
+    // US-167-2: Char extraction >50% — Python expects 28 chars
+    assert!(
+        cf1.f1 >= 0.50,
+        "page-boxes-example chars F1 {:.3} < 0.50",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_extra_attrs_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "extra-attrs-example.pdf", "extra-attrs-example")
+        .expect("extra-attrs-example.pdf should parse");
+    print_text_summary("extra-attrs-example.pdf", &cf1, &wf1);
+    // US-167-2: Char extraction — Python expects 13 chars
+    assert!(
+        cf1.f1 >= 0.50,
+        "extra-attrs-example chars F1 {:.3} < 0.50",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_malformed_from_issue_932() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "malformed-from-issue-932.pdf",
+        "malformed-from-issue-932",
+    )
+    .expect("malformed-from-issue-932.pdf should parse");
+    print_text_summary("malformed-from-issue-932.pdf", &cf1, &wf1);
+    // US-167-2: Char extraction — Python expects 7 chars
+    assert!(
+        cf1.f1 >= 0.50,
+        "malformed-from-issue-932 chars F1 {:.3} < 0.50",
+        cf1.f1
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate summary test
 // ---------------------------------------------------------------------------
 

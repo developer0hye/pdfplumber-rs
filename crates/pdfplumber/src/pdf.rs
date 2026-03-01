@@ -285,7 +285,12 @@ impl Pdf {
             let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
             let geometry = PageGeometry::new(media_box, crop_box, rotation);
             page_heights.push(geometry.height());
-            raw_page_heights.push(media_box.height());
+            // Compute the effective page height for the y-flip transform.
+            // Normally this is just media_box.height() (= bottom - top in BBox terms).
+            // For malformed PDFs with inverted MediaBox (e.g. [0 841.68 631 0] where
+            // y0 > y1), we must account for the y-offset: effective = top + |height|.
+            // This matches pdfminer's initial CTM translation (1,0,0,1,-x0,-y0).
+            raw_page_heights.push(media_box.top + media_box.height().abs());
         }
 
         // Extract document metadata

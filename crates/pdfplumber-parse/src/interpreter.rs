@@ -1081,11 +1081,17 @@ fn emit_char_events(
         };
 
         // Ascent/descent for bounding box calculation.
-        // Use standard defaults (750/-250) to match pdfminer behavior for most fonts.
-        // Only override when both Ascent=0 AND Descent=0 in the font descriptor,
-        // which signals "unknown" — use 1000/0 so bbox spans baseline to baseline+fontsize.
+        // Match pdfminer behavior: use the font descriptor's Descent value and
+        // derive ascent as (1000 + descent). This keeps height = font_size while
+        // anchoring the bottom to the font's actual descent below the baseline.
+        // When both Ascent=0 AND Descent=0 (signals "unknown"), use 1000/0 so
+        // bbox spans baseline to baseline+fontsize.
         let (ascent, descent) = match cached {
             Some(cf) if cf.metrics.ascent() == 0.0 && cf.metrics.descent() == 0.0 => (1000.0, 0.0),
+            Some(cf) => {
+                let desc = cf.metrics.descent();
+                (1000.0 + desc, desc)
+            }
             _ => (750.0, -250.0),
         };
 
