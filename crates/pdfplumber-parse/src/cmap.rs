@@ -17,6 +17,10 @@ use crate::error::BackendError;
 pub struct CMap {
     /// Mapping from character code to Unicode string.
     mappings: HashMap<u32, String>,
+    /// When true, unmapped codes are interpreted as Unicode code points directly.
+    /// Set when a ToUnicode CMap uses a full-range Identity cidrange
+    /// (e.g., `begincidrange <0000> <FFFF> 0 endcidrange`).
+    identity: bool,
 }
 
 impl CMap {
@@ -24,6 +28,11 @@ impl CMap {
     ///
     /// Extracts `beginbfchar`/`endbfchar` and `beginbfrange`/`endbfrange`
     /// sections to build the character code → Unicode mapping table.
+    ///
+    /// As a fallback, also parses `begincidrange`/`endcidrange` sections,
+    /// treating CID values as Unicode code points. This handles ToUnicode
+    /// CMaps that use CID-style operators for Identity mappings (e.g.,
+    /// `begincidrange <0000> <FFFF> 0 endcidrange`).
     pub fn parse(data: &[u8]) -> Result<Self, BackendError> {
         let text = String::from_utf8_lossy(data);
         let mut mappings = HashMap::new();
@@ -54,14 +63,32 @@ impl CMap {
             }
         }
 
-        Ok(CMap { mappings })
+        // Fallback: if no bfchar/bfrange mappings found, try cidrange/cidchar
+        // sections. Some ToUnicode CMaps use CID-style operators for Identity
+        // mappings where code == CID == Unicode code point.
+        let mut identity = false;
+        if mappings.is_empty() {
+            identity = parse_cidrange_as_unicode(&text, &mut mappings);
+        }
+
+        Ok(CMap { mappings, identity })
     }
 
     /// Look up the Unicode string for a character code.
     ///
     /// Returns `None` if the code has no mapping in this CMap.
+    /// For Identity CMaps, returns `None` (the caller should use
+    /// `char::from_u32` as fallback; see [`is_identity`]).
     pub fn lookup(&self, code: u32) -> Option<&str> {
         self.mappings.get(&code).map(|s| s.as_str())
+    }
+
+    /// Returns true if this CMap uses Identity mapping (code == Unicode).
+    ///
+    /// When true, unmapped codes should be interpreted as Unicode code points
+    /// via `char::from_u32` rather than treated as unmapped.
+    pub fn is_identity(&self) -> bool {
+        self.identity
     }
 
     /// Look up the Unicode string for a character code, with fallback.
@@ -78,9 +105,9 @@ impl CMap {
         self.mappings.len()
     }
 
-    /// Returns true if this CMap has no mappings.
+    /// Returns true if this CMap has no mappings and is not an Identity CMap.
     pub fn is_empty(&self) -> bool {
-        self.mappings.is_empty()
+        self.mappings.is_empty() && !self.identity
     }
 }
 
@@ -172,6 +199,65 @@ impl CidCMap {
     pub fn writing_mode(&self) -> u8 {
         self.writing_mode
     }
+}
+
+/// Parse begincidrange/endcidrange sections as Unicode mappings.
+///
+/// Used as a fallback for ToUnicode CMaps that use CID-style operators
+/// instead of bfchar/bfrange. Interprets the CID value as a Unicode
+/// code point (code + CID_start → char). This handles Identity ToUnicode
+/// CMaps like `begincidrange <0000> <FFFF> 0 endcidrange`.
+///
+/// Returns `true` if a full-range Identity mapping (0-FFFF with CID start 0)
+/// was detected, indicating the CMap is an Identity CMap. Full-range mappings
+/// are not materialized into the HashMap to avoid excessive memory usage.
+fn parse_cidrange_as_unicode(text: &str, mappings: &mut HashMap<u32, String>) -> bool {
+    let mut found_identity = false;
+    let mut search_from = 0;
+    while let Some(start) = text[search_from..].find("begincidrange") {
+        let section_start = search_from + start + "begincidrange".len();
+        if let Some(end) = text[section_start..].find("endcidrange") {
+            let section = &text[section_start..section_start + end];
+            for line in section.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() || !trimmed.contains('<') {
+                    continue;
+                }
+                let tokens = extract_hex_tokens(trimmed);
+                if tokens.len() < 2 {
+                    continue;
+                }
+                let Ok(src_low) = parse_hex_code(tokens[0]) else {
+                    continue;
+                };
+                let Ok(src_high) = parse_hex_code(tokens[1]) else {
+                    continue;
+                };
+                let after_last_hex = trimmed
+                    .rfind('>')
+                    .map(|pos| &trimmed[pos + 1..])
+                    .unwrap_or("");
+                let Ok(cid_start) = after_last_hex.trim().parse::<u32>() else {
+                    continue;
+                };
+                // Full-range Identity mapping: mark flag instead of materializing
+                if src_low == 0 && src_high >= 0xFFFF && cid_start == 0 {
+                    found_identity = true;
+                    continue;
+                }
+                for offset in 0..=(src_high.saturating_sub(src_low)) {
+                    let unicode_cp = cid_start + offset;
+                    if let Some(ch) = char::from_u32(unicode_cp) {
+                        mappings.insert(src_low + offset, ch.to_string());
+                    }
+                }
+            }
+            search_from = section_start + end + "endcidrange".len();
+        } else {
+            break;
+        }
+    }
+    found_identity
 }
 
 /// Parse a begincidchar...endcidchar section.
@@ -328,57 +414,101 @@ fn extract_hex_tokens(text: &str) -> Vec<&str> {
 
 /// Parse a beginbfchar...endbfchar section.
 ///
-/// Each line has format: `<srcCode> <dstUnicode>`
+/// Each entry has format: `<srcCode> <dstUnicode>`.
+/// Entries may be on separate lines or concatenated on a single line
+/// (common in CJK PDFs like issue9262).
 fn parse_bfchar_section(
     section: &str,
     mappings: &mut HashMap<u32, String>,
 ) -> Result<(), BackendError> {
-    for line in section.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || !trimmed.contains('<') {
-            continue;
-        }
-
-        let tokens = extract_hex_tokens(trimmed);
-        if tokens.len() >= 2 {
-            let src_code = parse_hex_code(tokens[0])?;
-            let unicode_str = decode_utf16be_hex(tokens[1])?;
-            mappings.insert(src_code, unicode_str);
-        }
+    let tokens = extract_hex_tokens(section);
+    // Process tokens in pairs: (srcCode, dstUnicode)
+    let mut i = 0;
+    while i + 1 < tokens.len() {
+        let src_code = parse_hex_code(tokens[i])?;
+        let unicode_str = decode_utf16be_hex(tokens[i + 1])?;
+        mappings.insert(src_code, unicode_str);
+        i += 2;
     }
     Ok(())
 }
 
 /// Parse a beginbfrange...endbfrange section.
 ///
-/// Each line has format: `<srcLow> <srcHigh> <dstStart>`
+/// Each entry has format: `<srcLow> <srcHigh> <dstStart>`
 /// or: `<srcLow> <srcHigh> [<str1> <str2> ...]`
+///
+/// Entries may be on separate lines or concatenated on a single line.
+/// When the section contains array entries (`[...]`), those are parsed
+/// with bracket-aware logic; otherwise all hex tokens are processed
+/// as triples of (srcLow, srcHigh, dstStart).
 fn parse_bfrange_section(
     section: &str,
     mappings: &mut HashMap<u32, String>,
 ) -> Result<(), BackendError> {
-    for line in section.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || !trimmed.contains('<') {
-            continue;
+    if section.contains('[') {
+        // Array form present — parse with bracket-aware line splitting.
+        // Split into logical entries by finding [...] boundaries.
+        parse_bfrange_with_arrays(section, mappings)
+    } else {
+        // Standard form only — process all hex tokens in triples.
+        let tokens = extract_hex_tokens(section);
+        let mut i = 0;
+        while i + 2 < tokens.len() {
+            let src_low = parse_hex_code(tokens[i])?;
+            let src_high = parse_hex_code(tokens[i + 1])?;
+            let dst_start = parse_hex_code(tokens[i + 2])?;
+            for offset in 0..=(src_high.saturating_sub(src_low)) {
+                let code = src_low + offset;
+                let unicode_cp = dst_start + offset;
+                if let Some(ch) = char::from_u32(unicode_cp) {
+                    mappings.insert(code, ch.to_string());
+                }
+            }
+            i += 3;
+        }
+        Ok(())
+    }
+}
+
+/// Parse bfrange entries that may contain array destinations `[...]`.
+fn parse_bfrange_with_arrays(
+    section: &str,
+    mappings: &mut HashMap<u32, String>,
+) -> Result<(), BackendError> {
+    let mut rest = section;
+    while !rest.is_empty() {
+        // Skip whitespace
+        rest = rest.trim_start();
+        if rest.is_empty() || !rest.contains('<') {
+            break;
         }
 
-        // Check if destination is an array: [<hex> <hex> ...]
-        if let Some(bracket_start) = trimmed.find('[') {
-            // Array form: <srcLow> <srcHigh> [<str1> <str2> ...]
-            let before_bracket = &trimmed[..bracket_start];
-            let src_tokens = extract_hex_tokens(before_bracket);
-            if src_tokens.len() < 2 {
-                continue;
+        // Extract srcLow and srcHigh
+        let src_low_token = match next_hex_token(rest) {
+            Some((tok, remaining)) => {
+                rest = remaining;
+                tok
             }
-            let src_low = parse_hex_code(src_tokens[0])?;
-            let src_high = parse_hex_code(src_tokens[1])?;
+            None => break,
+        };
+        let src_high_token = match next_hex_token(rest) {
+            Some((tok, remaining)) => {
+                rest = remaining;
+                tok
+            }
+            None => break,
+        };
+        let src_low = parse_hex_code(src_low_token)?;
+        let src_high = parse_hex_code(src_high_token)?;
 
-            // Extract hex tokens from inside the brackets
-            let bracket_end = trimmed.rfind(']').unwrap_or(trimmed.len());
-            let array_content = &trimmed[bracket_start + 1..bracket_end];
+        rest = rest.trim_start();
+
+        if rest.starts_with('[') {
+            // Array form: [<str1> <str2> ...]
+            let bracket_end = rest.find(']').unwrap_or(rest.len());
+            let array_content = &rest[1..bracket_end];
             let dst_tokens = extract_hex_tokens(array_content);
-
             for (i, dst_hex) in dst_tokens.iter().enumerate() {
                 let code = src_low + i as u32;
                 if code > src_high {
@@ -387,17 +517,22 @@ fn parse_bfrange_section(
                 let unicode_str = decode_utf16be_hex(dst_hex)?;
                 mappings.insert(code, unicode_str);
             }
+            rest = if bracket_end < rest.len() {
+                &rest[bracket_end + 1..]
+            } else {
+                ""
+            };
         } else {
-            // Standard form: <srcLow> <srcHigh> <dstStart>
-            let tokens = extract_hex_tokens(trimmed);
-            if tokens.len() < 3 {
-                continue;
-            }
-            let src_low = parse_hex_code(tokens[0])?;
-            let src_high = parse_hex_code(tokens[1])?;
-            let dst_start = parse_hex_code(tokens[2])?;
-
-            for offset in 0..=(src_high - src_low) {
+            // Standard form: <dstStart>
+            let dst_token = match next_hex_token(rest) {
+                Some((tok, remaining)) => {
+                    rest = remaining;
+                    tok
+                }
+                None => break,
+            };
+            let dst_start = parse_hex_code(dst_token)?;
+            for offset in 0..=(src_high.saturating_sub(src_low)) {
                 let code = src_low + offset;
                 let unicode_cp = dst_start + offset;
                 if let Some(ch) = char::from_u32(unicode_cp) {
@@ -407,6 +542,16 @@ fn parse_bfrange_section(
         }
     }
     Ok(())
+}
+
+/// Extract the next `<hex>` token from text, returning the hex content
+/// and the remaining text after the closing `>`.
+fn next_hex_token(text: &str) -> Option<(&str, &str)> {
+    let start = text.find('<')?;
+    let end = text[start + 1..].find('>')?;
+    let hex = &text[start + 1..start + 1 + end];
+    let remaining = &text[start + 1 + end + 1..];
+    Some((hex, remaining))
 }
 
 #[cfg(test)]
@@ -877,5 +1022,95 @@ mod tests {
             endcidchar\n";
         let cmap = CidCMap::parse(data).unwrap();
         assert_eq!(cmap.lookup(0x9999), None);
+    }
+
+    // --- No-newline format (US-183-1: issue9262-style concatenated bfchar) ---
+
+    #[test]
+    fn bfchar_no_newlines_concatenated_entries() {
+        // Real-world pattern from issue9262_reduced.pdf: all entries on a single line
+        // with no newline separators between pairs.
+        let data = b"beginbfchar\n<0002> <000D><0144> <01C2><0155> <01F5>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0002), Some("\r")); // U+000D = carriage return
+        assert_eq!(cmap.lookup(0x0144), Some("\u{01C2}")); // ǂ
+        assert_eq!(cmap.lookup(0x0155), Some("\u{01F5}")); // ǵ
+        assert_eq!(cmap.len(), 3);
+    }
+
+    #[test]
+    fn bfchar_fully_concatenated_no_whitespace() {
+        // All entries concatenated with no whitespace at all
+        let data = b"beginbfchar\n<0041><0041><0042><0042><0043><0043>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some("A"));
+        assert_eq!(cmap.lookup(0x0042), Some("B"));
+        assert_eq!(cmap.lookup(0x0043), Some("C"));
+        assert_eq!(cmap.len(), 3);
+    }
+
+    #[test]
+    fn bfrange_no_newlines_concatenated_entries() {
+        // Range entries concatenated on a single line
+        let data = b"beginbfrange\n<0041> <0043> <0041><0061> <0063> <0061>\nendbfrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some("A"));
+        assert_eq!(cmap.lookup(0x0043), Some("C"));
+        assert_eq!(cmap.lookup(0x0061), Some("a"));
+        assert_eq!(cmap.lookup(0x0063), Some("c"));
+        assert_eq!(cmap.len(), 6);
+    }
+
+    #[test]
+    fn bfchar_mixed_newline_and_concatenated() {
+        // Mix of newline-separated and concatenated entries
+        let data = b"beginbfchar\n<0041> <0041>\n<0042> <0042><0043> <0043>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some("A"));
+        assert_eq!(cmap.lookup(0x0042), Some("B"));
+        assert_eq!(cmap.lookup(0x0043), Some("C"));
+        assert_eq!(cmap.len(), 3);
+    }
+
+    // --- Identity CMap via cidrange ---
+
+    #[test]
+    fn cidrange_identity_full_range() {
+        // Full-range Identity cidrange: <0000> <FFFF> 0
+        // Should set identity flag, not materialize 65536 entries
+        let data = b"\
+            begincidrange\n\
+            <0000> <FFFF> 0\n\
+            endcidrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(cmap.is_identity());
+        assert_eq!(cmap.mappings.len(), 0); // No materialized entries
+        assert!(!cmap.is_empty()); // Not empty because identity is set
+    }
+
+    #[test]
+    fn cidrange_partial_range_materialized() {
+        // Partial cidrange: should be materialized, not identity
+        let data = b"\
+            begincidrange\n\
+            <0041> <0043> 65\n\
+            endcidrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(!cmap.is_identity());
+        assert_eq!(cmap.lookup(0x0041), Some("A")); // 65 = 'A'
+        assert_eq!(cmap.lookup(0x0042), Some("B"));
+        assert_eq!(cmap.lookup(0x0043), Some("C"));
+        assert_eq!(cmap.len(), 3);
+    }
+
+    #[test]
+    fn bfchar_cmap_is_not_identity() {
+        // Normal bfchar CMap should not be identity
+        let data = b"\
+            beginbfchar\n\
+            <0041> <0041>\n\
+            endbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(!cmap.is_identity());
     }
 }

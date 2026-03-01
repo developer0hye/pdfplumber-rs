@@ -1,13 +1,25 @@
-## Codebase Patterns
-
-- **Font encoding resolution chain**: CMap → FontEncoding → CJK encoding → char::from_u32 (interpreter.rs:1036-1073)
-- **Standard font identification**: `standard_fonts::lookup()` matches all 14 standard fonts; `is_standard_latin_font()` excludes Symbol/ZapfDingbats
-- **Font cache population**: `load_font_if_needed()` in interpreter.rs builds `CachedFont` with optional `encoding` field
-- **StandardEncoding table**: Already existed in `pdfplumber-core/src/encoding.rs` as `STANDARD_TABLE` — maps byte codes to Unicode (e.g., 0x27→U+2019 quoteright, 0x60→U+2018 quoteleft)
-- **Width remapping for non-WinAnsi encodings**: `standard_fonts::build_remapped_widths()` remaps standard font widths from WinAnsi indexing to any target encoding by building a Unicode char → width HashMap from WinAnsi positions, then rebuilding the array for the target encoding
-
----
-
-# Ralph Progress Log - Issue #183: CIDFont / CMap encoding support for multilingual PDFs
+# Ralph Progress Log
 Started: 2026년  3월  1일 일요일 22시 47분 52초 KST
 ---
+
+## US-183-1: Implement ToUnicode CMap parser
+Status: COMPLETE
+
+Changes:
+- cmap.rs: Fixed bfchar/bfrange parsing for concatenated entries (no newlines)
+- cmap.rs: Added parse_cidrange_as_unicode fallback for Identity ToUnicode CMaps
+- cmap.rs: Added identity flag to CMap for full-range Identity cidrange detection
+- cid_font.rs: Fixed positive Descent values in CID font descriptors (negate)
+- interpreter.rs: Added (cid:N) fallback for CID fonts without Unicode mapping
+- interpreter.rs: Respects CMap identity flag to avoid false (cid:N) on Identity CMaps
+- cross_validation.rs: Promoted 8 CID tests from ignored to passing
+
+Results (8 PDFs: 0% → 100%):
+- pdfjs/cid_cff.pdf: 100%
+- pdfjs/issue4875.pdf: 100%
+- pdfjs/issue7696.pdf: 100%
+- pdfjs/issue8570.pdf: 100%
+- pdfjs/issue9262_reduced.pdf: 100%
+- pdfjs/text_clip_cff_cid.pdf: 100%
+- pdfbox/pdfbox-3833-japanese-reduced.pdf: 100%
+- pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf: 100%

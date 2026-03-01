@@ -385,10 +385,14 @@ fn parse_cid_font_descriptor(
         .and_then(object_to_f64)
         .unwrap_or(DEFAULT_CID_ASCENT);
 
+    // PDF spec: Descent should be negative (distance below baseline).
+    // Some PDF generators (e.g., Meiryo, MSMincho) incorrectly write positive
+    // values. Negate positive Descent to match expected behavior.
     let descent = desc
         .get(b"Descent")
         .ok()
         .and_then(object_to_f64)
+        .map(|d| if d > 0.0 { -d } else { d })
         .unwrap_or(DEFAULT_CID_DESCENT);
 
     let font_bbox = desc

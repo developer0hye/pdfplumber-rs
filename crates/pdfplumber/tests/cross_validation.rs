@@ -1263,35 +1263,40 @@ cross_validate_ignored!(
     "pdfjs/ArabicCIDTrueType.pdf",
     "chars 0% — Arabic CID TrueType not supported"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_cid_cff,
     "pdfjs/cid_cff.pdf",
-    "chars 0% — CID-keyed CFF font gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfjs_issue3521,
     "pdfjs/issue3521.pdf",
     "chars 0% — GBKp-EUC-H Chinese encoding gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_issue4875,
     "pdfjs/issue4875.pdf",
-    "chars 0% — CMap parsing gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_issue7696,
     "pdfjs/issue7696.pdf",
-    "chars 0% — Adobe-Japan1-UCS2 CMap gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_issue8570,
     "pdfjs/issue8570.pdf",
-    "chars 0% — Japanese char rendering gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_issue9262,
     "pdfjs/issue9262_reduced.pdf",
-    "chars 0% — Japanese char rendering gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfjs_noembed_eucjp,
@@ -1318,10 +1323,11 @@ cross_validate_ignored!(
     "pdfjs/noembed-sjis.pdf",
     "chars 0% — Shift-JIS encoding gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_text_clip_cff_cid,
     "pdfjs/text_clip_cff_cid.pdf",
-    "chars 0% — CFF CID clipping gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfjs_vertical,
@@ -1361,10 +1367,11 @@ cross_validate_ignored!(
     "pdfbox/pdfbox-3127-vfont-reduced.pdf",
     "chars 0.3% — vertical font gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_3833_japanese,
     "pdfbox/pdfbox-3833-japanese-reduced.pdf",
-    "chars 0% — Japanese katakana CID gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfbox_4531_bidi_1,
@@ -1381,10 +1388,11 @@ cross_validate_ignored!(
     "pdfbox/pdfbox-5350-korean-reduced.pdf",
     "chars 0% — Korean CID font gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_5747_surrogate,
     "pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf",
-    "chars 0% — Unicode surrogate pair gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 
 // ─── poppler: PASSING tests (chars/words >= 80%) ─────────────────────────
