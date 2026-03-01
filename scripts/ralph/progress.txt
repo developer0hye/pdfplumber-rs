@@ -80,3 +80,21 @@ Started: 2026년  3월  1일 일요일 10시 16분 06초 KST
   - lopdf content streams for tables: use `{x} {y} m {x2} {y2} l S` for lines, combine with `BT /F1 {size} Tf {x} {y} Td ({text}) Tj ET` for cell text
   - No `#[ignore]` needed — the PRD anticipated possible failures but the implementation handles rotation correctly
 ---
+
+## 2026-03-01 - US-155-1, US-155-2, US-155-3
+- Deleted `crates/pdfplumber-core/src/markdown.rs` (1,065 lines removed)
+- Deleted `crates/pdfplumber-core/src/markdown_conversion.rs` (also added in main, removed as part of markdown cleanup)
+- Removed `pub mod markdown;` and `pub use markdown::{MarkdownOptions, MarkdownRenderer};` from `crates/pdfplumber-core/src/lib.rs`
+- Removed `MarkdownOptions` and `MarkdownRenderer` from re-exports in `crates/pdfplumber/src/lib.rs`
+- Removed `MarkdownOptions`/`MarkdownRenderer` imports and `Page::to_markdown()` method from `crates/pdfplumber/src/page.rs`
+- Removed `Markdown` variant from `TextFormat` enum in `crates/pdfplumber-cli/src/cli.rs`
+- Removed `TextFormat::Markdown` match arm and `MarkdownOptions` import from `crates/pdfplumber-cli/src/text_cmd.rs`
+- Removed `TextFormat::Markdown` from pattern matches in `crates/pdfplumber-cli/src/bookmarks_cmd.rs` and `crates/pdfplumber-cli/src/info_cmd.rs`
+- No markdown references remain in the codebase (verified with grep)
+- All quality checks pass: fmt, clippy, check, test (pdfplumber-py excluded due to pre-existing libpython3.11 env issue)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Deletion tasks across layered crates (core → facade → cli) are straightforward — work bottom-up
+  - When merging with main, new markdown-related modules (markdown_conversion) may have been added — need to remove those too
+  - pdfplumber-py tests fail due to missing libpython3.11.dylib — pre-existing env issue, not related to changes
+---

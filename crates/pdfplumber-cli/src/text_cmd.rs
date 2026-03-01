@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use pdfplumber::{HtmlOptions, MarkdownOptions, TextOptions, UnicodeNorm};
+use pdfplumber::{HtmlOptions, TextOptions, UnicodeNorm};
 
 use crate::cli::TextFormat;
 use crate::shared::{ProgressReporter, open_pdf_maybe_repair, resolve_pages};
@@ -44,11 +44,6 @@ pub fn run(
                     "text": text,
                 });
                 println!("{}", serde_json::to_string(&obj).unwrap());
-            }
-            TextFormat::Markdown => {
-                let md = page.to_markdown(&MarkdownOptions::default());
-                println!("--- Page {} ---", idx + 1);
-                println!("{md}");
             }
             TextFormat::Html => {
                 let html = page.to_html(&HtmlOptions::default());

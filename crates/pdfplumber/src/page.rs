@@ -2,13 +2,13 @@
 
 use pdfplumber_core::{
     Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
-    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line,
-    MarkdownOptions, MarkdownRenderer, PageObject, PageRegions, Rect, SearchMatch, SearchOptions,
-    StructElement, Table, TableFinder, TableSettings, TextOptions, Word, WordExtractor,
-    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
-    derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
-    extract_text_for_cells, normalize_table_columns, search_chars, sort_blocks_column_order,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, PageObject,
+    PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
+    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
+    detect_columns, duplicate_merged_content_in_table, export_image_set, extract_text_for_cells,
+    normalize_table_columns, search_chars, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_text,
 };
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
@@ -409,23 +409,6 @@ impl Page {
     pub fn extract_text_body(&self, regions: &PageRegions) -> String {
         let cropped = self.crop(regions.body);
         cropped.extract_text(&TextOptions::default())
-    }
-
-    /// Render this page's content as Markdown text.
-    ///
-    /// Detects headings from font size heuristics, groups text into paragraphs,
-    /// converts tables to GFM (GitHub Flavored Markdown) syntax, and detects
-    /// bullet/numbered lists from text patterns.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let md = page.to_markdown(&MarkdownOptions::default());
-    /// println!("{md}");
-    /// ```
-    pub fn to_markdown(&self, options: &MarkdownOptions) -> String {
-        let tables = self.find_tables(&TableSettings::default());
-        MarkdownRenderer::render(&self.chars, &tables, options)
     }
 
     /// Render this page's content as semantic HTML.

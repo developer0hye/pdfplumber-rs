@@ -15,7 +15,7 @@ pub fn run(
     let bookmarks = pdf.bookmarks();
 
     match format {
-        TextFormat::Text | TextFormat::Markdown | TextFormat::Html => write_text(bookmarks),
+        TextFormat::Text | TextFormat::Html => write_text(bookmarks),
         TextFormat::Json => write_json(bookmarks),
     }
 }
