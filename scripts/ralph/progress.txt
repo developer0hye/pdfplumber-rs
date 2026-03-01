@@ -9,7 +9,11 @@ Started: 2026-03-01
   Matches Python pdfplumber's signed-gap behavior for overlapping chars.
 - **Cross-validation tests**: Golden data from Python pdfplumber v0.11.9.
   Always run `cargo test -p pdfplumber --test cross_validation -- --nocapture`
-  to check for regressions. 56 non-ignored tests must all pass.
+  to check for regressions. 58 non-ignored tests must all pass.
+- **Word grouping sort**: Match Python's cluster-then-sort approach:
+  cluster chars by cross-direction (y for horizontal text) within tolerance,
+  then sort within clusters by reading direction (x for LTR). Use flat
+  x_tolerance for ALL chars (no CJK-specific expansion).
 - **pdfplumber-py tests**: Will fail locally due to missing Python 3.11 dylib.
   Use `--exclude pdfplumber-py` for workspace tests.
 ---
@@ -64,3 +68,48 @@ Dependencies added: None
   cause was word grouping treating overlapping chars as having large gaps.
   Always investigate the actual failure mode before implementing the described
   solution.
+
+---
+
+## US-168-3: Improve word grouping accuracy [DONE]
+
+Root cause: Two differences from Python pdfplumber's word extraction algorithm:
+1. **Global sort vs cluster-sort**: Rust sorted chars globally by (top, x0), while
+   Python clusters chars by top (within y_tolerance) first, then sorts within each
+   cluster by x0. This caused chars at slightly different y positions on the same
+   visual line (e.g., CJK at top=46.0, digits at top=47.3) to be separated by the
+   global sort, breaking word boundaries.
+2. **CJK-specific tolerance**: Rust used `last.bbox.width().max(base)` as x_tolerance
+   when either char was CJK. Python uses flat x_tolerance for ALL chars, no expansion.
+   This caused over-grouping at CJK/Latin boundaries.
+
+Fix:
+- Added `cluster_sort()` method: sorts by cross-direction coordinate, clusters
+  consecutive chars within tolerance, then sorts within each cluster by reading
+  direction. Handles all text directions (LTR, RTL, TTB, BTT).
+- Removed `effective_x_tolerance()` and `effective_y_tolerance()` — now uses flat
+  `options.x_tolerance` / `options.y_tolerance` for all chars.
+- Updated 2 CJK unit tests to match Python's expected behavior.
+- Un-ignored cross-validation tests for issue-67-example.pdf and word365_structure.pdf.
+
+Files changed:
+- `crates/pdfplumber-core/src/words.rs` — cluster_sort, removed CJK tolerance, tests
+- `crates/pdfplumber/tests/cross_validation.rs` — un-ignored 2 tests
+
+Results:
+- issue-67-example.pdf: words 88.1% → 100.0% (target >=95%) ✓
+- line-char-render-example.pdf: words 100% (target >=90%) ✓
+- test-punkt.pdf: words 100% (target >=95%) ✓
+- word365_structure.pdf: words 100% (target >=95%) ✓
+- No regressions: 58 passed, 0 failed in cross-validation (was 56)
+
+Dependencies added: None
+
+**Learnings for future iterations:**
+- Python pdfplumber's cluster_objects approach is critical for mixed-font PDFs
+  where CJK and Latin chars have slightly different y positions (1-2pt offset).
+  The global (top, x0) sort separates them, while clustering keeps them on the
+  same visual line.
+- CJK-specific x_tolerance was a Rust-only addition not in Python pdfplumber.
+  For Python compatibility, use flat tolerance. Real CJK PDFs have tight char
+  spacing (gaps < 3pt) that works with the default x_tolerance=3.0.
