@@ -1,26 +1,59 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-166-rotation-handling",
-  "description": "Issue #166: Fix rotation handling for 0% extraction on rotated PDFs",
-  "relatedIssue": 166,
+  "branchName": "ralph/issue-167-zero-extraction",
+  "description": "Issue #167: Fix 0% extraction on PDFs with structure tags, page boxes, extra attrs",
+  "relatedIssue": 167,
   "userStories": [
     {
-      "id": "US-166-1",
-      "title": "Implement page /Rotate coordinate transformation",
-      "description": "nics-background-checks-2015-11-rotated.pdf produces 0% extraction accuracy while its non-rotated counterpart extracts at 100%. The /Rotate value on pages is not being applied to coordinate transformations, causing all bbox coordinates to mismatch the golden data. Implement proper handling of the /Rotate page attribute: when a page has /Rotate (90, 180, 270), the coordinate system must be transformed so that extracted character/word/line/rect bboxes match what Python pdfplumber produces. The transformation should be applied after content stream interpretation but before returning coordinates to the user.",
+      "id": "US-167-1",
+      "title": "Fix extraction on tagged/structure PDFs (figure_structure, hello_structure, pdf_structure)",
+      "description": "figure_structure.pdf (94 chars), hello_structure.pdf (54 chars), and pdf_structure.pdf (1090 chars) all produce 0% extraction. These are tagged PDFs with structure trees. The content streams may use marked content operators (BMC/BDC/EMC) or other tagged-PDF constructs that the parser doesn't handle, causing it to skip all text operators. Diagnose by examining the content streams and fix the interpreter to handle tagged PDF operators.",
       "acceptanceCriteria": [
-        "nics-background-checks-2015-11-rotated.pdf extracts chars with >90% F1 accuracy",
-        "nics-background-checks-2015-11-rotated.pdf extracts words with >90% F1 accuracy",
-        "Non-rotated nics-background-checks-2015-11.pdf remains unaffected (100%)",
-        "Page dimensions (width/height) are swapped correctly for 90/270 rotation",
-        "Unit tests for each rotation value (0, 90, 180, 270)",
+        "figure_structure.pdf extracts chars (Python expects 94)",
+        "hello_structure.pdf extracts chars (Python expects 54)",
+        "pdf_structure.pdf extracts chars (Python expects 1090)",
+        "Char extraction accuracy >90% for each PDF",
         "No regression on existing tests: cargo test --workspace passes",
         "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Key files: crates/pdfplumber/src/page.rs (Page API), crates/pdfplumber-parse/src/interpreter.rs (content stream interpreter). The /Rotate value is in the page dictionary and can be inherited from parent nodes in the page tree. Python pdfplumber applies rotation as a coordinate transform: 90° rotates (x,y) → (y, width-x), 180° → (width-x, height-y), 270° → (height-y, x). The page's MediaBox dimensions should also be adjusted (width↔height swap for 90°/270°). Check how lopdf exposes the /Rotate key."
+      "passes": false,
+      "notes": "Tagged PDF operators: BMC (Begin Marked Content), BDC (Begin Marked Content with properties), EMC (End Marked Content), MP (Marked Content Point), DP (Marked Content Point with properties). These should be handled (or safely skipped) in the content stream interpreter at crates/pdfplumber-parse/src/interpreter.rs. The text between BMC/EMC pairs should still be extracted normally."
+    },
+    {
+      "id": "US-167-2",
+      "title": "Fix extraction on government docs and page-box PDFs",
+      "description": "senate-expenditures.pdf (3880 chars), la-precinct-bulletin-2014-p1.pdf (1996 chars), page-boxes-example.pdf (28 chars, 3.6% accuracy), extra-attrs-example.pdf (13 chars), and malformed-from-issue-932.pdf (7 chars) all produce 0% extraction. These may share common causes: unsupported content stream operators, page box handling (CropBox vs MediaBox), or content stream encoding issues. Diagnose each failure and fix the underlying parser/interpreter issues.",
+      "acceptanceCriteria": [
+        "senate-expenditures.pdf extracts chars (Python expects 3880)",
+        "la-precinct-bulletin-2014-p1.pdf extracts chars (Python expects 1996)",
+        "page-boxes-example.pdf extracts chars >50% (Python expects 28 chars)",
+        "extra-attrs-example.pdf extracts chars (Python expects 13)",
+        "malformed-from-issue-932.pdf extracts chars (Python expects 7)",
+        "No regression on existing tests: cargo test --workspace passes",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "page-boxes-example.pdf has CropBox/MediaBox/BleedBox - coordinate space may differ from MediaBox. extra-attrs-example.pdf may have unusual dictionary entries. malformed-from-issue-932.pdf may need error recovery. Check if these share the same root cause as the structure PDFs (tagged PDF operators)."
+    },
+    {
+      "id": "US-167-3",
+      "title": "Fix extraction on issue regression PDFs (issue-140, issue-461)",
+      "description": "issue-140-example.pdf (709 chars) and issue-461-example.pdf (866 chars) produce 0% extraction. These are regression test PDFs from the Python pdfplumber project. Diagnose what content stream constructs cause the extraction failure and fix them.",
+      "acceptanceCriteria": [
+        "issue-140-example.pdf extracts chars (Python expects 709)",
+        "issue-461-example.pdf extracts chars (Python expects 866)",
+        "Char extraction accuracy >80% for each PDF",
+        "No regression on existing tests: cargo test --workspace passes",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "These may be fixed by the same changes that fix US-167-1 or US-167-2. Check after implementing those stories. issue-140 has tables, issue-461 is a general regression."
     }
   ]
 }

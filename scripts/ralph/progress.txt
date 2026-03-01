@@ -1,14 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  1일 일요일 16시 23분 15초 KST
+# Ralph Progress Log - Issue #167: Fix 0% extraction on structure tags, page boxes, extra attrs
+Started: 2026년  3월  1일 일요일 17시 13분 11초 KST
 ---
-## US-166-1: Implement page /Rotate coordinate transformation
-- Applied PageGeometry.normalize_bbox() rotation transform to chars, lines, rects, curves, images in pdf.rs
-- Added rotation-aware word extraction (text direction adjustment) in page.rs
-- Added RTL sort case and direction-aware gap formula in words.rs
-- Added rotation-aware text extraction with join_rotated_words helper
-- Added rotation-aware table cell text extraction via extract_text_for_cells_with_options
-- Cross-validation: nics-background-checks-2015-11-rotated.pdf chars=100%, words=100%, lines=100%, rects=100%
-- Non-rotated nics PDF remains at 100% (no regression)
-- All rotation integration tests pass (29 rotation + 21 table rotation)
-- cargo fmt, clippy, test --workspace all pass
-- Status: COMPLETE
