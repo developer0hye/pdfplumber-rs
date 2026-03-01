@@ -36,8 +36,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Python pdfplumber's dedupe logic: chars are duplicates if they have the same text content and their (x0, top) positions are within a small tolerance (typically 1 unit). The dedup should happen after char extraction but before word grouping. Key file for implementation: crates/pdfplumber-core/src/text.rs or a new dedup module. Check Python pdfplumber source for exact dedup algorithm."
+      "passes": true,
+      "notes": "Root cause: WordExtractor used .abs() on x-gap for LTR text, causing overlapping/duplicate chars to be split into separate words. Python pdfplumber uses a signed gap (no abs), so overlapping chars always group together. Fix: changed gap calculation to direction-agnostic interval distance (same formula already used for RTL). Results: issue-71-duplicate-chars.pdf words 76.8%→95.1%, issue-71-duplicate-chars-2.pdf words 95.6%→96.7%, issue-1114-dedupe-chars.pdf words 46.2%→76.9%. Deduplication already existed in dedupe.rs and is configurable via DedupeOptions."
     },
     {
       "id": "US-168-3",

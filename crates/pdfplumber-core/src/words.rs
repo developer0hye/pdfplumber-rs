@@ -187,16 +187,11 @@ impl WordExtractor {
     ///
     /// Uses direction-agnostic gap: the geometric distance between x-intervals.
     /// Returns 0 for overlapping/touching chars and positive for separated chars.
-    /// For LTR: uses abs(current.x0 - last.x1) to detect both forward gaps and
-    /// backward jumps (text flow order). For RTL: uses direction-agnostic interval
-    /// gap so adjacent right-to-left chars are not falsely split.
+    /// This matches Python pdfplumber behavior where overlapping chars (e.g.,
+    /// duplicate chars for bold rendering) are always grouped together.
     fn should_split_horizontal(last: &Char, current: &Char, options: &WordOptions) -> bool {
-        let x_gap = match options.text_direction {
-            TextDirection::Rtl => {
-                (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0)
-            }
-            _ => (current.bbox.x0 - last.bbox.x1).abs(),
-        };
+        let x_gap =
+            (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0);
         let y_diff = (current.bbox.top - last.bbox.top).abs();
         let x_tol = Self::effective_x_tolerance(last, current, options.x_tolerance);
         x_gap > x_tol || y_diff > options.y_tolerance
@@ -491,9 +486,7 @@ mod tests {
     #[test]
     fn test_use_text_flow_preserves_order() {
         // Chars in PDF content stream order (reverse of spatial).
-        // With text_flow=true, stream order is preserved, but since the
-        // backward x-gap is large (abs(10-30)=20 > 3), they split into
-        // separate words — matching Python pdfplumber behavior.
+        // Adjacent/touching chars are grouped even in text flow mode.
         let chars = vec![
             make_char("B", 20.0, 100.0, 30.0, 112.0),
             make_char("A", 10.0, 100.0, 20.0, 112.0),
@@ -504,7 +497,25 @@ mod tests {
         assert_eq!(normal.len(), 1);
         assert_eq!(normal[0].text, "AB");
 
-        // With text_flow: stream order [B, A] → gap=abs(10-30)=20>3 → split
+        // With text_flow: stream order [B, A] — these are spatially adjacent
+        // (B.x0=20 touches A.x1=20), so they group as "BA".
+        let opts = WordOptions {
+            use_text_flow: true,
+            ..WordOptions::default()
+        };
+        let words = WordExtractor::extract(&chars, &opts);
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].text, "BA");
+    }
+
+    #[test]
+    fn test_use_text_flow_splits_non_adjacent() {
+        // Chars far apart in text flow mode should still split.
+        let chars = vec![
+            make_char("B", 100.0, 100.0, 110.0, 112.0),
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+        ];
+
         let opts = WordOptions {
             use_text_flow: true,
             ..WordOptions::default()
@@ -562,6 +573,49 @@ mod tests {
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
         assert_eq!(words[0].text, "fi");
+    }
+
+    #[test]
+    fn test_duplicate_chars_at_same_position_grouped() {
+        // Duplicate characters at the same position (e.g., bold rendering trick)
+        // should be grouped into one word, not split.
+        // This is a common pattern in PDFs that create bold text by overlaying.
+        let chars = vec![
+            make_char("D", 117.6, 99.2, 130.6, 117.2),
+            make_char("D", 117.6, 99.2, 130.6, 117.2), // exact duplicate
+            make_char("u", 130.6, 99.2, 140.6, 117.2),
+            make_char("u", 130.6, 99.2, 140.6, 117.2), // exact duplicate
+            make_char("p", 140.6, 99.2, 150.5, 117.2),
+            make_char("p", 140.6, 99.2, 150.5, 117.2), // exact duplicate
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Duplicate chars should form one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "DDuupp");
+    }
+
+    #[test]
+    fn test_duplicate_chars_with_slight_offset_grouped() {
+        // Duplicate characters at slightly offset positions (horizontal shift effect)
+        // should still be grouped into one word.
+        let chars = vec![
+            make_char("H", 117.6, 344.1, 130.6, 362.1),
+            make_char("H", 123.3, 344.1, 136.3, 362.1), // shifted ~5.7pt
+            make_char("o", 130.6, 344.1, 140.6, 362.1),
+            make_char("o", 136.3, 344.1, 146.2, 362.1), // shifted
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Offset duplicate chars should form one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "HHoo");
     }
 
     #[test]

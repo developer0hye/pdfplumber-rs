@@ -1,5 +1,17 @@
 # Ralph Progress Log - Issue #168
 Started: 2026-03-01
+
+## Codebase Patterns
+
+- **Word grouping gap calculation**: Use direction-agnostic interval distance
+  `(a.x0.max(b.x0) - a.x1.min(b.x1)).max(0.0)` for ALL text directions.
+  This gives 0 for overlapping/touching chars, positive for separated chars.
+  Matches Python pdfplumber's signed-gap behavior for overlapping chars.
+- **Cross-validation tests**: Golden data from Python pdfplumber v0.11.9.
+  Always run `cargo test -p pdfplumber --test cross_validation -- --nocapture`
+  to check for regressions. 56 non-ignored tests must all pass.
+- **pdfplumber-py tests**: Will fail locally due to missing Python 3.11 dylib.
+  Use `--exclude pdfplumber-py` for workspace tests.
 ---
 
 ## US-168-1: Improve font metrics accuracy for proportional fonts [DONE]
@@ -16,3 +28,39 @@ Results:
 - chelsea_pdta: 93.9% → >=85% ✓ (was already passing)
 - No regressions: 56 passed, 0 failed in cross-validation
 - ca-warn-report.pdf, ag-energy-round-up-2017-02-24.pdf: not in fixtures
+
+---
+
+## US-168-2: Implement character deduplication [DONE]
+
+Root cause: WordExtractor::should_split_horizontal() used `.abs()` on the x-gap
+for LTR text direction. This caused overlapping chars (duplicates placed at the
+same position for bold rendering) to compute a large positive gap, triggering
+word splits. Python pdfplumber uses `current.x0 - last.x1` (signed, no abs),
+so overlapping chars always have a negative gap that never exceeds x_tolerance.
+
+Fix: Changed gap calculation from `.abs()` to direction-agnostic interval
+distance: `(a.x0.max(b.x0) - a.x1.min(b.x1)).max(0.0)`. This was already
+the formula used for RTL text. Now unified for all text directions.
+
+Files changed:
+- `crates/pdfplumber-core/src/words.rs` — should_split_horizontal() gap calc
+  + 2 new tests for duplicate chars, updated text_flow test
+
+Results:
+- issue-71-duplicate-chars.pdf: words 76.8% → 95.1% (target >=90%) ✓
+- issue-71-duplicate-chars-2.pdf: words 95.6% → 96.7% (target >=70%) ✓
+- issue-1114-dedupe-chars.pdf: words 46.2% → 76.9% (target >=70%) ✓
+- No regressions: 56 passed, 0 failed in cross-validation
+- Deduplication already implemented in dedupe.rs (configurable via DedupeOptions)
+
+Dependencies added: None
+
+**Learnings for future iterations:**
+- The existing `.abs()` for LTR gap was inconsistent with Python behavior.
+  RTL already used the correct interval-distance formula. Unifying them fixed
+  the duplicate char issue and simplified the code.
+- The PRD described this as needing dedup implementation, but the actual root
+  cause was word grouping treating overlapping chars as having large gaps.
+  Always investigate the actual failure mode before implementing the described
+  solution.
