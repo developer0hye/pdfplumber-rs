@@ -17,7 +17,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "The unicode-bidi crate implements UAX #9 (Unicode Bidirectional Algorithm). Key steps: 1) After char extraction, run BiDi algorithm on each line's text, 2) Assign per-char direction based on BiDi levels (even=LTR, odd=RTL), 3) Update char.direction field. This feeds into the per-char direction detection from #181."
     },
     {

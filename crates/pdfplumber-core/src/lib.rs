@@ -26,6 +26,8 @@
 
 /// PDF annotation types.
 pub mod annotation;
+/// Unicode Bidirectional (BiDi) text direction analysis.
+pub mod bidi;
 /// PDF bookmark / outline / table of contents types.
 pub mod bookmark;
 /// Duplicate character deduplication.
@@ -82,6 +84,7 @@ pub mod validation;
 pub mod words;
 
 pub use annotation::{Annotation, AnnotationType};
+pub use bidi::apply_bidi_directions;
 pub use bookmark::Bookmark;
 pub use dedupe::{DedupeOptions, dedupe_chars};
 pub use edges::{Edge, EdgeSource, derive_edges, edge_from_curve, edge_from_line, edges_from_rect};

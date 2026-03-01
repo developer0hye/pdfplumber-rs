@@ -1356,10 +1356,11 @@ cross_validate!(
 
 // ─── pdfbox: FAILING tests (CJK/Bidi below 80%) ─────────────────────────
 
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_bidi_sample,
     "pdfbox/BidiSample.pdf",
-    "chars 60.1% — Arabic/Hebrew bidi gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfbox_fc60_times,

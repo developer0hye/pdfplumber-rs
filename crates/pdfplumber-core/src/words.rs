@@ -270,12 +270,36 @@ impl WordExtractor {
                     });
                 }
                 TextDirection::Rtl => {
-                    cluster.sort_by(|a, b| {
-                        b.bbox
-                            .x0
-                            .partial_cmp(&a.bbox.x0)
-                            .unwrap_or(std::cmp::Ordering::Equal)
-                    });
+                    // Detect physical layout direction within the cluster.
+                    // BiDi RTL: chars are physically left-to-right (ascending x0)
+                    //   but have Unicode RTL direction → sort ascending for visual order.
+                    // Physical RTL: chars are physically right-to-left (descending x0)
+                    //   from TRM with negative a → sort descending for reading order.
+                    let is_physically_ltr = if cluster.len() >= 2 {
+                        let ascending_pairs = cluster
+                            .windows(2)
+                            .filter(|w| w[1].bbox.x0 >= w[0].bbox.x0)
+                            .count();
+                        ascending_pairs >= cluster.len() / 2
+                    } else {
+                        true
+                    };
+
+                    if is_physically_ltr {
+                        cluster.sort_by(|a, b| {
+                            a.bbox
+                                .x0
+                                .partial_cmp(&b.bbox.x0)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    } else {
+                        cluster.sort_by(|a, b| {
+                            b.bbox
+                                .x0
+                                .partial_cmp(&a.bbox.x0)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+                    }
                 }
                 _ => {
                     // LTR (default)

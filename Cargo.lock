@@ -1025,6 +1025,7 @@ dependencies = [
  "regex",
  "serde",
  "serde_json",
+ "unicode-bidi",
  "unicode-normalization",
 ]
 

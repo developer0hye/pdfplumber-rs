@@ -7,8 +7,8 @@ use pdfplumber_core::{
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
     PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
     SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, detect_page_regions, extract_shapes, image_from_ctm,
-    normalize_chars,
+    UnicodeNorm, ValidationIssue, apply_bidi_directions, detect_page_regions, extract_shapes,
+    image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -529,6 +529,9 @@ impl Pdf {
                 ch
             })
             .collect();
+
+        // Apply Unicode BiDi direction analysis for Arabic/Hebrew/mixed text
+        chars = apply_bidi_directions(&chars, 3.0);
 
         // Apply Unicode normalization if configured
         if self.options.unicode_norm != UnicodeNorm::None {

@@ -1,16 +1,40 @@
+# Ralph Progress Log
+Started: 2026년  3월  2일 월요일 00시 00분 15초 KST
+
 ## Codebase Patterns
-- Structure tree parsing already implemented: `extract_document_structure_tree()` in `lopdf_backend.rs` (lines 2227-2519)
-- `StructElement` type in `pdfplumber-core/src/struct_tree.rs` — element_type, mcids, alt_text, actual_text, lang, bbox, children, page_index
-- Page structure tree: `Page::structure_tree()` returns `Option<&[StructElement]>` (hierarchical), `Page::structure_elements()` returns `Vec<&StructElement>` (flat)
-- MCID-to-content mapping: `Page::chars_by_mcid()` returns `HashMap<u32, Vec<&Char>>`, `Page::semantic_chars()` returns chars in structure tree depth-first order
-- `collect_chars_by_structure_order()` helper in `page.rs` walks structure tree depth-first collecting chars per MCID
-- BMC/BDC/EMC operators tracked in `interpreter.rs` lines 51-84, 532-544; MCID propagated to `CharEvent.mcid` and `Char.mcid`
-- Cross-validation PDFs in `crates/pdfplumber/tests/fixtures/pdfs/`, golden JSON in `crates/pdfplumber/tests/fixtures/golden/`
-- Fixture integration test helpers: `cv_fixtures_dir()`, `cv_pdf()`, `open_cv_fixture()` for accessing cross-validation fixtures
-- pdfplumber-py crate requires Python — exclude with `--exclude pdfplumber-py` for local testing
+
+### BiDi Direction vs Physical Direction
+- `Char.direction` can be set by two sources: TRM analysis (physical) or BiDi analysis (semantic)
+- Physical RTL: TRM negative a → chars at descending x0 → cluster_sort descending x0 = correct
+- BiDi RTL: Unicode RTL chars → chars at ascending x0 → cluster_sort needs ascending x0
+- The WordExtractor's cluster_sort detects physical layout direction within RTL clusters using `windows(2).filter(ascending)` heuristic
+
+### Post-processing Pipeline Order (pdf.rs)
+1. char_from_event() — TRM-based direction
+2. rotation correction — rotate_direction()
+3. BiDi analysis — apply_bidi_directions() [NEW]
+4. Unicode normalization — normalize_chars()
 
 ---
 
-# Ralph Progress Log - Issue #185: Unicode Bidirectional (BiDi) text support for Arabic/Hebrew
-Started: 2026년  3월  2일 월요일 00시 00분 14초 KST
+## 2026-03-02 - US-185-1
+- What was implemented: Unicode BiDi algorithm integration for RTL text detection
+- Files changed:
+  - `crates/pdfplumber-core/Cargo.toml` — Added unicode-bidi 0.3 dependency
+  - `crates/pdfplumber-core/src/bidi.rs` — New module: apply_bidi_directions(), is_strong_rtl(), group_chars_into_lines()
+  - `crates/pdfplumber-core/src/lib.rs` — Registered bidi module + public export
+  - `crates/pdfplumber-core/src/words.rs` — Fixed cluster_sort RTL to detect physical vs BiDi layout direction
+  - `crates/pdfplumber/src/pdf.rs` — Integrated BiDi analysis in page extraction pipeline
+  - `crates/pdfplumber/tests/cross_validation.rs` — Upgraded BidiSample from ignored to passing test
+  - `scripts/ralph/prd.json` — Marked US-185-1 as passes: true
+- Dependencies added: unicode-bidi 0.3 (UAX #9 implementation)
+- Results:
+  - BidiSample.pdf: chars 60.1% → 100.0%, words 65.4% → 84.6%
+  - hello3.pdf: no regression (100%/100%)
+  - Cross-validation: 72 PASS, 15 FAIL (was 68 PASS, 19 FAIL) — 4 additional PDFs now pass
+- **Learnings for future iterations:**
+  - PDF stores glyphs in visual order. BiDi analysis identifies reading direction but text should stay in visual order for cross-validation with Python pdfplumber
+  - The cluster_sort for RTL needs to distinguish physical RTL (TRM negative a, descending x0) from BiDi RTL (Unicode RTL, ascending x0) using spatial heuristic
+  - The quick-check `is_strong_rtl()` pre-filter avoids running full BiDi analysis on LTR-only pages — important for performance
+  - Arabic presentation forms (U+FE70-U+FEFF) are detected by the BiDi algorithm as RTL
 ---
