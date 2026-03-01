@@ -68,59 +68,87 @@ impl WordExtractor {
             return Vec::new();
         }
 
-        // Partition chars by direction: chars with per-char vertical direction
-        // (Ttb/Btt) need different sorting and splitting than horizontal chars.
-        let has_vertical = chars
-            .iter()
-            .any(|c| matches!(c.direction, TextDirection::Ttb | TextDirection::Btt));
+        // Check if any chars have non-Ltr per-char direction
+        let has_non_ltr = chars.iter().any(|c| c.direction != TextDirection::Ltr);
 
-        if !has_vertical {
-            // Fast path: all chars are horizontal, no per-char direction handling needed
-            return Self::extract_group(chars, options, false);
+        if !has_non_ltr {
+            // Fast path: all chars are Ltr, no per-char direction handling needed
+            return Self::extract_group(chars, options, None);
         }
 
-        // Separate vertical and horizontal chars
-        let mut horizontal_chars: Vec<Char> = Vec::new();
-        let mut vertical_chars: Vec<Char> = Vec::new();
+        // Partition chars by per-char direction for correct sorting and splitting.
+        let mut ltr_chars: Vec<Char> = Vec::new();
+        let mut rtl_chars: Vec<Char> = Vec::new();
+        let mut ttb_chars: Vec<Char> = Vec::new();
+        let mut btt_chars: Vec<Char> = Vec::new();
         for ch in chars {
-            if matches!(ch.direction, TextDirection::Ttb | TextDirection::Btt) {
-                vertical_chars.push(ch.clone());
-            } else {
-                horizontal_chars.push(ch.clone());
+            match ch.direction {
+                TextDirection::Ltr => ltr_chars.push(ch.clone()),
+                TextDirection::Rtl => rtl_chars.push(ch.clone()),
+                TextDirection::Ttb => ttb_chars.push(ch.clone()),
+                TextDirection::Btt => btt_chars.push(ch.clone()),
             }
         }
 
-        let mut words = Self::extract_group(&horizontal_chars, options, false);
-        // Extract vertical chars with vertical sorting and splitting
-        words.extend(Self::extract_group(&vertical_chars, options, true));
+        let mut words = Vec::new();
+        if !ltr_chars.is_empty() {
+            words.extend(Self::extract_group(&ltr_chars, options, None));
+        }
+        if !rtl_chars.is_empty() {
+            words.extend(Self::extract_group(
+                &rtl_chars,
+                options,
+                Some(TextDirection::Rtl),
+            ));
+        }
+        if !ttb_chars.is_empty() {
+            words.extend(Self::extract_group(
+                &ttb_chars,
+                options,
+                Some(TextDirection::Ttb),
+            ));
+        }
+        if !btt_chars.is_empty() {
+            words.extend(Self::extract_group(
+                &btt_chars,
+                options,
+                Some(TextDirection::Btt),
+            ));
+        }
         words
     }
 
     /// Extract words from a group of chars that share the same orientation.
-    fn extract_group(chars: &[Char], options: &WordOptions, force_vertical: bool) -> Vec<Word> {
+    ///
+    /// When `force_direction` is `Some`, the specified direction overrides
+    /// `options.text_direction` for sorting and splitting. This enables
+    /// per-char direction handling where different groups of chars on the
+    /// same page use different sorting logic.
+    fn extract_group(
+        chars: &[Char],
+        options: &WordOptions,
+        force_direction: Option<TextDirection>,
+    ) -> Vec<Word> {
         if chars.is_empty() {
             return Vec::new();
         }
 
+        let effective_direction = force_direction.unwrap_or(options.text_direction);
+
         let mut sorted_chars: Vec<&Char> = chars.iter().collect();
         if !options.use_text_flow {
-            if force_vertical {
-                // Sort vertical chars: cluster by x0, sort by top within cluster
-                let vertical_opts = WordOptions {
-                    text_direction: TextDirection::Ttb,
+            let sort_opts = if force_direction.is_some() {
+                WordOptions {
+                    text_direction: effective_direction,
                     ..options.clone()
-                };
-                Self::cluster_sort(&mut sorted_chars, &vertical_opts);
+                }
             } else {
-                Self::cluster_sort(&mut sorted_chars, options);
-            }
+                options.clone()
+            };
+            Self::cluster_sort(&mut sorted_chars, &sort_opts);
         }
 
-        let is_vertical = force_vertical
-            || matches!(
-                options.text_direction,
-                TextDirection::Ttb | TextDirection::Btt
-            );
+        let is_vertical = matches!(effective_direction, TextDirection::Ttb | TextDirection::Btt);
 
         let mut words = Vec::new();
         let mut current_chars: Vec<Char> = Vec::new();
@@ -1157,6 +1185,138 @@ mod tests {
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
         assert_eq!(words[0].text, "Hello");
+    }
+
+    // --- Per-char Rtl direction tests (US-181-2) ---
+
+    /// Helper to create an Rtl char — horizontally mirrored (as in 180° rotation).
+    fn make_rtl_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
+        Char {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            fontname: "TestFont".to_string(),
+            size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: TextDirection::Rtl,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [-1.0, 0.0, 0.0, -1.0, x0, top],
+            char_code: 0,
+            mcid: None,
+            tag: None,
+        }
+    }
+
+    /// Helper to create a Btt char — vertically stacked bottom-to-top (as in 270° rotation).
+    fn make_btt_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
+        Char {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            fontname: "TestFont".to_string(),
+            size: 12.0,
+            doctop: top,
+            upright: false,
+            direction: TextDirection::Btt,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [0.0, 1.0, -1.0, 0.0, x0, top],
+            char_code: 0,
+            mcid: None,
+            tag: None,
+        }
+    }
+
+    #[test]
+    fn test_per_char_rtl_direction_groups_correctly() {
+        // Simulates 180° rotated text "Hello":
+        // Chars are positioned right-to-left (first char 'H' has largest x0).
+        // With Rtl per-char direction, word should be "Hello" (not "olleH").
+        let chars = vec![
+            make_rtl_char("H", 540.0, 100.0, 548.0, 112.0),
+            make_rtl_char("e", 532.0, 100.0, 540.0, 112.0),
+            make_rtl_char("l", 526.0, 100.0, 532.0, 112.0),
+            make_rtl_char("l", 520.0, 100.0, 526.0, 112.0),
+            make_rtl_char("o", 512.0, 100.0, 520.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Rtl chars should group into one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "Hello");
+        assert_eq!(words[0].direction, TextDirection::Rtl);
+    }
+
+    #[test]
+    fn test_per_char_rtl_two_words() {
+        // "Hello World" with Rtl direction — two words separated by space.
+        // In 180° rotation, first word at right, second word at left.
+        let chars = vec![
+            // "Hello" at right side
+            make_rtl_char("H", 540.0, 100.0, 548.0, 112.0),
+            make_rtl_char("e", 532.0, 100.0, 540.0, 112.0),
+            make_rtl_char("l", 526.0, 100.0, 532.0, 112.0),
+            make_rtl_char("l", 520.0, 100.0, 526.0, 112.0),
+            make_rtl_char("o", 512.0, 100.0, 520.0, 112.0),
+            // space
+            make_rtl_char(" ", 508.0, 100.0, 512.0, 112.0),
+            // "World" at left side
+            make_rtl_char("W", 500.0, 100.0, 508.0, 112.0),
+            make_rtl_char("o", 492.0, 100.0, 500.0, 112.0),
+            make_rtl_char("r", 486.0, 100.0, 492.0, 112.0),
+            make_rtl_char("l", 480.0, 100.0, 486.0, 112.0),
+            make_rtl_char("d", 474.0, 100.0, 480.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "Hello");
+        assert_eq!(words[1].text, "World");
+    }
+
+    #[test]
+    fn test_per_char_btt_direction_groups_correctly() {
+        // Simulates 270° rotated text "Hello":
+        // Chars stacked vertically at same x, reading bottom-to-top.
+        // First char 'H' has largest y (bottom of page), last char at top.
+        let chars = vec![
+            make_btt_char("H", 72.0, 540.0, 84.0, 548.0),
+            make_btt_char("e", 72.0, 532.0, 84.0, 540.0),
+            make_btt_char("l", 72.0, 526.0, 84.0, 532.0),
+            make_btt_char("l", 72.0, 520.0, 84.0, 526.0),
+            make_btt_char("o", 72.0, 512.0, 84.0, 520.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Btt chars should group into one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "Hello");
+        assert_eq!(words[0].direction, TextDirection::Btt);
+    }
+
+    #[test]
+    fn test_per_char_mixed_ltr_and_rtl_on_same_page() {
+        // Page with Ltr and Rtl chars — they should be partitioned and
+        // each group extracted with correct sorting.
+        let chars = vec![
+            // Ltr word "Hi"
+            make_char("H", 10.0, 50.0, 20.0, 62.0),
+            make_char("i", 20.0, 50.0, 26.0, 62.0),
+            // Rtl word "AB" (A at right, B at left)
+            make_rtl_char("A", 540.0, 200.0, 548.0, 212.0),
+            make_rtl_char("B", 532.0, 200.0, 540.0, 212.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 2, "Should have 2 words (Hi + AB)");
+        assert_eq!(words[0].text, "Hi");
+        assert_eq!(words[0].direction, TextDirection::Ltr);
+        assert_eq!(words[1].text, "AB");
+        assert_eq!(words[1].direction, TextDirection::Rtl);
     }
 
     #[test]
