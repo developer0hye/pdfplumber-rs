@@ -34,7 +34,13 @@ fn to_py_err(e: PdfError) -> PyErr {
         PdfError::IoError(msg) => PdfIoError::new_err(msg),
         PdfError::FontError(msg) => PdfFontError::new_err(msg),
         PdfError::InterpreterError(msg) => PdfInterpreterError::new_err(msg),
-        PdfError::ResourceLimitExceeded(msg) => PdfResourceLimitError::new_err(msg),
+        PdfError::ResourceLimitExceeded {
+            limit_name,
+            limit_value,
+            actual_value,
+        } => PdfResourceLimitError::new_err(format!(
+            "{limit_name} (limit: {limit_value}, actual: {actual_value})"
+        )),
         PdfError::PasswordRequired => {
             PdfPasswordRequired::new_err("PDF is encrypted and requires a password")
         }
@@ -977,7 +983,11 @@ mod tests {
 
     #[test]
     fn test_to_py_err_resource_limit() {
-        let err = to_py_err(PdfError::ResourceLimitExceeded("too many".to_string()));
+        let err = to_py_err(PdfError::ResourceLimitExceeded {
+            limit_name: "max_pages".to_string(),
+            limit_value: 10,
+            actual_value: 20,
+        });
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfResourceLimitError>(py));
         });
@@ -1153,6 +1163,9 @@ mod tests {
             src_height: Some(200),
             bits_per_component: Some(8),
             color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
         };
         Python::with_gil(|py| {
             let dict_obj = image_to_dict(py, &img).expect("image_to_dict");

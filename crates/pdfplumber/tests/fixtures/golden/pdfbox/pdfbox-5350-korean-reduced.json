@@ -1,0 +1,103 @@
+{
+  "source": "pdfbox-5350-korean-reduced.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.2,
+      "height": 841.92,
+      "chars": [
+        {
+          "text": "사",
+          "x0": 152.64,
+          "top": 97.9565,
+          "x1": 169.92,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        },
+        {
+          "text": "회",
+          "x0": 169.92,
+          "top": 97.9565,
+          "x1": 187.2,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        },
+        {
+          "text": "복",
+          "x0": 187.2,
+          "top": 97.9565,
+          "x1": 204.48,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        },
+        {
+          "text": "지",
+          "x0": 204.48,
+          "top": 97.9565,
+          "x1": 221.76,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        },
+        {
+          "text": "법",
+          "x0": 221.76,
+          "top": 97.9565,
+          "x1": 239.04,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        },
+        {
+          "text": "인",
+          "x0": 239.04,
+          "top": 97.9565,
+          "x1": 256.32,
+          "bottom": 115.2365,
+          "fontname": "JSPDGE+Gulim",
+          "size": 17.28,
+          "doctop": 97.9565,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "사회복지법인",
+          "x0": 152.64,
+          "top": 97.9565,
+          "x1": 256.32,
+          "bottom": 115.2365,
+          "doctop": 97.9565
+        }
+      ],
+      "text": "사회복지법인",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 0.0,
+          "top": 0.0,
+          "x1": 595.2,
+          "bottom": 841.92,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

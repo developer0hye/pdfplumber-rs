@@ -27,6 +27,7 @@ pub mod interpreter;
 pub mod interpreter_state;
 pub mod lopdf_backend;
 pub mod page_geometry;
+pub mod standard_fonts;
 pub mod text_renderer;
 pub mod text_state;
 pub mod tokenizer;

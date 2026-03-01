@@ -1,0 +1,245 @@
+{
+  "source": "issue-987-test.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 1920.0,
+      "height": 1080.0,
+      "chars": [
+        {
+          "text": "B",
+          "x0": 98.9998,
+          "top": 448.3909,
+          "x1": 180.6638,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 178.3438,
+          "top": 448.3909,
+          "x1": 208.2718,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "g",
+          "x0": 205.9518,
+          "top": 448.3909,
+          "x1": 276.8278,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "S",
+          "x0": 98.5939,
+          "top": 575.4072,
+          "x1": 106.3819,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "m",
+          "x0": 106.3819,
+          "top": 575.4072,
+          "x1": 117.2539,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 117.2539,
+          "top": 575.4072,
+          "x1": 124.1419,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 124.1419,
+          "top": 575.4072,
+          "x1": 127.2379,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 127.2379,
+          "top": 575.4072,
+          "x1": 130.3339,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "T",
+          "x0": 301.1863,
+          "top": 448.3909,
+          "x1": 372.0623,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 356.8663,
+          "top": 448.3909,
+          "x1": 423.4503,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "x",
+          "x0": 430.1863,
+          "top": 448.3909,
+          "x1": 492.4783,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 490.1583,
+          "top": 448.3909,
+          "x1": 530.9903,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "T",
+          "x0": 133.5939,
+          "top": 575.4072,
+          "x1": 140.9259,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 139.5939,
+          "top": 575.4072,
+          "x1": 146.4819,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "x",
+          "x0": 146.5939,
+          "top": 575.4072,
+          "x1": 153.0379,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 153.0379,
+          "top": 575.4072,
+          "x1": 157.2619,
+          "bottom": 587.4072,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 12.0,
+          "doctop": 575.4072,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Big",
+          "x0": 98.9998,
+          "top": 448.3909,
+          "x1": 276.8278,
+          "bottom": 564.3909,
+          "doctop": 448.3909
+        },
+        {
+          "text": "Te",
+          "x0": 301.1863,
+          "top": 448.3909,
+          "x1": 423.4503,
+          "bottom": 564.3909,
+          "doctop": 448.3909
+        },
+        {
+          "text": "xt",
+          "x0": 430.1863,
+          "top": 448.3909,
+          "x1": 530.9903,
+          "bottom": 564.3909,
+          "doctop": 448.3909
+        },
+        {
+          "text": "Small",
+          "x0": 98.5939,
+          "top": 575.4072,
+          "x1": 130.3339,
+          "bottom": 587.4072,
+          "doctop": 575.4072
+        },
+        {
+          "text": "Text",
+          "x0": 133.5939,
+          "top": 575.4072,
+          "x1": 157.2619,
+          "bottom": 587.4072,
+          "doctop": 575.4072
+        }
+      ],
+      "text": "Big Te xt\nSmall Text",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 0.0,
+          "top": 0.0,
+          "x1": 1920.0,
+          "bottom": 1080.0,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

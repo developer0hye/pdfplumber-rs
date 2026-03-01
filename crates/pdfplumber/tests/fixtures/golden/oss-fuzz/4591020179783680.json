@@ -1,0 +1,205 @@
+{
+  "source": "4591020179783680.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.0,
+      "height": 842.0,
+      "chars": [
+        {
+          "text": "D",
+          "x0": 56.8,
+          "top": 67.8,
+          "x1": 68.4242,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "u",
+          "x0": 68.4242,
+          "top": 67.8,
+          "x1": 78.2452,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "m",
+          "x0": 78.2452,
+          "top": 67.8,
+          "x1": 92.5581,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "m",
+          "x0": 92.5581,
+          "top": 67.8,
+          "x1": 106.871,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "y",
+          "x0": 106.9,
+          "top": 67.8,
+          "x1": 115.8516,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 115.9,
+          "top": 67.8,
+          "x1": 120.3597,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "P",
+          "x0": 120.3,
+          "top": 67.8,
+          "x1": 131.0226,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "D",
+          "x0": 131.0226,
+          "top": 67.8,
+          "x1": 142.6468,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 142.6468,
+          "top": 67.8,
+          "x1": 152.4678,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 152.5,
+          "top": 67.8,
+          "x1": 156.9597,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "f",
+          "x0": 156.9597,
+          "top": 67.8,
+          "x1": 162.321,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 162.321,
+          "top": 67.8,
+          "x1": 162.321,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 166.8,
+          "top": 67.8,
+          "x1": 168.0397,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 168.0397,
+          "top": 67.8,
+          "x1": 172.4994,
+          "bottom": 83.9,
+          "fontname": "unknown",
+          "size": 16.1,
+          "doctop": 67.8,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Dummy",
+          "x0": 56.8,
+          "top": 67.8,
+          "x1": 115.8516,
+          "bottom": 83.9,
+          "doctop": 67.8
+        },
+        {
+          "text": "PDF",
+          "x0": 120.3,
+          "top": 67.8,
+          "x1": 152.4678,
+          "bottom": 83.9,
+          "doctop": 67.8
+        },
+        {
+          "text": "fi",
+          "x0": 156.9597,
+          "top": 67.8,
+          "x1": 162.321,
+          "bottom": 83.9,
+          "doctop": 67.8
+        },
+        {
+          "text": "le",
+          "x0": 166.8,
+          "top": 67.8,
+          "x1": 172.4994,
+          "bottom": 83.9,
+          "doctop": 67.8
+        }
+      ],
+      "text": "Dummy PDF fi le",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

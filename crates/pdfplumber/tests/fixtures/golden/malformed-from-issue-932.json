@@ -1,0 +1,120 @@
+{
+  "source": "malformed-from-issue-932.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 631.08,
+      "height": 841.68,
+      "chars": [
+        {
+          "text": "2",
+          "x0": 384.7412,
+          "top": 1330.504,
+          "x1": 390.7412,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 390.7412,
+          "top": 1330.504,
+          "x1": 396.7412,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 396.7412,
+          "top": 1330.504,
+          "x1": 402.7412,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 402.7412,
+          "top": 1330.504,
+          "x1": 408.7412,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 437.2686,
+          "top": 1330.504,
+          "x1": 443.2686,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 474.7883,
+          "top": 1330.504,
+          "x1": 480.7883,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 480.7883,
+          "top": 1330.504,
+          "x1": 486.7883,
+          "bottom": 1342.504,
+          "fontname": "SimSun",
+          "size": 12.0,
+          "doctop": 1330.504,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "2021",
+          "x0": 384.7412,
+          "top": 1330.504,
+          "x1": 408.7412,
+          "bottom": 1342.504,
+          "doctop": 1330.504
+        },
+        {
+          "text": "3",
+          "x0": 437.2686,
+          "top": 1330.504,
+          "x1": 443.2686,
+          "bottom": 1342.504,
+          "doctop": 1330.504
+        },
+        {
+          "text": "31",
+          "x0": 474.7883,
+          "top": 1330.504,
+          "x1": 486.7883,
+          "bottom": 1342.504,
+          "doctop": 1330.504
+        }
+      ],
+      "text": "2021 3 31",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

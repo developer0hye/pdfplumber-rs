@@ -1,0 +1,104 @@
+{
+  "source": "issue3521.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.28,
+      "height": 841.89,
+      "chars": [
+        {
+          "text": "我",
+          "x0": 28.35,
+          "top": 32.52,
+          "x1": 48.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "们",
+          "x0": 48.35,
+          "top": 32.52,
+          "x1": 68.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "都",
+          "x0": 68.35,
+          "top": 32.52,
+          "x1": 88.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "是",
+          "x0": 88.35,
+          "top": 32.52,
+          "x1": 108.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "黑",
+          "x0": 108.35,
+          "top": 32.52,
+          "x1": 128.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "体",
+          "x0": 128.35,
+          "top": 32.52,
+          "x1": 148.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        },
+        {
+          "text": "字",
+          "x0": 148.35,
+          "top": 32.52,
+          "x1": 168.35,
+          "bottom": 52.52,
+          "fontname": "b'\\xba\\xda\\xcc\\xe5'",
+          "size": 20.0,
+          "doctop": 32.52,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "我们都是黑体字",
+          "x0": 28.35,
+          "top": 32.52,
+          "x1": 168.35,
+          "bottom": 52.52,
+          "doctop": 32.52
+        }
+      ],
+      "text": "我们都是黑体字",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

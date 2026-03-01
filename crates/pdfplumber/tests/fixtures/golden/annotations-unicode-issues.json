@@ -1,0 +1,550 @@
+{
+  "source": "annotations-unicode-issues.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.28,
+      "height": 841.89,
+      "chars": [
+        {
+          "text": "T",
+          "x0": 56.6929,
+          "top": 57.3849,
+          "x1": 63.0069,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 61.7859,
+          "top": 57.3849,
+          "x1": 67.6929,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 67.6929,
+          "top": 57.3849,
+          "x1": 73.1929,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 73.1929,
+          "top": 57.3849,
+          "x1": 76.6579,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 76.6579,
+          "top": 57.3849,
+          "x1": 79.7159,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "u",
+          "x0": 79.7159,
+          "top": 57.3849,
+          "x1": 85.8319,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 85.8319,
+          "top": 57.3849,
+          "x1": 91.9479,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 91.9479,
+          "top": 57.3849,
+          "x1": 94.3899,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 94.3899,
+          "top": 57.3849,
+          "x1": 100.2969,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 100.2969,
+          "top": 57.3849,
+          "x1": 106.6109,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 106.6109,
+          "top": 57.3849,
+          "x1": 113.1339,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 113.1339,
+          "top": 57.3849,
+          "x1": 119.0409,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 119.0409,
+          "top": 57.3849,
+          "x1": 122.0989,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 122.0989,
+          "top": 57.3849,
+          "x1": 128.6219,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 128.6219,
+          "top": 57.3849,
+          "x1": 134.5289,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 134.5289,
+          "top": 57.3849,
+          "x1": 140.4359,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 140.4359,
+          "top": 57.3849,
+          "x1": 146.7499,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 146.7499,
+          "top": 57.3849,
+          "x1": 153.2729,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 153.2729,
+          "top": 57.3849,
+          "x1": 155.7149,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 155.7149,
+          "top": 57.3849,
+          "x1": 161.8309,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "g",
+          "x0": 161.8309,
+          "top": 57.3849,
+          "x1": 168.1449,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 168.1449,
+          "top": 57.3849,
+          "x1": 171.2029,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 171.2029,
+          "top": 57.3849,
+          "x1": 173.6449,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 173.6449,
+          "top": 57.3849,
+          "x1": 179.1449,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 179.1449,
+          "top": 57.3849,
+          "x1": 184.6449,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "u",
+          "x0": 184.6449,
+          "top": 57.3849,
+          "x1": 190.7609,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 190.7609,
+          "top": 57.3849,
+          "x1": 196.6679,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 196.6679,
+          "top": 57.3849,
+          "x1": 202.1679,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 202.1679,
+          "top": 57.3849,
+          "x1": 205.2259,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 205.2259,
+          "top": 57.3849,
+          "x1": 207.6679,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 207.6679,
+          "top": 57.3849,
+          "x1": 213.7839,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 213.7839,
+          "top": 57.3849,
+          "x1": 216.8419,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 216.8419,
+          "top": 57.3849,
+          "x1": 222.7489,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 222.7489,
+          "top": 57.3849,
+          "x1": 228.8649,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 228.8649,
+          "top": 57.3849,
+          "x1": 234.9809,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 234.9809,
+          "top": 57.3849,
+          "x1": 241.2949,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 241.2949,
+          "top": 57.3849,
+          "x1": 244.7599,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 244.7599,
+          "top": 57.3849,
+          "x1": 250.6669,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 250.6669,
+          "top": 57.3849,
+          "x1": 254.1319,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 254.1319,
+          "top": 57.3849,
+          "x1": 256.5739,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 256.5739,
+          "top": 57.3849,
+          "x1": 262.8879,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 262.8879,
+          "top": 57.3849,
+          "x1": 269.0039,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 269.0039,
+          "top": 57.3849,
+          "x1": 274.5039,
+          "bottom": 68.3849,
+          "fontname": "AAAAAB+HelveticaNeue",
+          "size": 11.0,
+          "doctop": 57.3849,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Test",
+          "x0": 56.6929,
+          "top": 57.3849,
+          "x1": 76.6579,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        },
+        {
+          "text": "unicode",
+          "x0": 79.7159,
+          "top": 57.3849,
+          "x1": 119.0409,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        },
+        {
+          "text": "decoding",
+          "x0": 122.0989,
+          "top": 57.3849,
+          "x1": 168.1449,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        },
+        {
+          "text": "issues",
+          "x0": 171.2029,
+          "top": 57.3849,
+          "x1": 202.1679,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        },
+        {
+          "text": "in",
+          "x0": 205.2259,
+          "top": 57.3849,
+          "x1": 213.7839,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        },
+        {
+          "text": "annotations",
+          "x0": 216.8419,
+          "top": 57.3849,
+          "x1": 274.5039,
+          "bottom": 68.3849,
+          "doctop": 57.3849
+        }
+      ],
+      "text": "Test unicode decoding issues in annotations",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 0.0,
+          "top": 0.0,
+          "x1": 596.0,
+          "bottom": 842.0,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

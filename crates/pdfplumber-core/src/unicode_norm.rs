@@ -15,10 +15,10 @@ use crate::text::Char;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum UnicodeNorm {
-    /// No normalization (default).
-    #[default]
+    /// No normalization.
     None,
-    /// Canonical Decomposition, followed by Canonical Composition (NFC).
+    /// Canonical Decomposition, followed by Canonical Composition (NFC) (default).
+    #[default]
     Nfc,
     /// Canonical Decomposition (NFD).
     Nfd,
@@ -88,8 +88,8 @@ mod tests {
     }
 
     #[test]
-    fn unicode_norm_default_is_none() {
-        assert_eq!(UnicodeNorm::default(), UnicodeNorm::None);
+    fn unicode_norm_default_is_nfc() {
+        assert_eq!(UnicodeNorm::default(), UnicodeNorm::Nfc);
     }
 
     #[test]

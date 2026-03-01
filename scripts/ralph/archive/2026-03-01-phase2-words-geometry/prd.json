@@ -1,0 +1,59 @@
+{
+  "project": "pdfplumber-rs",
+  "branchName": "ralph/table-accuracy",
+  "description": "Table Detection Accuracy - Fix lattice table grid completion to match Python pdfplumber output for nics-background-checks",
+  "userStories": [
+    {
+      "id": "US-106",
+      "title": "Diagnose lattice table detection gap for nics-background-checks",
+      "description": "Write a diagnostic integration test that compares Rust vs Python table output for nics-background-checks-2015-11.pdf. The golden data shows 1 table with 17 rows x 25 columns = 425 cells. Rust currently produces a table with ~15 rows starting at a different y-position, and row indices are shifted by 2, causing only 29/425 cells to match positionally. Root cause: at y=24.0 (title row) only 2 x-positions have intersections (outer border), and at y=61.5 (header row) only 10 x-positions have intersections. The 4-corner check in intersections_to_cells (table.rs:486-504) skips cells where any corner is missing. Python pdfplumber somehow produces full 25-column rows at these y-positions. The test should dump: (1) edge counts by orientation, (2) unique x/y positions after snapping, (3) intersection count, (4) cell count, (5) Rust table dimensions vs golden dimensions.",
+      "acceptanceCriteria": [
+        "Integration test in crates/pdfplumber/tests/ that opens nics-background-checks-2015-11.pdf",
+        "Test prints edge analysis: total edges, horizontal count, vertical count, unique x-positions, unique y-positions",
+        "Test prints intersection analysis: total intersections, intersections per y-position",
+        "Test prints cell/table analysis: cell count, table dimensions (rows x cols), vs golden (17x25=425)",
+        "Test identifies exactly which y-positions are missing full-width intersection coverage",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": "This diagnostic test will inform the implementation strategy for US-107. Key file: crates/pdfplumber-core/src/table.rs (intersections_to_cells at line 455). Key observation: 254 rects (all fill-only), 192 lines (vertical, tiny 0.24pt-wide sub-dividers)."
+    },
+    {
+      "id": "US-107",
+      "title": "Implement grid completion for lattice table detection",
+      "description": "Fix intersections_to_cells (or add a pre-processing step) so that partial-width rows produce full-width cells. Currently the function collects unique x/y positions from intersections and requires all 4 corners (top-left, top-right, bottom-left, bottom-right) to exist. For the nics PDF, at y=24.0 only 2 of 26 x-positions have intersections and at y=61.5 only 10 of 26 have intersections. Implement grid completion: after collecting unique x/y positions from intersections, for each candidate cell (consecutive x-pair, consecutive y-pair), check whether horizontal edges span the cell's x-range at both the top and bottom y, AND vertical edges span the cell's y-range at both the left and right x — instead of requiring all 4 corner intersection points to exist. This relaxes the strict point-intersection requirement to an edge-coverage requirement, which is more robust for tables with merged header cells or partial column dividers.",
+      "acceptanceCriteria": [
+        "intersections_to_cells (or a new grid_completion step) produces cells even when not all 4 corners have point-intersections",
+        "Cell is valid if: (1) horizontal edge coverage exists at top-y spanning [x0, x1], (2) horizontal edge coverage exists at bottom-y spanning [x0, x1], (3) vertical edge coverage exists at left-x spanning [top, bottom], (4) vertical edge coverage exists at right-x spanning [top, bottom]",
+        "Edge coverage check uses intersection_x_tolerance and intersection_y_tolerance for fuzzy matching",
+        "Existing tests in table.rs still pass (no regression on simple lattice tables)",
+        "nics-background-checks table detection improves: Rust produces ≥17 rows with 25 columns",
+        "Unit tests for the new grid completion logic with edge cases: complete grid, partial grid, single-row table",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Key function: intersections_to_cells in crates/pdfplumber-core/src/table.rs line 455. The function currently uses has_point() for a strict 4-corner check. The edges (after snap+join) are available in the TableFinder, so they can be passed to the cell detection step. Consider adding a new function like edges_to_cells() that takes both intersections AND edges, or modifying intersections_to_cells to accept edges for coverage checking."
+    },
+    {
+      "id": "US-108",
+      "title": "Cross-validation table cell accuracy >= 90%",
+      "description": "After implementing grid completion, verify that nics-background-checks table cell accuracy meets the 90% PRD target. Update the cross-validation test thresholds.",
+      "acceptanceCriteria": [
+        "Run cross-validation: cargo test -p pdfplumber --test cross_validation -- --nocapture",
+        "nics-background-checks table cell accuracy >= 90% (currently 6.8%)",
+        "All other cross-validation metrics remain at current levels (chars/words/lines/rects all ≥95%)",
+        "Update cross_validation.rs to assert table rate >= TABLE_THRESHOLD (0.90) for nics-background-checks",
+        "Remove 'needs investigation' comments from test docs",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Cross-validation test file: crates/pdfplumber/tests/cross_validation.rs. Golden data: crates/pdfplumber/tests/fixtures/golden/nics-background-checks-2015-11.json. Current status: chars=100%, words=100%, lines=100%, rects=100%, tables=6.8%."
+    }
+  ]
+}

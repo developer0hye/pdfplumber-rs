@@ -1,0 +1,359 @@
+{
+  "source": "page-boxes-example.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 623.622,
+      "height": 870.2362,
+      "chars": [
+        {
+          "text": "P",
+          "x0": 100.0,
+          "top": 90.484,
+          "x1": 108.004,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "D",
+          "x0": 108.004,
+          "top": 90.484,
+          "x1": 116.668,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "F",
+          "x0": 116.668,
+          "top": 90.484,
+          "x1": 124.0,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 124.0,
+          "top": 90.484,
+          "x1": 127.336,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "P",
+          "x0": 127.336,
+          "top": 90.484,
+          "x1": 135.34,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 135.34,
+          "top": 90.484,
+          "x1": 142.012,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "g",
+          "x0": 142.012,
+          "top": 90.484,
+          "x1": 148.684,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 148.684,
+          "top": 90.484,
+          "x1": 155.356,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 155.356,
+          "top": 90.484,
+          "x1": 158.692,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 158.692,
+          "top": 90.484,
+          "x1": 166.696,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 166.696,
+          "top": 90.484,
+          "x1": 173.368,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "x",
+          "x0": 173.368,
+          "top": 90.484,
+          "x1": 179.368,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 179.368,
+          "top": 90.484,
+          "x1": 186.04,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 186.04,
+          "top": 90.484,
+          "x1": 192.04,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": " ",
+          "x0": 192.04,
+          "top": 90.484,
+          "x1": 195.376,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "D",
+          "x0": 195.376,
+          "top": 90.484,
+          "x1": 204.04,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 204.04,
+          "top": 90.484,
+          "x1": 210.712,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "m",
+          "x0": 210.712,
+          "top": 90.484,
+          "x1": 220.708,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 220.708,
+          "top": 90.484,
+          "x1": 227.38,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 227.38,
+          "top": 90.484,
+          "x1": 234.052,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 234.052,
+          "top": 90.484,
+          "x1": 240.052,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 240.052,
+          "top": 90.484,
+          "x1": 243.388,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 243.388,
+          "top": 90.484,
+          "x1": 247.384,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 247.384,
+          "top": 90.484,
+          "x1": 254.056,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 254.056,
+          "top": 90.484,
+          "x1": 257.392,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 257.392,
+          "top": 90.484,
+          "x1": 260.056,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "o",
+          "x0": 260.056,
+          "top": 90.484,
+          "x1": 266.728,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 266.728,
+          "top": 90.484,
+          "x1": 273.4,
+          "bottom": 102.484,
+          "fontname": "Helvetica",
+          "size": 12.0,
+          "doctop": 90.484,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "PDF",
+          "x0": 100.0,
+          "top": 90.484,
+          "x1": 124.0,
+          "bottom": 102.484,
+          "doctop": 90.484
+        },
+        {
+          "text": "Page",
+          "x0": 127.336,
+          "top": 90.484,
+          "x1": 155.356,
+          "bottom": 102.484,
+          "doctop": 90.484
+        },
+        {
+          "text": "Boxes",
+          "x0": 158.692,
+          "top": 90.484,
+          "x1": 192.04,
+          "bottom": 102.484,
+          "doctop": 90.484
+        },
+        {
+          "text": "Demonstration",
+          "x0": 195.376,
+          "top": 90.484,
+          "x1": 273.4,
+          "bottom": 102.484,
+          "doctop": 90.484
+        }
+      ],
+      "text": "PDF Page Boxes Demonstration",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

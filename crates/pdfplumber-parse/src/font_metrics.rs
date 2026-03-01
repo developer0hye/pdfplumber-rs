@@ -4,6 +4,7 @@
 //! glyph widths, ascent, and descent for character bounding box calculation.
 
 use crate::error::BackendError;
+use crate::standard_fonts;
 
 /// Default ascent when not specified (750/1000 of text space).
 const DEFAULT_ASCENT: f64 = 750.0;
@@ -161,6 +162,25 @@ pub fn extract_font_metrics(
     // Parse /FontDescriptor
     let desc_info = parse_font_descriptor(doc, font_dict)?;
 
+    // Standard font fallback: when /Widths is absent, try standard Type1 font widths
+    if widths.is_empty() {
+        if let Some(std_font) = lookup_standard_font(font_dict) {
+            let std_widths: Vec<f64> = std_font.widths.iter().map(|&w| f64::from(w)).collect();
+            let font_bbox = desc_info
+                .font_bbox
+                .or(Some(std_font.font_bbox.map(f64::from)));
+            return Ok(FontMetrics::new(
+                std_widths,
+                0,
+                255,
+                desc_info.missing_width,
+                desc_info.ascent,
+                desc_info.descent,
+                font_bbox,
+            ));
+        }
+    }
+
     Ok(FontMetrics::new(
         widths,
         first_char,
@@ -170,6 +190,21 @@ pub fn extract_font_metrics(
         desc_info.descent,
         desc_info.font_bbox,
     ))
+}
+
+/// Look up standard font data from a font dictionary's /BaseFont entry.
+///
+/// Handles subset-prefixed names (e.g., "ABCDEF+Helvetica").
+fn lookup_standard_font(
+    font_dict: &lopdf::Dictionary,
+) -> Option<&'static standard_fonts::StandardFontData> {
+    let base_font = font_dict
+        .get(b"BaseFont")
+        .ok()
+        .and_then(|obj| obj.as_name().ok())
+        .map(|name| std::str::from_utf8(name).unwrap_or(""))?;
+    let stripped = crate::cid_font::strip_subset_prefix(base_font);
+    standard_fonts::lookup(stripped)
 }
 
 /// Parsed font descriptor values.
@@ -491,8 +526,8 @@ mod tests {
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
 
-        // No widths — all codes return missing width
-        assert_eq!(metrics.get_width(65), 500.0);
+        // No /Widths — Helvetica is a standard font, so standard widths are used
+        assert_eq!(metrics.get_width(65), 667.0); // Helvetica 'A' = 667
         assert!((metrics.ascent() - 800.0).abs() < 1.0);
         assert!((metrics.descent() - (-200.0)).abs() < 1.0);
     }
@@ -634,5 +669,189 @@ mod tests {
         assert_eq!(get_width(65), 278.0);
         assert_eq!(get_width(66), 556.0);
         assert_eq!(get_width(68), 278.0); // missing
+    }
+
+    // ========== US-104: Standard font fallback tests ==========
+
+    #[test]
+    fn fallback_helvetica_no_widths_uses_standard_widths() {
+        // When /Widths is absent and BaseFont is Helvetica, use standard widths
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Helvetica 'A'(65) = 667, space(32) = 278 — proportional, NOT 600
+        assert_eq!(metrics.get_width(65), 667.0); // A
+        assert_eq!(metrics.get_width(32), 278.0); // space
+        assert_eq!(metrics.get_width(66), 667.0); // B
+    }
+
+    #[test]
+    fn fallback_courier_no_widths_uses_standard_widths() {
+        // Courier is monospaced — all widths should be 600
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Courier",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 629.0, -157.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), 600.0); // A
+        assert_eq!(metrics.get_width(32), 600.0); // space
+        assert_eq!(metrics.get_width(97), 600.0); // a
+    }
+
+    #[test]
+    fn fallback_times_roman_no_widths_uses_standard_widths() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Times-Roman",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 683.0, -217.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Times-Roman 'A'(65) = 722
+        assert_eq!(metrics.get_width(65), 722.0); // A
+        // Times-Roman space(32) = 250
+        assert_eq!(metrics.get_width(32), 250.0); // space
+    }
+
+    #[test]
+    fn fallback_subset_prefix_stripped() {
+        // ABCDEF+Helvetica should match Helvetica
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "ABCDEF+Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), 667.0); // A = Helvetica width
+    }
+
+    #[test]
+    fn fallback_unknown_font_uses_default_width() {
+        // Non-standard font without /Widths should fall back to DEFAULT_WIDTH
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "CustomFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 700.0, -300.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), DEFAULT_WIDTH); // not a standard font
+    }
+
+    #[test]
+    fn fallback_does_not_affect_embedded_widths() {
+        // PDFs with /Widths arrays must be completely unaffected
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = create_font_dict_with_widths(&mut doc, &[500.0, 600.0, 700.0], 65, 67);
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should use embedded widths, NOT standard Helvetica widths (667, 667, 722)
+        assert_eq!(metrics.get_width(65), 500.0);
+        assert_eq!(metrics.get_width(66), 600.0);
+        assert_eq!(metrics.get_width(67), 700.0);
+    }
+
+    #[test]
+    fn fallback_descriptor_ascent_descent_override_standard() {
+        // FontDescriptor ascent/descent should override standard defaults
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -250.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Ascent/descent from descriptor, not standard defaults
+        assert!((metrics.ascent() - 800.0).abs() < 1.0);
+        assert!((metrics.descent() - (-250.0)).abs() < 1.0);
+    }
+
+    #[test]
+    fn fallback_standard_font_bbox_used_when_descriptor_lacks_bbox() {
+        // When descriptor has no FontBBox, use standard font's bbox
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        // Descriptor without FontBBox
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should use Helvetica's standard bbox: [-166, -225, 1000, 931]
+        let bbox = metrics.font_bbox().expect("should have standard font bbox");
+        assert!((bbox[0] - (-166.0)).abs() < 1.0);
+        assert!((bbox[1] - (-225.0)).abs() < 1.0);
+        assert!((bbox[2] - 1000.0).abs() < 1.0);
+        assert!((bbox[3] - 931.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn fallback_descriptor_bbox_overrides_standard() {
+        // When descriptor has FontBBox, it should take precedence
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        let custom_bbox = [-100.0, -200.0, 900.0, 800.0];
+        add_font_descriptor(
+            &mut doc,
+            &mut font_dict,
+            718.0,
+            -207.0,
+            None,
+            Some(custom_bbox),
+        );
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        let bbox = metrics.font_bbox().unwrap();
+        assert!((bbox[0] - (-100.0)).abs() < 1.0);
+        assert!((bbox[1] - (-200.0)).abs() < 1.0);
+    }
+
+    #[test]
+    fn fallback_no_basefont_uses_default() {
+        // If no BaseFont at all, should use defaults
+        let doc = Document::with_version("1.5");
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+        };
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), DEFAULT_WIDTH);
     }
 }

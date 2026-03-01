@@ -1,0 +1,238 @@
+{
+  "source": "vertical.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 249.45,
+      "height": 321.02,
+      "chars": [
+        {
+          "text": "あ",
+          "x0": 229.254,
+          "top": 20.8646,
+          "x1": 238.466,
+          "bottom": 30.0766,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 20.8646,
+          "upright": true
+        },
+        {
+          "text": "い",
+          "x0": 229.254,
+          "top": 30.0766,
+          "x1": 238.466,
+          "bottom": 39.2886,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 30.0766,
+          "upright": true
+        },
+        {
+          "text": "う",
+          "x0": 229.254,
+          "top": 39.2886,
+          "x1": 238.466,
+          "bottom": 48.5006,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 39.2886,
+          "upright": true
+        },
+        {
+          "text": "え",
+          "x0": 229.254,
+          "top": 48.5006,
+          "x1": 238.466,
+          "bottom": 57.7126,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 48.5006,
+          "upright": true
+        },
+        {
+          "text": "お",
+          "x0": 229.254,
+          "top": 57.7126,
+          "x1": 238.466,
+          "bottom": 66.9246,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 57.7126,
+          "upright": true
+        },
+        {
+          "text": "日",
+          "x0": 213.664,
+          "top": 20.8646,
+          "x1": 222.876,
+          "bottom": 30.0766,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 20.8646,
+          "upright": true
+        },
+        {
+          "text": "本",
+          "x0": 213.664,
+          "top": 30.0766,
+          "x1": 222.876,
+          "bottom": 39.2886,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 30.0766,
+          "upright": true
+        },
+        {
+          "text": "語",
+          "x0": 213.664,
+          "top": 39.2886,
+          "x1": 222.876,
+          "bottom": 48.5006,
+          "fontname": "KXRNCQ+AokinMincho",
+          "size": 9.212,
+          "doctop": 39.2886,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "日",
+          "x0": 213.664,
+          "top": 20.8646,
+          "x1": 222.876,
+          "bottom": 30.0766,
+          "doctop": 20.8646
+        },
+        {
+          "text": "あ",
+          "x0": 229.254,
+          "top": 20.8646,
+          "x1": 238.466,
+          "bottom": 30.0766,
+          "doctop": 20.8646
+        },
+        {
+          "text": "本",
+          "x0": 213.664,
+          "top": 30.0766,
+          "x1": 222.876,
+          "bottom": 39.2886,
+          "doctop": 30.0766
+        },
+        {
+          "text": "い",
+          "x0": 229.254,
+          "top": 30.0766,
+          "x1": 238.466,
+          "bottom": 39.2886,
+          "doctop": 30.0766
+        },
+        {
+          "text": "語",
+          "x0": 213.664,
+          "top": 39.2886,
+          "x1": 222.876,
+          "bottom": 48.5006,
+          "doctop": 39.2886
+        },
+        {
+          "text": "う",
+          "x0": 229.254,
+          "top": 39.2886,
+          "x1": 238.466,
+          "bottom": 48.5006,
+          "doctop": 39.2886
+        },
+        {
+          "text": "え",
+          "x0": 229.254,
+          "top": 48.5006,
+          "x1": 238.466,
+          "bottom": 57.7126,
+          "doctop": 48.5006
+        },
+        {
+          "text": "お",
+          "x0": 229.254,
+          "top": 57.7126,
+          "x1": 238.466,
+          "bottom": 66.9246,
+          "doctop": 57.7126
+        }
+      ],
+      "text": "日 あ\n本 い\n語 う\nえ\nお",
+      "lines": [
+        {
+          "x0": 0.0,
+          "top": 0.05,
+          "x1": 249.45,
+          "bottom": 0.05,
+          "linewidth": 0.1
+        },
+        {
+          "x0": 0.0,
+          "top": 320.97,
+          "x1": 249.45,
+          "bottom": 320.97,
+          "linewidth": 0.1
+        }
+      ],
+      "rects": [],
+      "tables": []
+    },
+    {
+      "page_number": 1,
+      "width": 249.45,
+      "height": 321.02,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [
+        {
+          "x0": 0.0,
+          "top": 0.05,
+          "x1": 249.45,
+          "bottom": 0.05,
+          "linewidth": 0.1
+        },
+        {
+          "x0": 0.0,
+          "top": 320.97,
+          "x1": 249.45,
+          "bottom": 320.97,
+          "linewidth": 0.1
+        }
+      ],
+      "rects": [],
+      "tables": []
+    },
+    {
+      "page_number": 2,
+      "width": 249.45,
+      "height": 321.02,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [
+        {
+          "x0": 0.0,
+          "top": 0.05,
+          "x1": 249.45,
+          "bottom": 0.05,
+          "linewidth": 0.1
+        },
+        {
+          "x0": 0.0,
+          "top": 320.97,
+          "x1": 249.45,
+          "bottom": 320.97,
+          "linewidth": 0.1
+        }
+      ],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}
