@@ -655,3 +655,57 @@ fn scotus_has_many_chars() {
         chars.len()
     );
 }
+
+// ==================== annotations.pdf (Issue #163) ====================
+
+#[test]
+fn annotations_opens_successfully() {
+    let pdf = open_fixture(&downloaded("annotations.pdf"));
+    assert_eq!(pdf.page_count(), 1);
+}
+
+#[test]
+fn annotations_extracts_chars() {
+    let pdf = open_fixture(&downloaded("annotations.pdf"));
+    let page = pdf.page(0).unwrap();
+    let chars = page.chars();
+    // Python pdfplumber extracts 14 chars
+    assert_eq!(
+        chars.len(),
+        14,
+        "annotations.pdf should have 14 chars, got {}",
+        chars.len()
+    );
+}
+
+#[test]
+fn annotations_extracts_words() {
+    let pdf = open_fixture(&downloaded("annotations.pdf"));
+    let page = pdf.page(0).unwrap();
+    let words = page.extract_words(&pdfplumber::WordOptions::default());
+    // Python pdfplumber extracts 3 words: "Dummy", "PDF", "file"
+    assert_eq!(
+        words.len(),
+        3,
+        "annotations.pdf should have 3 words, got {}",
+        words.len()
+    );
+}
+
+#[test]
+fn annotations_rotated_90_opens_successfully() {
+    let pdf = open_fixture(&downloaded("annotations-rotated-90.pdf"));
+    assert_eq!(pdf.page_count(), 1);
+}
+
+#[test]
+fn annotations_rotated_180_opens_successfully() {
+    let pdf = open_fixture(&downloaded("annotations-rotated-180.pdf"));
+    assert_eq!(pdf.page_count(), 1);
+}
+
+#[test]
+fn annotations_rotated_270_opens_successfully() {
+    let pdf = open_fixture(&downloaded("annotations-rotated-270.pdf"));
+    assert_eq!(pdf.page_count(), 1);
+}

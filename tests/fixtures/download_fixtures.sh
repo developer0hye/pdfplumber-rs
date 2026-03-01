@@ -32,6 +32,11 @@ download() {
 download "pdffill-demo.pdf" "$BASE_URL/pdffill-demo.pdf"
 download "nics-firearm-checks.pdf" "$BASE_URL/nics-background-checks-2015-11.pdf"
 download "scotus-transcript-p1.pdf" "$BASE_URL/scotus-transcript-p1.pdf"
+download "annotations.pdf" "$BASE_URL/annotations.pdf"
+download "annotations-rotated-90.pdf" "$BASE_URL/annotations-rotated-90.pdf"
+download "annotations-rotated-180.pdf" "$BASE_URL/annotations-rotated-180.pdf"
+download "annotations-rotated-270.pdf" "$BASE_URL/annotations-rotated-270.pdf"
+download "annotations-unicode-issues.pdf" "$BASE_URL/annotations-unicode-issues.pdf"
 
 echo ""
 echo "Verifying checksums..."
