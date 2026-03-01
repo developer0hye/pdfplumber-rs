@@ -1,53 +1,41 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-183-cidcmap-encoding",
-  "description": "Issue #183: CIDFont / CMap encoding support for multilingual PDFs",
-  "relatedIssue": 183,
+  "branchName": "ralph/issue-184-tagged-pdf",
+  "description": "Issue #184: Tagged PDF / Structure Tree support",
+  "relatedIssue": 184,
   "userStories": [
     {
-      "id": "US-183-1",
-      "title": "Implement ToUnicode CMap parser",
-      "description": "Parse /ToUnicode CMap streams embedded in PDF font dictionaries. These provide direct CID → Unicode mappings using beginbfchar/endbfchar and beginbfrange/endbfrange operators. This is the highest-value CMap feature as many CIDFont PDFs include ToUnicode maps.",
+      "id": "US-184-1",
+      "title": "Parse StructTreeRoot and structure elements",
+      "description": "Parse the /StructTreeRoot dictionary from the document catalog. Extract the structure tree hierarchy including structure elements (StructElem), their types (P, H1-H6, Table, Figure, Span, etc.), and MCID references. Store the structure tree in a queryable data structure.",
       "acceptanceCriteria": [
-        "ToUnicode CMap streams are parsed correctly (bfchar and bfrange entries)",
-        "At least 3 previously-failing CIDFont PDFs now extract chars > 50%",
-        "Handles multi-byte Unicode mappings (e.g., surrogate pairs, BMP and SMP)",
+        "StructTreeRoot is parsed from PDF catalog when present",
+        "Structure elements are extracted with type, MCID, and parent/child relationships",
+        "mcid_example.pdf structure tree is successfully parsed",
+        "figure_structure.pdf structure tree is successfully parsed",
+        "API: Page::structure_elements() returns structure elements for the page",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "DONE (PR #193). 8 CID PDFs improved from 0% to 100%. Fixed bfchar/bfrange no-newline parsing, added cidrange Identity fallback, fixed CID Descent sign, added (cid:N) unmapped format."
+      "passes": false,
+      "notes": "Key structure: /StructTreeRoot → /K (children) → /Type /StructElem entries. Each StructElem has /S (structure type), /K (content items or child elements), /P (parent). Content items reference MCIDs. The cross_validation entries for figure_structure, pdf_structure, hello_structure may just need updating since char extraction already works. Focus on mcid_example.pdf which still fails."
     },
     {
-      "id": "US-183-2",
-      "title": "Implement predefined CMap support for CJK fonts",
-      "description": "CIDFont dictionaries reference predefined CMaps by name (e.g., 'Adobe-Japan1-UCS2', 'GBKp-EUC-H', 'UniKS-UCS2-H'). These standard CMaps define CID → character code mappings for CJK languages. Bundle the most common predefined CMaps or implement a CMap file loader.",
+      "id": "US-184-2",
+      "title": "Map MCID tags to content for semantic reading order",
+      "description": "Connect Marked Content IDs (MCIDs) from BMC/BDC/EMC operators in content streams to structure elements from the structure tree. This enables semantic reading order extraction — text ordered by document structure rather than content stream order.",
       "acceptanceCriteria": [
-        "At least Adobe-Japan1, Adobe-GB1, Adobe-Korea1, Adobe-CNS1 CMap families are supported",
-        "Japanese PDFs (issue3521, issue7696, issue8570, issue9262) extract chars > 30%",
-        "Korean PDF (pdfbox-5350-korean) extracts chars > 30%",
+        "MCID tags from content streams are associated with structure elements",
+        "Characters can be grouped by their parent structure element",
+        "Semantic reading order is available via API",
+        "mcid_example.pdf cross_validation upgraded from ignored to passing",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "DONE (PR #194). Added GBKp-EUC, GBK2K, GBpc-EUC variants for Chinese Simplified. issue3521 0%→100%, pdfbox-5350-korean 100% (from US-183-1)."
-    },
-    {
-      "id": "US-183-3",
-      "title": "Implement CIDFont width handling (W/DW arrays)",
-      "description": "CIDFont dictionaries specify glyph widths via /W (width array) and /DW (default width) entries. The /W array format is: [cid [w1 w2 ...]] or [cidFirst cidLast w]. Implement width extraction from these arrays for correct character positioning.",
-      "acceptanceCriteria": [
-        "CIDFont /W and /DW entries are parsed and used for char width calculation",
-        "CIDFont PDFs have improved x-coordinate accuracy",
-        "No regression on Type1/TrueType font widths",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "DONE (already implemented). /W and /DW parsing in cid_font.rs parse_w_array(). CidFontMetrics::get_width() used in interpreter.rs for displacement. All CIDFont PDFs show 100% accuracy with correct word grouping. No regression on Type1/TrueType fonts."
+      "passes": false,
+      "notes": "BMC/BDC operators already handled (skipped) by the interpreter. Need to: 1) Track current MCID during content stream interpretation, 2) Associate extracted chars with their MCID, 3) Use structure tree to determine reading order. The interpreter already has marked content handling from issue-167 fixes."
     }
   ]
 }
