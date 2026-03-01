@@ -21,7 +21,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Use lopdf to create test PDFs: create a page dictionary with /Rotate key set to 90/180/270. The PageGeometry in pdfplumber already handles rotation — these tests verify end-to-end correctness. Existing rotation-related code is in crates/pdfplumber-parse/src/page_geometry.rs. If programmatic PDF creation with rotated text is too complex, use the existing rotated fixture from pdfplumber Python (nics-background-checks-2015-11-rotated.pdf) if available, or create minimal fixtures."
     },
     {
