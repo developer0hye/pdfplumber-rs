@@ -1,31 +1,22 @@
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 15시 47분 54초 KST
+
 ## Codebase Patterns
-
-### CJK Encoding in CID Fonts
-- Type0/CID fonts with predefined CMap encodings (GBK-EUC-H, ETen-B5-H, 90ms-RKSJ-H, etc.) use variable-length byte sequences
-- The encoding name is in the Type0 font's `/Encoding` entry (not the CIDFont descendant)
-- Without a `/ToUnicode` CMap, Unicode mapping requires decoding via the encoding (e.g., GBK bytes → Unicode)
-- `encoding_rs` crate handles all common CJK encodings efficiently
-- The CachedFont in interpreter.rs stores `cjk_encoding: Option<&'static encoding_rs::Encoding>` for runtime encoding detection
-
-### Font Loading Pipeline
-- `load_font_if_needed()` in interpreter.rs caches font info per resource name
-- For Type0 fonts: detects CJK encoding, extracts CID metrics, ToUnicode CMap
-- For simple fonts: extracts FontMetrics, /Encoding, ToUnicode CMap
-- Unicode resolution chain: ToUnicode CMap → FontEncoding → CJK encoding → char::from_u32
-
-### PDF Encryption Handling
-- `open()` auto-decrypts PDFs with empty user password (matching Python pdfplumber behavior)
-- lopdf 0.39 supports V=4/R=4 encryption (128-bit RC4 with crypt filters); 0.34 did not
-- lopdf 0.39 changed `as_name_str()` → `as_name()` returning `&[u8]` instead of `&str`
-- lopdf 0.39 `decrypt()` takes `&str`, `decrypt_raw()` takes `AsRef<[u8]>`
-- lopdf 0.39 `save_to()` uses object streams by default — manual object encryption breaks roundtrip
-
-### Content Stream Arrays
-- `/Contents` can be: Reference→Stream, Reference→Array, or direct Array
-- Always resolve references before checking type (don't assume Reference→Stream)
+- `try_fix_startxref()` pattern: when lopdf fails to parse, attempt recovery by scanning for the actual xref offset and patching the bytes before retrying. This is a general pattern for handling malformed PDFs.
+- Cross-validation tests: use `cross_validate!` macro for PDFs that parse successfully, `cross_validate_ignored!` for known failures. When fixing a parse error, update from ignored to passing.
+- Backend unit tests for issue-specific PDFs: check fixture existence with `if !pdf_path.exists()` and skip gracefully to avoid CI failures when fixtures are missing.
 
 ---
 
-# Ralph Progress Log - Issue #165: Fix parser failure on 0-page PDF (issue-297-example)
-Started: 2026년  3월  1일 일요일 15시 47분 53초 KST
+## 2026-03-01 - US-165-1
+- **What was implemented**: startxref recovery in `LopdfBackend::open()` for malformed PDFs (issue-297-example.pdf) where the `startxref` offset is incorrect. The PDF now opens successfully with 0 extractable pages, matching Python pdfplumber behavior.
+- **Files changed**:
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — added `try_fix_startxref()` function + recovery logic in `open()` + 3 unit tests
+  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (open, page count, page iteration)
+  - `crates/pdfplumber/tests/cross_validation.rs` — updated `cv_python_issue_297` from ignored to passing
+- **Dependencies added**: none
+- **Learnings for future iterations:**
+  - lopdf's `Document::load_mem()` can fail on correct PDFs with wrong xref offsets — scanning for the actual `xref` keyword position is a reliable recovery strategy
+  - issue-297-example.pdf has 1 page object in its tree but lopdf reports 0 pages — likely because the page is degenerate (no contents/resources). This matches Python pdfplumber's 0-page result.
+  - The `try_fix_startxref()` approach is non-destructive: it only applies when the initial parse fails, so it has zero impact on well-formed PDFs.
 ---

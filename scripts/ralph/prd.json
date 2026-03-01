@@ -18,7 +18,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Test: crates/pdfplumber/tests/real_world_cross_validation.rs (rw_issue_297). The PDF may have an empty /Pages tree or a degenerate structure. Check how lopdf handles the page tree traversal and add defensive handling for empty/missing page nodes. A 0-page PDF is valid per the PDF spec."
     }
   ]
