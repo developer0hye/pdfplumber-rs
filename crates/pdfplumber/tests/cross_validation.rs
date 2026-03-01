@@ -1229,7 +1229,7 @@ cross_validate_ignored!(
 );
 cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
-cross_validate_ignored!(cv_python_pr_138, "pr-138-example.pdf", "PDF parse error");
+cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
 // ─── pdfjs: PASSING tests (chars/words >= 80%) ───────────────────────────
 

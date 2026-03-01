@@ -259,9 +259,9 @@ pub fn extract_cid_font_metrics(
     let font_type = cid_font_dict
         .get(b"Subtype")
         .ok()
-        .and_then(|o| o.as_name_str().ok())
+        .and_then(|o| o.as_name().ok())
         .map(|s| match s {
-            "CIDFontType0" => CidFontType::Type0,
+            b"CIDFontType0" => CidFontType::Type0,
             _ => CidFontType::Type2,
         })
         .unwrap_or(CidFontType::Type2);
@@ -308,8 +308,8 @@ fn parse_cid_to_gid_map(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> CidT
     match dict.get(b"CIDToGIDMap") {
         Ok(obj) => {
             let obj = resolve_object(doc, obj);
-            if let Ok(name) = obj.as_name_str() {
-                if name == "Identity" {
+            if let Ok(name) = obj.as_name() {
+                if name == b"Identity" {
                     return CidToGidMap::Identity;
                 }
             }
@@ -571,8 +571,8 @@ pub fn is_type0_font(font_dict: &lopdf::Dictionary) -> bool {
     font_dict
         .get(b"Subtype")
         .ok()
-        .and_then(|o| o.as_name_str().ok())
-        .is_some_and(|s| s == "Type0")
+        .and_then(|o| o.as_name().ok())
+        .is_some_and(|s| s == b"Type0")
 }
 
 /// Extract the descendant CIDFont dictionary from a Type0 font.
@@ -591,7 +591,10 @@ pub fn get_descendant_font<'a>(
 /// Get the encoding name from a Type0 font dictionary.
 pub fn get_type0_encoding(font_dict: &lopdf::Dictionary) -> Option<String> {
     let encoding = font_dict.get(b"Encoding").ok()?;
-    encoding.as_name_str().ok().map(|s| s.to_string())
+    encoding
+        .as_name()
+        .ok()
+        .map(|s| String::from_utf8_lossy(s).into_owned())
 }
 
 /// Check if a font name has a subset prefix.
@@ -1215,8 +1218,8 @@ mod tests {
         assert!(desc.is_some());
         let desc = desc.unwrap();
         assert_eq!(
-            desc.get(b"Subtype").unwrap().as_name_str().unwrap(),
-            "CIDFontType2"
+            desc.get(b"Subtype").unwrap().as_name().unwrap(),
+            b"CIDFontType2"
         );
     }
 

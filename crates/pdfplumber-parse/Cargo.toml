@@ -11,7 +11,7 @@ categories = ["parser-implementations"]
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
-lopdf = { version = "0.34", default-features = false, features = ["nom_parser"] }
+lopdf = { version = "0.39", default-features = false }
 thiserror = "2"
 encoding_rs = "0.8"
 

@@ -31,7 +31,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Test: crates/pdfplumber/tests/real_world_cross_validation.rs (rw_pr_138). If the fix for pr-136-example.pdf also fixes this one, mark both stories as passes. 316 rects and 4 tables suggest complex graphical content."
     }
   ]

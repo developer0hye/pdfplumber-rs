@@ -16,6 +16,17 @@ Started: 2026년  3월  1일 일요일 14시 50분 09초 KST
 - For simple fonts: extracts FontMetrics, /Encoding, ToUnicode CMap
 - Unicode resolution chain: ToUnicode CMap → FontEncoding → CJK encoding → char::from_u32
 
+### PDF Encryption Handling
+- `open()` auto-decrypts PDFs with empty user password (matching Python pdfplumber behavior)
+- lopdf 0.39 supports V=4/R=4 encryption (128-bit RC4 with crypt filters); 0.34 did not
+- lopdf 0.39 changed `as_name_str()` → `as_name()` returning `&[u8]` instead of `&str`
+- lopdf 0.39 `decrypt()` takes `&str`, `decrypt_raw()` takes `AsRef<[u8]>`
+- lopdf 0.39 `save_to()` uses object streams by default — manual object encryption breaks roundtrip
+
+### Content Stream Arrays
+- `/Contents` can be: Reference→Stream, Reference→Array, or direct Array
+- Always resolve references before checking type (don't assume Reference→Stream)
+
 ---
 
 ## 2026-03-01 - US-164-1
@@ -33,4 +44,29 @@ Started: 2026년  3월  1일 일요일 14시 50분 09초 KST
   - GBK-EUC-H is a variable-length encoding: 0x00-0x80 single byte, 0x81-0xFE lead byte of 2-byte sequence
   - The cross-validation char match rate (17.6%) is low due to coordinate differences (~2.7pt in top), not text extraction issues
   - Font name differences: our parser uses Type0 BaseFont (e.g., "SimSun-GBK-EUC-H") while Python pdfplumber uses CIDFont descendant BaseFont ("SimSun")
+---
+
+## 2026-03-01 - US-164-2
+- **What was implemented**: Three fixes to parse pr-138-example.pdf
+  1. Auto-decrypt PDFs with empty user password in `open()` (matching Python pdfplumber)
+  2. Upgrade lopdf from 0.34 to 0.39 for V=4/R=4 encryption support (128-bit RC4 with crypt filters)
+  3. Handle `/Contents` as Reference→Array (not just Reference→Stream or direct Array)
+- **Root causes**:
+  - pr-138-example.pdf uses V=4, R=4 encryption with empty user password. lopdf 0.34 didn't support V=4.
+  - After decryption, page `/Contents` was an indirect reference to an array of stream references, which the parser didn't handle.
+- **Files changed**:
+  - `crates/pdfplumber-parse/Cargo.toml` — upgraded lopdf from 0.34 to 0.39
+  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — auto-decrypt empty password, fix Contents array handling, adapt to lopdf 0.39 API (as_name_str→as_name, decrypt signature)
+  - `crates/pdfplumber-parse/src/interpreter.rs` — adapt as_name() return type from &str to &[u8]
+  - `crates/pdfplumber-parse/src/cid_font.rs` — adapt as_name() return type from &str to &[u8]
+  - `crates/pdfplumber-parse/src/backend.rs` — updated doc comments
+  - `crates/pdfplumber/src/pdf.rs` — updated doc comments, fixed encryption test
+  - `crates/pdfplumber/tests/cross_validation.rs` — enabled pr-138 test
+- **Dependencies changed**: lopdf 0.34 → 0.39 (V=4/R=4 encryption, AES support)
+- **Result**: pr-138-example.pdf extracts 10635 chars (100% match), 99.2% word match, 100% lines/rects
+- **Learnings for future iterations:**
+  - lopdf 0.39 is a breaking upgrade: as_name_str() removed, decrypt() signature changed, Object::Name stores Vec<u8> not String
+  - Many PDFs use "owner-only" encryption (restrict print/copy) with empty user password — must auto-try empty password
+  - PDF /Contents can be indirect reference to array, not just direct array or reference to stream
+  - lopdf 0.39's save_to() uses object streams, making manual encryption helpers incompatible — use real fixture PDFs for encryption tests
 ---

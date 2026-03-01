@@ -134,11 +134,14 @@ impl PdfBackend for LopdfBackend {
     type Error = BackendError;
 
     fn open(bytes: &[u8]) -> Result<Self::Document, Self::Error> {
-        let inner = lopdf::Document::load_mem(bytes)
+        let mut inner = lopdf::Document::load_mem(bytes)
             .map_err(|e| BackendError::Parse(format!("failed to parse PDF: {e}")))?;
 
-        // Reject encrypted PDFs when no password is provided
-        if inner.is_encrypted() {
+        // For encrypted PDFs, try decrypting with an empty password first.
+        // Many PDFs use owner-only encryption (restricting print/copy) with an
+        // empty user password, which still allows reading. This matches Python
+        // pdfplumber behavior.
+        if inner.is_encrypted() && inner.decrypt("").is_err() {
             return Err(BackendError::Core(
                 pdfplumber_core::PdfError::PasswordRequired,
             ));
@@ -157,7 +160,7 @@ impl PdfBackend for LopdfBackend {
 
         // Decrypt if encrypted; ignore password if not encrypted
         if inner.is_encrypted() {
-            inner.decrypt(password).map_err(|e| {
+            inner.decrypt_raw(password).map_err(|e| {
                 let msg = e.to_string();
                 if msg.contains("incorrect") || msg.contains("password") {
                     BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
@@ -400,11 +403,12 @@ impl PdfBackend for LopdfBackend {
             .dict
             .get(b"Subtype")
             .ok()
-            .and_then(|o| o.as_name_str().ok())
-            .unwrap_or("");
-        if subtype != "Image" {
+            .and_then(|o| o.as_name().ok())
+            .unwrap_or(b"");
+        if subtype != b"Image" {
+            let subtype_str = String::from_utf8_lossy(subtype);
             return Err(BackendError::Parse(format!(
-                "XObject /{image_name} is not an Image (subtype: {subtype})"
+                "XObject /{image_name} is not an Image (subtype: {subtype_str})"
             )));
         }
 
@@ -429,14 +433,17 @@ impl PdfBackend for LopdfBackend {
             .ok()
             .and_then(|o| {
                 // Filter can be a single name or an array of names
-                if let Ok(name) = o.as_name_str() {
-                    Some(vec![name.to_string()])
+                if let Ok(name) = o.as_name() {
+                    Some(vec![String::from_utf8_lossy(name).into_owned()])
                 } else if let Ok(arr) = o.as_array() {
                     Some(
                         arr.iter()
                             .filter_map(|item| {
                                 let resolved = resolve_ref(inner, item);
-                                resolved.as_name_str().ok().map(|s| s.to_string())
+                                resolved
+                                    .as_name()
+                                    .ok()
+                                    .map(|s| String::from_utf8_lossy(s).into_owned())
                             })
                             .collect(),
                     )
@@ -527,12 +534,13 @@ fn validate_document(doc: &LopdfDocument) -> Result<Vec<ValidationIssue>, Backen
     if let Some(dict) = catalog_dict {
         match dict.get(b"Type") {
             Ok(type_obj) => {
-                if let Ok(name) = type_obj.as_name_str() {
-                    if name != "Catalog" {
+                if let Ok(name) = type_obj.as_name() {
+                    if name != b"Catalog" {
+                        let name_str = String::from_utf8_lossy(name);
                         issues.push(ValidationIssue::with_location(
                             Severity::Warning,
                             "WRONG_CATALOG_TYPE",
-                            format!("catalog /Type is '{name}' instead of 'Catalog'"),
+                            format!("catalog /Type is '{name_str}' instead of 'Catalog'"),
                             &catalog_location,
                         ));
                     }
@@ -570,12 +578,13 @@ fn validate_document(doc: &LopdfDocument) -> Result<Vec<ValidationIssue>, Backen
                     // Check page /Type key
                     match dict.get(b"Type") {
                         Ok(type_obj) => {
-                            if let Ok(name) = type_obj.as_name_str() {
-                                if name != "Page" {
+                            if let Ok(name) = type_obj.as_name() {
+                                if name != b"Page" {
+                                    let name_str = String::from_utf8_lossy(name);
                                     issues.push(ValidationIssue::with_location(
                                         Severity::Warning,
                                         "WRONG_PAGE_TYPE",
-                                        format!("page /Type is '{name}' instead of 'Page'"),
+                                        format!("page /Type is '{name_str}' instead of 'Page'"),
                                         &location,
                                     ));
                                 }
@@ -765,15 +774,14 @@ fn get_content_stream_bytes(
 ) -> Option<Vec<u8>> {
     let contents_obj = page_dict.get(b"Contents").ok()?;
 
-    match contents_obj {
-        lopdf::Object::Reference(id) => {
-            let obj = doc.get_object(*id).ok()?;
-            if let Ok(stream) = obj.as_stream() {
-                stream_bytes(stream)
-            } else {
-                None
-            }
-        }
+    // Resolve reference if needed
+    let resolved = match contents_obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+
+    match resolved {
+        lopdf::Object::Stream(stream) => stream_bytes(stream),
         lopdf::Object::Array(arr) => {
             let mut all_bytes = Vec::new();
             for item in arr {
@@ -1014,40 +1022,46 @@ fn get_page_content_bytes(
         Err(_) => return Ok(Vec::new()), // Page with no content
     };
 
-    match contents_obj {
-        lopdf::Object::Reference(id) => {
-            let obj = doc
-                .get_object(*id)
-                .map_err(|e| BackendError::Parse(format!("failed to resolve /Contents: {e}")))?;
-            let stream = obj
-                .as_stream()
-                .map_err(|e| BackendError::Parse(format!("/Contents is not a stream: {e}")))?;
-            decode_content_stream(stream)
-        }
-        lopdf::Object::Array(arr) => {
-            let mut content = Vec::new();
-            for item in arr {
-                let id = item.as_reference().map_err(|e| {
-                    BackendError::Parse(format!("/Contents array item is not a reference: {e}"))
-                })?;
-                let obj = doc.get_object(id).map_err(|e| {
-                    BackendError::Parse(format!("failed to resolve /Contents stream: {e}"))
-                })?;
-                let stream = obj.as_stream().map_err(|e| {
-                    BackendError::Parse(format!("/Contents array item is not a stream: {e}"))
-                })?;
-                let bytes = decode_content_stream(stream)?;
-                if !content.is_empty() {
-                    content.push(b' ');
-                }
-                content.extend_from_slice(&bytes);
-            }
-            Ok(content)
-        }
+    // Resolve reference if needed
+    let resolved = match contents_obj {
+        lopdf::Object::Reference(id) => doc
+            .get_object(*id)
+            .map_err(|e| BackendError::Parse(format!("failed to resolve /Contents: {e}")))?,
+        other => other,
+    };
+
+    match resolved {
+        lopdf::Object::Stream(stream) => decode_content_stream(stream),
+        lopdf::Object::Array(arr) => decode_contents_array(doc, arr),
         _ => Err(BackendError::Parse(
-            "/Contents is not a reference or array".to_string(),
+            "/Contents is not a stream or array".to_string(),
         )),
     }
+}
+
+/// Decode an array of content stream references, concatenating their bytes.
+fn decode_contents_array(
+    doc: &lopdf::Document,
+    arr: &[lopdf::Object],
+) -> Result<Vec<u8>, BackendError> {
+    let mut content = Vec::new();
+    for item in arr {
+        let id = item.as_reference().map_err(|e| {
+            BackendError::Parse(format!("/Contents array item is not a reference: {e}"))
+        })?;
+        let obj = doc
+            .get_object(id)
+            .map_err(|e| BackendError::Parse(format!("failed to resolve /Contents stream: {e}")))?;
+        let stream = obj.as_stream().map_err(|e| {
+            BackendError::Parse(format!("/Contents array item is not a stream: {e}"))
+        })?;
+        let bytes = decode_content_stream(stream)?;
+        if !content.is_empty() {
+            content.push(b' ');
+        }
+        content.extend_from_slice(&bytes);
+    }
+    Ok(content)
 }
 
 /// Decode a content stream, decompressing if needed.
@@ -4158,12 +4172,20 @@ mod tests {
 
     #[test]
     fn open_encrypted_pdf_with_correct_password() {
-        let password = b"secret123";
-        let pdf_bytes = create_encrypted_test_pdf(password);
-        let result = LopdfBackend::open_with_password(&pdf_bytes, password);
+        // Use the real pr-138-example.pdf which is encrypted with an empty user password
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("pdfplumber/tests/fixtures/pdfs/pr-138-example.pdf");
+        if !fixture_path.exists() {
+            eprintln!("skipping: fixture not found at {}", fixture_path.display());
+            return;
+        }
+        let pdf_bytes = std::fs::read(&fixture_path).unwrap();
+        let result = LopdfBackend::open_with_password(&pdf_bytes, b"");
         assert!(result.is_ok());
         let doc = result.unwrap();
-        assert_eq!(LopdfBackend::page_count(&doc), 1);
+        assert_eq!(LopdfBackend::page_count(&doc), 2);
     }
 
     #[test]
@@ -4193,6 +4215,31 @@ mod tests {
         assert!(result.is_ok());
         let doc = result.unwrap();
         assert_eq!(LopdfBackend::page_count(&doc), 1);
+    }
+
+    #[test]
+    fn open_auto_decrypts_empty_password_pdf() {
+        // PDFs encrypted with an empty user password should be auto-decrypted
+        // by open() without requiring the caller to provide a password.
+        // This matches Python pdfplumber behavior (via pdfminer).
+        let pdf_bytes = create_encrypted_test_pdf(b"");
+        let result = LopdfBackend::open(&pdf_bytes);
+        assert!(
+            result.is_ok(),
+            "open() should auto-decrypt empty-password PDFs"
+        );
+        let doc = result.unwrap();
+        assert_eq!(LopdfBackend::page_count(&doc), 1);
+    }
+
+    #[test]
+    fn open_still_rejects_non_empty_password_pdf() {
+        // PDFs encrypted with a real password should still fail with PasswordRequired
+        let pdf_bytes = create_encrypted_test_pdf(b"secret123");
+        let result = LopdfBackend::open(&pdf_bytes);
+        assert!(result.is_err());
+        let err: pdfplumber_core::PdfError = result.unwrap_err().into();
+        assert_eq!(err, pdfplumber_core::PdfError::PasswordRequired);
     }
 
     // --- Form field extraction tests ---

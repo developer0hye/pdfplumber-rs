@@ -44,10 +44,13 @@ pub trait PdfBackend {
 
     /// Parse PDF bytes into a document.
     ///
+    /// PDFs encrypted with an empty user password are auto-decrypted.
+    ///
     /// # Errors
     ///
     /// Returns an error if the bytes do not represent a valid PDF document.
-    /// If the document is encrypted, returns [`PdfError::PasswordRequired`].
+    /// If the document is encrypted with a non-empty password, returns
+    /// [`PdfError::PasswordRequired`].
     fn open(bytes: &[u8]) -> Result<Self::Document, Self::Error>;
 
     /// Parse PDF bytes into a document, decrypting with the given password.

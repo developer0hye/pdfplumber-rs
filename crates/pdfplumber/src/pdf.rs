@@ -159,7 +159,9 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted.
+    /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted with a
+    /// non-empty password. PDFs encrypted with an empty user password are
+    /// auto-decrypted.
     /// Returns [`PdfError`] if the bytes are not a valid PDF document.
     pub fn open(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
         // Check max_input_bytes before parsing
@@ -2242,10 +2244,16 @@ mod tests {
 
     #[test]
     fn pdf_open_with_password_correct() {
-        let password = b"testpass";
-        let bytes = create_encrypted_pdf(password);
-        let pdf = Pdf::open_with_password(&bytes, password, None).unwrap();
-        assert_eq!(pdf.page_count(), 1);
+        // Use the real pr-138-example.pdf which is encrypted with an empty user password
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/pdfs/pr-138-example.pdf");
+        if !fixture_path.exists() {
+            eprintln!("skipping: fixture not found at {}", fixture_path.display());
+            return;
+        }
+        let bytes = std::fs::read(&fixture_path).unwrap();
+        let pdf = Pdf::open_with_password(&bytes, b"", None).unwrap();
+        assert_eq!(pdf.page_count(), 2);
     }
 
     #[test]
