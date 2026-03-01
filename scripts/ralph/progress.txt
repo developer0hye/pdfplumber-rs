@@ -1,6 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  1일 일요일 15시 47분 54초 KST
-
 ## Codebase Patterns
 - `try_fix_startxref()` pattern: when lopdf fails to parse, attempt recovery by scanning for the actual xref offset and patching the bytes before retrying. This is a general pattern for handling malformed PDFs.
 - Cross-validation tests: use `cross_validate!` macro for PDFs that parse successfully, `cross_validate_ignored!` for known failures. When fixing a parse error, update from ignored to passing.
@@ -8,15 +5,6 @@ Started: 2026년  3월  1일 일요일 15시 47분 54초 KST
 
 ---
 
-## 2026-03-01 - US-165-1
-- **What was implemented**: startxref recovery in `LopdfBackend::open()` for malformed PDFs (issue-297-example.pdf) where the `startxref` offset is incorrect. The PDF now opens successfully with 0 extractable pages, matching Python pdfplumber behavior.
-- **Files changed**:
-  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — added `try_fix_startxref()` function + recovery logic in `open()` + 3 unit tests
-  - `crates/pdfplumber/tests/pdf_integration.rs` — 3 integration tests (open, page count, page iteration)
-  - `crates/pdfplumber/tests/cross_validation.rs` — updated `cv_python_issue_297` from ignored to passing
-- **Dependencies added**: none
-- **Learnings for future iterations:**
-  - lopdf's `Document::load_mem()` can fail on correct PDFs with wrong xref offsets — scanning for the actual `xref` keyword position is a reliable recovery strategy
-  - issue-297-example.pdf has 1 page object in its tree but lopdf reports 0 pages — likely because the page is degenerate (no contents/resources). This matches Python pdfplumber's 0-page result.
-  - The `try_fix_startxref()` approach is non-destructive: it only applies when the initial parse fails, so it has zero impact on well-formed PDFs.
+# Ralph Progress Log - Issue #166: Fix rotation handling for 0% extraction on rotated PDFs
+Started: 2026년  3월  1일 일요일 16시 23분 12초 KST
 ---
