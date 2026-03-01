@@ -1,84 +1,29 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/issue-152-line-clustering",
+  "description": "Issue #152: Optimize O(n²) word-to-line clustering using y-coordinate bucketing",
+  "relatedIssue": 152,
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-152-1",
+      "title": "Optimize cluster_words_into_lines with y-coordinate bucketing",
+      "description": "Refactor the `cluster_words_into_lines` function in `crates/pdfplumber-core/src/layout.rs` (lines 54-103) to eliminate O(n²) complexity. The current implementation iterates through all existing lines for each word to find a match within `y_tolerance`. Replace the linear scan with a y-coordinate bucketing approach: group lines by y-coordinate ranges (buckets of size `y_tolerance`) so that for each new word, only 1-2 relevant buckets are checked instead of all lines. This brings complexity from O(n²) down to approximately O(n). The refactored function must produce identical output for all existing tests. Add a benchmark test with 10,000+ words across many lines to verify performance improvement.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
+        "cluster_words_into_lines no longer scans all existing lines for each word",
+        "Uses bucket/sorted approach for line matching (O(n) or O(n log n) instead of O(n²))",
+        "All existing cluster_words_into_lines tests in layout.rs pass without modification",
+        "All existing integration tests pass (cargo test --workspace)",
+        "New benchmark test with 10,000+ words demonstrates sub-quadratic behavior",
+        "Function signature remains unchanged: pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLine>",
+        "Output ordering (lines top-to-bottom, words left-to-right within each line) is preserved",
+        "Edge cases handled: empty input, single word, all words on same line, overlapping y ranges",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes",
+        "cargo test --workspace passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
-    },
-    {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
-      "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
-    },
-    {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
-      "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
-    },
-    {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
-      "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "notes": "Key file: crates/pdfplumber-core/src/layout.rs lines 54-103. The current code sorts words by (top, x0) then iterates `lines` vec for each word. A HashMap<i64, usize> keyed by quantized y-coordinate (e.g., (mid_y / y_tolerance) as i64) mapping to line indices would reduce lookups to O(1) amortized. Check adjacent buckets (key-1, key, key+1) to handle boundary cases. Existing tests at lines 314-760 cover many edge cases."
     }
   ]
 }
