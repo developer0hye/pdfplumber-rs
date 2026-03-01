@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::geometry::BBox;
 use crate::words::Word;
 
@@ -51,6 +53,8 @@ impl Default for TextOptions {
 /// Words whose vertical midpoints are within `y_tolerance` of a line's
 /// vertical midpoint are grouped into the same line. Words within each
 /// line are sorted left-to-right.
+///
+/// Uses y-coordinate bucketing for O(n log n) performance instead of O(n²).
 pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLine> {
     if words.is_empty() {
         return Vec::new();
@@ -66,27 +70,66 @@ pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLin
     });
 
     let mut lines: Vec<TextLine> = Vec::new();
+    // Map from quantized y-bucket to line index. Each line is registered
+    // in the bucket corresponding to its current mid_y. When a line's
+    // bbox grows (union with a new word), its bucket registration is updated.
+    let mut bucket_to_line: HashMap<i64, Vec<usize>> = HashMap::new();
+
+    let bucket_size = if y_tolerance > 0.0 {
+        y_tolerance
+    } else {
+        // For zero tolerance, use a very small bucket size
+        1e-9
+    };
 
     for word in sorted {
         let word_mid_y = (word.bbox.top + word.bbox.bottom) / 2.0;
+        let word_bucket = (word_mid_y / bucket_size).floor() as i64;
 
-        // Try to find an existing line this word belongs to
-        let mut found = false;
-        for line in &mut lines {
-            let line_mid_y = (line.bbox.top + line.bbox.bottom) / 2.0;
-            if (word_mid_y - line_mid_y).abs() <= y_tolerance {
-                line.bbox = line.bbox.union(&word.bbox);
-                line.words.push(word.clone());
-                found = true;
-                break;
+        // Check adjacent buckets (word_bucket - 1, word_bucket, word_bucket + 1)
+        // to find a matching line within y_tolerance
+        let mut matched_line_idx: Option<usize> = None;
+        'outer: for delta in [-1i64, 0, 1] {
+            let check_bucket = word_bucket + delta;
+            if let Some(line_indices) = bucket_to_line.get(&check_bucket) {
+                for &line_idx in line_indices {
+                    let line = &lines[line_idx];
+                    let line_mid_y = (line.bbox.top + line.bbox.bottom) / 2.0;
+                    if (word_mid_y - line_mid_y).abs() <= y_tolerance {
+                        matched_line_idx = Some(line_idx);
+                        break 'outer;
+                    }
+                }
             }
         }
 
-        if !found {
+        if let Some(idx) = matched_line_idx {
+            // Remove old bucket registration for this line
+            let old_mid_y = (lines[idx].bbox.top + lines[idx].bbox.bottom) / 2.0;
+            let old_bucket = (old_mid_y / bucket_size).floor() as i64;
+
+            // Update the line
+            lines[idx].bbox = lines[idx].bbox.union(&word.bbox);
+            lines[idx].words.push(word.clone());
+
+            // Re-register in the new bucket if mid_y changed
+            let new_mid_y = (lines[idx].bbox.top + lines[idx].bbox.bottom) / 2.0;
+            let new_bucket = (new_mid_y / bucket_size).floor() as i64;
+            if new_bucket != old_bucket {
+                if let Some(indices) = bucket_to_line.get_mut(&old_bucket) {
+                    indices.retain(|&i| i != idx);
+                }
+                bucket_to_line.entry(new_bucket).or_default().push(idx);
+            }
+        } else {
+            let new_idx = lines.len();
+            let mid_y = (word.bbox.top + word.bbox.bottom) / 2.0;
+            let bucket = (mid_y / bucket_size).floor() as i64;
             lines.push(TextLine {
                 words: vec![word.clone()],
                 bbox: word.bbox,
             });
+            bucket_to_line.entry(bucket).or_default().push(new_idx);
         }
     }
 
@@ -764,5 +807,194 @@ mod tests {
         let text = blocks_to_text(&blocks);
 
         assert_eq!(text, "A\n\nB\n\nC");
+    }
+
+    // --- Benchmark and edge case tests for US-152-1 ---
+
+    #[test]
+    fn test_cluster_all_words_on_same_line() {
+        // All words have the same y-coordinate — should produce a single line
+        let words: Vec<Word> = (0..100)
+            .map(|i| {
+                let x0 = i as f64 * 20.0;
+                make_word(&format!("w{i}"), x0, 100.0, x0 + 15.0, 112.0)
+            })
+            .collect();
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].words.len(), 100);
+        // Words should be sorted left-to-right
+        for i in 1..lines[0].words.len() {
+            assert!(lines[0].words[i].bbox.x0 > lines[0].words[i - 1].bbox.x0);
+        }
+    }
+
+    #[test]
+    fn test_cluster_overlapping_y_ranges() {
+        // Words with overlapping y ranges that straddle bucket boundaries
+        // Word A: mid_y = 106, Word B: mid_y = 108.5 (diff = 2.5, within tolerance 3.0)
+        // Word C: mid_y = 111.5 (diff from B = 3.0, at boundary)
+        let words = vec![
+            make_word("A", 10.0, 100.0, 50.0, 112.0),   // mid_y = 106
+            make_word("B", 60.0, 102.5, 100.0, 114.5),  // mid_y = 108.5
+            make_word("C", 110.0, 105.5, 150.0, 117.5), // mid_y = 111.5
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        // A and B are within tolerance, B and C are exactly at tolerance boundary
+        // The original algorithm processes sorted by (top, x0): A first, then B joins A's line,
+        // then C checks A's line (line mid_y evolves as union grows).
+        // After A+B: line bbox = (10, 100, 100, 114.5), line mid_y = 107.25
+        // C mid_y = 111.5, |111.5 - 107.25| = 4.25 > 3.0 → C becomes new line
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].words.len(), 2);
+        assert_eq!(lines[0].words[0].text, "A");
+        assert_eq!(lines[0].words[1].text, "B");
+        assert_eq!(lines[1].words[0].text, "C");
+    }
+
+    #[test]
+    fn test_cluster_large_y_tolerance() {
+        // With a very large tolerance, all words should merge into one line
+        let words = vec![
+            make_word("Top", 10.0, 100.0, 50.0, 112.0),
+            make_word("Mid", 10.0, 150.0, 50.0, 162.0),
+            make_word("Bot", 10.0, 200.0, 50.0, 212.0),
+        ];
+        let lines = cluster_words_into_lines(&words, 200.0);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].words.len(), 3);
+    }
+
+    #[test]
+    fn test_cluster_zero_y_tolerance() {
+        // With zero tolerance, only words with identical mid_y merge
+        let words = vec![
+            make_word("A", 10.0, 100.0, 50.0, 112.0),  // mid_y = 106
+            make_word("B", 60.0, 100.0, 100.0, 112.0), // mid_y = 106 (same)
+            make_word("C", 10.0, 100.1, 50.0, 112.1),  // mid_y = 106.1 (different)
+        ];
+        let lines = cluster_words_into_lines(&words, 0.0);
+        assert_eq!(lines.len(), 2);
+        assert_eq!(lines[0].words.len(), 2); // A and B
+        assert_eq!(lines[1].words.len(), 1); // C
+    }
+
+    #[test]
+    fn test_cluster_benchmark_10k_words_many_lines() {
+        // Benchmark: 10,000 words across 500 lines (20 words per line)
+        // This test verifies correctness and that the function completes
+        // in reasonable time (sub-quadratic behavior).
+        let words_per_line = 20;
+        let num_lines = 500;
+        let total_words = words_per_line * num_lines;
+
+        let mut words = Vec::with_capacity(total_words);
+        for line_idx in 0..num_lines {
+            let top = line_idx as f64 * 20.0;
+            let bottom = top + 12.0;
+            for word_idx in 0..words_per_line {
+                let x0 = word_idx as f64 * 30.0;
+                let x1 = x0 + 25.0;
+                words.push(make_word(
+                    &format!("L{line_idx}W{word_idx}"),
+                    x0,
+                    top,
+                    x1,
+                    bottom,
+                ));
+            }
+        }
+        assert_eq!(words.len(), total_words);
+
+        let start = std::time::Instant::now();
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let elapsed = start.elapsed();
+
+        // Correctness checks
+        assert_eq!(lines.len(), num_lines);
+        for line in &lines {
+            assert_eq!(line.words.len(), words_per_line);
+        }
+        // Lines should be sorted top-to-bottom
+        for i in 1..lines.len() {
+            assert!(lines[i].bbox.top >= lines[i - 1].bbox.top);
+        }
+        // Words within each line should be sorted left-to-right
+        for line in &lines {
+            for i in 1..line.words.len() {
+                assert!(line.words[i].bbox.x0 >= line.words[i - 1].bbox.x0);
+            }
+        }
+
+        // Performance check: should complete well under 1 second for 10k words
+        // with O(n) or O(n log n). The old O(n²) would be significantly slower
+        // on much larger inputs, but 10k should still be fast enough for both.
+        // This serves as a regression guard.
+        assert!(
+            elapsed.as_millis() < 5000,
+            "cluster_words_into_lines took {}ms for {total_words} words — expected sub-quadratic",
+            elapsed.as_millis()
+        );
+    }
+
+    #[test]
+    fn test_cluster_benchmark_scaling_sub_quadratic() {
+        // Verify sub-quadratic scaling by comparing time for N and 4N words.
+        // O(n²) would take ~16x longer for 4x the input.
+        // O(n log n) would take ~4.5x longer.
+        // O(n) would take ~4x longer.
+        // We check that 4N takes less than 10x of N (generous margin).
+        let build_words = |num_lines: usize, words_per_line: usize| -> Vec<Word> {
+            let mut words = Vec::with_capacity(num_lines * words_per_line);
+            for line_idx in 0..num_lines {
+                let top = line_idx as f64 * 20.0;
+                let bottom = top + 12.0;
+                for word_idx in 0..words_per_line {
+                    let x0 = word_idx as f64 * 30.0;
+                    let x1 = x0 + 25.0;
+                    words.push(make_word(
+                        &format!("L{line_idx}W{word_idx}"),
+                        x0,
+                        top,
+                        x1,
+                        bottom,
+                    ));
+                }
+            }
+            words
+        };
+
+        let small_words = build_words(250, 20); // 5,000 words
+        let large_words = build_words(1000, 20); // 20,000 words (4x)
+
+        // Warm up
+        let _ = cluster_words_into_lines(&small_words, 3.0);
+
+        let start_small = std::time::Instant::now();
+        let lines_small = cluster_words_into_lines(&small_words, 3.0);
+        let elapsed_small = start_small.elapsed();
+
+        let start_large = std::time::Instant::now();
+        let lines_large = cluster_words_into_lines(&large_words, 3.0);
+        let elapsed_large = start_large.elapsed();
+
+        assert_eq!(lines_small.len(), 250);
+        assert_eq!(lines_large.len(), 1000);
+
+        // With O(n²), ratio would be ~16x. With O(n log n), ~4.5x. With O(n), ~4x.
+        // Use generous threshold of 10x to avoid flaky tests.
+        let ratio = if elapsed_small.as_nanos() > 0 {
+            elapsed_large.as_nanos() as f64 / elapsed_small.as_nanos() as f64
+        } else {
+            1.0 // both are negligibly fast
+        };
+
+        assert!(
+            ratio < 10.0,
+            "Scaling ratio is {ratio:.1}x for 4x input — suggests super-linear behavior \
+             (small: {}us, large: {}us)",
+            elapsed_small.as_micros(),
+            elapsed_large.as_micros()
+        );
     }
 }
