@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::geometry::BBox;
+use crate::text::TextDirection;
 use crate::words::Word;
 
 /// Column detection mode for multi-column layout reading order.
@@ -162,10 +163,23 @@ pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLin
         }
     }
 
-    // Sort words within each line left-to-right
+    // Sort words within each line by reading direction.
+    // For Rtl lines (e.g., 180° rotated text), sort right-to-left.
     for line in &mut lines {
-        line.words
-            .sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+        let rtl_count = line
+            .words
+            .iter()
+            .filter(|w| w.direction == TextDirection::Rtl)
+            .count();
+        if rtl_count > line.words.len() / 2 {
+            // Majority Rtl: sort by x0 descending (right-to-left)
+            line.words
+                .sort_by(|a, b| b.bbox.x0.partial_cmp(&a.bbox.x0).unwrap());
+        } else {
+            // Default Ltr: sort by x0 ascending (left-to-right)
+            line.words
+                .sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+        }
     }
 
     // Sort lines top-to-bottom

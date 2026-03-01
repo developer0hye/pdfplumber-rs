@@ -302,7 +302,6 @@ fn table_rotation_90_has_expected_rows() {
 }
 
 #[test]
-#[ignore = "lopdf synthetic PDFs have chars in rotated coordinates; word grouping needs per-char upright detection"]
 fn table_rotation_90_cell_text_extraction() {
     let pdf_bytes = create_table_pdf_with_rotation(90);
     let pdf = Pdf::open(&pdf_bytes, None).unwrap();
@@ -331,7 +330,6 @@ fn table_rotation_90_cell_text_extraction() {
 }
 
 #[test]
-#[ignore = "lopdf synthetic PDFs have chars in rotated coordinates; word grouping needs per-char upright detection"]
 fn table_rotation_90_page_text_is_readable() {
     let pdf_bytes = create_table_pdf_with_rotation(90);
     let pdf = Pdf::open(&pdf_bytes, None).unwrap();
@@ -397,7 +395,6 @@ fn table_rotation_180_has_expected_rows() {
 }
 
 #[test]
-#[ignore = "lopdf synthetic PDFs have chars in rotated coordinates; word grouping needs per-char upright detection"]
 fn table_rotation_180_cell_text_extraction() {
     let pdf_bytes = create_table_pdf_with_rotation(180);
     let pdf = Pdf::open(&pdf_bytes, None).unwrap();
@@ -426,7 +423,6 @@ fn table_rotation_180_cell_text_extraction() {
 }
 
 #[test]
-#[ignore = "lopdf synthetic PDFs have chars in rotated coordinates; word grouping needs per-char upright detection"]
 fn table_rotation_180_page_text_is_readable() {
     let pdf_bytes = create_table_pdf_with_rotation(180);
     let pdf = Pdf::open(&pdf_bytes, None).unwrap();

@@ -2,8 +2,9 @@
 Started: 2026년  3월  1일 일요일 21시 40분 36초 KST
 
 ## Codebase Patterns
-- **Per-char direction partitioning**: When extracting words from mixed horizontal/vertical text, partition chars by direction (Ttb/Btt vs Ltr/Rtl) before sorting and grouping. Vertical chars need different cluster_sort parameters (cluster by x0, sort by top) than horizontal chars (cluster by top, sort by x0). See `WordExtractor::extract()` and `extract_group()` in `words.rs`.
-- **Char direction set by interpreter**: The `direction` field on `Char` is set by `char_extraction.rs` based on the text rendering matrix (TRM). `trm.b` dominant → Ttb/Btt; `trm.a` dominant → Ltr/Rtl.
+- **Per-char direction partitioning**: When extracting words from mixed-direction text, partition chars into 4 groups by direction (Ltr/Rtl/Ttb/Btt) before sorting and grouping. Each direction needs different cluster_sort parameters. See `WordExtractor::extract()` and `extract_group()` in `words.rs`.
+- **Char direction set by interpreter**: The `direction` field on `Char` is set by `char_extraction.rs` based on the text rendering matrix (TRM). `trm.b` dominant → Ttb/Btt; `trm.a` dominant → Ltr/Rtl. For rotated pages, `rotate_direction()` in `pdf.rs` further adjusts: 90°: Ltr→Ttb, 180°: Ltr→Rtl, 270°: Ltr→Btt.
+- **Direction-aware line sorting**: `cluster_words_into_lines()` in `layout.rs` sorts words within lines based on majority direction: Rtl lines sort right-to-left (x0 descending), Ltr lines sort left-to-right (x0 ascending).
 
 ---
 
@@ -19,4 +20,32 @@ Started: 2026년  3월  1일 일요일 21시 40분 36초 KST
   - The cluster_sort step is the key bottleneck for mixed-direction text — it sorts all chars assuming one direction, which scatters vertical chars across horizontal line clusters
   - Partitioning by direction before sorting is simpler and more correct than trying to detect direction inline during the grouping loop
   - The `is_vertical_pair` inline approach (checking pairs of consecutive chars) doesn't work because cluster_sort has already destroyed the vertical ordering
+---
+
+## 2026-03-01 - US-181-2: Unblock synthetic rotation tests with per-char direction
+- **What was implemented**:
+  1. Extended `WordExtractor::extract()` to partition chars into all 4 direction groups (Ltr/Rtl/Ttb/Btt) instead of just horizontal/vertical. Each group is processed with direction-specific sorting and splitting.
+  2. Refactored `extract_group()` to accept `force_direction: Option<TextDirection>` instead of `force_vertical: bool`, enabling per-direction sorting via `cluster_sort`.
+  3. Updated `cluster_words_into_lines()` in `layout.rs` to detect Rtl-majority lines and sort words right-to-left, fixing reversed word order for 180° rotated text.
+  4. Un-ignored 11 passing tests (6/9 rotation_integration, 4/4 rotation_table_integration, 1/1 fixture_integration).
+  5. Updated nics-rotated cross_validation word rate threshold from 50% to 90% (actual: 100%).
+- **Files changed**:
+  - `crates/pdfplumber-core/src/words.rs` — 4-way direction partitioning, `extract_group` refactored, 5 new unit tests (`make_rtl_char`, `make_btt_char` helpers)
+  - `crates/pdfplumber-core/src/layout.rs` — Direction-aware word sorting within lines
+  - `crates/pdfplumber/tests/rotation_integration.rs` — Un-ignored 6 tests, updated ignore reasons for 3 remaining
+  - `crates/pdfplumber/tests/rotation_table_integration.rs` — Un-ignored all 4 tests
+  - `crates/pdfplumber/tests/fixture_integration.rs` — Un-ignored rotated_pages_text_extraction_works
+  - `crates/pdfplumber/tests/cross_validation.rs` — Updated nics-rotated word rate threshold to 90%
+  - `scripts/ralph/prd.json` — Marked US-181-2 as passes: true
+- **Dependencies added**: None
+- **Results**:
+  - rotation_integration.rs: 6/9 un-ignored (3 remain for vertical text line joining)
+  - rotation_table_integration.rs: 4/4 un-ignored
+  - fixture_integration.rs: 1/1 un-ignored
+  - nics-rotated word rate: 50.8% → 100.0%
+  - No regression on senate-expenditures, issue-140, issue-461
+- **Learnings for future iterations:**
+  - For 180° rotation, chars get Rtl direction with mirrored x-coordinates. Both word-level char ordering (via cluster_sort Rtl) and line-level word ordering (via cluster_words_into_lines Rtl detection) need to handle this.
+  - For 270° rotation, chars get Btt direction. cluster_sort's Btt branch sorts by bottom descending, which gives correct bottom-to-top reading order.
+  - The 3 remaining ignored tests (90°/270° extract_text) fail because vertical text produces one word per line — extract_text joins lines with newlines, but the tests expect space-separated text. This would require vertical-text-aware line joining (future work).
 ---

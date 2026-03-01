@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "The synthetic PDFs place text at fixed content stream coordinates (e.g., 72,720) then apply /Rotate. After pdf.rs coordinate transformation, chars end up vertically stacked for 90° rotation. The per-char direction field should already be set correctly by the interpreter. Test files: crates/pdfplumber/tests/rotation_integration.rs, rotation_table_integration.rs, fixture_integration.rs."
     }
   ]

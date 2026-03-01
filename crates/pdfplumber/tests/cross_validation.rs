@@ -1175,9 +1175,8 @@ cross_validate_ignored!(
 /// but with /Rotate 90 on the page dictionary. Verifies that page rotation is correctly applied
 /// to all extracted objects (chars, words, lines, rects, tables).
 ///
-/// Word rate is lower (50.8%) because this PDF has artificially-added rotation — the content
-/// stream was authored for non-rotated display, so chars end up in rotated positions after
-/// coordinate transformation. Per-char upright detection would fix this (future work).
+/// Per-char direction detection (US-181) correctly groups rotated chars into words,
+/// achieving 100% word rate.
 #[test]
 fn cross_validate_nics_rotated() {
     let result = validate_pdf("nics-background-checks-2015-11-rotated.pdf");
@@ -1189,8 +1188,8 @@ fn cross_validate_nics_rotated() {
         CHAR_THRESHOLD * 100.0,
     );
     assert!(
-        result.total_word_rate() >= 0.50,
-        "word rate {:.1}% < 50.0%",
+        result.total_word_rate() >= 0.90,
+        "word rate {:.1}% < 90.0%",
         result.total_word_rate() * 100.0,
     );
     assert!(
