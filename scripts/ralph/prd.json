@@ -36,8 +36,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "page-boxes-example.pdf has CropBox/MediaBox/BleedBox - coordinate space may differ from MediaBox. extra-attrs-example.pdf may have unusual dictionary entries. malformed-from-issue-932.pdf may need error recovery. Check if these share the same root cause as the structure PDFs (tagged PDF operators)."
+      "passes": true,
+      "notes": "Fixed. Three sub-issues: (1) page-boxes-example, senate-expenditures, la-precinct-bulletin already passed after US-167-1 fix. (2) extra-attrs-example: pdfminer uses font descriptor Descent and derives ascent=1000+descent; fixed interpreter to match. (3) malformed-from-issue-932: inverted MediaBox [0,841.68,631,0] caused negative page height; fixed by computing effective height as top+|height|."
     },
     {
       "id": "US-167-3",

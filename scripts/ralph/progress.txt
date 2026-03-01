@@ -7,3 +7,11 @@ Started: 2026년  3월  1일 일요일 17시 13분 12초 KST
 - Results: figure_structure F1=1.000, hello_structure F1=0.981, pdf_structure F1=1.000
 - Files changed: handler.rs, interpreter.rs, char_extraction.rs, backend.rs, pdf.rs, accuracy_benchmark.rs
 - Status: DONE
+
+## US-167-2: Fix extraction on government docs and page-box PDFs
+- senate-expenditures, la-precinct-bulletin, page-boxes-example: already passing after US-167-1
+- extra-attrs-example: pdfminer uses descent from font descriptor, derives ascent=1000+descent; fixed interpreter
+- malformed-from-issue-932: inverted MediaBox caused negative page height; fixed with top+|height|
+- Results: all 5 PDFs at F1=1.000 for chars
+- Files changed: interpreter.rs (ascent/descent formula), pdf.rs (MediaBox height), accuracy_benchmark.rs
+- Status: DONE
