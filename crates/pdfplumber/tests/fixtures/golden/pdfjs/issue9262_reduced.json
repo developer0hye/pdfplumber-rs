@@ -1,0 +1,115 @@
+{
+  "source": "issue9262_reduced.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 200.0,
+      "height": 50.0,
+      "chars": [
+        {
+          "text": "参",
+          "x0": 10.0,
+          "top": 12.82,
+          "x1": 30.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "考",
+          "x0": 30.0,
+          "top": 12.82,
+          "x1": 50.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "文",
+          "x0": 50.0,
+          "top": 12.82,
+          "x1": 70.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "献",
+          "x0": 70.0,
+          "top": 12.82,
+          "x1": 90.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "（",
+          "x0": 90.0,
+          "top": 12.82,
+          "x1": 110.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 110.0,
+          "top": 12.82,
+          "x1": 120.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "章",
+          "x0": 120.0,
+          "top": 12.82,
+          "x1": 140.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        },
+        {
+          "text": "）",
+          "x0": 140.0,
+          "top": 12.82,
+          "x1": 160.0,
+          "bottom": 32.82,
+          "fontname": "MSMincho",
+          "size": 20.0,
+          "doctop": 12.82,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "参考文献（1章）",
+          "x0": 10.0,
+          "top": 12.82,
+          "x1": 160.0,
+          "bottom": 32.82,
+          "doctop": 12.82
+        }
+      ],
+      "text": "参考文献（1章）",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

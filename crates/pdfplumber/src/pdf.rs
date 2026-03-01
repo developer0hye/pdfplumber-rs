@@ -1,10 +1,15 @@
 //! Top-level PDF document type for opening and extracting content.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 use pdfplumber_core::{
-    Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageMetadata, Line, PaintedPath, Path,
-    PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
-    StructElement, UnicodeNorm, ValidationIssue, extract_shapes, image_from_ctm, normalize_chars,
+    BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
+    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line,
+    MarkdownConversionOptions, MarkdownConversionResult, MarkdownOptions, PageRegionOptions,
+    PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult, SearchMatch,
+    SearchOptions, SignatureInfo, StructElement, TextOptions, UnicodeNorm, ValidationIssue,
+    detect_page_regions, extract_shapes, extract_title_from_markdown, image_from_ctm,
+    normalize_chars, strip_markdown,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -66,6 +71,10 @@ pub struct Pdf {
     metadata: DocumentMetadata,
     /// Cached document bookmarks (outline / table of contents).
     bookmarks: Vec<Bookmark>,
+    /// Accumulated total objects extracted across all pages (for max_total_objects budget).
+    total_objects: AtomicUsize,
+    /// Accumulated total image bytes extracted across all pages (for max_total_image_bytes budget).
+    total_image_bytes: AtomicUsize,
 }
 
 /// Internal handler that collects content stream events during interpretation.
@@ -155,6 +164,18 @@ impl Pdf {
     /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted.
     /// Returns [`PdfError`] if the bytes are not a valid PDF document.
     pub fn open(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
+        // Check max_input_bytes before parsing
+        if let Some(ref opts) = options {
+            if let Some(max_bytes) = opts.max_input_bytes {
+                if bytes.len() > max_bytes {
+                    return Err(PdfError::ResourceLimitExceeded {
+                        limit_name: "max_input_bytes".to_string(),
+                        limit_value: max_bytes,
+                        actual_value: bytes.len(),
+                    });
+                }
+            }
+        }
         let doc = LopdfBackend::open(bytes).map_err(PdfError::from)?;
         Self::from_doc(doc, options)
     }
@@ -241,6 +262,18 @@ impl Pdf {
 
         // Cache page heights for doctop calculation
         let page_count = LopdfBackend::page_count(&doc);
+
+        // Check max_pages before processing
+        if let Some(max_pages) = options.max_pages {
+            if page_count > max_pages {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_pages".to_string(),
+                    limit_value: max_pages,
+                    actual_value: page_count,
+                });
+            }
+        }
+
         let mut page_heights = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
@@ -267,6 +300,8 @@ impl Pdf {
             raw_page_heights,
             metadata,
             bookmarks,
+            total_objects: AtomicUsize::new(0),
+            total_image_bytes: AtomicUsize::new(0),
         })
     }
 
@@ -332,6 +367,80 @@ impl Pdf {
             all_matches.extend(matches);
         }
         Ok(all_matches)
+    }
+
+    /// Convert the entire PDF document to Markdown.
+    ///
+    /// Iterates over all pages, renders each to Markdown using
+    /// [`Page::to_markdown`], and combines them with the configured
+    /// page separator. Optionally extracts images and collects warnings.
+    ///
+    /// Title is extracted from PDF metadata `/Title` first. If not present,
+    /// falls back to the first `# ` heading found in the Markdown output.
+    ///
+    /// # Arguments
+    ///
+    /// * `options` - Controls page separator, image inclusion, and strict mode.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if page extraction fails, or if `strict_mode` is
+    /// enabled and any warnings are encountered.
+    pub fn convert_to_markdown(
+        &self,
+        options: &MarkdownConversionOptions,
+    ) -> Result<MarkdownConversionResult, PdfError> {
+        let md_options = MarkdownOptions::default();
+        let page_count = self.page_count();
+        let mut page_markdowns: Vec<String> = Vec::with_capacity(page_count);
+        let mut all_images = Vec::new();
+        let mut all_warnings: Vec<ExtractWarning> = Vec::new();
+
+        for i in 0..page_count {
+            let page = self.page(i)?;
+
+            // Render page to markdown
+            let page_md = page.to_markdown(&md_options);
+            page_markdowns.push(page_md);
+
+            // Collect warnings from the page
+            all_warnings.extend(page.warnings().iter().cloned());
+
+            // Collect images if requested
+            if options.include_images {
+                let exported = page.export_images(&options.image_options);
+                all_images.extend(exported);
+            }
+        }
+
+        // Check strict mode: escalate warnings to errors
+        if options.strict_mode {
+            if let Some(warning) = all_warnings.first() {
+                return Err(warning.to_error());
+            }
+        }
+
+        // Combine page markdowns with separator
+        let markdown = page_markdowns.join(&options.page_separator);
+
+        // Extract title: prefer PDF metadata, fall back to first heading
+        let title = self
+            .metadata()
+            .title
+            .clone()
+            .or_else(|| extract_title_from_markdown(&markdown));
+
+        // Generate plain text by stripping markdown formatting
+        let plain_text = strip_markdown(&markdown);
+
+        Ok(MarkdownConversionResult {
+            markdown,
+            plain_text,
+            title,
+            images: all_images,
+            warnings: all_warnings,
+            page_count,
+        })
     }
 
     /// Extract image content (raw bytes) for a named image XObject on a page.
@@ -511,7 +620,25 @@ impl Pdf {
                     bits_per_component: event.bits_per_component,
                     color_space: event.colorspace.clone(),
                 };
-                image_from_ctm(&ctm, &event.name, page_height, &meta)
+                let mut img = image_from_ctm(&ctm, &event.name, page_height, &meta);
+
+                // Set filter and mime_type from the event
+                if let Some(ref filter_name) = event.filter {
+                    let filter = ImageFilter::from_pdf_name(filter_name);
+                    img.mime_type = Some(filter.mime_type().to_string());
+                    img.filter = Some(filter);
+                }
+
+                // Optionally extract image data
+                if self.options.extract_image_data {
+                    if let Ok(content) =
+                        LopdfBackend::extract_image_content(&self.doc, &lopdf_page, &event.name)
+                    {
+                        img.data = Some(content.data);
+                    }
+                }
+
+                img
             })
             .collect();
 
@@ -545,6 +672,41 @@ impl Pdf {
                 Some(page_elements)
             }
         };
+
+        // Check document-level resource budgets
+        let page_object_count =
+            chars.len() + all_lines.len() + all_rects.len() + all_curves.len() + images.len();
+        if let Some(max_total) = self.options.max_total_objects {
+            let new_total = self
+                .total_objects
+                .fetch_add(page_object_count, Ordering::Relaxed)
+                + page_object_count;
+            if new_total > max_total {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_total_objects".to_string(),
+                    limit_value: max_total,
+                    actual_value: new_total,
+                });
+            }
+        }
+
+        let page_image_bytes: usize = images
+            .iter()
+            .filter_map(|img| img.data.as_ref().map(|d| d.len()))
+            .sum();
+        if let Some(max_img_bytes) = self.options.max_total_image_bytes {
+            let new_total = self
+                .total_image_bytes
+                .fetch_add(page_image_bytes, Ordering::Relaxed)
+                + page_image_bytes;
+            if new_total > max_img_bytes {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_total_image_bytes".to_string(),
+                    limit_value: max_img_bytes,
+                    actual_value: new_total,
+                });
+            }
+        }
 
         Ok(Page::from_extraction(
             index,
@@ -599,6 +761,45 @@ impl Pdf {
     /// Returns [`PdfError`] if the AcroForm exists but is malformed.
     pub fn signatures(&self) -> Result<Vec<SignatureInfo>, PdfError> {
         LopdfBackend::document_signatures(&self.doc).map_err(PdfError::from)
+    }
+
+    /// Detect repeating headers and footers across all pages.
+    ///
+    /// Extracts text from the top and bottom margins of each page, compares
+    /// across pages with fuzzy matching (masking digits for page numbers),
+    /// and returns [`PageRegions`] for each page indicating detected
+    /// header/footer regions and the body area.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if any page fails to extract.
+    pub fn detect_page_regions(
+        &self,
+        options: &PageRegionOptions,
+    ) -> Result<Vec<PageRegions>, PdfError> {
+        let text_options = TextOptions::default();
+        let mut page_data: Vec<(String, String, f64, f64)> = Vec::new();
+
+        for page_result in self.pages_iter() {
+            let page = page_result?;
+            let width = page.width();
+            let height = page.height();
+
+            let header_height = height * options.header_margin;
+            let header_bbox = BBox::new(0.0, 0.0, width, header_height);
+            let header_page = page.crop(header_bbox);
+            let header_text = header_page.extract_text(&text_options);
+
+            let footer_height = height * options.footer_margin;
+            let footer_top = height - footer_height;
+            let footer_bbox = BBox::new(0.0, footer_top, width, height);
+            let footer_page = page.crop(footer_bbox);
+            let footer_text = footer_page.extract_text(&text_options);
+
+            page_data.push((header_text, footer_text, width, height));
+        }
+
+        Ok(detect_page_regions(&page_data, options))
     }
 }
 
@@ -1712,6 +1913,256 @@ mod tests {
 
         let result = pdf.extract_image_content(99, "Im0");
         assert!(result.is_err());
+    }
+
+    // --- Image data opt-in tests ---
+
+    fn create_pdf_with_jpeg_image() -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Minimal JPEG-like data (starts with SOI marker)
+        let jpeg_data = vec![
+            0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+        ];
+        let image_stream = Stream::new(
+            dictionary! {
+                "Type" => "XObject",
+                "Subtype" => "Image",
+                "Width" => 2i64,
+                "Height" => 2i64,
+                "ColorSpace" => "DeviceRGB",
+                "BitsPerComponent" => 8i64,
+                "Filter" => "DCTDecode",
+            },
+            jpeg_data,
+        );
+        let image_id = doc.add_object(Object::Stream(image_stream));
+
+        let page_content = b"q 200 0 0 150 100 300 cm /Im0 Do Q";
+        let page_stream = Stream::new(lopdf::Dictionary::new(), page_content.to_vec());
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(dictionary! {
+                "XObject" => Object::Dictionary(dictionary! {
+                    "Im0" => image_id,
+                }),
+            }),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn image_data_not_extracted_by_default() {
+        let bytes = create_pdf_with_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].data, None);
+        // Filter and mime_type should still be set (no filter = no filter info)
+        assert_eq!(images[0].filter, None);
+        assert_eq!(images[0].mime_type, None);
+    }
+
+    #[test]
+    fn image_data_extracted_when_opt_in() {
+        let bytes = create_pdf_with_image();
+        let opts = ExtractOptions {
+            extract_image_data: true,
+            ..ExtractOptions::default()
+        };
+        let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert!(images[0].data.is_some());
+        let data = images[0].data.as_ref().unwrap();
+        // 2x2 RGB image = 12 bytes
+        assert_eq!(data.len(), 12);
+        assert_eq!(data, &[255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0]);
+    }
+
+    #[test]
+    fn jpeg_image_filter_and_mime_type() {
+        let bytes = create_pdf_with_jpeg_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].filter, Some(ImageFilter::DCTDecode));
+        assert_eq!(images[0].mime_type, Some("image/jpeg".to_string()));
+        // Data not extracted by default
+        assert_eq!(images[0].data, None);
+    }
+
+    #[test]
+    fn jpeg_image_data_extracted_as_is() {
+        let bytes = create_pdf_with_jpeg_image();
+        let opts = ExtractOptions {
+            extract_image_data: true,
+            ..ExtractOptions::default()
+        };
+        let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert!(images[0].data.is_some());
+        let data = images[0].data.as_ref().unwrap();
+        // JPEG data starts with SOI marker
+        assert!(data.starts_with(&[0xFF, 0xD8]));
+        assert_eq!(images[0].filter, Some(ImageFilter::DCTDecode));
+        assert_eq!(images[0].mime_type, Some("image/jpeg".to_string()));
+    }
+
+    // --- Inline image tests ---
+
+    fn create_pdf_with_inline_image() -> Vec<u8> {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Content stream with an inline image: 2x2 RGB, 8 bpc
+        let mut content = Vec::new();
+        content.extend_from_slice(b"q 200 0 0 150 100 300 cm BI /W 2 /H 2 /CS /RGB /BPC 8 ID ");
+        // 2x2 RGB = 12 bytes of pixel data
+        content.extend_from_slice(&[255, 0, 0, 0, 255, 0, 0, 0, 255, 128, 128, 128]);
+        content.extend_from_slice(b" EI Q");
+
+        let page_stream = Stream::new(lopdf::Dictionary::new(), content);
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(lopdf::Dictionary::new()),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+        buf
+    }
+
+    #[test]
+    fn inline_image_appears_in_page_images() {
+        let bytes = create_pdf_with_inline_image();
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+
+        let img = &images[0];
+        assert_eq!(img.src_width, Some(2));
+        assert_eq!(img.src_height, Some(2));
+        assert_eq!(img.color_space, Some("DeviceRGB".to_string()));
+        assert_eq!(img.bits_per_component, Some(8));
+        // Should have correct position from CTM
+        assert!(img.width > 0.0);
+        assert!(img.height > 0.0);
+    }
+
+    #[test]
+    fn inline_image_with_abbreviated_colorspace() {
+        use lopdf::{Object, Stream, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Use abbreviated key /G for DeviceGray
+        let mut content = Vec::new();
+        content.extend_from_slice(b"q 100 0 0 100 50 50 cm BI /W 1 /H 1 /CS /G /BPC 8 ID ");
+        content.push(200); // 1x1 gray = 1 byte
+        content.extend_from_slice(b" EI Q");
+
+        let page_stream = Stream::new(lopdf::Dictionary::new(), content);
+        let content_id = doc.add_object(Object::Stream(page_stream));
+
+        let page_dict = dictionary! {
+            "Type" => "Page",
+            "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
+            "Contents" => content_id,
+            "Resources" => Object::Dictionary(lopdf::Dictionary::new()),
+        };
+        let page_id = doc.add_object(page_dict);
+
+        let pages_id = doc.add_object(dictionary! {
+            "Type" => "Pages",
+            "Kids" => vec![Object::Reference(page_id)],
+            "Count" => 1i64,
+        });
+
+        if let Ok(page_obj) = doc.get_object_mut(page_id) {
+            if let Ok(dict) = page_obj.as_dict_mut() {
+                dict.set("Parent", Object::Reference(pages_id));
+            }
+        }
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", Object::Reference(catalog_id));
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).unwrap();
+
+        let pdf = Pdf::open(&buf, None).unwrap();
+        let page = pdf.page(0).unwrap();
+
+        let images = page.images();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].color_space, Some("DeviceGray".to_string()));
     }
 
     // --- Encrypted PDF facade tests ---

@@ -1,0 +1,60 @@
+{
+  "source": "issue4875.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 200.0,
+      "height": 50.0,
+      "chars": [
+        {
+          "text": "A",
+          "x0": 10.0,
+          "top": 16.5,
+          "x1": 23.3398,
+          "bottom": 36.5,
+          "fontname": "ArialMT",
+          "size": 20.0,
+          "doctop": 16.5,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 23.3398,
+          "top": 16.5,
+          "x1": 36.6797,
+          "bottom": 36.5,
+          "fontname": "ArialMT",
+          "size": 20.0,
+          "doctop": 16.5,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 36.6797,
+          "top": 16.5,
+          "x1": 51.123,
+          "bottom": 36.5,
+          "fontname": "ArialMT",
+          "size": 20.0,
+          "doctop": 16.5,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "ABC",
+          "x0": 10.0,
+          "top": 16.5,
+          "x1": 51.123,
+          "bottom": 36.5,
+          "doctop": 16.5
+        }
+      ],
+      "text": "ABC",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

@@ -6,7 +6,7 @@
 //!
 //! All char/word/line/rect metrics at or above PRD targets (95%+).
 //! - **scotus-transcript**: 1 char gap (synthetic `\n` from Python layout analysis).
-//! - **nics-background-checks tables**: Table cell accuracy ~6.8% (needs investigation).
+//! - **nics-background-checks tables**: Table cell accuracy 100% after grid completion fix.
 
 #![allow(dead_code)]
 
@@ -592,7 +592,7 @@ fn cross_validate_scotus_transcript() {
 }
 
 /// nics-background-checks-2015-11.pdf: complex lattice table.
-/// Chars/words/lines/rects at 100%. Table accuracy ~6.8% (needs investigation).
+/// All metrics at 100% including table cell accuracy.
 #[test]
 fn cross_validate_nics_background_checks() {
     let result = validate_pdf("nics-background-checks-2015-11.pdf");
@@ -618,6 +618,12 @@ fn cross_validate_nics_background_checks() {
         result.total_rect_rate() >= 1.0,
         "rect rate {:.1}% < 100%",
         result.total_rect_rate() * 100.0,
+    );
+    assert!(
+        result.total_table_rate() >= TABLE_THRESHOLD,
+        "table rate {:.1}% < {:.1}%",
+        result.total_table_rate() * 100.0,
+        TABLE_THRESHOLD * 100.0,
     );
 }
 
@@ -656,3 +662,744 @@ fn cross_validate_all_summary() {
     }
     eprintln!("========================================\n");
 }
+
+// ─── Extended cross-validation infrastructure ─────────────────────────────
+
+/// CJK/external source threshold (more lenient than PRD targets).
+const EXTERNAL_CHAR_THRESHOLD: f64 = 0.80;
+const EXTERNAL_WORD_THRESHOLD: f64 = 0.80;
+
+/// Validate a PDF against its golden data without panicking on errors.
+fn try_validate_pdf(pdf_path: &str) -> PdfResult {
+    let json_name = pdf_path.replace(".pdf", ".json");
+    let golden_file = fixtures_dir().join("golden").join(&json_name);
+    let pdf_file = fixtures_dir().join("pdfs").join(pdf_path);
+
+    if !pdf_file.exists() {
+        return PdfResult {
+            pdf_name: pdf_path.to_string(),
+            pages: vec![],
+            parse_error: Some(format!("PDF not found: {}", pdf_file.display())),
+        };
+    }
+
+    let golden_data = match std::fs::read_to_string(&golden_file) {
+        Ok(data) => data,
+        Err(e) => {
+            return PdfResult {
+                pdf_name: pdf_path.to_string(),
+                pages: vec![],
+                parse_error: Some(format!("golden read error: {}", e)),
+            };
+        }
+    };
+    let golden: GoldenData = match serde_json::from_str(&golden_data) {
+        Ok(g) => g,
+        Err(e) => {
+            return PdfResult {
+                pdf_name: pdf_path.to_string(),
+                pages: vec![],
+                parse_error: Some(format!("golden parse error: {}", e)),
+            };
+        }
+    };
+
+    let pdf = match pdfplumber::Pdf::open_file(&pdf_file, None) {
+        Ok(p) => p,
+        Err(e) => {
+            return PdfResult {
+                pdf_name: pdf_path.to_string(),
+                pages: vec![],
+                parse_error: Some(format!("PDF open error: {}", e)),
+            };
+        }
+    };
+
+    let mut page_results = Vec::new();
+    for golden_page in &golden.pages {
+        match pdf.page(golden_page.page_number) {
+            Ok(page) => {
+                page_results.push(validate_page(pdf_path, &page, golden_page));
+            }
+            Err(e) => {
+                return PdfResult {
+                    pdf_name: pdf_path.to_string(),
+                    pages: page_results,
+                    parse_error: Some(format!("page {} error: {}", golden_page.page_number, e)),
+                };
+            }
+        }
+    }
+
+    let result = PdfResult {
+        pdf_name: pdf_path.to_string(),
+        pages: page_results,
+        parse_error: None,
+    };
+    result.print_summary();
+    result
+}
+
+/// Scan a golden directory for JSON files, returning (relative_pdf_path, source) pairs.
+fn scan_golden_dir(
+    dir: &std::path::Path,
+    prefix: &str,
+    source: &'static str,
+    results: &mut Vec<(String, &'static str)>,
+) {
+    if let Ok(entries) = std::fs::read_dir(dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |ext| ext == "json") {
+                let stem = path.file_stem().unwrap().to_str().unwrap();
+                let pdf_path = if prefix.is_empty() {
+                    format!("{}.pdf", stem)
+                } else {
+                    format!("{}/{}.pdf", prefix, stem)
+                };
+                results.push((pdf_path, source));
+            }
+        }
+    }
+}
+
+/// Discover all golden JSON files grouped by source.
+fn discover_golden_pdfs() -> Vec<(String, &'static str)> {
+    let golden_dir = fixtures_dir().join("golden");
+    let mut results = Vec::new();
+
+    scan_golden_dir(&golden_dir, "", "pdfplumber-python", &mut results);
+
+    for (subdir, source) in &[
+        ("pdfjs", "pdfjs"),
+        ("pdfbox", "pdfbox"),
+        ("poppler", "poppler"),
+        ("oss-fuzz", "oss-fuzz"),
+    ] {
+        let dir = golden_dir.join(subdir);
+        if dir.exists() {
+            scan_golden_dir(&dir, subdir, source, &mut results);
+        }
+    }
+
+    results.sort_by(|a, b| a.0.cmp(&b.0));
+    results
+}
+
+/// Comprehensive summary across ALL fixture PDFs (informational, never fails).
+/// Run with: `cargo test -p pdfplumber --test cross_validation cross_validate_all_fixtures_summary -- --nocapture`
+#[test]
+fn cross_validate_all_fixtures_summary() {
+    let golden_pdfs = discover_golden_pdfs();
+
+    eprintln!("\n{}", "=".repeat(100));
+    eprintln!(
+        "Cross-Validation Summary - All Fixtures ({} PDFs)",
+        golden_pdfs.len()
+    );
+    eprintln!(
+        "Thresholds: pdfplumber-python >= {:.0}%, external (pdfjs/pdfbox/poppler) >= {:.0}%",
+        CHAR_THRESHOLD * 100.0,
+        EXTERNAL_CHAR_THRESHOLD * 100.0
+    );
+    eprintln!("{}", "=".repeat(100));
+    eprintln!(
+        "{:<55} {:>7} {:>7} {:>7} {:>7} {:>7} {:>8}",
+        "PDF", "Chars", "Words", "Lines", "Rects", "Tables", "Status"
+    );
+    eprintln!("{}", "-".repeat(100));
+
+    let mut pass_count = 0;
+    let mut fail_count = 0;
+    let mut error_count = 0;
+    let mut skip_count = 0;
+
+    for (pdf_path, source) in &golden_pdfs {
+        let result = try_validate_pdf(pdf_path);
+
+        if let Some(ref err) = result.parse_error {
+            if err.contains("PDF not found") {
+                skip_count += 1;
+                continue;
+            }
+            error_count += 1;
+            eprintln!("{:<55} {:>52} ERROR", pdf_path, "");
+            continue;
+        }
+
+        let threshold = match *source {
+            "pdfplumber-python" => CHAR_THRESHOLD,
+            "oss-fuzz" => 0.0,
+            _ => EXTERNAL_CHAR_THRESHOLD,
+        };
+
+        let passes = *source == "oss-fuzz"
+            || (result.total_char_rate() >= threshold && result.total_word_rate() >= threshold);
+
+        let status = if passes { "PASS" } else { "FAIL" };
+        if passes {
+            pass_count += 1;
+        } else {
+            fail_count += 1;
+        }
+
+        eprintln!(
+            "{:<55} {:>6.1}% {:>6.1}% {:>6.1}% {:>6.1}% {:>6.1}% {:>8}",
+            pdf_path,
+            result.total_char_rate() * 100.0,
+            result.total_word_rate() * 100.0,
+            result.total_line_rate() * 100.0,
+            result.total_rect_rate() * 100.0,
+            result.total_table_rate() * 100.0,
+            status,
+        );
+    }
+
+    eprintln!("{}", "=".repeat(100));
+    eprintln!(
+        "Total: {} PASS, {} FAIL, {} ERROR, {} SKIPPED (no PDF)",
+        pass_count, fail_count, error_count, skip_count
+    );
+    eprintln!("{}", "=".repeat(100));
+}
+
+// ─── Macros for data-driven cross-validation tests ────────────────────────
+
+/// Generate a cross-validation test that asserts char/word rates meet thresholds.
+macro_rules! cross_validate {
+    ($name:ident, $path:expr, $char_thresh:expr, $word_thresh:expr) => {
+        #[test]
+        fn $name() {
+            let result = try_validate_pdf($path);
+            assert!(
+                result.parse_error.is_none(),
+                "{}: parse error: {:?}",
+                $path,
+                result.parse_error
+            );
+            assert!(
+                result.total_char_rate() >= $char_thresh,
+                "{}: char rate {:.1}% < {:.1}%",
+                $path,
+                result.total_char_rate() * 100.0,
+                $char_thresh * 100.0,
+            );
+            assert!(
+                result.total_word_rate() >= $word_thresh,
+                "{}: word rate {:.1}% < {:.1}%",
+                $path,
+                result.total_word_rate() * 100.0,
+                $word_thresh * 100.0,
+            );
+        }
+    };
+}
+
+/// Generate an #[ignore] test for PDFs below threshold. Runs validation but doesn't assert.
+macro_rules! cross_validate_ignored {
+    ($name:ident, $path:expr, $reason:literal) => {
+        #[test]
+        #[ignore] // TODO: $reason
+        fn $name() {
+            let result = try_validate_pdf($path);
+            result.print_summary();
+        }
+    };
+}
+
+/// Generate a no-panic test for oss-fuzz PDFs: just open + extract without crashing.
+macro_rules! cross_validate_no_panic {
+    ($name:ident, $path:expr) => {
+        #[test]
+        fn $name() {
+            let pdf_path = fixtures_dir().join("pdfs").join($path);
+            if !pdf_path.exists() {
+                eprintln!("Skipping {}: PDF not found", $path);
+                return;
+            }
+            let pdf = match pdfplumber::Pdf::open_file(&pdf_path, None) {
+                Ok(pdf) => pdf,
+                Err(e) => {
+                    eprintln!("Expected parse failure for {}: {}", $path, e);
+                    return;
+                }
+            };
+            for i in 0..pdf.page_count() {
+                if let Ok(page) = pdf.page(i) {
+                    let _ = page.chars();
+                    let _ = page.extract_words(&pdfplumber::WordOptions::default());
+                }
+            }
+        }
+    };
+}
+
+// ─── pdfplumber-python: PASSING tests (chars/words >= 95%) ────────────────
+
+cross_validate!(
+    cv_python_2023_06_20_pv,
+    "2023-06-20-PV.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_annotations_unicode_issues,
+    "annotations-unicode-issues.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_cupertino_usd,
+    "cupertino_usd_4-6-16.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_federal_register,
+    "federal-register-2020-17221.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
+cross_validate!(
+    cv_python_image_structure,
+    "image_structure.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_13,
+    "issue-13-151201DSP-Fond-581-90D.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_203_decimalize,
+    "issue-203-decimalize.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_316,
+    "issue-316-example.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_466,
+    "issue-466-example.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_598,
+    "issue-598-example.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_90,
+    "issue-90-example.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_905,
+    "issue-905.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_issue_912,
+    "issue-912.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
+cross_validate!(
+    cv_python_line_char_render,
+    "line-char-render-example.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_page_boxes,
+    "page-boxes-example.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_pr_88,
+    "pr-88-example.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_table_curves,
+    "table-curves-example.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+cross_validate!(
+    cv_python_test_punkt,
+    "test-punkt.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
+
+// ─── pdfplumber-python: FAILING tests (below 95% threshold) ──────────────
+
+cross_validate_ignored!(
+    cv_python_150109dsp,
+    "150109DSP-Milw-505-90D.pdf",
+    "chars 66.6%, words 64.6% — font metrics gap on generated PDFs"
+);
+cross_validate_ignored!(
+    cv_python_warn_report,
+    "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
+    "chars 91.5% — slightly below 95% threshold"
+);
+cross_validate_ignored!(
+    cv_python_chelsea_pdta,
+    "chelsea_pdta.pdf",
+    "chars 84.3%, words 84.7% — mixed font metrics issues"
+);
+cross_validate_ignored!(
+    cv_python_extra_attrs,
+    "extra-attrs-example.pdf",
+    "chars 0% — likely CIDFont/ToUnicode mapping gap"
+);
+cross_validate_ignored!(
+    cv_python_figure_structure,
+    "figure_structure.pdf",
+    "chars 0% — tagged PDF structure not supported"
+);
+cross_validate_ignored!(
+    cv_python_hello_structure,
+    "hello_structure.pdf",
+    "chars 37% — tagged PDF TrueType font gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_1054,
+    "issue-1054-example.pdf",
+    "chars 0% — content stream operator gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_1114_dedupe,
+    "issue-1114-dedupe-chars.pdf",
+    "words 46.2% — duplicate char deduplication gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_1147,
+    "issue-1147-example.pdf",
+    "words 36.2% — word grouping algorithm gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_1279,
+    "issue-1279-example.pdf",
+    "chars 64.4% — complex layout extraction gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_140,
+    "issue-140-example.pdf",
+    "chars 0% — content stream parse failure"
+);
+cross_validate_ignored!(
+    cv_python_issue_192,
+    "issue-192-example.pdf",
+    "chars 0.9% — CIDFont encoding gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_336,
+    "issue-336-example.pdf",
+    "chars 58.5% — font metrics gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_461,
+    "issue-461-example.pdf",
+    "chars 0% — content stream operator gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_463,
+    "issue-463-example.pdf",
+    "chars 89.4% — slightly below 95% threshold"
+);
+cross_validate_ignored!(
+    cv_python_issue_53,
+    "issue-53-example.pdf",
+    "chars 94.1%, words 92.1% — slightly below 95%"
+);
+cross_validate_ignored!(
+    cv_python_issue_67,
+    "issue-67-example.pdf",
+    "words 90.3% — word grouping gap on mixed layouts"
+);
+cross_validate_ignored!(
+    cv_python_issue_71_dup2,
+    "issue-71-duplicate-chars-2.pdf",
+    "chars 37.3% — duplicate char handling gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_71_dup,
+    "issue-71-duplicate-chars.pdf",
+    "words 76.8% — duplicate char word grouping gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_842,
+    "issue-842-example.pdf",
+    "chars 2.3% — font encoding gap"
+);
+cross_validate_ignored!(
+    cv_python_issue_982,
+    "issue-982-example.pdf",
+    "chars 85.4% — CIDFont pages below threshold"
+);
+cross_validate_ignored!(
+    cv_python_issue_987,
+    "issue-987-test.pdf",
+    "chars 50% — font encoding gap"
+);
+cross_validate_ignored!(
+    cv_python_la_precinct,
+    "la-precinct-bulletin-2014-p1.pdf",
+    "chars 0% — CIDFont/Type1C gap"
+);
+cross_validate_ignored!(
+    cv_python_malformed_932,
+    "malformed-from-issue-932.pdf",
+    "chars 0% — malformed PDF content"
+);
+cross_validate_ignored!(
+    cv_python_mcid,
+    "mcid_example.pdf",
+    "chars 0% — tagged PDF structure not supported"
+);
+cross_validate_ignored!(
+    cv_python_nics_rotated,
+    "nics-background-checks-2015-11-rotated.pdf",
+    "chars 0% — page rotation not fully supported"
+);
+cross_validate_ignored!(
+    cv_python_pdf_structure,
+    "pdf_structure.pdf",
+    "chars 0% — tagged PDF structure not supported"
+);
+cross_validate_ignored!(
+    cv_python_senate_expenditures,
+    "senate-expenditures.pdf",
+    "chars 0% — CIDFont gap"
+);
+cross_validate_ignored!(
+    cv_python_word365_structure,
+    "word365_structure.pdf",
+    "words 94.6% — slightly below 95% threshold"
+);
+
+// ─── pdfplumber-python: ERROR tests (parse failures) ─────────────────────
+
+cross_validate_ignored!(
+    cv_python_annotations_rot180,
+    "annotations-rotated-180.pdf",
+    "PDF parse error — rotation handling"
+);
+cross_validate_ignored!(
+    cv_python_annotations_rot270,
+    "annotations-rotated-270.pdf",
+    "PDF parse error — rotation handling"
+);
+cross_validate_ignored!(
+    cv_python_annotations_rot90,
+    "annotations-rotated-90.pdf",
+    "PDF parse error — rotation handling"
+);
+cross_validate_ignored!(cv_python_annotations, "annotations.pdf", "PDF parse error");
+cross_validate_ignored!(cv_python_issue_1181, "issue-1181.pdf", "PDF parse error");
+cross_validate_ignored!(
+    cv_python_issue_297,
+    "issue-297-example.pdf",
+    "PDF parse error"
+);
+cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+cross_validate_ignored!(cv_python_pr_136, "pr-136-example.pdf", "PDF parse error");
+cross_validate_ignored!(cv_python_pr_138, "pr-138-example.pdf", "PDF parse error");
+
+// ─── pdfjs: PASSING tests (chars/words >= 80%) ───────────────────────────
+
+cross_validate!(
+    cv_pdfjs_issue14117,
+    "pdfjs/issue14117.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+
+// ─── pdfjs: FAILING tests (CJK/encoding below 80%) ──────────────────────
+
+cross_validate_ignored!(
+    cv_pdfjs_arabic_cid,
+    "pdfjs/ArabicCIDTrueType.pdf",
+    "chars 0% — Arabic CID TrueType not supported"
+);
+cross_validate_ignored!(
+    cv_pdfjs_cid_cff,
+    "pdfjs/cid_cff.pdf",
+    "chars 0% — CID-keyed CFF font gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_issue3521,
+    "pdfjs/issue3521.pdf",
+    "chars 0% — GBKp-EUC-H Chinese encoding gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_issue4875,
+    "pdfjs/issue4875.pdf",
+    "chars 0% — CMap parsing gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_issue7696,
+    "pdfjs/issue7696.pdf",
+    "chars 0% — Adobe-Japan1-UCS2 CMap gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_issue8570,
+    "pdfjs/issue8570.pdf",
+    "chars 0% — Japanese char rendering gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_issue9262,
+    "pdfjs/issue9262_reduced.pdf",
+    "chars 0% — Japanese char rendering gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_noembed_eucjp,
+    "pdfjs/noembed-eucjp.pdf",
+    "chars 0% — EUC-JP encoding gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_noembed_identity_2,
+    "pdfjs/noembed-identity-2.pdf",
+    "chars 0% — Identity encoding gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_noembed_identity,
+    "pdfjs/noembed-identity.pdf",
+    "chars 58.3% — Identity encoding partial gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_noembed_jis7,
+    "pdfjs/noembed-jis7.pdf",
+    "chars 58.3% — JIS7 encoding gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_noembed_sjis,
+    "pdfjs/noembed-sjis.pdf",
+    "chars 0% — Shift-JIS encoding gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_text_clip_cff_cid,
+    "pdfjs/text_clip_cff_cid.pdf",
+    "chars 0% — CFF CID clipping gap"
+);
+cross_validate_ignored!(
+    cv_pdfjs_vertical,
+    "pdfjs/vertical.pdf",
+    "chars 0% — CJK vertical writing gap"
+);
+
+// ─── pdfbox: PASSING tests (chars/words >= 80%) ──────────────────────────
+
+cross_validate!(
+    cv_pdfbox_hello3,
+    "pdfbox/hello3.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+cross_validate!(
+    cv_pdfbox_empty_tounicode,
+    "pdfbox/pdfbox-4322-empty-tounicode-reduced.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+
+// ─── pdfbox: FAILING tests (CJK/Bidi below 80%) ─────────────────────────
+
+cross_validate_ignored!(
+    cv_pdfbox_bidi_sample,
+    "pdfbox/BidiSample.pdf",
+    "chars 60.1% — Arabic/Hebrew bidi gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_fc60_times,
+    "pdfbox/FC60_Times.pdf",
+    "words 0% — Arabic diacritics word grouping gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_3127_vfont,
+    "pdfbox/pdfbox-3127-vfont-reduced.pdf",
+    "chars 0.3% — vertical font gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_3833_japanese,
+    "pdfbox/pdfbox-3833-japanese-reduced.pdf",
+    "chars 0% — Japanese katakana CID gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_4531_bidi_1,
+    "pdfbox/pdfbox-4531-bidi-ligature-1.pdf",
+    "chars 0% — Hebrew/Arabic ligature gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_4531_bidi_2,
+    "pdfbox/pdfbox-4531-bidi-ligature-2.pdf",
+    "chars 0% — Hebrew/Arabic ligature gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_5350_korean,
+    "pdfbox/pdfbox-5350-korean-reduced.pdf",
+    "chars 0% — Korean CID font gap"
+);
+cross_validate_ignored!(
+    cv_pdfbox_5747_surrogate,
+    "pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf",
+    "chars 0% — Unicode surrogate pair gap"
+);
+
+// ─── poppler: PASSING tests (chars/words >= 80%) ─────────────────────────
+
+cross_validate!(
+    cv_poppler_deseret,
+    "poppler/deseret.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+cross_validate!(
+    cv_poppler_pdf20_utf8,
+    "poppler/pdf20-utf8-test.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+cross_validate!(
+    cv_poppler_russian,
+    "poppler/russian.pdf",
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
+);
+
+// ─── oss-fuzz: no-panic tests (open + extract without crashing) ──────────
+
+cross_validate_no_panic!(cv_fuzz_4591020179783680, "oss-fuzz/4591020179783680.pdf");
+cross_validate_no_panic!(cv_fuzz_4646567755972608, "oss-fuzz/4646567755972608.pdf");
+cross_validate_no_panic!(cv_fuzz_4652594248613888, "oss-fuzz/4652594248613888.pdf");
+cross_validate_no_panic!(cv_fuzz_4691742750474240, "oss-fuzz/4691742750474240.pdf");
+cross_validate_no_panic!(cv_fuzz_4715311080734720, "oss-fuzz/4715311080734720.pdf");
+cross_validate_no_panic!(cv_fuzz_4736668896133120, "oss-fuzz/4736668896133120.pdf");
+cross_validate_no_panic!(cv_fuzz_4833695495684096, "oss-fuzz/4833695495684096.pdf");
+cross_validate_no_panic!(cv_fuzz_4927662560968704, "oss-fuzz/4927662560968704.pdf");
+cross_validate_no_panic!(cv_fuzz_5177159198507008, "oss-fuzz/5177159198507008.pdf");
+cross_validate_no_panic!(cv_fuzz_5317294594523136, "oss-fuzz/5317294594523136.pdf");
+cross_validate_no_panic!(cv_fuzz_5452007745323008, "oss-fuzz/5452007745323008.pdf");
+cross_validate_no_panic!(cv_fuzz_5592736912179200, "oss-fuzz/5592736912179200.pdf");
+cross_validate_no_panic!(cv_fuzz_5809779695484928, "oss-fuzz/5809779695484928.pdf");
+cross_validate_no_panic!(cv_fuzz_5903429863538688, "oss-fuzz/5903429863538688.pdf");
+cross_validate_no_panic!(cv_fuzz_5914823472250880, "oss-fuzz/5914823472250880.pdf");
+cross_validate_no_panic!(cv_fuzz_6013812888633344, "oss-fuzz/6013812888633344.pdf");
+cross_validate_no_panic!(cv_fuzz_6085913544818688, "oss-fuzz/6085913544818688.pdf");
+cross_validate_no_panic!(cv_fuzz_6400141380878336, "oss-fuzz/6400141380878336.pdf");
+cross_validate_no_panic!(cv_fuzz_6515565732102144, "oss-fuzz/6515565732102144.pdf");

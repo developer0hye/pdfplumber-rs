@@ -1,0 +1,82 @@
+{
+  "source": "noembed-eucjp.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.0,
+      "height": 842.0,
+      "chars": [
+        {
+          "text": "あ",
+          "x0": 72.0,
+          "top": 51.528,
+          "x1": 96.0,
+          "bottom": 75.528,
+          "fontname": "MS-Gothic",
+          "size": 24.0,
+          "doctop": 51.528,
+          "upright": true
+        },
+        {
+          "text": "い",
+          "x0": 96.0,
+          "top": 51.528,
+          "x1": 120.0,
+          "bottom": 75.528,
+          "fontname": "MS-Gothic",
+          "size": 24.0,
+          "doctop": 51.528,
+          "upright": true
+        },
+        {
+          "text": "う",
+          "x0": 120.0,
+          "top": 51.528,
+          "x1": 144.0,
+          "bottom": 75.528,
+          "fontname": "MS-Gothic",
+          "size": 24.0,
+          "doctop": 51.528,
+          "upright": true
+        },
+        {
+          "text": "え",
+          "x0": 144.0,
+          "top": 51.528,
+          "x1": 168.0,
+          "bottom": 75.528,
+          "fontname": "MS-Gothic",
+          "size": 24.0,
+          "doctop": 51.528,
+          "upright": true
+        },
+        {
+          "text": "お",
+          "x0": 168.0,
+          "top": 51.528,
+          "x1": 192.0,
+          "bottom": 75.528,
+          "fontname": "MS-Gothic",
+          "size": 24.0,
+          "doctop": 51.528,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "あいうえお",
+          "x0": 72.0,
+          "top": 51.528,
+          "x1": 192.0,
+          "bottom": 75.528,
+          "doctop": 51.528
+        }
+      ],
+      "text": "あいうえお",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

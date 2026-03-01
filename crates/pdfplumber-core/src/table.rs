@@ -66,6 +66,10 @@ pub struct TableSettings {
     /// Minimum accuracy threshold for auto-filtering low-quality tables (0.0 to 1.0).
     /// Tables with accuracy below this threshold are discarded. Default: None (no filtering).
     pub min_accuracy: Option<f64>,
+    /// When true, cells spanning multiple grid positions have their text duplicated
+    /// to all sub-cells. This normalizes merged/spanning cells so every row has the
+    /// same number of columns. Default: false.
+    pub duplicate_merged_content: bool,
 }
 
 impl Default for TableSettings {
@@ -89,6 +93,7 @@ impl Default for TableSettings {
             intersection_y_tolerance: 3.0,
             explicit_lines: None,
             min_accuracy: None,
+            duplicate_merged_content: false,
         }
     }
 }
@@ -446,6 +451,159 @@ pub fn edges_to_intersections(
     intersections
 }
 
+/// Construct rectangular cells using edge coverage with grid completion.
+///
+/// Uses a two-phase approach:
+///
+/// **Phase 1 (strict edge coverage):** For each candidate cell (consecutive x-pair and
+/// y-pair from intersection grid), check all 4 edges: horizontal edges span \[x0, x1\]
+/// at top and bottom y, AND vertical edges span \[top, bottom\] at left and right x.
+///
+/// **Phase 2 (merged cell completion):** For rows not fully covered by Phase 1, identify
+/// x-positions that have vertical edge coverage at the current y-range. Between consecutive
+/// such x-positions, create one merged cell if horizontal edges span the range at both
+/// top and bottom y. This produces wider cells for merged header/footer rows (matching
+/// Python pdfplumber behavior). Use [`normalize_table_columns`] after text extraction
+/// to split merged cells into uniform grid columns.
+pub fn edges_to_cells(
+    intersections: &[Intersection],
+    edges: &[Edge],
+    x_tolerance: f64,
+    y_tolerance: f64,
+) -> Vec<Cell> {
+    if intersections.is_empty() || edges.is_empty() {
+        return Vec::new();
+    }
+
+    // Collect unique x and y coordinates (sorted) from intersections
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for pt in intersections {
+        if !xs.iter().any(|&x| (x - pt.x).abs() < 1e-9) {
+            xs.push(pt.x);
+        }
+        if !ys.iter().any(|&y| (y - pt.y).abs() < 1e-9) {
+            ys.push(pt.y);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // Separate edges by orientation
+    let horizontals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Horizontal)
+        .collect();
+    let verticals: Vec<&Edge> = edges
+        .iter()
+        .filter(|e| e.orientation == Orientation::Vertical)
+        .collect();
+
+    // Check if a horizontal edge covers the x-range [x0, x1] at y-position
+    let has_h_coverage = |x0: f64, x1: f64, y: f64| -> bool {
+        horizontals.iter().any(|e| {
+            (e.top - y).abs() <= y_tolerance && e.x0 <= x0 + x_tolerance && e.x1 >= x1 - x_tolerance
+        })
+    };
+
+    // Check if a vertical edge covers the y-range [top, bottom] at x-position
+    let has_v_coverage = |x: f64, top: f64, bottom: f64| -> bool {
+        verticals.iter().any(|e| {
+            (e.x0 - x).abs() <= x_tolerance
+                && e.top <= top + y_tolerance
+                && e.bottom >= bottom - y_tolerance
+        })
+    };
+
+    // Phase 1: strict edge coverage (all 4 edges required)
+    let mut cells = Vec::new();
+    // Track which column boundaries (x-positions) are established by phase-1 cells
+    let mut established_xs = std::collections::HashSet::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let x0 = xs[xi];
+            let x1 = xs[xi + 1];
+            let top = ys[yi];
+            let bottom = ys[yi + 1];
+
+            if has_h_coverage(x0, x1, top)
+                && has_h_coverage(x0, x1, bottom)
+                && has_v_coverage(x0, top, bottom)
+                && has_v_coverage(x1, top, bottom)
+            {
+                cells.push(Cell {
+                    bbox: BBox::new(x0, top, x1, bottom),
+                    text: None,
+                });
+                // Record that x0 and x1 are established column boundaries
+                // Use integer key (scaled by 1000) to avoid float hash issues
+                established_xs.insert((x0 * 1000.0).round() as i64);
+                established_xs.insert((x1 * 1000.0).round() as i64);
+            }
+        }
+    }
+
+    // Phase 2: grid completion with merged cells — for rows with missing vertical edges,
+    // create merged cells spanning between consecutive x-positions that have vertical
+    // edge coverage at the current y-range. This produces wider cells for merged header/
+    // footer rows (matching Python pdfplumber behavior) instead of narrow cells that
+    // fragment text.
+    let is_established_x =
+        |x: f64| -> bool { established_xs.contains(&((x * 1000.0).round() as i64)) };
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        let top = ys[yi];
+        let bottom = ys[yi + 1];
+
+        // Check if this row is already fully covered by Phase 1
+        let phase1_count = cells
+            .iter()
+            .filter(|c| (c.bbox.top - top).abs() < 1e-9)
+            .count();
+        let max_cells = xs.len().saturating_sub(1);
+        if phase1_count >= max_cells {
+            continue;
+        }
+
+        // Find x-positions with vertical edge coverage at this y-range
+        let v_xs: Vec<f64> = xs
+            .iter()
+            .filter(|&&x| is_established_x(x) && has_v_coverage(x, top, bottom))
+            .copied()
+            .collect();
+
+        // Create merged cells between consecutive V-boundary positions
+        for vi in 0..v_xs.len().saturating_sub(1) {
+            let cell_x0 = v_xs[vi];
+            let cell_x1 = v_xs[vi + 1];
+
+            // Skip if Phase 1 already created a matching cell
+            let already_exists = cells.iter().any(|c| {
+                (c.bbox.x0 - cell_x0).abs() < 1e-9
+                    && (c.bbox.top - top).abs() < 1e-9
+                    && (c.bbox.x1 - cell_x1).abs() < 1e-9
+                    && (c.bbox.bottom - bottom).abs() < 1e-9
+            });
+            if already_exists {
+                continue;
+            }
+
+            // Check H edge coverage at top and bottom
+            if has_h_coverage(cell_x0, cell_x1, top) && has_h_coverage(cell_x0, cell_x1, bottom) {
+                cells.push(Cell {
+                    bbox: BBox::new(cell_x0, top, cell_x1, bottom),
+                    text: None,
+                });
+            }
+        }
+    }
+
+    cells
+}
+
 /// Construct rectangular cells from a grid of intersection points.
 ///
 /// Groups intersection points into a grid of unique y-rows and x-columns (sorted).
@@ -639,6 +797,210 @@ fn cells_share_edge(a: &Cell, b: &Cell) -> bool {
         && b.bbox.x0 < a.bbox.x1 + eps;
 
     shared_vertical || shared_horizontal
+}
+
+/// Normalize a table by splitting merged cells into sub-cells with duplicated content.
+///
+/// Determines the full grid from all unique x-coordinates and y-coordinates across
+/// all cells in the table. Cells that span multiple grid positions (merged cells) are
+/// split into individual sub-cells, each receiving the text of the original merged cell.
+///
+/// This ensures every row has the same number of columns, which is useful for data
+/// pipeline consumers that expect uniform table structures.
+pub fn duplicate_merged_content_in_table(table: &Table) -> Table {
+    if table.cells.is_empty() {
+        return table.clone();
+    }
+
+    // Collect all unique x-coordinates and y-coordinates from cell boundaries
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for cell in &table.cells {
+        if !xs.iter().any(|&x| (x - cell.bbox.x0).abs() < 1e-6) {
+            xs.push(cell.bbox.x0);
+        }
+        if !xs.iter().any(|&x| (x - cell.bbox.x1).abs() < 1e-6) {
+            xs.push(cell.bbox.x1);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.top).abs() < 1e-6) {
+            ys.push(cell.bbox.top);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.bottom).abs() < 1e-6) {
+            ys.push(cell.bbox.bottom);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // For each grid position, find the enclosing cell and create a sub-cell
+    let mut new_cells: Vec<Cell> = Vec::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let sub_x0 = xs[xi];
+            let sub_x1 = xs[xi + 1];
+            let sub_top = ys[yi];
+            let sub_bottom = ys[yi + 1];
+            let sub_cx = (sub_x0 + sub_x1) / 2.0;
+            let sub_cy = (sub_top + sub_bottom) / 2.0;
+
+            // Find which existing cell contains this grid position's center
+            let enclosing_cell = table.cells.iter().find(|c| {
+                sub_cx >= c.bbox.x0 - 1e-6
+                    && sub_cx <= c.bbox.x1 + 1e-6
+                    && sub_cy >= c.bbox.top - 1e-6
+                    && sub_cy <= c.bbox.bottom + 1e-6
+            });
+
+            if let Some(cell) = enclosing_cell {
+                new_cells.push(Cell {
+                    bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
+                    text: cell.text.clone(),
+                });
+            }
+        }
+    }
+
+    // Organize into rows (group by top, sort by x0)
+    let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.top);
+        row_map.entry(key).or_default().push(cell.clone());
+    }
+    let rows: Vec<Vec<Cell>> = row_map
+        .into_values()
+        .map(|mut row| {
+            row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+            row
+        })
+        .collect();
+
+    // Organize into columns (group by x0, sort by top)
+    let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.x0);
+        col_map.entry(key).or_default().push(cell.clone());
+    }
+    let columns: Vec<Vec<Cell>> = col_map
+        .into_values()
+        .map(|mut col| {
+            col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
+            col
+        })
+        .collect();
+
+    Table {
+        bbox: table.bbox,
+        cells: new_cells,
+        rows,
+        columns,
+    }
+}
+
+/// Normalize a table so all rows have equal column count by splitting merged cells.
+///
+/// Similar to [`duplicate_merged_content_in_table`], but text is placed only in the
+/// first sub-cell of each merged group (top-left corner) instead of being duplicated
+/// to all sub-cells. This matches Python pdfplumber's behavior where merged header
+/// cells have text in the first column position and empty strings in the rest.
+///
+/// Should be called after [`extract_text_for_cells`] so merged cells already have
+/// their text content populated.
+pub fn normalize_table_columns(table: &Table) -> Table {
+    if table.cells.is_empty() {
+        return table.clone();
+    }
+
+    // Collect all unique x-coordinates and y-coordinates from cell boundaries
+    let mut xs: Vec<f64> = Vec::new();
+    let mut ys: Vec<f64> = Vec::new();
+
+    for cell in &table.cells {
+        if !xs.iter().any(|&x| (x - cell.bbox.x0).abs() < 1e-6) {
+            xs.push(cell.bbox.x0);
+        }
+        if !xs.iter().any(|&x| (x - cell.bbox.x1).abs() < 1e-6) {
+            xs.push(cell.bbox.x1);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.top).abs() < 1e-6) {
+            ys.push(cell.bbox.top);
+        }
+        if !ys.iter().any(|&y| (y - cell.bbox.bottom).abs() < 1e-6) {
+            ys.push(cell.bbox.bottom);
+        }
+    }
+
+    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    // For each grid position, find the enclosing cell and create a sub-cell
+    let mut new_cells: Vec<Cell> = Vec::new();
+
+    for yi in 0..ys.len().saturating_sub(1) {
+        for xi in 0..xs.len().saturating_sub(1) {
+            let sub_x0 = xs[xi];
+            let sub_x1 = xs[xi + 1];
+            let sub_top = ys[yi];
+            let sub_bottom = ys[yi + 1];
+            let sub_cx = (sub_x0 + sub_x1) / 2.0;
+            let sub_cy = (sub_top + sub_bottom) / 2.0;
+
+            // Find which existing cell contains this grid position's center
+            let enclosing_cell = table.cells.iter().find(|c| {
+                sub_cx >= c.bbox.x0 - 1e-6
+                    && sub_cx <= c.bbox.x1 + 1e-6
+                    && sub_cy >= c.bbox.top - 1e-6
+                    && sub_cy <= c.bbox.bottom + 1e-6
+            });
+
+            if let Some(cell) = enclosing_cell {
+                // Text goes in first sub-cell only (top-left corner of the enclosing cell)
+                let is_first =
+                    (sub_x0 - cell.bbox.x0).abs() < 1e-6 && (sub_top - cell.bbox.top).abs() < 1e-6;
+                new_cells.push(Cell {
+                    bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
+                    text: if is_first { cell.text.clone() } else { None },
+                });
+            }
+        }
+    }
+
+    // Organize into rows (group by top, sort by x0)
+    let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.top);
+        row_map.entry(key).or_default().push(cell.clone());
+    }
+    let rows: Vec<Vec<Cell>> = row_map
+        .into_values()
+        .map(|mut row| {
+            row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
+            row
+        })
+        .collect();
+
+    // Organize into columns (group by x0, sort by top)
+    let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
+    for cell in &new_cells {
+        let key = float_key(cell.bbox.x0);
+        col_map.entry(key).or_default().push(cell.clone());
+    }
+    let columns: Vec<Vec<Cell>> = col_map
+        .into_values()
+        .map(|mut col| {
+            col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
+            col
+        })
+        .collect();
+
+    Table {
+        bbox: table.bbox,
+        cells: new_cells,
+        rows,
+        columns,
+    }
 }
 
 /// Convert a float to an integer key for grouping (multiply by 1000 to preserve 3 decimal places).
@@ -1124,8 +1486,13 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Build cells from intersections
-        let cells = intersections_to_cells(&intersections);
+        // Step 6: Build cells from intersections using edge coverage
+        let cells = edges_to_cells(
+            &intersections,
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
 
         // Step 7: Group cells into tables
         cells_to_tables(cells)
@@ -1238,8 +1605,13 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Cells
-        let cells = intersections_to_cells(&intersections);
+        // Step 6: Cells (using edge coverage)
+        let cells = edges_to_cells(
+            &intersections,
+            &edges,
+            self.settings.intersection_x_tolerance,
+            self.settings.intersection_y_tolerance,
+        );
 
         // Step 7: Tables
         let tables = cells_to_tables(cells.clone());
@@ -2411,6 +2783,259 @@ mod tests {
         for cell in &cells {
             assert!(cell.text.is_none());
         }
+    }
+
+    // --- edges_to_cells tests ---
+
+    #[test]
+    fn test_edges_to_cells_complete_grid() {
+        // Complete 2x2 grid: 4 corners, 4 edges → 1 cell
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(100.0, 0.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 1);
+        assert_approx(cells[0].bbox.x0, 0.0);
+        assert_approx(cells[0].bbox.top, 0.0);
+        assert_approx(cells[0].bbox.x1, 100.0);
+        assert_approx(cells[0].bbox.bottom, 50.0);
+    }
+
+    #[test]
+    fn test_edges_to_cells_partial_intersections_with_spanning_edges() {
+        // Simulates the nics-background-checks scenario:
+        // Only outer corners have intersections, but edges span the full width.
+        // 3 columns, 2 rows, but only outer border intersections at y=0.
+        //
+        //  (0,0)                 (100,0)   <- only 2 intersections at y=0
+        //        H edge spans [0, 100] at y=0
+        //  (0,30) (50,30) (100,30)         <- all 3 intersections at y=30
+        //        H edge spans [0, 100] at y=30
+        //
+        // Vertical edges at x=0,50,100 span [0,30].
+        // With edge coverage, cells at y=[0,30] should be created for x=[0,50] and x=[50,100]
+        // because the horizontal edge at y=0 spans [0,100] covering both cells.
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            // no intersection at (50, 0)
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),  // top spans full width
+            make_h_edge(0.0, 30.0, 100.0), // bottom spans full width
+            make_v_edge(0.0, 0.0, 30.0),   // left border
+            make_v_edge(50.0, 0.0, 30.0),  // middle divider
+            make_v_edge(100.0, 0.0, 30.0), // right border
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        // Should produce 2 cells: (0,0)-(50,30) and (50,0)-(100,30)
+        assert_eq!(cells.len(), 2);
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 0.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 50.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+        assert!(cells.iter().any(|c| (c.bbox.x0 - 50.0).abs() < 1e-6
+            && (c.bbox.top - 0.0).abs() < 1e-6
+            && (c.bbox.x1 - 100.0).abs() < 1e-6
+            && (c.bbox.bottom - 30.0).abs() < 1e-6));
+    }
+
+    #[test]
+    fn test_edges_to_cells_no_edges_no_cells() {
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &[], 3.0, 3.0);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_edges_to_cells_empty_intersections() {
+        let cells = edges_to_cells(&[], &[], 3.0, 3.0);
+        assert!(cells.is_empty());
+    }
+
+    #[test]
+    fn test_edges_to_cells_single_row_table() {
+        // Single row with 3 columns, all edges present
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(30.0, 0.0),
+            make_intersection(60.0, 0.0),
+            make_intersection(90.0, 0.0),
+            make_intersection(0.0, 20.0),
+            make_intersection(30.0, 20.0),
+            make_intersection(60.0, 20.0),
+            make_intersection(90.0, 20.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 90.0),
+            make_h_edge(0.0, 20.0, 90.0),
+            make_v_edge(0.0, 0.0, 20.0),
+            make_v_edge(30.0, 0.0, 20.0),
+            make_v_edge(60.0, 0.0, 20.0),
+            make_v_edge(90.0, 0.0, 20.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 3);
+    }
+
+    #[test]
+    fn test_edges_to_cells_missing_vertical_no_cell() {
+        // Missing vertical edge at x=50 means cells adjacent to x=50 are invalid
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(50.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 30.0),
+            make_intersection(50.0, 30.0),
+            make_intersection(100.0, 30.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 30.0, 100.0),
+            make_v_edge(0.0, 0.0, 30.0),
+            // no vertical at x=50
+            make_v_edge(100.0, 0.0, 30.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        // Cell (0,0)-(50,30): V left OK, V right at x=50 missing → skip
+        // Cell (50,0)-(100,30): V left at x=50 missing → skip
+        assert_eq!(cells.len(), 0);
+    }
+
+    #[test]
+    fn test_edges_to_cells_tolerance_matching() {
+        // Edges slightly off from intersection positions, within tolerance
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 1.5, 100.0),  // y=1.5, within 3.0 of y=0
+            make_h_edge(0.0, 48.5, 100.0), // y=48.5, within 3.0 of y=50
+            make_v_edge(1.0, 0.0, 50.0),   // x=1.0, within 3.0 of x=0
+            make_v_edge(99.0, 0.0, 50.0),  // x=99.0, within 3.0 of x=100
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        assert_eq!(cells.len(), 1);
+    }
+
+    #[test]
+    fn test_edges_to_cells_text_is_none() {
+        let intersections = vec![
+            make_intersection(0.0, 0.0),
+            make_intersection(100.0, 0.0),
+            make_intersection(0.0, 50.0),
+            make_intersection(100.0, 50.0),
+        ];
+        let edges = vec![
+            make_h_edge(0.0, 0.0, 100.0),
+            make_h_edge(0.0, 50.0, 100.0),
+            make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(100.0, 0.0, 50.0),
+        ];
+        let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
+        for cell in &cells {
+            assert!(cell.text.is_none());
+        }
+    }
+
+    // --- normalize_table_columns tests ---
+
+    #[test]
+    fn test_normalize_table_columns_uniform_grid() {
+        // 2x2 uniform grid: no merged cells → should be unchanged
+        let cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                text: Some("A".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                text: Some("B".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                text: Some("C".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                text: Some("D".to_string()),
+            },
+        ];
+        let table = cells_to_tables(cells);
+        assert_eq!(table.len(), 1);
+        let normalized = normalize_table_columns(&table[0]);
+        assert_eq!(normalized.rows.len(), 2);
+        assert_eq!(normalized.rows[0].len(), 2);
+        assert_eq!(normalized.rows[1].len(), 2);
+        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(normalized.rows[0][1].text.as_deref(), Some("B"));
+        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_normalize_table_columns_merged_header() {
+        // Row 0: 1 wide cell spanning full width (merged header)
+        // Row 1: 2 normal cells
+        // After normalization: row 0 should have 2 cells (text in first, None in second)
+        let cells = vec![
+            Cell {
+                bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                text: Some("Title".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                text: Some("C".to_string()),
+            },
+            Cell {
+                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                text: Some("D".to_string()),
+            },
+        ];
+        let table = cells_to_tables(cells);
+        assert_eq!(table.len(), 1);
+        let normalized = normalize_table_columns(&table[0]);
+        assert_eq!(normalized.rows.len(), 2);
+        // Row 0: merged cell split into 2, text in first only
+        assert_eq!(normalized.rows[0].len(), 2);
+        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("Title"));
+        assert!(normalized.rows[0][1].text.is_none());
+        // Row 1: unchanged
+        assert_eq!(normalized.rows[1].len(), 2);
+        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_normalize_table_columns_empty_table() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 100.0),
+            cells: vec![],
+            rows: vec![],
+            columns: vec![],
+        };
+        let normalized = normalize_table_columns(&table);
+        assert!(normalized.cells.is_empty());
     }
 
     // --- cells_to_tables tests ---
@@ -3907,5 +4532,375 @@ mod tests {
             ..TableSettings::default()
         };
         assert_eq!(settings.min_accuracy, Some(0.5));
+    }
+
+    // --- duplicate_merged_content tests ---
+
+    #[test]
+    fn test_duplicate_merged_content_default_false() {
+        let settings = TableSettings::default();
+        assert!(!settings.duplicate_merged_content);
+    }
+
+    #[test]
+    fn test_horizontal_merge_duplicated() {
+        // Table: 2 rows x 3 columns, row 0 has a cell spanning columns 0-1
+        // +------ merged ------+-----+
+        // |      "AB"          | "C" |
+        // +----------+---------+-----+
+        // |   "D"    |  "E"   | "F" |
+        // +----------+---------+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                        text: Some("AB".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                        text: Some("C".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // After duplication, row 0 should have 3 cells, with the merged cell's text in both
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0].len(), 3);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("AB")); // duplicated
+        assert_eq!(result.rows[0][2].text.as_deref(), Some("C"));
+
+        // Row 1 unchanged
+        assert_eq!(result.rows[1].len(), 3);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("D"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("E"));
+        assert_eq!(result.rows[1][2].text.as_deref(), Some("F"));
+    }
+
+    #[test]
+    fn test_vertical_merge_duplicated() {
+        // Table: 3 rows x 2 columns, column 0 rows 0-1 merged vertically
+        // +-----+-----+
+        // | "A" | "B" |
+        // |     +-----+
+        // |     | "D" |
+        // +-----+-----+
+        // | "E" | "F" |
+        // +-----+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 90.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 60.0),
+                    text: Some("A".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("B".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 50.0, 60.0),
+                        text: Some("A".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                        text: Some("B".to_string()),
+                    },
+                ],
+                vec![Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                }],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // After duplication, should have 3 rows x 2 columns
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows[0].len(), 2);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("B"));
+
+        assert_eq!(result.rows[1].len(), 2);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("A")); // duplicated from vertical merge
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("D"));
+
+        assert_eq!(result.rows[2].len(), 2);
+        assert_eq!(result.rows[2][0].text.as_deref(), Some("E"));
+        assert_eq!(result.rows[2][1].text.as_deref(), Some("F"));
+    }
+
+    #[test]
+    fn test_2x2_merge_duplicated() {
+        // Table: 2 rows x 2 columns, top-left 2x2 block is merged
+        // +---- merged ----+-----+
+        // |                | "C" |
+        // |    "AB"        +-----+
+        // |                | "F" |
+        // +-------+--------+-----+
+        // | "G"   | "H"   | "I" |
+        // +-------+--------+-----+
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 90.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 60.0, 50.0, 90.0),
+                    text: Some("G".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 60.0, 100.0, 90.0),
+                    text: Some("H".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 60.0, 150.0, 90.0),
+                    text: Some("I".to_string()),
+                },
+            ],
+            rows: vec![],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // Row 0: AB duplicated to 2 positions, plus C
+        assert_eq!(result.rows.len(), 3);
+        assert_eq!(result.rows[0].len(), 3);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[0][2].text.as_deref(), Some("C"));
+
+        // Row 1: AB duplicated to 2 positions, plus F
+        assert_eq!(result.rows[1].len(), 3);
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("AB"));
+        assert_eq!(result.rows[1][2].text.as_deref(), Some("F"));
+
+        // Row 2: normal
+        assert_eq!(result.rows[2].len(), 3);
+        assert_eq!(result.rows[2][0].text.as_deref(), Some("G"));
+        assert_eq!(result.rows[2][1].text.as_deref(), Some("H"));
+        assert_eq!(result.rows[2][2].text.as_deref(), Some("I"));
+    }
+
+    #[test]
+    fn test_no_merge_table_unchanged() {
+        // Regular 2x2 table with no merges
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 100.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                    text: Some("A".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                    text: Some("B".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
+                        text: Some("A".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
+                        text: Some("B".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("C".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+
+        // Structure unchanged - 2 rows x 2 columns
+        assert_eq!(result.rows.len(), 2);
+        assert_eq!(result.rows[0].len(), 2);
+        assert_eq!(result.rows[1].len(), 2);
+        assert_eq!(result.rows[0][0].text.as_deref(), Some("A"));
+        assert_eq!(result.rows[0][1].text.as_deref(), Some("B"));
+        assert_eq!(result.rows[1][0].text.as_deref(), Some("C"));
+        assert_eq!(result.rows[1][1].text.as_deref(), Some("D"));
+    }
+
+    #[test]
+    fn test_disabled_option_returns_none_for_merged() {
+        // When duplicate_merged_content is false (default), merged cells
+        // are left as-is — the wide cell has text, but no sub-cells are created
+        let settings = TableSettings::default();
+        assert!(!settings.duplicate_merged_content);
+
+        // A table with a horizontal merge: row 0 has 2 cells, row 1 has 3 cells
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 150.0, 60.0),
+            cells: vec![
+                Cell {
+                    bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                    text: Some("AB".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                    text: Some("C".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                    text: Some("D".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                    text: Some("E".to_string()),
+                },
+                Cell {
+                    bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                    text: Some("F".to_string()),
+                },
+            ],
+            rows: vec![
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
+                        text: Some("AB".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 0.0, 150.0, 30.0),
+                        text: Some("C".to_string()),
+                    },
+                ],
+                vec![
+                    Cell {
+                        bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
+                        text: Some("D".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
+                        text: Some("E".to_string()),
+                    },
+                    Cell {
+                        bbox: BBox::new(100.0, 30.0, 150.0, 60.0),
+                        text: Some("F".to_string()),
+                    },
+                ],
+            ],
+            columns: vec![],
+        };
+
+        // Without duplicate_merged_content, the table stays as-is
+        // Row 0 has 2 cells (the wide merged cell + C), Row 1 has 3 cells
+        assert_eq!(table.rows[0].len(), 2);
+        assert_eq!(table.rows[1].len(), 3);
+    }
+
+    #[test]
+    fn test_empty_table_duplicate() {
+        let table = Table {
+            bbox: BBox::new(0.0, 0.0, 0.0, 0.0),
+            cells: vec![],
+            rows: vec![],
+            columns: vec![],
+        };
+
+        let result = duplicate_merged_content_in_table(&table);
+        assert!(result.cells.is_empty());
+        assert!(result.rows.is_empty());
     }
 }

@@ -1,0 +1,115 @@
+{
+  "source": "issue7696.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 200.0,
+      "height": 50.0,
+      "chars": [
+        {
+          "text": "(cid:2928)",
+          "x0": 10.0,
+          "top": 12.72,
+          "x1": 30.0,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:4455)",
+          "x0": 30.0115,
+          "top": 12.72,
+          "x1": 50.0115,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:6757)",
+          "x0": 50.023,
+          "top": 12.72,
+          "x1": 70.023,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:3059)",
+          "x0": 70.0344,
+          "top": 12.72,
+          "x1": 90.0344,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:2928)",
+          "x0": 90.0459,
+          "top": 12.72,
+          "x1": 110.0459,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:4455)",
+          "x0": 110.0574,
+          "top": 12.72,
+          "x1": 130.0574,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:6757)",
+          "x0": 130.0689,
+          "top": 12.72,
+          "x1": 150.0689,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        },
+        {
+          "text": "(cid:3059)",
+          "x0": 150.0804,
+          "top": 12.72,
+          "x1": 170.0804,
+          "bottom": 32.72,
+          "fontname": "NUSUVP+80000001",
+          "size": 20.0,
+          "doctop": 12.72,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "(cid:2928)(cid:4455)(cid:6757)(cid:3059)(cid:2928)(cid:4455)(cid:6757)(cid:3059)",
+          "x0": 10.0,
+          "top": 12.72,
+          "x1": 170.0804,
+          "bottom": 32.72,
+          "doctop": 12.72
+        }
+      ],
+      "text": "(cid:2928)(cid:4455)(cid:6757)(cid:3059)(cid:2928)(cid:4455)(cid:6757)(cid:3059)",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}
