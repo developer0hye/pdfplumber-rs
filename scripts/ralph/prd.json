@@ -20,7 +20,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-core/src/unicode_norm.rs (enum definition, line 17-29), crates/pdfplumber-core/src/error.rs (ExtractOptions default, line 219). Tests to update: unicode_norm.rs:91 (unicode_norm_default_is_none), error.rs:445 (assert_eq opts.unicode_norm UnicodeNorm::None), error.rs:455. The CLI already handles unicode_norm as Option<UnicodeNormArg> which overrides the default, so it should be unaffected. Check crates/pdfplumber/src/pdf.rs:478 where `UnicodeNorm::None` is used as a comparison — this is checking if normalization is not None, so it should use != pattern which still works."
     }
   ]
