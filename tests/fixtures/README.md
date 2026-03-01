@@ -23,7 +23,26 @@ python3 tests/fixtures/generate_fixtures.py
 bash tests/fixtures/download_fixtures.sh
 ```
 
+## Extended Real-World Fixtures
+
+45+ real-world PDFs from the Python pdfplumber test suite are available in
+`crates/pdfplumber/tests/fixtures/pdfs/`. These are used by cross-validation
+tests that compare Rust extraction against Python pdfplumber golden data.
+
+```bash
+# Download all real-world fixtures
+bash tests/fixtures/download_all_fixtures.sh
+
+# Generate golden reference data (requires pdfplumber==0.11.9)
+pip install pdfplumber==0.11.9
+python3 tests/fixtures/generate_cross_validation_golden.py
+
+# Run extended tests
+cargo test -p pdfplumber --features full-fixtures --test real_world_cross_validation -- --nocapture
+```
+
 ## Licensing
 
 - Generated PDFs: Created by this project, same license as the repository
 - Downloaded PDFs: See `downloaded/README.md` for per-file attribution
+- Extended fixtures: From [pdfplumber](https://github.com/jsvine/pdfplumber) (MIT License)

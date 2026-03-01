@@ -48,3 +48,13 @@ jobs:
           key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+
+  test-full-fixtures:
+    name: Full Fixture Tests
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p pdfplumber --features full-fixtures -- --include-ignored --nocapture

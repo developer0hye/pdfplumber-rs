@@ -14,6 +14,7 @@ default = ["std"]
 std = []
 serde = ["pdfplumber-core/serde"]
 parallel = ["dep:rayon"]
+full-fixtures = []
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }

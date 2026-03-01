@@ -1,0 +1,180 @@
+{
+  "source": "extra-attrs-example.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 1920.0,
+      "height": 1080.0,
+      "chars": [
+        {
+          "text": "B",
+          "x0": 131.1863,
+          "top": 448.3909,
+          "x1": 212.8503,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 210.5303,
+          "top": 448.3909,
+          "x1": 240.4583,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 238.1383,
+          "top": 448.3909,
+          "x1": 304.7223,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 302.4023,
+          "top": 448.3909,
+          "x1": 368.9863,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "k",
+          "x0": 366.6663,
+          "top": 448.3909,
+          "x1": 433.2503,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "R",
+          "x0": 430.1863,
+          "top": 448.3909,
+          "x1": 513.9383,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "e",
+          "x0": 511.6183,
+          "top": 448.3909,
+          "x1": 578.2023,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "d",
+          "x0": 575.8823,
+          "top": 448.3909,
+          "x1": 646.7583,
+          "bottom": 564.3909,
+          "fontname": "AAAAAB+HelveticaNeue-Bold",
+          "size": 116.0,
+          "doctop": 448.3909,
+          "upright": true
+        },
+        {
+          "text": "A",
+          "x0": 640.1863,
+          "top": 448.9703,
+          "x1": 723.9383,
+          "bottom": 564.9703,
+          "fontname": "AAAAAC+Arial-BoldMT",
+          "size": 116.0,
+          "doctop": 448.9703,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 721.6415,
+          "top": 448.9703,
+          "x1": 766.7655,
+          "bottom": 564.9703,
+          "fontname": "AAAAAC+Arial-BoldMT",
+          "size": 116.0,
+          "doctop": 448.9703,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 764.4687,
+          "top": 448.9703,
+          "x1": 796.7167,
+          "bottom": 564.9703,
+          "fontname": "AAAAAC+Arial-BoldMT",
+          "size": 116.0,
+          "doctop": 448.9703,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 794.4199,
+          "top": 448.9703,
+          "x1": 858.9159,
+          "bottom": 564.9703,
+          "fontname": "AAAAAC+Arial-BoldMT",
+          "size": 116.0,
+          "doctop": 448.9703,
+          "upright": true
+        },
+        {
+          "text": "l",
+          "x0": 856.6191,
+          "top": 448.9703,
+          "x1": 888.8671,
+          "bottom": 564.9703,
+          "fontname": "AAAAAC+Arial-BoldMT",
+          "size": 116.0,
+          "doctop": 448.9703,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "BlackRedArial",
+          "x0": 131.1863,
+          "top": 448.3909,
+          "x1": 888.8671,
+          "bottom": 564.9703,
+          "doctop": 448.3909
+        }
+      ],
+      "text": "BlackRedArial",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 0.0,
+          "top": 0.0,
+          "x1": 1920.0,
+          "bottom": 1080.0,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}
