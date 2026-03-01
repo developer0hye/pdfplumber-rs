@@ -848,6 +848,12 @@ fn accuracy_senate_expenditures() {
         "senate-expenditures chars F1 {:.3} < 0.90",
         cf1.f1
     );
+    // Word extraction — rotation fix enables correct word grouping
+    assert!(
+        wf1.f1 >= 0.90,
+        "senate-expenditures words F1 {:.3} < 0.90",
+        wf1.f1
+    );
 }
 
 #[test]
@@ -927,6 +933,12 @@ fn accuracy_issue_140_example() {
         "issue-140-example chars F1 {:.3} < 0.80",
         cf1.f1
     );
+    // Word extraction — rotation fix enables correct word grouping
+    assert!(
+        wf1.f1 >= 0.90,
+        "issue-140-example words F1 {:.3} < 0.90",
+        wf1.f1
+    );
 }
 
 #[test]
@@ -939,6 +951,12 @@ fn accuracy_issue_461_example() {
         cf1.f1 >= 0.80,
         "issue-461-example chars F1 {:.3} < 0.80",
         cf1.f1
+    );
+    // Word extraction — rotation fix enables correct word grouping
+    assert!(
+        wf1.f1 >= 0.90,
+        "issue-461-example words F1 {:.3} < 0.90",
+        wf1.f1
     );
 }
 
