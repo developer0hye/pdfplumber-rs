@@ -1,27 +1,46 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-153-unicode-nfc",
-  "description": "Issue #153: Change default Unicode normalization to NFC and add for_llm() preset",
-  "relatedIssue": 153,
+  "branchName": "ralph/issue-154-rotation-tests",
+  "description": "Issue #154: Add integration tests for rotated page text extraction and table detection",
+  "relatedIssue": 154,
   "userStories": [
     {
-      "id": "US-153-1",
-      "title": "Change UnicodeNorm default to Nfc and add for_llm() preset to ExtractOptions",
-      "description": "In `crates/pdfplumber-core/src/unicode_norm.rs`, change the `#[default]` attribute on the `UnicodeNorm` enum from `None` to `Nfc`. Update the doc comment on the `None` variant to remove '(default)' and add '(default)' to the `Nfc` variant doc comment. Update the `unicode_norm_default_is_none` test to assert `UnicodeNorm::default() == UnicodeNorm::Nfc`. In `crates/pdfplumber-core/src/error.rs`, update the `ExtractOptions::default()` impl to set `unicode_norm: UnicodeNorm::Nfc` (was `UnicodeNorm::None`). Add a `pub fn for_llm() -> Self` constructor to `ExtractOptions` that returns options optimized for LLM consumption: `unicode_norm: UnicodeNorm::Nfc` plus current defaults for other fields. Update any tests that assert `UnicodeNorm::None` as the default. Fix all downstream code in pdfplumber-cli and pdfplumber that may need adjustment for the new default.",
+      "id": "US-154-1",
+      "title": "Add integration tests for text extraction on 90/180/270 degree rotated pages",
+      "description": "Create integration tests in `crates/pdfplumber/tests/` that verify text extraction accuracy on rotated pages. Programmatically generate test PDF fixtures using `lopdf` with pages that have `/Rotate` set to 90, 180, and 270 degrees. Each test page should contain known text content (e.g., 'Hello World' or multi-line text). Tests should verify: (1) extracted text matches expected content regardless of rotation, (2) reading order is correct (not transposed or reversed), (3) character bounding boxes are in the correct coordinate space. Also test a mixed-rotation document where different pages have different rotations.",
       "acceptanceCriteria": [
-        "UnicodeNorm::default() returns UnicodeNorm::Nfc",
-        "#[default] attribute is on Nfc variant, not None",
-        "ExtractOptions::default().unicode_norm == UnicodeNorm::Nfc",
-        "ExtractOptions::for_llm() exists and returns options with unicode_norm: UnicodeNorm::Nfc",
-        "All tests updated to reflect new default (no test expects UnicodeNorm::None as default)",
-        "Doc comments updated: Nfc says '(default)', None does not",
+        "Test fixture PDFs created programmatically with lopdf for 90°, 180°, 270° rotations",
+        "Test verifies text extraction on 90° rotated page produces correct text",
+        "Test verifies text extraction on 180° rotated page produces correct text (not reversed)",
+        "Test verifies text extraction on 270° rotated page produces correct text",
+        "Test verifies mixed-rotation document (pages with different rotations) extracts correctly",
+        "Tests verify reading order is preserved on rotated pages",
+        "Tests placed in crates/pdfplumber/tests/ directory",
         "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes",
         "cargo test --workspace passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key files: crates/pdfplumber-core/src/unicode_norm.rs (enum definition, line 17-29), crates/pdfplumber-core/src/error.rs (ExtractOptions default, line 219). Tests to update: unicode_norm.rs:91 (unicode_norm_default_is_none), error.rs:445 (assert_eq opts.unicode_norm UnicodeNorm::None), error.rs:455. The CLI already handles unicode_norm as Option<UnicodeNormArg> which overrides the default, so it should be unaffected. Check crates/pdfplumber/src/pdf.rs:478 where `UnicodeNorm::None` is used as a comparison — this is checking if normalization is not None, so it should use != pattern which still works."
+      "notes": "Use lopdf to create test PDFs: create a page dictionary with /Rotate key set to 90/180/270. The PageGeometry in pdfplumber already handles rotation — these tests verify end-to-end correctness. Existing rotation-related code is in crates/pdfplumber-parse/src/page_geometry.rs. If programmatic PDF creation with rotated text is too complex, use the existing rotated fixture from pdfplumber Python (nics-background-checks-2015-11-rotated.pdf) if available, or create minimal fixtures."
+    },
+    {
+      "id": "US-154-2",
+      "title": "Add integration tests for table detection on rotated pages",
+      "description": "Add integration tests that verify table detection works correctly on rotated pages. Create test PDF fixtures with simple tables (grid lines + cell text) on pages with `/Rotate` set to 90° and 180°. Tests should verify: (1) tables are detected on rotated pages, (2) cell content is extracted correctly, (3) table bounding boxes are in the correct coordinate space. If table detection on rotated pages is not yet supported, create the tests as #[ignore] with TODO comments explaining what needs to be fixed.",
+      "acceptanceCriteria": [
+        "Test fixture PDFs with tables on rotated pages created with lopdf",
+        "Test verifies table detection on 90° rotated page",
+        "Test verifies table detection on 180° rotated page",
+        "If detection fails, tests are marked #[ignore] with explanatory TODO comment",
+        "Cell text extraction verified where tables are detected",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes",
+        "cargo test --workspace passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Table detection depends on correct edge/line extraction from the content stream, which relies on proper coordinate transformation through the rotation matrix. This may not work out of the box — if so, mark tests as #[ignore] and document what fails. The goal is to have the test infrastructure in place for future fixes."
     }
   ]
 }
