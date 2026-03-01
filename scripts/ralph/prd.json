@@ -16,7 +16,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Test: crates/pdfplumber/tests/real_world_cross_validation.rs (rw_pr_136). This PDF has table structures - the parse error may be related to complex path operators or content stream constructs used in table borders."
     },
     {
