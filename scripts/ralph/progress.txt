@@ -20,3 +20,24 @@ Started: 2026년  3월  1일 일요일 10시 16분 06초 KST
   - Zero tolerance requires special bucket_size (1e-9) to avoid division by zero
   - pdfplumber-py tests fail locally due to missing libpython3.11 — pre-existing environment issue, not related to changes
 ---
+
+## 2026-03-01 - US-153-1
+- Changed `UnicodeNorm` default from `None` to `Nfc` (moved `#[default]` attribute)
+- Updated doc comments: `Nfc` now says "(default)", `None` no longer does
+- Changed `ExtractOptions::default()` to use `UnicodeNorm::Nfc`
+- Added `ExtractOptions::for_llm()` constructor with NFC normalization
+- Updated `ExtractOptions` doc comment for `unicode_norm` field
+- Updated tests: `unicode_norm_default_is_nfc`, `extract_options_default_values`, new `extract_options_for_llm`
+- Files changed:
+  - `crates/pdfplumber-core/src/unicode_norm.rs` (enum default + doc comments + test)
+  - `crates/pdfplumber-core/src/error.rs` (default impl + for_llm() + doc comment + tests)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - `pdf.rs:478` uses `!= UnicodeNorm::None` for skip-normalization check — this pattern works regardless of default
+  - pdfplumber-py tests fail locally due to missing libpython3.11 — pre-existing env issue, CI handles it
+  - The `extract_options_custom_values` test explicitly sets `UnicodeNorm::None` which is fine (testing custom, not default)
+  - When main diverges significantly, reset branch to main and re-apply changes rather than rebasing
+  - Cross-validation and accuracy benchmark tests compare against golden data generated without normalization. Must use explicit `UnicodeNorm::None` when opening PDFs for golden data comparison.
+  - `U+037E` (Greek Question Mark) NFC-normalizes to `U+003B` (semicolon) — caused cv_python_issue_905 failure until cross-validation/accuracy tests were fixed
+  - Also updated: `cross_validation.rs`, `accuracy_benchmark.rs` (explicit `UnicodeNorm::None`), `pdf_integration.rs` (comment fix)
+---

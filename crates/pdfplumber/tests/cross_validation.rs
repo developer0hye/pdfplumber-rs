@@ -128,7 +128,12 @@ fn load_golden(pdf_name: &str) -> GoldenData {
 
 fn open_pdf(pdf_name: &str) -> pdfplumber::Pdf {
     let path = fixtures_dir().join("pdfs").join(pdf_name);
-    pdfplumber::Pdf::open_file(&path, None)
+    // Use UnicodeNorm::None to match golden data generated without normalization.
+    let opts = pdfplumber::ExtractOptions {
+        unicode_norm: pdfplumber::UnicodeNorm::None,
+        ..pdfplumber::ExtractOptions::default()
+    };
+    pdfplumber::Pdf::open_file(&path, Some(opts))
         .unwrap_or_else(|e| panic!("Failed to open PDF {}: {}", path.display(), e))
 }
 
@@ -704,7 +709,12 @@ fn try_validate_pdf(pdf_path: &str) -> PdfResult {
         }
     };
 
-    let pdf = match pdfplumber::Pdf::open_file(&pdf_file, None) {
+    // Use UnicodeNorm::None to match golden data generated without normalization.
+    let opts = pdfplumber::ExtractOptions {
+        unicode_norm: pdfplumber::UnicodeNorm::None,
+        ..pdfplumber::ExtractOptions::default()
+    };
+    let pdf = match pdfplumber::Pdf::open_file(&pdf_file, Some(opts)) {
         Ok(p) => p,
         Err(e) => {
             return PdfResult {
