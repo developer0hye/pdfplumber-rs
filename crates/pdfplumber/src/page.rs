@@ -4,7 +4,7 @@ use pdfplumber_core::{
     Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
     FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, PageObject,
     PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
-    TableSettings, TextDirection, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
     cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
     detect_columns, duplicate_merged_content_in_table, export_image_set,
     extract_text_for_cells_with_options, normalize_table_columns, search_chars,
@@ -224,66 +224,6 @@ impl Page {
         self.rotation
     }
 
-    /// Join words for rotated pages, grouping into lines based on the rotation.
-    ///
-    /// For 90°/270° rotation (vertical text), words on the same column (similar x)
-    /// are joined with spaces; different columns are separated by newlines.
-    /// For 180° rotation (reversed horizontal), words on the same row (similar y)
-    /// are joined with spaces; different rows are separated by newlines.
-    fn join_rotated_words(words: &[Word], rotation: i32, tolerance: f64) -> String {
-        if words.is_empty() {
-            return String::new();
-        }
-        let rotation = rotation % 360;
-        let mut lines: Vec<String> = Vec::new();
-        let mut current: Vec<&str> = Vec::new();
-        let mut last_key: Option<f64> = None;
-
-        for word in words {
-            let key = match rotation {
-                90 | 270 => word.bbox.x0, // vertical: lines by x
-                _ => word.bbox.top,       // horizontal: lines by y
-            };
-            if let Some(prev) = last_key {
-                if (key - prev).abs() > tolerance && !current.is_empty() {
-                    lines.push(current.join(" "));
-                    current.clear();
-                }
-            }
-            current.push(&word.text);
-            last_key = Some(key);
-        }
-        if !current.is_empty() {
-            lines.push(current.join(" "));
-        }
-        lines.join("\n")
-    }
-
-    /// Rotate a text direction by the given page rotation angle (clockwise).
-    fn rotate_text_direction(dir: TextDirection, rotation: i32) -> TextDirection {
-        match rotation % 360 {
-            90 => match dir {
-                TextDirection::Ltr => TextDirection::Ttb,
-                TextDirection::Rtl => TextDirection::Btt,
-                TextDirection::Ttb => TextDirection::Rtl,
-                TextDirection::Btt => TextDirection::Ltr,
-            },
-            180 => match dir {
-                TextDirection::Ltr => TextDirection::Rtl,
-                TextDirection::Rtl => TextDirection::Ltr,
-                TextDirection::Ttb => TextDirection::Btt,
-                TextDirection::Btt => TextDirection::Ttb,
-            },
-            270 => match dir {
-                TextDirection::Ltr => TextDirection::Btt,
-                TextDirection::Rtl => TextDirection::Ttb,
-                TextDirection::Ttb => TextDirection::Ltr,
-                TextDirection::Btt => TextDirection::Rtl,
-            },
-            _ => dir,
-        }
-    }
-
     /// Returns the page bounding box: `(0, 0, width, height)`.
     pub fn bbox(&self) -> BBox {
         BBox::new(0.0, 0.0, self.width, self.height)
@@ -419,19 +359,8 @@ impl Page {
     ///
     /// Groups characters into words based on spatial proximity using
     /// `x_tolerance` and `y_tolerance` from the options.
-    ///
-    /// When the page has a `/Rotate` attribute, the text direction from
-    /// `options` is automatically adjusted to match the rotated coordinate
-    /// system so that word grouping works correctly.
     pub fn extract_words(&self, options: &WordOptions) -> Vec<Word> {
-        if self.rotation == 0 {
-            return WordExtractor::extract(&self.chars, options);
-        }
-        let adjusted = WordOptions {
-            text_direction: Self::rotate_text_direction(options.text_direction, self.rotation),
-            ..options.clone()
-        };
-        WordExtractor::extract(&self.chars, &adjusted)
+        WordExtractor::extract(&self.chars, options)
     }
 
     /// Extract text from this page.
@@ -448,26 +377,8 @@ impl Page {
             ..WordOptions::default()
         });
 
-        if !options.layout && self.rotation == 0 {
-            return words_to_text(&words, options.y_tolerance);
-        }
-
         if !options.layout {
-            // For rotated pages, use text flow order to preserve correct reading
-            // order. The standard words_to_text re-sorts words by x0 (LTR) which
-            // breaks rotated reading order. We also set the rotated text direction
-            // so the word splitter uses the correct axis (vertical vs horizontal).
-            let flow_words = WordExtractor::extract(
-                &self.chars,
-                &WordOptions {
-                    y_tolerance: options.y_tolerance,
-                    expand_ligatures: options.expand_ligatures,
-                    use_text_flow: true,
-                    text_direction: Self::rotate_text_direction(TextDirection::Ltr, self.rotation),
-                    ..WordOptions::default()
-                },
-            );
-            return Self::join_rotated_words(&flow_words, self.rotation, options.y_tolerance);
+            return words_to_text(&words, options.y_tolerance);
         }
 
         let lines = cluster_words_into_lines(&words, options.y_tolerance);
@@ -532,11 +443,8 @@ impl Page {
         let finder = TableFinder::new_with_words(edges, words, settings.clone());
         let mut tables = finder.find_tables();
 
-        // Populate cell text from page characters (rotation-aware)
-        let cell_word_opts = WordOptions {
-            text_direction: Self::rotate_text_direction(TextDirection::Ltr, self.rotation),
-            ..WordOptions::default()
-        };
+        // Populate cell text from page characters
+        let cell_word_opts = WordOptions::default();
         for table in &mut tables {
             extract_text_for_cells_with_options(&mut table.cells, &self.chars, &cell_word_opts);
             for row in &mut table.rows {
