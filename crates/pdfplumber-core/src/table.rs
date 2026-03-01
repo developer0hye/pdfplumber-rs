@@ -5,7 +5,7 @@
 
 use crate::edges::{Edge, EdgeSource};
 use crate::geometry::{BBox, Orientation};
-use crate::text::Char;
+use crate::text::{Char, TextDirection};
 use crate::words::{Word, WordExtractor, WordOptions};
 
 /// Strategy for table detection.
@@ -1024,7 +1024,20 @@ fn edge_length(edge: &Edge) -> f64 {
 ///
 /// Cells with no matching characters get `text = None`.
 pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
-    let options = WordOptions::default();
+    extract_text_for_cells_with_options(cells, chars, &WordOptions::default());
+}
+
+/// Like [`extract_text_for_cells`] but with explicit [`WordOptions`] so the
+/// caller can supply a rotation-adjusted text direction.
+pub fn extract_text_for_cells_with_options(
+    cells: &mut [Cell],
+    chars: &[Char],
+    options: &WordOptions,
+) {
+    let is_vertical = matches!(
+        options.text_direction,
+        TextDirection::Ttb | TextDirection::Btt
+    );
 
     for cell in cells.iter_mut() {
         // Find chars whose bbox center falls within this cell
@@ -1047,27 +1060,54 @@ pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
         }
 
         // Group chars into words
-        let words = WordExtractor::extract(&cell_chars, &options);
+        let words = WordExtractor::extract(&cell_chars, options);
         if words.is_empty() {
             cell.text = None;
             continue;
         }
 
-        // Group words into lines by y-coordinate proximity
+        // Group words into lines:
+        // - For horizontal text (LTR/RTL): group by y-coordinate (top)
+        // - For vertical text (TTB/BTT): group by x-coordinate (x0)
         let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
-        sorted_words.sort_by(|a, b| {
-            a.bbox
-                .top
-                .partial_cmp(&b.bbox.top)
-                .unwrap()
-                .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
-        });
+        if is_vertical {
+            sorted_words.sort_by(|a, b| {
+                a.bbox
+                    .x0
+                    .partial_cmp(&b.bbox.x0)
+                    .unwrap()
+                    .then_with(|| a.bbox.top.partial_cmp(&b.bbox.top).unwrap())
+            });
+        } else {
+            sorted_words.sort_by(|a, b| {
+                a.bbox
+                    .top
+                    .partial_cmp(&b.bbox.top)
+                    .unwrap()
+                    .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
+            });
+        }
+
+        let tolerance = if is_vertical {
+            options.x_tolerance
+        } else {
+            options.y_tolerance
+        };
 
         let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
         for word in &sorted_words {
             let added = lines.last_mut().and_then(|line| {
-                let last_top = line[0].bbox.top;
-                if (word.bbox.top - last_top).abs() <= options.y_tolerance {
+                let last_key = if is_vertical {
+                    line[0].bbox.x0
+                } else {
+                    line[0].bbox.top
+                };
+                let word_key = if is_vertical {
+                    word.bbox.x0
+                } else {
+                    word.bbox.top
+                };
+                if (word_key - last_key).abs() <= tolerance {
                     line.push(word);
                     Some(())
                 } else {

@@ -1182,11 +1182,38 @@ cross_validate_ignored!(
     "mcid_example.pdf",
     "chars 0% — tagged PDF structure not supported"
 );
-cross_validate_ignored!(
-    cv_python_nics_rotated,
-    "nics-background-checks-2015-11-rotated.pdf",
-    "chars 0% — page rotation not fully supported"
-);
+/// nics-background-checks-2015-11-rotated.pdf: same content as nics-background-checks-2015-11.pdf
+/// but with /Rotate 90 on the page dictionary. Verifies that page rotation is correctly applied
+/// to all extracted objects (chars, words, lines, rects, tables).
+#[test]
+fn cross_validate_nics_rotated() {
+    let result = validate_pdf("nics-background-checks-2015-11-rotated.pdf");
+    assert!(result.parse_error.is_none(), "parse error");
+    assert!(
+        result.total_char_rate() >= CHAR_THRESHOLD,
+        "char rate {:.1}% < {:.1}%",
+        result.total_char_rate() * 100.0,
+        CHAR_THRESHOLD * 100.0,
+    );
+    assert!(
+        result.total_word_rate() >= WORD_THRESHOLD,
+        "word rate {:.1}% < {:.1}%",
+        result.total_word_rate() * 100.0,
+        WORD_THRESHOLD * 100.0,
+    );
+    assert!(
+        result.total_line_rate() >= CHAR_THRESHOLD,
+        "line rate {:.1}% < {:.1}%",
+        result.total_line_rate() * 100.0,
+        CHAR_THRESHOLD * 100.0,
+    );
+    assert!(
+        result.total_rect_rate() >= CHAR_THRESHOLD,
+        "rect rate {:.1}% < {:.1}%",
+        result.total_rect_rate() * 100.0,
+        CHAR_THRESHOLD * 100.0,
+    );
+}
 cross_validate_ignored!(
     cv_python_pdf_structure,
     "pdf_structure.pdf",

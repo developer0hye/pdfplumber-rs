@@ -118,9 +118,9 @@ pub use pdfplumber_core::{
     cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, detect_columns,
     edge_from_curve, edge_from_line, edges_from_rect, edges_to_cells, edges_to_intersections,
     explicit_lines_to_edges, export_image_set, extract_shapes, extract_text_for_cells,
-    image_from_ctm, intersections_to_cells, is_cjk, is_cjk_text, join_edge_group,
-    normalize_table_columns, snap_edges, sort_blocks_column_order, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_edges_stream, words_to_text,
+    extract_text_for_cells_with_options, image_from_ctm, intersections_to_cells, is_cjk,
+    is_cjk_text, join_edge_group, normalize_table_columns, snap_edges, sort_blocks_column_order,
+    sort_blocks_reading_order, split_lines_at_columns, words_to_edges_stream, words_to_text,
 };
 pub use pdfplumber_parse::{
     self, CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, LopdfPage,
