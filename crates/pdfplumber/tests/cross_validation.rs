@@ -1269,10 +1269,11 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_issue3521,
     "pdfjs/issue3521.pdf",
-    "chars 0% — GBKp-EUC-H Chinese encoding gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfjs_issue4875,
@@ -1383,10 +1384,11 @@ cross_validate_ignored!(
     "pdfbox/pdfbox-4531-bidi-ligature-2.pdf",
     "chars 0% — Hebrew/Arabic ligature gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_5350_korean,
     "pdfbox/pdfbox-5350-korean-reduced.pdf",
-    "chars 0% — Korean CID font gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfbox_5747_surrogate,

@@ -23,3 +23,26 @@ Results (8 PDFs: 0% → 100%):
 - pdfjs/text_clip_cff_cid.pdf: 100%
 - pdfbox/pdfbox-3833-japanese-reduced.pdf: 100%
 - pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf: 100%
+
+## US-183-2: Implement predefined CMap support for CJK fonts
+Status: COMPLETE
+
+Changes:
+- cjk_encoding.rs: Added GBKp-EUC, GBK2K, GBpc-EUC variants for Chinese Simplified GBK encoding
+- cross_validation.rs: Promoted issue3521 and pdfbox-5350-korean from ignored to passing
+
+Results:
+- pdfjs/issue3521.pdf (GBKp-EUC-H Chinese): 0% → 100%
+- pdfbox/pdfbox-5350-korean-reduced.pdf: already 100% from US-183-1 (ToUnicode CMap)
+
+## US-183-3: Implement CIDFont width handling (W/DW arrays)
+Status: COMPLETE (already implemented)
+
+The /W and /DW parsing was already implemented in cid_font.rs (parse_w_array).
+CidFontMetrics::get_width() is used in interpreter.rs for char displacement.
+All CIDFont PDFs show 100% accuracy with correct word grouping.
+No regression on Type1/TrueType fonts.
+
+## Summary
+All 3 user stories for issue #183 are COMPLETE.
+Total PDFs improved: 10 (all from 0% to 100%)

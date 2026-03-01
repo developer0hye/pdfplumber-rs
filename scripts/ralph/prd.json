@@ -16,8 +16,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (font setup). ToUnicode CMap format: 'beginbfchar <src> <dst> endbfchar' and 'beginbfrange <srcLo> <srcHi> <dst> endbfrange'. The CMap is a stream object referenced by /ToUnicode in the font dictionary. Many PDFs that currently score 0% include ToUnicode maps that would enable extraction if parsed."
+      "passes": true,
+      "notes": "DONE (PR #193). 8 CID PDFs improved from 0% to 100%. Fixed bfchar/bfrange no-newline parsing, added cidrange Identity fallback, fixed CID Descent sign, added (cid:N) unmapped format."
     },
     {
       "id": "US-183-2",
@@ -31,8 +31,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": "Predefined CMaps can be bundled as static data or loaded from files. The Adobe CMap resources are open source (https://github.com/niceferrari/adobe-cmap). Key CMaps to support: UniJIS-UCS2-H, UniGB-UCS2-H, UniKS-UCS2-H, UniCNS-UCS2-H, Identity-H, Identity-V. Consider using a build script to embed CMap data."
+      "passes": true,
+      "notes": "DONE (PR #194). Added GBKp-EUC, GBK2K, GBpc-EUC variants for Chinese Simplified. issue3521 0%→100%, pdfbox-5350-korean 100% (from US-183-1)."
     },
     {
       "id": "US-183-3",
@@ -46,8 +46,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs (font metrics setup). The /W array has a complex format: it's an array of entries where each entry is either [cid [w1 w2 ...]] (consecutive widths starting at cid) or [cidFirst cidLast w] (same width for range). /DW is the default width (typically 1000). These widths are in 1/1000 of the font's em-square."
+      "passes": true,
+      "notes": "DONE (already implemented). /W and /DW parsing in cid_font.rs parse_w_array(). CidFontMetrics::get_width() used in interpreter.rs for displacement. All CIDFont PDFs show 100% accuracy with correct word grouping. No regression on Type1/TrueType fonts."
     }
   ]
 }
