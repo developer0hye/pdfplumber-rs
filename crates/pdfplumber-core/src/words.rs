@@ -91,8 +91,18 @@ impl WordExtractor {
                             .then(b.bbox.bottom.partial_cmp(&a.bbox.bottom).unwrap())
                     });
                 }
+                TextDirection::Rtl => {
+                    // Horizontal right-to-left: top-to-bottom, right-to-left within row
+                    sorted_chars.sort_by(|a, b| {
+                        a.bbox
+                            .top
+                            .partial_cmp(&b.bbox.top)
+                            .unwrap()
+                            .then(b.bbox.x0.partial_cmp(&a.bbox.x0).unwrap())
+                    });
+                }
                 _ => {
-                    // Horizontal (Ltr/Rtl): top-to-bottom, left-to-right
+                    // Horizontal left-to-right: top-to-bottom, left-to-right
                     sorted_chars.sort_by(|a, b| {
                         a.bbox
                             .top
@@ -175,11 +185,18 @@ impl WordExtractor {
 
     /// Check if two horizontally-adjacent chars should be split into separate words.
     ///
-    /// Uses `abs(x_gap)` to also split on large backward jumps (negative gap),
-    /// matching Python pdfplumber behavior. This prevents chars on opposite
-    /// sides of a page from being grouped when they share a similar y-position.
+    /// Uses direction-agnostic gap: the geometric distance between x-intervals.
+    /// Returns 0 for overlapping/touching chars and positive for separated chars.
+    /// For LTR: uses abs(current.x0 - last.x1) to detect both forward gaps and
+    /// backward jumps (text flow order). For RTL: uses direction-agnostic interval
+    /// gap so adjacent right-to-left chars are not falsely split.
     fn should_split_horizontal(last: &Char, current: &Char, options: &WordOptions) -> bool {
-        let x_gap = (current.bbox.x0 - last.bbox.x1).abs();
+        let x_gap = match options.text_direction {
+            TextDirection::Rtl => {
+                (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0)
+            }
+            _ => (current.bbox.x0 - last.bbox.x1).abs(),
+        };
         let y_diff = (current.bbox.top - last.bbox.top).abs();
         let x_tol = Self::effective_x_tolerance(last, current, options.x_tolerance);
         x_gap > x_tol || y_diff > options.y_tolerance
@@ -187,10 +204,12 @@ impl WordExtractor {
 
     /// Check if two vertically-adjacent chars should be split into separate words.
     ///
-    /// Uses `abs(y_gap)` to also split on large backward jumps, matching
-    /// the horizontal split logic.
+    /// Uses direction-agnostic gap: the geometric distance between y-intervals.
+    /// Handles both TTB and BTT text correctly.
     fn should_split_vertical(last: &Char, current: &Char, options: &WordOptions) -> bool {
-        let y_gap = (current.bbox.top - last.bbox.bottom).abs();
+        let y_gap = (last.bbox.top.max(current.bbox.top)
+            - last.bbox.bottom.min(current.bbox.bottom))
+        .max(0.0);
         let x_diff = (current.bbox.x0 - last.bbox.x0).abs();
         let y_tol = Self::effective_y_tolerance(last, current, options.y_tolerance);
         y_gap > y_tol || x_diff > options.x_tolerance

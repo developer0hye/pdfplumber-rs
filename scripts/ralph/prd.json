@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber/src/page.rs (Page API), crates/pdfplumber-parse/src/interpreter.rs (content stream interpreter). The /Rotate value is in the page dictionary and can be inherited from parent nodes in the page tree. Python pdfplumber applies rotation as a coordinate transform: 90° rotates (x,y) → (y, width-x), 180° → (width-x, height-y), 270° → (height-y, x). The page's MediaBox dimensions should also be adjusted (width↔height swap for 90°/270°). Check how lopdf exposes the /Rotate key."
     }
   ]

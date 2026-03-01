@@ -1,10 +1,14 @@
-## Codebase Patterns
-- `try_fix_startxref()` pattern: when lopdf fails to parse, attempt recovery by scanning for the actual xref offset and patching the bytes before retrying. This is a general pattern for handling malformed PDFs.
-- Cross-validation tests: use `cross_validate!` macro for PDFs that parse successfully, `cross_validate_ignored!` for known failures. When fixing a parse error, update from ignored to passing.
-- Backend unit tests for issue-specific PDFs: check fixture existence with `if !pdf_path.exists()` and skip gracefully to avoid CI failures when fixtures are missing.
-
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 16시 23분 15초 KST
 ---
-
-# Ralph Progress Log - Issue #166: Fix rotation handling for 0% extraction on rotated PDFs
-Started: 2026년  3월  1일 일요일 16시 23분 12초 KST
----
+## US-166-1: Implement page /Rotate coordinate transformation
+- Applied PageGeometry.normalize_bbox() rotation transform to chars, lines, rects, curves, images in pdf.rs
+- Added rotation-aware word extraction (text direction adjustment) in page.rs
+- Added RTL sort case and direction-aware gap formula in words.rs
+- Added rotation-aware text extraction with join_rotated_words helper
+- Added rotation-aware table cell text extraction via extract_text_for_cells_with_options
+- Cross-validation: nics-background-checks-2015-11-rotated.pdf chars=100%, words=100%, lines=100%, rects=100%
+- Non-rotated nics PDF remains at 100% (no regression)
+- All rotation integration tests pass (29 rotation + 21 table rotation)
+- cargo fmt, clippy, test --workspace all pass
+- Status: COMPLETE

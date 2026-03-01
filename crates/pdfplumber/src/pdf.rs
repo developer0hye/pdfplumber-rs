@@ -4,10 +4,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line,
+    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
     PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextOptions, UnicodeNorm,
-    ValidationIssue, detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
+    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
+    UnicodeNorm, ValidationIssue, detect_page_regions, extract_shapes, image_from_ctm,
+    normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
@@ -498,12 +499,28 @@ impl Pdf {
         let page_height = self.raw_page_heights[index];
         let default_metrics = FontMetrics::default_metrics();
         let doctop_offset: f64 = self.page_heights[..index].iter().sum();
+        let needs_rotation = geometry.rotation() != 0;
 
         let mut chars: Vec<Char> = handler
             .chars
             .iter()
             .map(|event| {
                 let mut ch = char_from_event(event, &default_metrics, page_height, None, None);
+                if needs_rotation {
+                    // char_from_event applied a simple y-flip using the raw page height.
+                    // Undo it to recover PDF native coordinates, then apply the full
+                    // rotation + y-flip transform via PageGeometry.
+                    let native_min_y = page_height - ch.bbox.bottom;
+                    let native_max_y = page_height - ch.bbox.top;
+                    ch.bbox =
+                        geometry.normalize_bbox(ch.bbox.x0, native_min_y, ch.bbox.x1, native_max_y);
+                    ch.doctop = ch.bbox.top;
+                    ch.direction = rotate_direction(ch.direction, rotation);
+                    // 90°/270° rotation turns upright text non-upright and vice versa
+                    if rotation == 90 || rotation == 270 {
+                        ch.upright = !ch.upright;
+                    }
+                }
                 ch.doctop += doctop_offset;
                 ch
             })
@@ -521,7 +538,60 @@ impl Pdf {
 
         for path_event in &handler.paths {
             let painted = path_event_to_painted_path(path_event);
-            let (lines, rects, curves) = extract_shapes(&painted, page_height);
+            let (mut lines, mut rects, mut curves) = extract_shapes(&painted, page_height);
+            if needs_rotation {
+                for line in &mut lines {
+                    let bbox = rotate_bbox(
+                        line.x0,
+                        line.top,
+                        line.x1,
+                        line.bottom,
+                        page_height,
+                        &geometry,
+                    );
+                    line.x0 = bbox.x0;
+                    line.top = bbox.top;
+                    line.x1 = bbox.x1;
+                    line.bottom = bbox.bottom;
+                    line.orientation = classify_orientation(line);
+                }
+                for rect in &mut rects {
+                    let bbox = rotate_bbox(
+                        rect.x0,
+                        rect.top,
+                        rect.x1,
+                        rect.bottom,
+                        page_height,
+                        &geometry,
+                    );
+                    rect.x0 = bbox.x0;
+                    rect.top = bbox.top;
+                    rect.x1 = bbox.x1;
+                    rect.bottom = bbox.bottom;
+                }
+                for curve in &mut curves {
+                    let bbox = rotate_bbox(
+                        curve.x0,
+                        curve.top,
+                        curve.x1,
+                        curve.bottom,
+                        page_height,
+                        &geometry,
+                    );
+                    curve.x0 = bbox.x0;
+                    curve.top = bbox.top;
+                    curve.x1 = bbox.x1;
+                    curve.bottom = bbox.bottom;
+                    curve.pts = curve
+                        .pts
+                        .iter()
+                        .map(|&(x, y)| {
+                            let native_y = page_height - y;
+                            geometry.normalize_point(x, native_y)
+                        })
+                        .collect();
+                }
+            }
             all_lines.extend(lines);
             all_rects.extend(rects);
             all_curves.extend(curves);
@@ -562,6 +632,17 @@ impl Pdf {
                     {
                         img.data = Some(content.data);
                     }
+                }
+
+                if needs_rotation {
+                    let bbox =
+                        rotate_bbox(img.x0, img.top, img.x1, img.bottom, page_height, &geometry);
+                    img.x0 = bbox.x0;
+                    img.top = bbox.top;
+                    img.x1 = bbox.x1;
+                    img.bottom = bbox.bottom;
+                    img.width = bbox.width();
+                    img.height = bbox.height();
                 }
 
                 img
@@ -799,6 +880,62 @@ fn filter_struct_element(elem: &StructElement, page_index: usize) -> Option<Stru
         })
     } else {
         None
+    }
+}
+
+/// Rotate a text direction by the page rotation angle (clockwise).
+fn rotate_direction(dir: TextDirection, rotation: i32) -> TextDirection {
+    match rotation {
+        90 => match dir {
+            TextDirection::Ltr => TextDirection::Ttb,
+            TextDirection::Rtl => TextDirection::Btt,
+            TextDirection::Ttb => TextDirection::Rtl,
+            TextDirection::Btt => TextDirection::Ltr,
+        },
+        180 => match dir {
+            TextDirection::Ltr => TextDirection::Rtl,
+            TextDirection::Rtl => TextDirection::Ltr,
+            TextDirection::Ttb => TextDirection::Btt,
+            TextDirection::Btt => TextDirection::Ttb,
+        },
+        270 => match dir {
+            TextDirection::Ltr => TextDirection::Btt,
+            TextDirection::Rtl => TextDirection::Ttb,
+            TextDirection::Ttb => TextDirection::Ltr,
+            TextDirection::Btt => TextDirection::Rtl,
+        },
+        _ => dir,
+    }
+}
+
+/// Undo a simple y-flip and re-apply through `PageGeometry` to account for rotation.
+///
+/// `char_from_event` and `extract_shapes` produce coordinates using a simple
+/// `y' = page_height - y` flip. This helper undoes that flip to recover PDF native
+/// coordinates, then applies the full rotation + y-flip transform via `PageGeometry`.
+fn rotate_bbox(
+    x0: f64,
+    top: f64,
+    x1: f64,
+    bottom: f64,
+    page_height: f64,
+    geometry: &PageGeometry,
+) -> BBox {
+    let native_min_y = page_height - bottom;
+    let native_max_y = page_height - top;
+    geometry.normalize_bbox(x0, native_min_y, x1, native_max_y)
+}
+
+/// Re-classify line orientation after rotation.
+fn classify_orientation(line: &Line) -> Orientation {
+    let dx = (line.x1 - line.x0).abs();
+    let dy = (line.bottom - line.top).abs();
+    if dy < 1e-6 {
+        Orientation::Horizontal
+    } else if dx < 1e-6 {
+        Orientation::Vertical
+    } else {
+        Orientation::Diagonal
     }
 }
 
