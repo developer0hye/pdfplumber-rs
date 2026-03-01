@@ -18,6 +18,11 @@ Started: 2026년  3월  2일 월요일 00시 49분 12초 KST
 - Most passing tests have CropBox == MediaBox (or no CropBox), so coordinate changes are safe.
 - `pdfplumber-py` tests fail due to missing Python 3.11 library — pre-existing, unrelated to changes.
 
+### FontDescriptor Descent Normalization
+- PDF spec §9.8 requires Descent to be negative. Some PDFs have positive values.
+- `cid_font.rs` already normalizes positive Descent; `font_metrics.rs` now does too.
+- When debugging vertical coordinate offsets, check if Descent sign is wrong in the FontDescriptor.
+
 ---
 
 ## 2026-03-02 - US-186-1
@@ -39,4 +44,23 @@ Started: 2026년  3월  2일 월요일 00시 49분 12초 KST
   - The interpreter already silently ignored unknown operators; the fix was about coordinate accuracy.
   - All currently passing cross-validation tests have CropBox == MediaBox, so the change is safe.
   - PDF operator names are alphabetic only (no underscores) — tokenizer splits on non-alpha chars.
+---
+
+## 2026-03-02 - US-186-2
+- **What was implemented:**
+  1. Normalized positive FontDescriptor Descent values to negative in `parse_font_descriptor()`.
+  2. Upgraded cross-validation tests: annotations.pdf and annotations-rotated-90.pdf now asserting at 95% threshold.
+  3. Updated annotations-rotated-180/270 from "PDF parse error" to "word grouping gap" (chars 100%).
+  4. Upgraded issue-1054-example.pdf from ignored to asserting (100%).
+- **Files changed:**
+  - `crates/pdfplumber-parse/src/font_metrics.rs` — Added Descent normalization + 3 unit tests
+  - `crates/pdfplumber/tests/cross_validation.rs` — Upgraded 4 annotation tests + issue-1054
+  - `scripts/ralph/prd.json` — Marked US-186-2 as passes: true
+- **Dependencies added:** None
+- **Learnings for future iterations:**
+  - The annotation PDFs were never actually failing to parse — the US-186-1 CropBox→MediaBox fix already resolved the parse errors.
+  - The real issue was a positive Descent value (+211 instead of -211) in BAAAAA+Arial-BoldMT's FontDescriptor.
+  - This caused a consistent 6.79pt vertical offset (2 * descent/1000 * font_size), making cross-validation chars match at 0%.
+  - `cid_font.rs` already had Descent normalization; this fix brings `font_metrics.rs` in line.
+  - Rotated variants (180°/270°) have word grouping issues unrelated to parsing — chars match at 100%.
 ---

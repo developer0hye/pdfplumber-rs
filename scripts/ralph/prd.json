@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Annotation PDFs may use form XObjects (/Subtype /Form) for annotation appearances. The interpreter already handles /Do for XObjects but may not handle all form XObject subtypes. Also check: inline image operators (BI/ID/EI), type 3 font charprocs, or unusual resource dictionaries."
     },
     {
