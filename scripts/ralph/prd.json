@@ -53,8 +53,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "Key file: crates/pdfplumber-core/src/words.rs (WordExtractor). Python pdfplumber word grouping uses x_tolerance (default 3.0) and y_tolerance (default 3.0). Check if the Rust implementation matches these defaults exactly. Also check handling of: invisible chars (render mode 3), punctuation attachment, extra whitespace between words."
+      "passes": true,
+      "notes": "Root cause: Two differences from Python pdfplumber's word extraction: (1) Rust sorted chars globally by (top, x0) while Python clusters chars by top (within y_tolerance) first, then sorts within each cluster by x0. This caused chars at slightly different y positions on the same visual line (e.g., CJK at top=46.0, digits at top=47.3) to be separated. (2) Rust used CJK-specific x_tolerance (char width) while Python uses flat x_tolerance for all chars. Fix: Added cluster_sort() that clusters by cross-direction coordinate, then sorts within clusters by reading direction. Removed CJK-specific tolerance expansion. Results: issue-67-example.pdf words 88.1%→100.0%, line-char-render-example.pdf 100%, test-punkt.pdf 100%, word365_structure.pdf 100%. Cross-validation: 58 passing (was 56), 0 regressions."
     }
   ]
 }

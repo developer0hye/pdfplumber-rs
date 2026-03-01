@@ -1,5 +1,5 @@
 use crate::geometry::BBox;
-use crate::text::{Char, TextDirection, is_cjk_text};
+use crate::text::{Char, TextDirection};
 
 /// Options for word extraction, matching pdfplumber defaults.
 #[derive(Debug, Clone)]
@@ -70,48 +70,12 @@ impl WordExtractor {
 
         let mut sorted_chars: Vec<&Char> = chars.iter().collect();
         if !options.use_text_flow {
-            match options.text_direction {
-                TextDirection::Ttb => {
-                    // Vertical: columns right-to-left, top-to-bottom within column
-                    sorted_chars.sort_by(|a, b| {
-                        b.bbox
-                            .x0
-                            .partial_cmp(&a.bbox.x0)
-                            .unwrap()
-                            .then(a.bbox.top.partial_cmp(&b.bbox.top).unwrap())
-                    });
-                }
-                TextDirection::Btt => {
-                    // Vertical bottom-to-top: columns right-to-left, bottom-to-top
-                    sorted_chars.sort_by(|a, b| {
-                        b.bbox
-                            .x0
-                            .partial_cmp(&a.bbox.x0)
-                            .unwrap()
-                            .then(b.bbox.bottom.partial_cmp(&a.bbox.bottom).unwrap())
-                    });
-                }
-                TextDirection::Rtl => {
-                    // Horizontal right-to-left: top-to-bottom, right-to-left within row
-                    sorted_chars.sort_by(|a, b| {
-                        a.bbox
-                            .top
-                            .partial_cmp(&b.bbox.top)
-                            .unwrap()
-                            .then(b.bbox.x0.partial_cmp(&a.bbox.x0).unwrap())
-                    });
-                }
-                _ => {
-                    // Horizontal left-to-right: top-to-bottom, left-to-right
-                    sorted_chars.sort_by(|a, b| {
-                        a.bbox
-                            .top
-                            .partial_cmp(&b.bbox.top)
-                            .unwrap()
-                            .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
-                    });
-                }
-            }
+            // Match Python pdfplumber: cluster chars by cross-direction coordinate
+            // (within tolerance), then sort within each cluster by reading direction.
+            // This ensures chars at slightly different y positions on the same visual
+            // line (e.g., CJK at top=46.0 mixed with digits at top=47.3) are
+            // interleaved by x position instead of separated by global (top, x0) sort.
+            Self::cluster_sort(&mut sorted_chars, options);
         }
 
         let is_vertical = matches!(
@@ -162,24 +126,100 @@ impl WordExtractor {
         words
     }
 
-    /// Determine the effective x-tolerance between two characters.
+    /// Sort chars by clustering on the cross-direction coordinate (within
+    /// tolerance), then sorting within each cluster by reading direction.
     ///
-    /// For CJK characters, uses the previous character's width as tolerance,
-    /// which accounts for the wider spacing of full-width characters.
-    fn effective_x_tolerance(last: &Char, current: &Char, base: f64) -> f64 {
-        if is_cjk_text(&last.text) || is_cjk_text(&current.text) {
-            last.bbox.width().max(base)
-        } else {
-            base
-        }
-    }
+    /// This matches Python pdfplumber's `cluster_objects` approach: chars are
+    /// first sorted by the cross-direction (e.g., `top` for horizontal text),
+    /// then consecutive chars within `tolerance` are grouped into the same
+    /// cluster ("line"). Within each cluster, chars are sorted by reading
+    /// direction (e.g., `x0` for LTR).
+    fn cluster_sort(chars: &mut Vec<&Char>, options: &WordOptions) {
+        let is_vertical = matches!(
+            options.text_direction,
+            TextDirection::Ttb | TextDirection::Btt
+        );
 
-    /// Determine the effective y-tolerance between two characters (for vertical text).
-    fn effective_y_tolerance(last: &Char, current: &Char, base: f64) -> f64 {
-        if is_cjk_text(&last.text) || is_cjk_text(&current.text) {
-            last.bbox.height().max(base)
+        // Step 1: Sort by cross-direction coordinate
+        if is_vertical {
+            // Vertical text: columns go right-to-left, so sort by x0 descending
+            chars.sort_by(|a, b| {
+                b.bbox
+                    .x0
+                    .partial_cmp(&a.bbox.x0)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
         } else {
-            base
+            // Horizontal text: lines go top-to-bottom, so sort by top ascending
+            chars.sort_by(|a, b| {
+                a.bbox
+                    .top
+                    .partial_cmp(&b.bbox.top)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+        }
+
+        // Step 2: Cluster consecutive chars within cross-direction tolerance
+        // Step 3: Sort within each cluster by reading-direction coordinate
+        let cross_tolerance = if is_vertical {
+            options.x_tolerance
+        } else {
+            options.y_tolerance
+        };
+
+        // Find cluster boundaries
+        let mut cluster_starts: Vec<usize> = vec![0];
+        for i in 1..chars.len() {
+            let cross_diff = if is_vertical {
+                (chars[i - 1].bbox.x0 - chars[i].bbox.x0).abs()
+            } else {
+                (chars[i].bbox.top - chars[i - 1].bbox.top).abs()
+            };
+            if cross_diff > cross_tolerance {
+                cluster_starts.push(i);
+            }
+        }
+        cluster_starts.push(chars.len());
+
+        // Sort within each cluster by reading-direction
+        for window in cluster_starts.windows(2) {
+            let (start, end) = (window[0], window[1]);
+            let cluster = &mut chars[start..end];
+            match options.text_direction {
+                TextDirection::Ttb => {
+                    cluster.sort_by(|a, b| {
+                        a.bbox
+                            .top
+                            .partial_cmp(&b.bbox.top)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+                TextDirection::Btt => {
+                    cluster.sort_by(|a, b| {
+                        b.bbox
+                            .bottom
+                            .partial_cmp(&a.bbox.bottom)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+                TextDirection::Rtl => {
+                    cluster.sort_by(|a, b| {
+                        b.bbox
+                            .x0
+                            .partial_cmp(&a.bbox.x0)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+                _ => {
+                    // LTR (default)
+                    cluster.sort_by(|a, b| {
+                        a.bbox
+                            .x0
+                            .partial_cmp(&b.bbox.x0)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                }
+            }
         }
     }
 
@@ -189,12 +229,14 @@ impl WordExtractor {
     /// Returns 0 for overlapping/touching chars and positive for separated chars.
     /// This matches Python pdfplumber behavior where overlapping chars (e.g.,
     /// duplicate chars for bold rendering) are always grouped together.
+    ///
+    /// Uses flat `x_tolerance` / `y_tolerance` for all chars (matching Python
+    /// pdfplumber — no CJK-specific tolerance expansion).
     fn should_split_horizontal(last: &Char, current: &Char, options: &WordOptions) -> bool {
         let x_gap =
             (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0);
         let y_diff = (current.bbox.top - last.bbox.top).abs();
-        let x_tol = Self::effective_x_tolerance(last, current, options.x_tolerance);
-        x_gap > x_tol || y_diff > options.y_tolerance
+        x_gap > options.x_tolerance || y_diff > options.y_tolerance
     }
 
     /// Check if two vertically-adjacent chars should be split into separate words.
@@ -206,8 +248,7 @@ impl WordExtractor {
             - last.bbox.bottom.min(current.bbox.bottom))
         .max(0.0);
         let x_diff = (current.bbox.x0 - last.bbox.x0).abs();
-        let y_tol = Self::effective_y_tolerance(last, current, options.y_tolerance);
-        y_gap > y_tol || x_diff > options.x_tolerance
+        y_gap > options.y_tolerance || x_diff > options.x_tolerance
     }
 
     fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {
@@ -694,20 +735,22 @@ mod tests {
     }
 
     #[test]
-    fn test_chinese_text_with_larger_gap_uses_char_width_tolerance() {
-        // CJK chars with gap=8, which exceeds default x_tolerance=3
-        // but CJK-aware logic should use char width (12) as tolerance
+    fn test_chinese_text_with_larger_gap_splits() {
+        // CJK chars with gap=8, which exceeds default x_tolerance=3.
+        // Python pdfplumber uses flat x_tolerance for all chars (no CJK expansion),
+        // so gap=8 > 3 → split into separate words.
         let chars = vec![
             make_cjk_char("中", 10.0, 100.0, 12.0, 12.0),
-            make_cjk_char("国", 30.0, 100.0, 12.0, 12.0), // gap = 30-22 = 8 > 3 but < 12
+            make_cjk_char("国", 30.0, 100.0, 12.0, 12.0), // gap = 30-22 = 8 > 3
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(
             words.len(),
-            1,
-            "CJK chars within char-width tolerance should group"
+            2,
+            "CJK chars beyond x_tolerance should split (matching Python)"
         );
-        assert_eq!(words[0].text, "中国");
+        assert_eq!(words[0].text, "中");
+        assert_eq!(words[1].text, "国");
     }
 
     #[test]
@@ -775,19 +818,21 @@ mod tests {
     }
 
     #[test]
-    fn test_cjk_transition_to_latin_uses_cjk_tolerance() {
-        // CJK char followed by Latin char with gap=5 (> default 3, but < CJK width 12)
+    fn test_cjk_transition_to_latin_splits_beyond_tolerance() {
+        // CJK char followed by Latin char with gap=5 (> default x_tolerance=3).
+        // Python pdfplumber uses flat x_tolerance for all chars, so gap=5 > 3 → split.
         let chars = vec![
             make_cjk_char("中", 10.0, 100.0, 12.0, 12.0),
-            make_char("A", 27.0, 100.0, 33.0, 112.0), // gap = 27-22 = 5
+            make_char("A", 27.0, 100.0, 33.0, 112.0), // gap = 27-22 = 5 > 3
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(
             words.len(),
-            1,
-            "CJK-to-Latin transition should use CJK tolerance"
+            2,
+            "CJK-to-Latin beyond x_tolerance should split (matching Python)"
         );
-        assert_eq!(words[0].text, "中A");
+        assert_eq!(words[0].text, "中");
+        assert_eq!(words[1].text, "A");
     }
 
     #[test]
@@ -850,6 +895,53 @@ mod tests {
         );
         assert_eq!(words[0].text, "上");
         assert_eq!(words[1].text, "下");
+    }
+
+    // --- Line clustering tests (US-168-3) ---
+
+    #[test]
+    fn test_mixed_y_positions_on_same_visual_line_clustered() {
+        // Simulates CJK + Latin mixing where digits are at a slightly different y.
+        // Python pdfplumber clusters chars by y (within y_tolerance) before
+        // sorting by x, so "2018" is interleaved between CJK chars.
+        // Without clustering, global (top, x0) sort separates them.
+        //
+        // Layout: "公司2018年度" - CJK at top=46.0, digits at top=47.3
+        let chars = vec![
+            make_cjk_char("公", 282.0, 46.0, 9.0, 9.0), // x: 282-291
+            make_cjk_char("司", 291.0, 46.0, 9.0, 9.0), // x: 291-300
+            // "2018" at slightly different y (top=47.3, gap ~2.3pt from "司")
+            make_char("2", 302.2, 47.3, 306.7, 56.3),
+            make_char("0", 306.7, 47.3, 311.2, 56.3),
+            make_char("1", 311.2, 47.3, 315.7, 56.3),
+            make_char("8", 315.7, 47.3, 320.2, 56.3),
+            // CJK resumes at top=46.0 (gap ~2.2pt from "8")
+            make_cjk_char("年", 322.4, 46.0, 9.0, 9.0),
+            make_cjk_char("度", 331.4, 46.0, 9.0, 9.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Chars at slightly different y on same visual line should cluster into one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "公司2018年度");
+    }
+
+    #[test]
+    fn test_different_y_beyond_tolerance_split() {
+        // Chars at y=100 and y=120 (y_diff=20 >> y_tolerance=3) should be separate words.
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 100.0, 30.0, 112.0),
+            make_char("C", 10.0, 120.0, 20.0, 132.0),
+            make_char("D", 20.0, 120.0, 30.0, 132.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 2);
+        assert_eq!(words[0].text, "AB");
+        assert_eq!(words[1].text, "CD");
     }
 
     // --- Ligature expansion tests (US-088) ---
