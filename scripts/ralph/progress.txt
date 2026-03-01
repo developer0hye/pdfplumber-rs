@@ -6,6 +6,8 @@ Started: 2026년  3월  1일 일요일 23시 35분 09초 KST
 - Structure tree parsing already implemented: `extract_document_structure_tree()` in `lopdf_backend.rs` (lines 2227-2519)
 - `StructElement` type in `pdfplumber-core/src/struct_tree.rs` — element_type, mcids, alt_text, actual_text, lang, bbox, children, page_index
 - Page structure tree: `Page::structure_tree()` returns `Option<&[StructElement]>` (hierarchical), `Page::structure_elements()` returns `Vec<&StructElement>` (flat)
+- MCID-to-content mapping: `Page::chars_by_mcid()` returns `HashMap<u32, Vec<&Char>>`, `Page::semantic_chars()` returns chars in structure tree depth-first order
+- `collect_chars_by_structure_order()` helper in `page.rs` walks structure tree depth-first collecting chars per MCID
 - BMC/BDC/EMC operators tracked in `interpreter.rs` lines 51-84, 532-544; MCID propagated to `CharEvent.mcid` and `Char.mcid`
 - Cross-validation PDFs in `crates/pdfplumber/tests/fixtures/pdfs/`, golden JSON in `crates/pdfplumber/tests/fixtures/golden/`
 - Fixture integration test helpers: `cv_fixtures_dir()`, `cv_pdf()`, `open_cv_fixture()` for accessing cross-validation fixtures
@@ -24,4 +26,16 @@ Started: 2026년  3월  1일 일요일 23시 35분 09초 KST
   - Structure tree parsing was already fully implemented — the "chars 0%" cross-validation failures were stale labels from before font/encoding improvements
   - All three tagged PDFs (mcid_example, figure_structure, pdf_structure) achieve 100% char and word match rates
   - The `hello_structure.pdf` remains at 37% due to TrueType font gap (separate issue)
+---
+
+## 2026-03-01 - US-184-2
+- **What was implemented**: Added `Page::chars_by_mcid()` for grouping characters by MCID, and `Page::semantic_chars()` for returning characters in structure tree depth-first order. Untagged chars appended at end of semantic order. Added `collect_chars_by_structure_order()` helper.
+- **Files changed**:
+  - `crates/pdfplumber/src/page.rs` — added `chars_by_mcid()`, `semantic_chars()` methods and `collect_chars_by_structure_order()` helper
+  - `crates/pdfplumber/tests/fixture_integration.rs` — added 9 integration tests for MCID grouping, semantic ordering, and structure tree compliance
+- **Dependencies added**: none
+- **Learnings for future iterations:**
+  - MCIDs were already correctly propagated from BMC/BDC operators through CharEvent to Char.mcid — the full pipeline was in place from US-184-1
+  - The key missing piece was just the mapping API (chars_by_mcid) and the ordering algorithm (semantic_chars via structure tree DFS)
+  - HashSet tracking of used MCIDs prevents duplicate chars when structure tree has redundant MCID references
 ---

@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "BMC/BDC operators already handled (skipped) by the interpreter. Need to: 1) Track current MCID during content stream interpretation, 2) Associate extracted chars with their MCID, 3) Use structure tree to determine reading order. The interpreter already has marked content handling from issue-167 fixes."
     }
   ]
