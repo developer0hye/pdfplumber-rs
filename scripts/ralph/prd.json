@@ -52,8 +52,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": "These may be fixed by the same changes that fix US-167-1 or US-167-2. Check after implementing those stories. issue-140 has tables, issue-461 is a general regression."
+      "passes": true,
+      "notes": "Fixed. Both PDFs already pass (F1=1.000 chars) after US-167-1 and US-167-2 fixes. Root causes were the same: per-font ascent/descent formula and inverted MediaBox handling."
     }
   ]
 }

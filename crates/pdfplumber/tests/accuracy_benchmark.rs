@@ -911,6 +911,38 @@ fn accuracy_malformed_from_issue_932() {
 }
 
 // ---------------------------------------------------------------------------
+// Issue regression PDF tests (US-167-3)
+//
+// Regression test PDFs from the Python pdfplumber issue tracker.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_issue_140_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-140-example.pdf", "issue-140-example")
+        .expect("issue-140-example.pdf should parse");
+    print_text_summary("issue-140-example.pdf", &cf1, &wf1);
+    // US-167-3: Char extraction accuracy >80%
+    assert!(
+        cf1.f1 >= 0.80,
+        "issue-140-example chars F1 {:.3} < 0.80",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_issue_461_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-461-example.pdf", "issue-461-example")
+        .expect("issue-461-example.pdf should parse");
+    print_text_summary("issue-461-example.pdf", &cf1, &wf1);
+    // US-167-3: Char extraction accuracy >80%
+    assert!(
+        cf1.f1 >= 0.80,
+        "issue-461-example chars F1 {:.3} < 0.80",
+        cf1.f1
+    );
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate summary test
 // ---------------------------------------------------------------------------
 

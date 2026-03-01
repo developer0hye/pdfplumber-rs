@@ -15,3 +15,8 @@ Started: 2026년  3월  1일 일요일 17시 13분 12초 KST
 - Results: all 5 PDFs at F1=1.000 for chars
 - Files changed: interpreter.rs (ascent/descent formula), pdf.rs (MediaBox height), accuracy_benchmark.rs
 - Status: DONE
+
+## US-167-3: Fix extraction on issue regression PDFs
+- Both issue-140-example and issue-461-example already pass (F1=1.000) after US-167-1/2 fixes
+- Added accuracy tests for verification
+- Status: DONE
