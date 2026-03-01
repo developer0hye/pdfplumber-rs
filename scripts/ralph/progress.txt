@@ -23,3 +23,14 @@ Results (8 PDFs: 0% → 100%):
 - pdfjs/text_clip_cff_cid.pdf: 100%
 - pdfbox/pdfbox-3833-japanese-reduced.pdf: 100%
 - pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf: 100%
+
+## US-183-2: Implement predefined CMap support for CJK fonts
+Status: COMPLETE
+
+Changes:
+- cjk_encoding.rs: Added GBKp-EUC, GBK2K, GBpc-EUC variants for Chinese Simplified GBK encoding
+- cross_validation.rs: Promoted issue3521 and pdfbox-5350-korean from ignored to passing
+
+Results:
+- pdfjs/issue3521.pdf (GBKp-EUC-H Chinese): 0% → 100%
+- pdfbox/pdfbox-5350-korean-reduced.pdf: already 100% from US-183-1 (ToUnicode CMap)

@@ -31,7 +31,10 @@ pub fn encoding_for_cmap(cmap_name: &str) -> Option<&'static Encoding> {
 
     match base {
         // Chinese Simplified: GBK/GB2312 encoding
-        "GBK-EUC" | "GB-EUC" | "UniGB-UCS2" | "UniGB-UTF16" => Some(encoding_rs::GBK),
+        // GBKp = packed GBK, GBK2K = GBK 2000, GBpc = GB packed
+        "GBK-EUC" | "GBKp-EUC" | "GBK2K" | "GBpc-EUC" | "GB-EUC" | "UniGB-UCS2" | "UniGB-UTF16" => {
+            Some(encoding_rs::GBK)
+        }
 
         // Chinese Traditional: Big5 encoding
         "B5pc" | "ETen-B5" | "HKscs-B5" | "UniCNS-UCS2" | "UniCNS-UTF16" => Some(encoding_rs::BIG5),
@@ -145,6 +148,30 @@ mod tests {
     #[test]
     fn gb_euc_h_returns_gbk_encoding() {
         let enc = encoding_for_cmap("GB-EUC-H");
+        assert_eq!(enc, Some(encoding_rs::GBK));
+    }
+
+    #[test]
+    fn gbkp_euc_h_returns_gbk_encoding() {
+        let enc = encoding_for_cmap("GBKp-EUC-H");
+        assert_eq!(enc, Some(encoding_rs::GBK));
+    }
+
+    #[test]
+    fn gbkp_euc_v_returns_gbk_encoding() {
+        let enc = encoding_for_cmap("GBKp-EUC-V");
+        assert_eq!(enc, Some(encoding_rs::GBK));
+    }
+
+    #[test]
+    fn gbk2k_euc_h_returns_gbk_encoding() {
+        let enc = encoding_for_cmap("GBK2K-H");
+        assert_eq!(enc, Some(encoding_rs::GBK));
+    }
+
+    #[test]
+    fn gbpc_euc_h_returns_gbk_encoding() {
+        let enc = encoding_for_cmap("GBpc-EUC-H");
         assert_eq!(enc, Some(encoding_rs::GBK));
     }
 
