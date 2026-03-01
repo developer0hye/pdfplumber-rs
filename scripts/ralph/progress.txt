@@ -1,20 +1,22 @@
-## Codebase Patterns
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 21시 40분 36초 KST
 
-- **Word grouping gap calculation**: Use direction-agnostic interval distance
-  `(a.x0.max(b.x0) - a.x1.min(b.x1)).max(0.0)` for ALL text directions.
-  This gives 0 for overlapping/touching chars, positive for separated chars.
-  Matches Python pdfplumber's signed-gap behavior for overlapping chars.
-- **Cross-validation tests**: Golden data from Python pdfplumber v0.11.9.
-  Always run `cargo test -p pdfplumber --test cross_validation -- --nocapture`
-  to check for regressions. 58 non-ignored tests must all pass.
-- **Word grouping sort**: Match Python's cluster-then-sort approach:
-  cluster chars by cross-direction (y for horizontal text) within tolerance,
-  then sort within clusters by reading direction (x for LTR). Use flat
-  x_tolerance for ALL chars (no CJK-specific expansion).
-- **pdfplumber-py tests**: Will fail locally due to missing Python 3.11 dylib.
-  Use `--exclude pdfplumber-py` for workspace tests.
+## Codebase Patterns
+- **Per-char direction partitioning**: When extracting words from mixed horizontal/vertical text, partition chars by direction (Ttb/Btt vs Ltr/Rtl) before sorting and grouping. Vertical chars need different cluster_sort parameters (cluster by x0, sort by top) than horizontal chars (cluster by top, sort by x0). See `WordExtractor::extract()` and `extract_group()` in `words.rs`.
+- **Char direction set by interpreter**: The `direction` field on `Char` is set by `char_extraction.rs` based on the text rendering matrix (TRM). `trm.b` dominant → Ttb/Btt; `trm.a` dominant → Ltr/Rtl.
+
 ---
 
-# Ralph Progress Log - Issue #181: Per-character text direction detection for mixed horizontal/vertical text
-Started: 2026년  3월  1일 일요일 21시 40분 35초 KST
+## 2026-03-01 - US-181-1: Detect per-character text direction in word extractor
+- **What was implemented**: Modified `WordExtractor::extract()` to partition chars by direction before word extraction. Chars with per-char vertical direction (Ttb/Btt) are separated and processed with vertical sorting/splitting logic, while horizontal chars use the existing horizontal logic. This fixes senate-expenditures.pdf "B-1191" word that was being split into 6 individual chars.
+- **Files changed**:
+  - `crates/pdfplumber-core/src/words.rs` — Added `extract_group()` method, partitioning logic in `extract()`, 4 new unit tests, `make_vertical_char()` helper
+  - `crates/pdfplumber/tests/accuracy_benchmark.rs` — Updated senate-expenditures word F1 threshold to 0.99
+  - `scripts/ralph/prd.json` — Marked US-181-1 as passes: true
+- **Dependencies added**: None
+- **Results**: senate-expenditures.pdf word F1 improved from 0.984 to 1.000 (221/221 words). No regression on any other PDF.
+- **Learnings for future iterations:**
+  - The cluster_sort step is the key bottleneck for mixed-direction text — it sorts all chars assuming one direction, which scatters vertical chars across horizontal line clusters
+  - Partitioning by direction before sorting is simpler and more correct than trying to detect direction inline during the grouping loop
+  - The `is_vertical_pair` inline approach (checking pairs of consecutive chars) doesn't work because cluster_sort has already destroyed the vertical ordering
 ---

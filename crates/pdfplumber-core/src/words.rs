@@ -68,20 +68,59 @@ impl WordExtractor {
             return Vec::new();
         }
 
-        let mut sorted_chars: Vec<&Char> = chars.iter().collect();
-        if !options.use_text_flow {
-            // Match Python pdfplumber: cluster chars by cross-direction coordinate
-            // (within tolerance), then sort within each cluster by reading direction.
-            // This ensures chars at slightly different y positions on the same visual
-            // line (e.g., CJK at top=46.0 mixed with digits at top=47.3) are
-            // interleaved by x position instead of separated by global (top, x0) sort.
-            Self::cluster_sort(&mut sorted_chars, options);
+        // Partition chars by direction: chars with per-char vertical direction
+        // (Ttb/Btt) need different sorting and splitting than horizontal chars.
+        let has_vertical = chars
+            .iter()
+            .any(|c| matches!(c.direction, TextDirection::Ttb | TextDirection::Btt));
+
+        if !has_vertical {
+            // Fast path: all chars are horizontal, no per-char direction handling needed
+            return Self::extract_group(chars, options, false);
         }
 
-        let is_vertical = matches!(
-            options.text_direction,
-            TextDirection::Ttb | TextDirection::Btt
-        );
+        // Separate vertical and horizontal chars
+        let mut horizontal_chars: Vec<Char> = Vec::new();
+        let mut vertical_chars: Vec<Char> = Vec::new();
+        for ch in chars {
+            if matches!(ch.direction, TextDirection::Ttb | TextDirection::Btt) {
+                vertical_chars.push(ch.clone());
+            } else {
+                horizontal_chars.push(ch.clone());
+            }
+        }
+
+        let mut words = Self::extract_group(&horizontal_chars, options, false);
+        // Extract vertical chars with vertical sorting and splitting
+        words.extend(Self::extract_group(&vertical_chars, options, true));
+        words
+    }
+
+    /// Extract words from a group of chars that share the same orientation.
+    fn extract_group(chars: &[Char], options: &WordOptions, force_vertical: bool) -> Vec<Word> {
+        if chars.is_empty() {
+            return Vec::new();
+        }
+
+        let mut sorted_chars: Vec<&Char> = chars.iter().collect();
+        if !options.use_text_flow {
+            if force_vertical {
+                // Sort vertical chars: cluster by x0, sort by top within cluster
+                let vertical_opts = WordOptions {
+                    text_direction: TextDirection::Ttb,
+                    ..options.clone()
+                };
+                Self::cluster_sort(&mut sorted_chars, &vertical_opts);
+            } else {
+                Self::cluster_sort(&mut sorted_chars, options);
+            }
+        }
+
+        let is_vertical = force_vertical
+            || matches!(
+                options.text_direction,
+                TextDirection::Ttb | TextDirection::Btt
+            );
 
         let mut words = Vec::new();
         let mut current_chars: Vec<Char> = Vec::new();
@@ -1016,6 +1055,108 @@ mod tests {
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words[0].text, "office");
+    }
+
+    // --- Per-char direction tests (US-181-1) ---
+
+    /// Helper to create a vertical (Ttb) char — same x, stacked vertically.
+    fn make_vertical_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
+        Char {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            fontname: "TestFont".to_string(),
+            size: 12.0,
+            doctop: top,
+            upright: false,
+            direction: TextDirection::Ttb,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [0.0, -1.0, 1.0, 0.0, x0, top],
+            char_code: 0,
+            mcid: None,
+            tag: None,
+        }
+    }
+
+    #[test]
+    fn test_per_char_ttb_direction_groups_vertical_chars() {
+        // Simulates B-1191 from senate-expenditures.pdf:
+        // 6 chars stacked vertically at the same x, direction=Ttb.
+        // With per-char direction, these should group into one word
+        // even when the global text_direction is Ltr (default).
+        let chars = vec![
+            make_vertical_char("B", 731.07, 286.62, 742.89, 295.15),
+            make_vertical_char("-", 731.07, 295.15, 742.89, 299.09),
+            make_vertical_char("1", 731.07, 299.09, 742.89, 305.66),
+            make_vertical_char("1", 731.07, 305.66, 742.89, 312.23),
+            make_vertical_char("9", 731.07, 312.23, 742.89, 318.80),
+            make_vertical_char("1", 731.07, 318.80, 742.89, 325.37),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Ttb chars should group into one word with per-char direction, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+        assert_eq!(words[0].text, "B-1191");
+        assert_eq!(words[0].direction, TextDirection::Ttb);
+    }
+
+    #[test]
+    fn test_per_char_mixed_ltr_and_ttb_on_same_page() {
+        // Page with mostly horizontal (Ltr) text plus one vertical (Ttb) word.
+        // Global text_direction = Ltr (default).
+        // Horizontal chars should use horizontal splitting; vertical chars should
+        // use vertical splitting based on their per-char direction.
+        let mut chars = vec![
+            // Horizontal word "Hi" at top of page
+            make_char("H", 10.0, 50.0, 20.0, 62.0),
+            make_char("i", 20.0, 50.0, 26.0, 62.0),
+            // Vertical word "AB" far away on the right
+            make_vertical_char("A", 700.0, 200.0, 712.0, 210.0),
+            make_vertical_char("B", 700.0, 210.0, 712.0, 220.0),
+        ];
+        // Ensure horizontal chars have Ltr direction
+        chars[0].direction = TextDirection::Ltr;
+        chars[1].direction = TextDirection::Ltr;
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 2, "Should have 2 words (Hi + AB)");
+        assert_eq!(words[0].text, "Hi");
+        assert_eq!(words[0].direction, TextDirection::Ltr);
+        assert_eq!(words[1].text, "AB");
+        assert_eq!(words[1].direction, TextDirection::Ttb);
+    }
+
+    #[test]
+    fn test_per_char_direction_transition_splits_word() {
+        // A horizontal char followed by a vertical char should split
+        // because they have different directions, even if spatially close.
+        let chars = vec![
+            make_char("A", 100.0, 100.0, 110.0, 112.0),          // Ltr
+            make_vertical_char("B", 100.0, 112.0, 112.0, 122.0), // Ttb, below A
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            2,
+            "Chars with different directions should split into separate words"
+        );
+    }
+
+    #[test]
+    fn test_per_char_ltr_chars_unaffected() {
+        // All Ltr chars should behave exactly as before (no regression).
+        let chars = vec![
+            make_char("H", 10.0, 100.0, 20.0, 112.0),
+            make_char("e", 20.0, 100.0, 30.0, 112.0),
+            make_char("l", 30.0, 100.0, 35.0, 112.0),
+            make_char("l", 35.0, 100.0, 40.0, 112.0),
+            make_char("o", 40.0, 100.0, 50.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 1);
+        assert_eq!(words[0].text, "Hello");
     }
 
     #[test]

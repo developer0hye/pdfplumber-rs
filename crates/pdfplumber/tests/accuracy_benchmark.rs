@@ -848,10 +848,10 @@ fn accuracy_senate_expenditures() {
         "senate-expenditures chars F1 {:.3} < 0.90",
         cf1.f1
     );
-    // Word extraction — rotation fix enables correct word grouping
+    // US-181-1: Per-char direction groups B-1191 vertical word correctly
     assert!(
-        wf1.f1 >= 0.90,
-        "senate-expenditures words F1 {:.3} < 0.90",
+        wf1.f1 >= 0.99,
+        "senate-expenditures words F1 {:.3} < 0.99",
         wf1.f1
     );
 }

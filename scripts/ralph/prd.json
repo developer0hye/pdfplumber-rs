@@ -17,7 +17,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-core/src/words.rs (WordExtractor). The Char struct has a `direction` field (TextDirection enum: Ltr, Rtl, Ttb, Btt) and an `upright` field (bool). When grouping consecutive chars, check if they share the same non-Ltr direction and switch splitting logic accordingly. The y_diff between B-1191 chars is 3.9-8.5pt (exceeds y_tolerance 3.0), causing splits with Ltr logic. With Ttb logic, the y_gap is 0.0 (chars touch edge-to-edge) so no split occurs."
     },
     {
