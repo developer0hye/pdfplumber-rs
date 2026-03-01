@@ -1,3 +1,4 @@
+use crate::bidi::is_arabic_diacritic_text;
 use crate::geometry::BBox;
 use crate::text::{Char, TextDirection};
 
@@ -321,9 +322,21 @@ impl WordExtractor {
     /// This matches Python pdfplumber behavior where overlapping chars (e.g.,
     /// duplicate chars for bold rendering) are always grouped together.
     ///
+    /// Arabic diacritical marks (harakat/tashkil) are never split from their
+    /// preceding base character, since they are rendered above/below and may
+    /// have slight positional gaps in the PDF.
+    ///
     /// Uses flat `x_tolerance` / `y_tolerance` for all chars (matching Python
     /// pdfplumber — no CJK-specific tolerance expansion).
     fn should_split_horizontal(last: &Char, current: &Char, options: &WordOptions) -> bool {
+        // Arabic diacritical marks always combine with their base character.
+        // Check both directions: a diacritic following a base, or a base
+        // following a diacritic (when sorted by y-position, diacritics above
+        // the baseline may appear before their base character).
+        if is_arabic_diacritic_text(&current.text) || is_arabic_diacritic_text(&last.text) {
+            return false;
+        }
+
         let x_gap =
             (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0);
         let y_diff = (current.bbox.top - last.bbox.top).abs();
@@ -1341,6 +1354,136 @@ mod tests {
         assert_eq!(words[0].direction, TextDirection::Ltr);
         assert_eq!(words[1].text, "AB");
         assert_eq!(words[1].direction, TextDirection::Rtl);
+    }
+
+    // --- Arabic diacritical mark combining tests (US-185-2) ---
+
+    /// Helper to create an Arabic BiDi-RTL char (ascending x0 layout).
+    fn make_arabic_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
+        Char {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            fontname: "Arabic-Font".to_string(),
+            size: 12.0,
+            doctop: top,
+            upright: true,
+            direction: TextDirection::Rtl,
+            stroking_color: None,
+            non_stroking_color: None,
+            ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            char_code: 0,
+            mcid: None,
+            tag: None,
+        }
+    }
+
+    #[test]
+    fn test_arabic_diacritic_combined_with_base_overlapping() {
+        // Arabic base char followed by diacritical mark (damma U+064F)
+        // with overlapping bounding boxes — should form one word.
+        let chars = vec![
+            make_arabic_char("آ", 120.8, 75.0, 131.0, 101.0),
+            make_arabic_char("\u{064F}", 120.8, 75.0, 126.2, 101.0), // damma, overlaps
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Overlapping diacritic should combine with base char"
+        );
+        assert_eq!(words[0].text, "آ\u{064F}");
+    }
+
+    #[test]
+    fn test_arabic_diacritic_combined_with_base_small_gap() {
+        // Arabic base char followed by diacritical mark with a gap slightly
+        // exceeding x_tolerance — should still combine because it's a diacritical mark.
+        let chars = vec![
+            make_arabic_char("ب", 10.0, 100.0, 20.0, 112.0),
+            make_arabic_char("\u{064E}", 24.0, 100.0, 28.0, 112.0), // fatha, gap=4 > x_tolerance=3
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Arabic diacritical mark should combine with base char even with small gap"
+        );
+        assert_eq!(words[0].text, "ب\u{064E}");
+    }
+
+    #[test]
+    fn test_arabic_shadda_combined_with_base() {
+        // Arabic shadda (U+0651) — a common diacritical mark for consonant doubling.
+        let chars = vec![
+            make_arabic_char("ت", 10.0, 100.0, 20.0, 112.0),
+            make_arabic_char("\u{0651}", 25.0, 100.0, 30.0, 112.0), // shadda, gap=5
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 1, "Shadda should combine with base char");
+    }
+
+    #[test]
+    fn test_arabic_multiple_diacritics_on_one_base() {
+        // Arabic base with shadda + fatha (common combination like "تَّ").
+        let chars = vec![
+            make_arabic_char("ت", 10.0, 100.0, 20.0, 112.0),
+            make_arabic_char("\u{0651}", 24.0, 100.0, 28.0, 112.0), // shadda
+            make_arabic_char("\u{064E}", 24.0, 96.0, 28.0, 108.0),  // fatha (above shadda)
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Multiple diacritics should combine with base char"
+        );
+    }
+
+    #[test]
+    fn test_arabic_presentation_forms_word_grouping() {
+        // Arabic presentation forms (U+FE70-U+FEFF) from FC60_Times.pdf pattern.
+        // These chars have ascending x0 (BiDi RTL in PDF visual order).
+        let chars = vec![
+            make_arabic_char("ﺎ", 108.5, 75.0, 114.5, 101.0),
+            make_arabic_char("ﱠ", 114.5, 75.0, 120.0, 101.0),
+            make_arabic_char("ﺘ", 114.5, 75.0, 120.8, 101.0),
+            make_arabic_char("\u{064F}", 120.8, 75.0, 126.2, 101.0), // damma
+            make_arabic_char("آ", 120.8, 75.0, 131.0, 101.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "Arabic presentation forms should group into one word, got: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_arabic_word_with_space_splits() {
+        // Two Arabic words separated by a space.
+        let chars = vec![
+            make_arabic_char("ب", 90.0, 75.0, 108.5, 101.0),
+            make_arabic_char(" ", 108.5, 75.0, 114.5, 101.0), // space
+            make_arabic_char("آ", 114.5, 75.0, 131.0, 101.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 2, "Arabic words should split on space");
+    }
+
+    #[test]
+    fn test_bidi_rtl_word_text_order() {
+        // BiDi RTL chars in ascending x0 (PDF visual order).
+        // Word text should be the concatenation in sorted order.
+        let chars = vec![
+            make_arabic_char("ب", 90.0, 75.0, 108.5, 101.0),
+            make_arabic_char("ﺎ", 108.5, 75.0, 114.5, 101.0),
+            make_arabic_char("ﺘ", 114.5, 75.0, 120.8, 101.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 1);
+        // BiDi RTL chars in ascending x0 → sorted ascending → text is visual order
+        assert_eq!(words[0].text, "بﺎﺘ");
+        assert_eq!(words[0].direction, TextDirection::Rtl);
     }
 
     #[test]

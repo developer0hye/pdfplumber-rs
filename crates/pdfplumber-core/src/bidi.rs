@@ -95,6 +95,39 @@ pub fn apply_bidi_directions(chars: &[Char], y_tolerance: f64) -> Vec<Char> {
     result
 }
 
+/// Returns `true` if the character is an Arabic diacritical mark.
+///
+/// These marks (harakat, tashkil) are placed above or below Arabic base
+/// characters and should always be combined with their base character
+/// during word grouping, even when their bounding boxes don't overlap.
+///
+/// Covers:
+/// - U+0610–U+061A: Arabic small high signs
+/// - U+064B–U+065F: Arabic combining marks (fathatan through wavy hamza below)
+/// - U+0670: Arabic letter superscript alef
+/// - U+06D6–U+06DC: Arabic small high ligature/word marks
+/// - U+06DF–U+06E4: Arabic small high signs
+/// - U+06E7–U+06E8: Arabic small high yeh/noon
+/// - U+06EA–U+06ED: Arabic empty/filled centre marks
+/// - U+08D3–U+08FF: Arabic extended-A combining marks
+pub fn is_arabic_diacritic(ch: char) -> bool {
+    matches!(ch,
+        '\u{0610}'..='\u{061A}' |
+        '\u{064B}'..='\u{065F}' |
+        '\u{0670}' |
+        '\u{06D6}'..='\u{06DC}' |
+        '\u{06DF}'..='\u{06E4}' |
+        '\u{06E7}'..='\u{06E8}' |
+        '\u{06EA}'..='\u{06ED}' |
+        '\u{08D3}'..='\u{08FF}'
+    )
+}
+
+/// Returns `true` if the text consists entirely of Arabic diacritical marks.
+pub fn is_arabic_diacritic_text(text: &str) -> bool {
+    !text.is_empty() && text.chars().all(is_arabic_diacritic)
+}
+
 /// Returns `true` if the character has a strong RTL Unicode bidi class.
 ///
 /// Covers Arabic, Hebrew, and other RTL scripts per Unicode standard.
@@ -410,6 +443,46 @@ mod tests {
         assert!(!is_strong_rtl('z'));
         assert!(!is_strong_rtl('0'));
         assert!(!is_strong_rtl(' '));
+    }
+
+    // ===== Test: Arabic diacritical mark detection =====
+
+    #[test]
+    fn is_arabic_diacritic_harakat() {
+        // Common Arabic diacritical marks (tashkil/harakat)
+        assert!(is_arabic_diacritic('\u{064B}')); // fathatan
+        assert!(is_arabic_diacritic('\u{064C}')); // dammatan
+        assert!(is_arabic_diacritic('\u{064D}')); // kasratan
+        assert!(is_arabic_diacritic('\u{064E}')); // fatha
+        assert!(is_arabic_diacritic('\u{064F}')); // damma
+        assert!(is_arabic_diacritic('\u{0650}')); // kasra
+        assert!(is_arabic_diacritic('\u{0651}')); // shadda
+        assert!(is_arabic_diacritic('\u{0652}')); // sukun
+    }
+
+    #[test]
+    fn is_arabic_diacritic_small_high_signs() {
+        assert!(is_arabic_diacritic('\u{0610}')); // Arabic sign sallallahou alayhe wassallam
+        assert!(is_arabic_diacritic('\u{0670}')); // Arabic letter superscript alef
+    }
+
+    #[test]
+    fn is_arabic_diacritic_not_base_chars() {
+        // Arabic base letters are NOT diacritical marks
+        assert!(!is_arabic_diacritic('ب'));
+        assert!(!is_arabic_diacritic('ت'));
+        assert!(!is_arabic_diacritic('ع'));
+        assert!(!is_arabic_diacritic('A'));
+        assert!(!is_arabic_diacritic(' '));
+    }
+
+    #[test]
+    fn is_arabic_diacritic_text_basic() {
+        assert!(is_arabic_diacritic_text("\u{064F}")); // single damma
+        assert!(is_arabic_diacritic_text("\u{0651}\u{064E}")); // shadda + fatha
+        assert!(!is_arabic_diacritic_text("ب")); // base char
+        assert!(!is_arabic_diacritic_text("")); // empty
+        assert!(!is_arabic_diacritic_text("ب\u{064F}")); // mixed base + diacritic
     }
 
     // ===== Test: Line grouping =====

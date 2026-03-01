@@ -1362,10 +1362,11 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_fc60_times,
     "pdfbox/FC60_Times.pdf",
-    "words 0% — Arabic diacritics word grouping gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfbox_3127_vfont,
@@ -1378,15 +1379,17 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_4531_bidi_1,
     "pdfbox/pdfbox-4531-bidi-ligature-1.pdf",
-    "chars 0% — Hebrew/Arabic ligature gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_4531_bidi_2,
     "pdfbox/pdfbox-4531-bidi-ligature-2.pdf",
-    "chars 0% — Hebrew/Arabic ligature gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfbox_5350_korean,
