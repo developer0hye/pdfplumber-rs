@@ -1,41 +1,25 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 22시 19분 17초 KST
-
-## Codebase Patterns
-
-- **Font encoding resolution chain**: CMap → FontEncoding → CJK encoding → char::from_u32 (interpreter.rs:1036-1073)
-- **Standard font identification**: `standard_fonts::lookup()` matches all 14 standard fonts; `is_standard_latin_font()` excludes Symbol/ZapfDingbats
-- **Font cache population**: `load_font_if_needed()` in interpreter.rs builds `CachedFont` with optional `encoding` field
-- **StandardEncoding table**: Already existed in `pdfplumber-core/src/encoding.rs` as `STANDARD_TABLE` — maps byte codes to Unicode (e.g., 0x27→U+2019 quoteright, 0x60→U+2018 quoteleft)
-- **Width remapping for non-WinAnsi encodings**: `standard_fonts::build_remapped_widths()` remaps standard font widths from WinAnsi indexing to any target encoding by building a Unicode char → width HashMap from WinAnsi positions, then rebuilding the array for the target encoding
-
+Started: 2026년  3월  1일 일요일 22시 47분 52초 KST
 ---
 
-## 2026-03-01 - US-182-1
-- **What was implemented**: StandardEncoding fallback for Type1 fonts without explicit /Encoding. When a standard Latin Type1 font (Helvetica, Times, Courier variants) lacks a /Encoding entry, StandardEncoding is now applied as the implicit base encoding per the PDF spec.
-- **Files changed**:
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Added `is_standard_latin_font()` function and encoding fallback logic in `load_font_if_needed()`. Added 4 unit tests.
-  - `crates/pdfplumber/tests/accuracy_benchmark.rs` — Updated hello_structure.pdf thresholds to chars F1>=0.99, words F1>=0.95.
-  - `scripts/ralph/prd.json` — Marked US-182-1 as passes: true.
-- **Dependencies added**: None
-- **Results**: hello_structure.pdf accuracy improved from chars F1=0.981/words F1=0.889 to chars F1=1.000/words F1=1.000.
-- **Learnings for future iterations:**
-  - The StandardEncoding table was already fully implemented in pdfplumber-core — the missing piece was just the fallback logic in the interpreter.
-  - Symbol and ZapfDingbats must be excluded from StandardEncoding fallback since they have their own built-in encodings.
-  - The `extract_font_encoding()` function returns `None` when no /Encoding entry exists — this is by design (early return with `?`), so the fallback must be applied at the call site.
----
+## US-183-1: Implement ToUnicode CMap parser
+Status: COMPLETE
 
-## 2026-03-01 - US-182-2
-- **What was implemented**: Fixed standard font width lookup to use glyph names (via Unicode character matching) instead of encoding-dependent character codes. When a standard font uses StandardEncoding (no /Widths array), widths are now correctly remapped so each byte code gets the width of the glyph it represents under the active encoding.
-- **Files changed**:
-  - `crates/pdfplumber-parse/src/standard_fonts.rs` — Added `build_remapped_widths()` function that builds a correctly-indexed width array for any encoding by mapping Unicode chars between WinAnsi and target encoding. Added 6 unit tests.
-  - `crates/pdfplumber-parse/src/interpreter.rs` — In `load_font_if_needed()`, added width remapping after encoding determination: when a font has no /Widths and uses a non-WinAnsi encoding, the standard font widths are remapped via `build_remapped_widths()`.
-  - `scripts/ralph/prd.json` — Marked US-182-2 as passes: true.
-- **Dependencies added**: None
-- **Results**: All 24 accuracy benchmarks pass. No regression on any existing PDFs.
-- **Learnings for future iterations:**
-  - The standard font width tables in standard_fonts.rs are indexed by WinAnsiEncoding positions. When StandardEncoding is active, the same byte code refers to a different glyph (e.g., 0x27 = quotesingle in WinAnsi vs quoteright in Standard).
-  - The remapping approach uses Unicode as a proxy for glyph identity: build a HashMap<char, u16> from WinAnsi positions, then look up each target encoding position's Unicode char in the map.
-  - The remapping only applies when /Widths is absent (standard font fallback). PDFs with explicit /Widths arrays are unaffected since the PDF producer already set correct widths.
-  - `FontEncoding::decode(code)` returns the Unicode character for any code position, making it a convenient encoding-agnostic width remapping key.
----
+Changes:
+- cmap.rs: Fixed bfchar/bfrange parsing for concatenated entries (no newlines)
+- cmap.rs: Added parse_cidrange_as_unicode fallback for Identity ToUnicode CMaps
+- cmap.rs: Added identity flag to CMap for full-range Identity cidrange detection
+- cid_font.rs: Fixed positive Descent values in CID font descriptors (negate)
+- interpreter.rs: Added (cid:N) fallback for CID fonts without Unicode mapping
+- interpreter.rs: Respects CMap identity flag to avoid false (cid:N) on Identity CMaps
+- cross_validation.rs: Promoted 8 CID tests from ignored to passing
+
+Results (8 PDFs: 0% → 100%):
+- pdfjs/cid_cff.pdf: 100%
+- pdfjs/issue4875.pdf: 100%
+- pdfjs/issue7696.pdf: 100%
+- pdfjs/issue8570.pdf: 100%
+- pdfjs/issue9262_reduced.pdf: 100%
+- pdfjs/text_clip_cff_cid.pdf: 100%
+- pdfbox/pdfbox-3833-japanese-reduced.pdf: 100%
+- pdfbox/pdfbox-5747-surrogate-diacritic-reduced.pdf: 100%

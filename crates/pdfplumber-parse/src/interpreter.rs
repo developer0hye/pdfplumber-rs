@@ -1129,8 +1129,17 @@ fn emit_char_events(
                 })
             })
             .or_else(|| {
-                // 4. Fallback: char::from_u32 for ASCII-range codes
-                char::from_u32(rc.char_code).map(|ch| ch.to_string())
+                // 4. Fallback: for CID fonts with a non-identity ToUnicode CMap
+                // that didn't map this code, output (cid:N) matching Python
+                // pdfplumber/pdfminer behavior. For simple fonts or CID fonts
+                // with identity CMap, interpret char_code as Unicode code point.
+                if cached.is_some_and(|c| {
+                    c.is_cid_font && !c.cmap.as_ref().is_some_and(|cm| cm.is_identity())
+                }) {
+                    Some(format!("(cid:{})", rc.char_code))
+                } else {
+                    char::from_u32(rc.char_code).map(|ch| ch.to_string())
+                }
             });
 
         // Use CID font metrics for displacement if available

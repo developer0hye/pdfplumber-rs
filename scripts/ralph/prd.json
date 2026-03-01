@@ -1,40 +1,53 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-182-standard-encoding",
-  "description": "Issue #182: StandardEncoding fallback for Type1 fonts without explicit /Encoding",
-  "relatedIssue": 182,
+  "branchName": "ralph/issue-183-cidcmap-encoding",
+  "description": "Issue #183: CIDFont / CMap encoding support for multilingual PDFs",
+  "relatedIssue": 183,
   "userStories": [
     {
-      "id": "US-182-1",
-      "title": "Apply StandardEncoding for Type1 fonts without /Encoding",
-      "description": "When a standard Type1 font (Helvetica, Times-Roman, Courier, etc.) has no explicit /Encoding entry, the PDF spec requires Adobe StandardEncoding as the implicit base encoding. Currently the parser falls back to raw char::from_u32(), treating byte codes as Unicode code points directly. For example, byte 0x27 should map to U+2019 (quoteright) via StandardEncoding, but currently maps to U+0027 (apostrophe).",
+      "id": "US-183-1",
+      "title": "Implement ToUnicode CMap parser",
+      "description": "Parse /ToUnicode CMap streams embedded in PDF font dictionaries. These provide direct CID → Unicode mappings using beginbfchar/endbfchar and beginbfrange/endbfrange operators. This is the highest-value CMap feature as many CIDFont PDFs include ToUnicode maps.",
       "acceptanceCriteria": [
-        "hello_structure.pdf chars F1 >= 0.99 (currently 0.981, apostrophe mismatch)",
-        "hello_structure.pdf words F1 >= 0.95 (currently 0.889, 'I'll' word mismatch)",
-        "StandardEncoding table is implemented with correct glyph name → Unicode mappings",
-        "Only applied to standard 14 Type1 fonts when /Encoding is absent",
-        "No regression on PDFs with explicit /Encoding entries",
+        "ToUnicode CMap streams are parsed correctly (bfchar and bfrange entries)",
+        "At least 3 previously-failing CIDFont PDFs now extract chars > 50%",
+        "Handles multi-byte Unicode mappings (e.g., surrogate pairs, BMP and SMP)",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (extract_font_encoding function, line ~758), crates/pdfplumber-parse/src/standard_fonts.rs. StandardEncoding differs from WinAnsiEncoding at several code points: 0x27 (quoteright vs quotesingle), 0x60 (grave vs quoteleft), 0x91-0x92, etc. The AGL (Adobe Glyph List) maps glyph names to Unicode. Standard 14 fonts: Helvetica(-Bold/-Oblique/-BoldOblique), Times-Roman(-Bold/-Italic/-BoldItalic), Courier(-Bold/-Oblique/-BoldOblique), Symbol, ZapfDingbats."
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (font setup). ToUnicode CMap format: 'beginbfchar <src> <dst> endbfchar' and 'beginbfrange <srcLo> <srcHi> <dst> endbfrange'. The CMap is a stream object referenced by /ToUnicode in the font dictionary. Many PDFs that currently score 0% include ToUnicode maps that would enable extraction if parsed."
     },
     {
-      "id": "US-182-2",
-      "title": "Fix standard font width lookup to use glyph names",
-      "description": "The standard font width table in standard_fonts.rs is indexed by WinAnsiEncoding character codes. When StandardEncoding is in effect, this causes wrong width lookups. For example, code 0x27 in WinAnsiEncoding is quotesingle (width 191) but in StandardEncoding it's quoteright (width 222). Fix by looking up widths by glyph name instead of encoding-dependent character code.",
+      "id": "US-183-2",
+      "title": "Implement predefined CMap support for CJK fonts",
+      "description": "CIDFont dictionaries reference predefined CMaps by name (e.g., 'Adobe-Japan1-UCS2', 'GBKp-EUC-H', 'UniKS-UCS2-H'). These standard CMaps define CID → character code mappings for CJK languages. Bundle the most common predefined CMaps or implement a CMap file loader.",
       "acceptanceCriteria": [
-        "Standard font widths are looked up by glyph name, not by encoding-dependent code",
-        "hello_structure.pdf has no x-drift after the apostrophe character",
-        "No regression on existing PDFs that use WinAnsiEncoding",
+        "At least Adobe-Japan1, Adobe-GB1, Adobe-Korea1, Adobe-CNS1 CMap families are supported",
+        "Japanese PDFs (issue3521, issue7696, issue8570, issue9262) extract chars > 30%",
+        "Korean PDF (pdfbox-5350-korean) extracts chars > 30%",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Key file: crates/pdfplumber-parse/src/standard_fonts.rs. The current width arrays are indexed by character code position assuming WinAnsiEncoding. A better approach: create a HashMap<&str, u16> mapping glyph name → width for each standard font, then look up by glyph name derived from the active encoding. The glyph names for standard fonts are well-defined in the PDF spec Appendix D."
+      "passes": false,
+      "notes": "Predefined CMaps can be bundled as static data or loaded from files. The Adobe CMap resources are open source (https://github.com/niceferrari/adobe-cmap). Key CMaps to support: UniJIS-UCS2-H, UniGB-UCS2-H, UniKS-UCS2-H, UniCNS-UCS2-H, Identity-H, Identity-V. Consider using a build script to embed CMap data."
+    },
+    {
+      "id": "US-183-3",
+      "title": "Implement CIDFont width handling (W/DW arrays)",
+      "description": "CIDFont dictionaries specify glyph widths via /W (width array) and /DW (default width) entries. The /W array format is: [cid [w1 w2 ...]] or [cidFirst cidLast w]. Implement width extraction from these arrays for correct character positioning.",
+      "acceptanceCriteria": [
+        "CIDFont /W and /DW entries are parsed and used for char width calculation",
+        "CIDFont PDFs have improved x-coordinate accuracy",
+        "No regression on Type1/TrueType font widths",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs (font metrics setup). The /W array has a complex format: it's an array of entries where each entry is either [cid [w1 w2 ...]] (consecutive widths starting at cid) or [cidFirst cidLast w] (same width for range). /DW is the default width (typically 1000). These widths are in 1/1000 of the font's em-square."
     }
   ]
 }
