@@ -120,7 +120,8 @@ After EACH completed user story (step 11), you MUST push, create a PR, verify CI
 
 1. **Push**: `git push -u origin <branchName>` (branchName from PRD)
 2. **Create PR**:
-   - `gh pr create --title "feat: [Story ID] - [Story Title]" --body "<summary of changes + test plan>" --base main`
+   - Check if the user story has a `relatedIssue` field. If it does, include `Closes #<issue>` in the PR body.
+   - `gh pr create --title "feat: [Story ID] - [Story Title]" --body "<summary of changes + test plan + Closes #N if applicable>" --base main`
    - If a PR already exists for this branch, skip creation
 3. **Wait for CI** (30s then watch): `sleep 30 && gh pr checks <number> --watch`
 4. **If CI fails** (retry up to 3 times):

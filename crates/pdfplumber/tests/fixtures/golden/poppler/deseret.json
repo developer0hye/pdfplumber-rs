@@ -1,0 +1,156 @@
+{
+  "source": "deseret.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.3039,
+      "height": 841.8898,
+      "chars": [
+        {
+          "text": " ",
+          "x0": 76.2,
+          "top": 60.7968,
+          "x1": 79.308,
+          "bottom": 72.7968,
+          "fontname": "BAAAAA+DroidSansDevanagari",
+          "size": 12.0,
+          "doctop": 60.7968,
+          "upright": true
+        },
+        {
+          "text": "𐐐",
+          "x0": 56.8,
+          "top": 57.9288,
+          "x1": 63.592,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐐯",
+          "x0": 63.496,
+          "top": 57.9288,
+          "x1": 68.452,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐑊",
+          "x0": 68.488,
+          "top": 57.9288,
+          "x1": 72.004,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐐬",
+          "x0": 71.992,
+          "top": 57.9288,
+          "x1": 76.168,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐐶",
+          "x0": 79.384,
+          "top": 57.9288,
+          "x1": 86.86,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐐯",
+          "x0": 86.788,
+          "top": 57.9288,
+          "x1": 91.744,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐑉",
+          "x0": 91.78,
+          "top": 57.9288,
+          "x1": 96.784,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐑊",
+          "x0": 96.784,
+          "top": 57.9288,
+          "x1": 100.3,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "𐐼",
+          "x0": 100.288,
+          "top": 57.9288,
+          "x1": 105.436,
+          "bottom": 69.9288,
+          "fontname": "CAAAAA+MPH2BDamase",
+          "size": 12.0,
+          "doctop": 57.9288,
+          "upright": true
+        },
+        {
+          "text": "!",
+          "x0": 105.5,
+          "top": 58.4928,
+          "x1": 109.496,
+          "bottom": 70.4928,
+          "fontname": "DAAAAA+LiberationSerif",
+          "size": 12.0,
+          "doctop": 58.4928,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "𐐐𐐯𐑊𐐬",
+          "x0": 56.8,
+          "top": 57.9288,
+          "x1": 76.168,
+          "bottom": 69.9288,
+          "doctop": 57.9288
+        },
+        {
+          "text": "𐐶𐐯𐑉𐑊𐐼!",
+          "x0": 79.384,
+          "top": 57.9288,
+          "x1": 109.496,
+          "bottom": 70.4928,
+          "doctop": 57.9288
+        }
+      ],
+      "text": "𐐐𐐯𐑊𐐬 𐐶𐐯𐑉𐑊𐐼!",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

@@ -1,0 +1,159 @@
+{
+  "source": "noembed-identity-2.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.0,
+      "height": 842.0,
+      "chars": [
+        {
+          "text": "あ",
+          "x0": 72.0,
+          "top": 51.36,
+          "x1": 96.0,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "A",
+          "x0": 96.0,
+          "top": 51.36,
+          "x1": 111.168,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "b",
+          "x0": 111.168,
+          "top": 51.36,
+          "x1": 123.072,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 123.072,
+          "top": 51.36,
+          "x1": 134.112,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 134.112,
+          "top": 51.36,
+          "x1": 142.536,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "r",
+          "x0": 142.536,
+          "top": 51.36,
+          "x1": 150.864,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "a",
+          "x0": 150.864,
+          "top": 51.36,
+          "x1": 162.288,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "c",
+          "x0": 162.288,
+          "top": 51.36,
+          "x1": 174.288,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 174.288,
+          "top": 51.36,
+          "x1": 182.712,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "0",
+          "x0": 182.712,
+          "top": 51.36,
+          "x1": 194.712,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 194.712,
+          "top": 51.36,
+          "x1": 206.712,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 206.712,
+          "top": 51.36,
+          "x1": 218.712,
+          "bottom": 75.36,
+          "fontname": "MS-PGothic",
+          "size": 24.0,
+          "doctop": 51.36,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "あAbstract012",
+          "x0": 72.0,
+          "top": 51.36,
+          "x1": 218.712,
+          "bottom": 75.36,
+          "doctop": 51.36
+        }
+      ],
+      "text": "あAbstract012",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

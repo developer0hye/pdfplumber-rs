@@ -1,0 +1,103 @@
+{
+  "source": "text_clip_cff_cid.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 580.0,
+      "height": 200.0,
+      "chars": [
+        {
+          "text": "A",
+          "x0": 50.0,
+          "top": 49.0,
+          "x1": 134.84,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        },
+        {
+          "text": "B",
+          "x0": 134.84,
+          "top": 49.0,
+          "x1": 215.72,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        },
+        {
+          "text": "C",
+          "x0": 215.72,
+          "top": 49.0,
+          "x1": 297.32,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        },
+        {
+          "text": "1",
+          "x0": 297.32,
+          "top": 49.0,
+          "x1": 372.8,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        },
+        {
+          "text": "2",
+          "x0": 372.8,
+          "top": 49.0,
+          "x1": 448.28,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        },
+        {
+          "text": "3",
+          "x0": 448.28,
+          "top": 49.0,
+          "x1": 523.76,
+          "bottom": 169.0,
+          "fontname": "XTQOSZ+Reitam",
+          "size": 120.0,
+          "doctop": 49.0,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "ABC123",
+          "x0": 50.0,
+          "top": 49.0,
+          "x1": 523.76,
+          "bottom": 169.0,
+          "doctop": 49.0
+        }
+      ],
+      "text": "ABC123",
+      "lines": [],
+      "rects": [
+        {
+          "x0": 46.0,
+          "top": 51.0,
+          "x1": 516.0,
+          "bottom": 150.0,
+          "linewidth": 0.0,
+          "stroke": false,
+          "fill": true
+        }
+      ],
+      "tables": []
+    }
+  ]
+}

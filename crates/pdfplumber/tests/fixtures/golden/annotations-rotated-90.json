@@ -1,0 +1,197 @@
+{
+  "source": "annotations-rotated-90.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 842.0,
+      "height": 595.0,
+      "chars": [
+        {
+          "text": "D",
+          "x0": 754.7029,
+          "top": 56.8,
+          "x1": 770.8029,
+          "bottom": 68.4242,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 11.6242,
+          "doctop": 56.8,
+          "upright": false
+        },
+        {
+          "text": "u",
+          "x0": 754.7029,
+          "top": 68.4242,
+          "x1": 770.8029,
+          "bottom": 78.2452,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 9.821,
+          "doctop": 68.4242,
+          "upright": false
+        },
+        {
+          "text": "m",
+          "x0": 754.7029,
+          "top": 78.2452,
+          "x1": 770.8029,
+          "bottom": 92.5581,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 14.3129,
+          "doctop": 78.2452,
+          "upright": false
+        },
+        {
+          "text": "m",
+          "x0": 754.7029,
+          "top": 92.5581,
+          "x1": 770.8029,
+          "bottom": 106.871,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 14.3129,
+          "doctop": 92.5581,
+          "upright": false
+        },
+        {
+          "text": "y",
+          "x0": 754.7029,
+          "top": 106.9,
+          "x1": 770.8029,
+          "bottom": 115.8516,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 8.9516,
+          "doctop": 106.9,
+          "upright": false
+        },
+        {
+          "text": " ",
+          "x0": 754.7029,
+          "top": 115.9,
+          "x1": 770.8029,
+          "bottom": 120.3597,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 4.4597,
+          "doctop": 115.9,
+          "upright": false
+        },
+        {
+          "text": "P",
+          "x0": 754.7029,
+          "top": 120.3,
+          "x1": 770.8029,
+          "bottom": 131.0226,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 10.7226,
+          "doctop": 120.3,
+          "upright": false
+        },
+        {
+          "text": "D",
+          "x0": 754.7029,
+          "top": 131.0226,
+          "x1": 770.8029,
+          "bottom": 142.6468,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 11.6242,
+          "doctop": 131.0226,
+          "upright": false
+        },
+        {
+          "text": "F",
+          "x0": 754.7029,
+          "top": 142.6468,
+          "x1": 770.8029,
+          "bottom": 152.4678,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 9.821,
+          "doctop": 142.6468,
+          "upright": false
+        },
+        {
+          "text": " ",
+          "x0": 754.7029,
+          "top": 152.5,
+          "x1": 770.8029,
+          "bottom": 156.9597,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 4.4597,
+          "doctop": 152.5,
+          "upright": false
+        },
+        {
+          "text": "f",
+          "x0": 754.7029,
+          "top": 156.9597,
+          "x1": 770.8029,
+          "bottom": 162.321,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 5.3613,
+          "doctop": 156.9597,
+          "upright": false
+        },
+        {
+          "text": "i",
+          "x0": 754.7029,
+          "top": 162.321,
+          "x1": 770.8029,
+          "bottom": 166.7807,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 4.4597,
+          "doctop": 162.321,
+          "upright": false
+        },
+        {
+          "text": "l",
+          "x0": 754.7029,
+          "top": 166.8,
+          "x1": 770.8029,
+          "bottom": 171.2597,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 4.4597,
+          "doctop": 166.8,
+          "upright": false
+        },
+        {
+          "text": "e",
+          "x0": 754.7029,
+          "top": 171.2597,
+          "x1": 770.8029,
+          "bottom": 180.2113,
+          "fontname": "BAAAAA+Arial-BoldMT",
+          "size": 8.9516,
+          "doctop": 171.2597,
+          "upright": false
+        }
+      ],
+      "words": [
+        {
+          "text": "Dummy",
+          "x0": 754.7029,
+          "top": 56.8,
+          "x1": 770.8029,
+          "bottom": 115.8516,
+          "doctop": 56.8
+        },
+        {
+          "text": "PDF",
+          "x0": 754.7029,
+          "top": 120.3,
+          "x1": 770.8029,
+          "bottom": 152.4678,
+          "doctop": 120.3
+        },
+        {
+          "text": "file",
+          "x0": 754.7029,
+          "top": 156.9597,
+          "x1": 770.8029,
+          "bottom": 180.2113,
+          "doctop": 156.9597
+        }
+      ],
+      "text": "Dummy\nPDF\nfile",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

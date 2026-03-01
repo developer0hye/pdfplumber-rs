@@ -1,0 +1,93 @@
+{
+  "source": "pdfbox-4322-empty-tounicode-reduced.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 595.276,
+      "height": 841.89,
+      "chars": [
+        {
+          "text": "J",
+          "x0": 100.0,
+          "top": 66.89,
+          "x1": 131.8,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        },
+        {
+          "text": "u",
+          "x0": 131.8,
+          "top": 66.89,
+          "x1": 184.3,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        },
+        {
+          "text": "s",
+          "x0": 184.3,
+          "top": 66.89,
+          "x1": 223.4,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        },
+        {
+          "text": "t",
+          "x0": 223.4,
+          "top": 66.89,
+          "x1": 256.8,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        },
+        {
+          "text": "i",
+          "x0": 256.8,
+          "top": 66.89,
+          "x1": 279.7,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        },
+        {
+          "text": "n",
+          "x0": 279.7,
+          "top": 66.89,
+          "x1": 332.2,
+          "bottom": 166.89,
+          "fontname": "Calibri",
+          "size": 100.0,
+          "doctop": 66.89,
+          "upright": true
+        }
+      ],
+      "words": [
+        {
+          "text": "Justin",
+          "x0": 100.0,
+          "top": 66.89,
+          "x1": 332.2,
+          "bottom": 166.89,
+          "doctop": 66.89
+        }
+      ],
+      "text": "Justin",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}

@@ -973,6 +973,7 @@ dependencies = [
  "pdfplumber-core",
  "pdfplumber-parse",
  "rayon",
+ "serde",
  "serde_json",
 ]
 

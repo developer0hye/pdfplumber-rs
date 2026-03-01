@@ -7,10 +7,9 @@
 //! - Chars/Words: Precision, Recall, F1 (nearest-neighbor text+bbox matching)
 //! - Table cell text match rate
 //!
-//! Current baseline thresholds reflect measured accuracy. PRD targets (chars/words
-//! F1 >= 0.95, lattice table >= 0.90) are documented in comments alongside each
-//! assertion. As the parser improves (font metrics, coordinate handling), thresholds
-//! should be raised toward PRD targets.
+//! With standard font width fallback (US-103/US-104), most tests now meet or exceed
+//! PRD targets (chars/words F1 >= 0.95, lattice table >= 0.90). Remaining gaps are
+//! in multi_font (non-standard fonts) and rotated_pages (coordinate transforms).
 
 use pdfplumber::{Pdf, TableSettings, WordOptions};
 use serde::Deserialize;
@@ -84,8 +83,8 @@ struct F1Result {
 }
 
 /// Coordinate tolerance for matching (in points).
-/// fpdf2-generated PDFs have ~7pt fixed-width chars vs proportional golden widths,
-/// causing cumulative x-drift. Real-world PDFs have much tighter coordinate agreement.
+/// With standard font fallback, coordinate agreement is typically sub-point.
+/// Tolerance of 2.0 provides margin for minor rounding differences.
 const COORD_TOLERANCE: f64 = 2.0;
 
 /// Compute bbox center distance between two bboxes.
@@ -330,7 +329,12 @@ fn load_golden(pdf_stem: &str) -> GoldenData {
 
 fn open_pdf(subdir: &str, filename: &str) -> Result<Pdf, String> {
     let path = fixtures_dir().join(subdir).join(filename);
-    Pdf::open_file(&path, None).map_err(|e| format!("{}", e))
+    // Use UnicodeNorm::None to match golden data generated without normalization.
+    let opts = pdfplumber::ExtractOptions {
+        unicode_norm: pdfplumber::UnicodeNorm::None,
+        ..pdfplumber::ExtractOptions::default()
+    };
+    Pdf::open_file(&path, Some(opts)).map_err(|e| format!("{}", e))
 }
 
 /// Run the full accuracy benchmark for a single PDF.
@@ -488,11 +492,9 @@ fn print_table_summary(name: &str, results: &[(usize, usize)]) {
 // ---------------------------------------------------------------------------
 // Generated fixture tests (tests/fixtures/generated/)
 //
-// Note: fpdf2-generated PDFs use fixed character widths in content streams.
-// Python pdfplumber resolves proportional widths via font metrics, while our
-// Rust parser currently uses the content-stream widths. This causes cumulative
-// x-coordinate drift, lowering bbox-based F1 scores for generated PDFs.
-// Baseline thresholds reflect current measured accuracy.
+// fpdf2-generated PDFs use standard Type1 fonts. With the standard font width
+// fallback (US-103/US-104), proportional widths are correctly resolved, bringing
+// most generated PDF scores to F1=1.0.
 // PRD target: chars/words F1 >= 0.95
 // ---------------------------------------------------------------------------
 
@@ -501,9 +503,9 @@ fn accuracy_basic_text() {
     let (cf1, wf1) = benchmark_pdf("generated", "basic_text.pdf", "basic_text")
         .expect("basic_text.pdf should parse");
     print_text_summary("basic_text.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.08, words F1~0.02 (font metrics gap)
-    // PRD target: >= 0.95
-    assert!(cf1.f1 >= 0.05, "basic_text chars F1 {:.3} < 0.05", cf1.f1);
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
+    assert!(cf1.f1 >= 0.95, "basic_text chars F1 {:.3} < 0.95", cf1.f1);
+    assert!(wf1.f1 >= 0.95, "basic_text words F1 {:.3} < 0.95", wf1.f1);
 }
 
 #[test]
@@ -511,9 +513,9 @@ fn accuracy_multicolumn() {
     let (cf1, wf1) = benchmark_pdf("generated", "multicolumn.pdf", "multicolumn")
         .expect("multicolumn.pdf should parse");
     print_text_summary("multicolumn.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.22
-    // PRD target: >= 0.95
-    assert!(cf1.f1 >= 0.15, "multicolumn chars F1 {:.3} < 0.15", cf1.f1);
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
+    assert!(cf1.f1 >= 0.95, "multicolumn chars F1 {:.3} < 0.95", cf1.f1);
+    assert!(wf1.f1 >= 0.95, "multicolumn words F1 {:.3} < 0.95", wf1.f1);
 }
 
 #[test]
@@ -521,12 +523,16 @@ fn accuracy_table_lattice() {
     let (cf1, wf1) = benchmark_pdf("generated", "table_lattice.pdf", "table_lattice")
         .expect("table_lattice.pdf should parse");
     print_text_summary("table_lattice.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.53
-    // PRD target: >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.40,
-        "table_lattice chars F1 {:.3} < 0.40",
+        cf1.f1 >= 0.95,
+        "table_lattice chars F1 {:.3} < 0.95",
         cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.95,
+        "table_lattice words F1 {:.3} < 0.95",
+        wf1.f1
     );
 
     // Table cell accuracy
@@ -540,12 +546,16 @@ fn accuracy_table_borderless() {
     let (cf1, wf1) = benchmark_pdf("generated", "table_borderless.pdf", "table_borderless")
         .expect("table_borderless.pdf should parse");
     print_text_summary("table_borderless.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.53
-    // PRD target: >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.40,
-        "table_borderless chars F1 {:.3} < 0.40",
+        cf1.f1 >= 0.95,
+        "table_borderless chars F1 {:.3} < 0.95",
         cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.95,
+        "table_borderless words F1 {:.3} < 0.95",
+        wf1.f1
     );
 }
 
@@ -554,12 +564,16 @@ fn accuracy_table_merged_cells() {
     let (cf1, wf1) = benchmark_pdf("generated", "table_merged_cells.pdf", "table_merged_cells")
         .expect("table_merged_cells.pdf should parse");
     print_text_summary("table_merged_cells.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.71, words F1~0.82
-    // PRD target: >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.60,
-        "table_merged_cells chars F1 {:.3} < 0.60",
+        cf1.f1 >= 0.95,
+        "table_merged_cells chars F1 {:.3} < 0.95",
         cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.95,
+        "table_merged_cells words F1 {:.3} < 0.95",
+        wf1.f1
     );
 
     // Table cell accuracy
@@ -574,9 +588,11 @@ fn accuracy_multi_font() {
     let (cf1, wf1) = benchmark_pdf("generated", "multi_font.pdf", "multi_font")
         .expect("multi_font.pdf should parse");
     print_text_summary("multi_font.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.09
-    // PRD target: >= 0.95
-    assert!(cf1.f1 >= 0.05, "multi_font chars F1 {:.3} < 0.05", cf1.f1);
+    // Measured: chars F1=0.588, words F1=0.595 (improved from ~0.09)
+    // multi_font uses non-standard fonts beyond the 14 standard Type1 fonts,
+    // so standard font fallback only partially helps. PRD target: >= 0.95
+    assert!(cf1.f1 >= 0.55, "multi_font chars F1 {:.3} < 0.55", cf1.f1);
+    assert!(wf1.f1 >= 0.55, "multi_font words F1 {:.3} < 0.55", wf1.f1);
 }
 
 #[test]
@@ -584,9 +600,9 @@ fn accuracy_rotated_pages() {
     let (cf1, wf1) = benchmark_pdf("generated", "rotated_pages.pdf", "rotated_pages")
         .expect("rotated_pages.pdf should parse");
     print_text_summary("rotated_pages.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.01 (rotation coordinate transform differences)
-    // PRD target: >= 0.95
-    // No assertion — rotation handling is a known gap
+    // Measured: chars F1=0.241 (improved from ~0.01)
+    // Rotation coordinate transform differences remain a known gap. PRD target: >= 0.95
+    // No assertion — rotation handling needs dedicated fix
 }
 
 #[test]
@@ -594,9 +610,9 @@ fn accuracy_cjk_mixed() {
     let (cf1, wf1) = benchmark_pdf("generated", "cjk_mixed.pdf", "cjk_mixed")
         .expect("cjk_mixed.pdf should parse");
     print_text_summary("cjk_mixed.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.08
-    // PRD target: >= 0.95
-    assert!(cf1.f1 >= 0.05, "cjk_mixed chars F1 {:.3} < 0.05", cf1.f1);
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
+    assert!(cf1.f1 >= 0.95, "cjk_mixed chars F1 {:.3} < 0.95", cf1.f1);
+    assert!(wf1.f1 >= 0.95, "cjk_mixed words F1 {:.3} < 0.95", wf1.f1);
 }
 
 #[test]
@@ -604,12 +620,16 @@ fn accuracy_long_document() {
     let (cf1, wf1) = benchmark_pdf("generated", "long_document.pdf", "long_document")
         .expect("long_document.pdf should parse");
     print_text_summary("long_document.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.17
-    // PRD target: >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.10,
-        "long_document chars F1 {:.3} < 0.10",
+        cf1.f1 >= 0.95,
+        "long_document chars F1 {:.3} < 0.95",
         cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.95,
+        "long_document words F1 {:.3} < 0.95",
+        wf1.f1
     );
 }
 
@@ -618,20 +638,25 @@ fn accuracy_annotations_links() {
     let (cf1, wf1) = benchmark_pdf("generated", "annotations_links.pdf", "annotations_links")
         .expect("annotations_links.pdf should parse");
     print_text_summary("annotations_links.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.12
-    // PRD target: >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.05,
-        "annotations_links chars F1 {:.3} < 0.05",
+        cf1.f1 >= 0.95,
+        "annotations_links chars F1 {:.3} < 0.95",
         cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.95,
+        "annotations_links words F1 {:.3} < 0.95",
+        wf1.f1
     );
 }
 
 // ---------------------------------------------------------------------------
 // Downloaded fixture tests (tests/fixtures/downloaded/)
 //
-// Real-world PDFs with embedded font metrics. These typically have much higher
-// accuracy than fpdf2-generated fixtures because font widths resolve correctly.
+// Real-world PDFs. With standard font fallback, these now achieve near-perfect
+// accuracy. Embedded font metrics continue to work correctly alongside the
+// standard font fallback.
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -643,16 +668,15 @@ fn accuracy_nics_firearm_checks() {
     )
     .expect("nics-firearm-checks.pdf should parse");
     print_text_summary("nics-firearm-checks.pdf", &cf1, &wf1);
-    // Baseline: chars F1~0.89, words F1~0.92 — close to PRD target
-    // PRD target: chars/words F1 >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(
-        cf1.f1 >= 0.80,
-        "nics-firearm-checks chars F1 {:.3} < 0.80",
+        cf1.f1 >= 0.95,
+        "nics-firearm-checks chars F1 {:.3} < 0.95",
         cf1.f1
     );
     assert!(
-        wf1.f1 >= 0.80,
-        "nics-firearm-checks words F1 {:.3} < 0.80",
+        wf1.f1 >= 0.95,
+        "nics-firearm-checks words F1 {:.3} < 0.95",
         wf1.f1
     );
 
@@ -667,27 +691,25 @@ fn accuracy_nics_firearm_checks() {
 
 #[test]
 fn accuracy_scotus_transcript() {
-    // This PDF currently fails to parse (content stream issue).
-    // Test documents the failure and skips gracefully.
-    let result = benchmark_pdf(
+    // Measured: chars F1=0.999, words F1=1.000
+    let (cf1, wf1) = benchmark_pdf(
         "downloaded",
         "scotus-transcript-p1.pdf",
         "scotus-transcript-p1",
+    )
+    .expect("scotus-transcript-p1.pdf should parse");
+    print_text_summary("scotus-transcript-p1.pdf", &cf1, &wf1);
+    // PRD target: chars/words F1 >= 0.95
+    assert!(
+        cf1.f1 >= 0.95,
+        "scotus-transcript chars F1 {:.3} < 0.95",
+        cf1.f1
     );
-    match result {
-        Some((cf1, wf1)) => {
-            print_text_summary("scotus-transcript-p1.pdf", &cf1, &wf1);
-            // PRD target: chars/words F1 >= 0.95
-            assert!(
-                cf1.f1 >= 0.50,
-                "scotus-transcript chars F1 {:.3} < 0.50",
-                cf1.f1
-            );
-        }
-        None => {
-            println!("scotus-transcript-p1.pdf: parse not yet supported, skipping assertions");
-        }
-    }
+    assert!(
+        wf1.f1 >= 0.95,
+        "scotus-transcript words F1 {:.3} < 0.95",
+        wf1.f1
+    );
 }
 
 #[test]
@@ -695,10 +717,9 @@ fn accuracy_pdffill_demo() {
     let (cf1, wf1) = benchmark_pdf("downloaded", "pdffill-demo.pdf", "pdffill-demo")
         .expect("pdffill-demo.pdf should parse");
     print_text_summary("pdffill-demo.pdf", &cf1, &wf1);
-    // Baseline: chars F1=1.000, words F1=0.958 — meets PRD target
-    // PRD target: chars/words F1 >= 0.95
+    // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(cf1.f1 >= 0.95, "pdffill-demo chars F1 {:.3} < 0.95", cf1.f1);
-    assert!(wf1.f1 >= 0.90, "pdffill-demo words F1 {:.3} < 0.90", wf1.f1);
+    assert!(wf1.f1 >= 0.95, "pdffill-demo words F1 {:.3} < 0.95", wf1.f1);
 }
 
 // ---------------------------------------------------------------------------

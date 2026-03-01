@@ -1,0 +1,39 @@
+{
+  "source": "issue-203-decimalize.pdf",
+  "pdfplumber_version": "0.11.9",
+  "pages": [
+    {
+      "page_number": 0,
+      "width": 578.16,
+      "height": 824.4,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    },
+    {
+      "page_number": 1,
+      "width": 578.16,
+      "height": 824.4,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    },
+    {
+      "page_number": 2,
+      "width": 578.16,
+      "height": 824.4,
+      "chars": [],
+      "words": [],
+      "text": "",
+      "lines": [],
+      "rects": [],
+      "tables": []
+    }
+  ]
+}
