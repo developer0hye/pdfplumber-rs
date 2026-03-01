@@ -88,6 +88,7 @@ pub(crate) fn object_to_f64(obj: &lopdf::Object) -> Result<f64, BackendError> {
 /// Look up a key in the page dictionary, walking up the page tree
 /// (via /Parent) if the key is not found on the page itself.
 ///
+/// If the value is an indirect reference, it is automatically dereferenced.
 /// Returns `None` if the key is not found anywhere in the tree.
 fn resolve_inherited<'a>(
     doc: &'a lopdf::Document,
@@ -102,7 +103,17 @@ fn resolve_inherited<'a>(
             .map_err(|e| BackendError::Parse(format!("failed to get page dictionary: {e}")))?;
 
         if let Ok(value) = dict.get(key) {
-            return Ok(Some(value));
+            // Dereference indirect references (e.g. `/MediaBox 174 0 R`)
+            let resolved = match value {
+                lopdf::Object::Reference(id) => doc.get_object(*id).map_err(|e| {
+                    BackendError::Parse(format!(
+                        "failed to resolve indirect reference for /{}: {e}",
+                        String::from_utf8_lossy(key)
+                    ))
+                })?,
+                other => other,
+            };
+            return Ok(Some(resolved));
         }
 
         // Try to follow /Parent link
@@ -199,6 +210,15 @@ impl PdfBackend for LopdfBackend {
 
         match dict.get(b"CropBox") {
             Ok(obj) => {
+                // Dereference indirect references
+                let obj = match obj {
+                    lopdf::Object::Reference(id) => doc.inner.get_object(*id).map_err(|e| {
+                        BackendError::Parse(format!(
+                            "failed to resolve indirect reference for /CropBox: {e}"
+                        ))
+                    })?,
+                    other => other,
+                };
                 let array = obj
                     .as_array()
                     .map_err(|e| BackendError::Parse(format!("CropBox is not an array: {e}")))?;
@@ -4797,5 +4817,60 @@ mod tests {
         assert_eq!(fig.element_type, "Figure");
         assert_eq!(fig.alt_text.as_deref(), Some("A photo of a sunset"));
         assert_eq!(fig.actual_text.as_deref(), Some("Sunset photo"));
+    }
+
+    // --- indirect reference box tests (Issue #163) ---
+
+    /// Create a PDF where the page's MediaBox is an indirect reference.
+    /// This reproduces the structure seen in annotations.pdf where
+    /// `/MediaBox 174 0 R` points to a separate array object.
+    fn create_test_pdf_indirect_media_box() -> Vec<u8> {
+        use lopdf::{Document, Object, ObjectId, dictionary};
+
+        let mut doc = Document::with_version("1.5");
+        let pages_id: ObjectId = doc.new_object_id();
+
+        // Create the MediaBox array as a separate indirect object
+        let media_box_id = doc.add_object(Object::Array(vec![
+            Object::Integer(0),
+            Object::Integer(0),
+            Object::Integer(595),
+            Object::Integer(842),
+        ]));
+
+        // Page references MediaBox indirectly via `174 0 R` style
+        let page_id = doc.add_object(dictionary! {
+            "Type" => "Page",
+            "Parent" => pages_id,
+            "MediaBox" => Object::Reference(media_box_id),
+        });
+
+        doc.objects.insert(
+            pages_id,
+            Object::Dictionary(dictionary! {
+                "Type" => "Pages",
+                "Kids" => vec![Object::from(page_id)],
+                "Count" => 1i64,
+            }),
+        );
+
+        let catalog_id = doc.add_object(dictionary! {
+            "Type" => "Catalog",
+            "Pages" => pages_id,
+        });
+        doc.trailer.set("Root", catalog_id);
+
+        let mut buf = Vec::new();
+        doc.save_to(&mut buf).expect("failed to save test PDF");
+        buf
+    }
+
+    #[test]
+    fn media_box_indirect_reference() {
+        let pdf_bytes = create_test_pdf_indirect_media_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let media_box = LopdfBackend::page_media_box(&doc, &page).unwrap();
+        assert_eq!(media_box, BBox::new(0.0, 0.0, 595.0, 842.0));
     }
 }
