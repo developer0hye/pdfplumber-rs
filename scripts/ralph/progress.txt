@@ -1,21 +1,21 @@
-## Codebase Patterns
-- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
-- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
-- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
-- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
-- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
-- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
-- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
-- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
-- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
-- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
-- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
-- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
-- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
-- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
-
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 11시 08분 56초 KST
 ---
 
-# Ralph Progress Log - Issue #155: Remove Markdown rendering module
-Started: 2026년  3월  1일 일요일 11시 08분 55초 KST
+## 2026-03-01 - US-155-1, US-155-2, US-155-3
+- Deleted `crates/pdfplumber-core/src/markdown.rs` (1,065 lines removed)
+- Removed `pub mod markdown;` and `pub use markdown::{MarkdownOptions, MarkdownRenderer};` from `crates/pdfplumber-core/src/lib.rs`
+- Removed `MarkdownOptions` and `MarkdownRenderer` from re-exports in `crates/pdfplumber/src/lib.rs`
+- Removed `MarkdownOptions`/`MarkdownRenderer` imports and `Page::to_markdown()` method from `crates/pdfplumber/src/page.rs`
+- Removed `Markdown` variant from `TextFormat` enum in `crates/pdfplumber-cli/src/cli.rs`
+- Removed `TextFormat::Markdown` match arm and `MarkdownOptions` import from `crates/pdfplumber-cli/src/text_cmd.rs`
+- Removed `TextFormat::Markdown` from pattern matches in `crates/pdfplumber-cli/src/bookmarks_cmd.rs` and `crates/pdfplumber-cli/src/info_cmd.rs`
+- No markdown references remain in the codebase (verified with grep)
+- All quality checks pass: fmt, clippy, check, test (pdfplumber-py excluded due to pre-existing libpython3.11 env issue)
+- Files changed: 8 files modified, 1 file deleted
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Deletion tasks across layered crates (core → facade → cli) are straightforward — work bottom-up
+  - cropped_page.rs had no markdown references despite being mentioned in PRD notes
+  - pdfplumber-py tests fail due to missing libpython3.11.dylib — pre-existing env issue, not related to changes
 ---

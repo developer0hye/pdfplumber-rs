@@ -18,7 +18,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-core/src/lib.rs. The markdown module is at line 52 (pub mod), line 99 (pub use). No markdown-related external dependencies in Cargo.toml so no dependency cleanup needed."
     },
     {
@@ -35,7 +35,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber/src/lib.rs (re-exports at lines 111-112), crates/pdfplumber/src/page.rs (imports at lines 4-5, to_markdown method at lines 377-392). Also check cropped_page.rs for any markdown usage."
     },
     {
@@ -55,7 +55,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-cli/src/cli.rs (TextFormat enum), crates/pdfplumber-cli/src/text_cmd.rs (match arm + import), crates/pdfplumber-cli/src/bookmarks_cmd.rs (match arm), crates/pdfplumber-cli/src/info_cmd.rs (match arms). The Markdown variant in bookmarks_cmd.rs and info_cmd.rs is grouped with Text and Html variants in | patterns — remove just the Markdown part."
     }
   ]

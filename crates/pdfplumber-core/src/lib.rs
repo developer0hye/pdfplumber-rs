@@ -48,8 +48,6 @@ pub mod hyperlink;
 pub mod images;
 /// Text layout: words → lines → blocks, reading order, text output.
 pub mod layout;
-/// Markdown rendering for PDF page content.
-pub mod markdown;
 /// Document-level metadata types.
 pub mod metadata;
 /// PageObject enum for custom object filtering.
@@ -96,7 +94,6 @@ pub use layout::{
     TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
-pub use markdown::{MarkdownOptions, MarkdownRenderer};
 pub use metadata::DocumentMetadata;
 pub use page_object::PageObject;
 pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, PaintedPath};

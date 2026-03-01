@@ -51,7 +51,7 @@ pub fn run(
         total_tables += tables_count;
 
         match format {
-            TextFormat::Text | TextFormat::Markdown | TextFormat::Html => {
+            TextFormat::Text | TextFormat::Html => {
                 println!("Page {}:", idx + 1);
                 println!("  Dimensions: {:.2} x {:.2}", page.width(), page.height());
                 println!("  Rotation: {}°", page.rotation());
@@ -110,7 +110,7 @@ pub fn run(
     let signatures = pdf.signatures().unwrap_or_default();
 
     match format {
-        TextFormat::Text | TextFormat::Markdown | TextFormat::Html => {
+        TextFormat::Text | TextFormat::Html => {
             if !metadata.is_empty() {
                 println!();
                 println!("Metadata:");
