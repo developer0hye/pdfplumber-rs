@@ -9,11 +9,15 @@ description = "PDF parsing and content stream interpreter for pdfplumber-rs"
 keywords = ["pdf", "parser", "content-stream", "pdfplumber"]
 categories = ["parser-implementations"]
 
+[features]
+tracing = ["dep:tracing"]
+
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
 lopdf = { version = "0.39", default-features = false }
 thiserror = "2"
 encoding_rs = "0.8"
+tracing = { version = "0.1", optional = true }
 
 [dev-dependencies]
 md5 = "0.7"

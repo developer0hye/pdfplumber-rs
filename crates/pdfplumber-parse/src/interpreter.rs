@@ -548,8 +548,14 @@ pub(crate) fn interpret_content_stream(
                 handle_inline_image(op, op_index, gstate, handler);
             }
 
-            // Other operators — silently ignore
-            _ => {}
+            // Other operators — skip with optional tracing
+            _other => {
+                #[cfg(feature = "tracing")]
+                tracing::warn!(
+                    operator = _other,
+                    "skipping unrecognized content stream operator"
+                );
+            }
         }
     }
 

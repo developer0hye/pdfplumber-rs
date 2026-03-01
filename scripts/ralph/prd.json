@@ -1,41 +1,56 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-185-bidi-support",
-  "description": "Issue #185: Unicode Bidirectional (BiDi) text support for Arabic/Hebrew",
-  "relatedIssue": 185,
+  "branchName": "ralph/issue-186-parser-robustness",
+  "description": "Issue #186: Improve PDF parser robustness for content stream errors",
+  "relatedIssue": 186,
   "userStories": [
     {
-      "id": "US-185-1",
-      "title": "Integrate Unicode BiDi algorithm for RTL text detection",
-      "description": "Use the unicode-bidi crate to determine per-character text direction for Arabic, Hebrew, and mixed BiDi content. RTL characters should be tagged with direction=Rtl so the word extractor can group them correctly.",
+      "id": "US-186-1",
+      "title": "Add error recovery for unrecognized content stream operators",
+      "description": "The content stream interpreter fails when encountering unrecognized operators, causing entire pages to produce 0% extraction. Implement graceful error recovery — skip unrecognized operators instead of aborting the page. Log warnings for skipped operators.",
       "acceptanceCriteria": [
-        "unicode-bidi crate is integrated for BiDi level resolution",
-        "Arabic/Hebrew characters are correctly tagged with direction=Rtl",
-        "BidiSample.pdf chars >= 80% (currently 60.1%)",
-        "No regression on LTR-only PDFs",
+        "Unrecognized operators are skipped with a warning instead of aborting",
+        "issue-1054-example.pdf extracts chars > 50% (currently 0%, content stream operator gap)",
+        "No regression on PDFs with standard operators",
+        "Skipped operators are logged via tracing when the tracing feature is enabled",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "The unicode-bidi crate implements UAX #9 (Unicode Bidirectional Algorithm). Key steps: 1) After char extraction, run BiDi algorithm on each line's text, 2) Assign per-char direction based on BiDi levels (even=LTR, odd=RTL), 3) Update char.direction field. This feeds into the per-char direction detection from #181."
+      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs. The interpreter's main loop matches operator names. Add a catch-all arm that logs and continues instead of returning an error. Check which specific operators cause failures in each affected PDF."
     },
     {
-      "id": "US-185-2",
-      "title": "RTL word grouping and Arabic shaping",
-      "description": "Implement RTL word grouping in the word extractor — characters with direction=Rtl should be grouped right-to-left. Handle Arabic contextual forms (initial, medial, final, isolated) and diacritical mark combining.",
+      "id": "US-186-2",
+      "title": "Fix annotation PDF parse failures",
+      "description": "annotations.pdf and its rotated variants (90°, 180°, 270°) fail to parse entirely. Diagnose the specific parse error and fix it. These PDFs likely use annotation-related content stream operators or form XObjects that the parser doesn't handle.",
       "acceptanceCriteria": [
-        "RTL characters are grouped into words right-to-left",
-        "Arabic diacritics are combined with their base characters",
-        "FC60_Times.pdf words > 30% (currently 0%)",
-        "pdfbox-4531-bidi-ligature-1.pdf chars > 30% (currently 0%)",
-        "pdfbox-5747-surrogate-diacritic-reduced.pdf chars > 30% (currently 0%)",
+        "annotations.pdf opens without parse error",
+        "annotations-rotated-90.pdf opens without parse error",
+        "annotations-rotated-180.pdf opens without parse error",
+        "annotations-rotated-270.pdf opens without parse error",
+        "Cross-validation entries upgraded from 'PDF parse error' to actual scores",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Arabic shaping: Unicode characters have contextual forms (U+FE80-U+FEFC) that map to base letters. Diacritical marks (U+0610-U+061A, U+064B-U+065F) should be combined with preceding base chars. The word extractor needs to handle RTL runs within should_split_horizontal by checking chars in reverse x-order."
+      "passes": false,
+      "notes": "Annotation PDFs may use form XObjects (/Subtype /Form) for annotation appearances. The interpreter already handles /Do for XObjects but may not handle all form XObject subtypes. Also check: inline image operators (BI/ID/EI), type 3 font charprocs, or unusual resource dictionaries."
+    },
+    {
+      "id": "US-186-3",
+      "title": "Fix remaining parse failures (issue-1181, issue-848)",
+      "description": "issue-1181.pdf and issue-848.pdf fail to parse. Diagnose each failure, implement fixes or error recovery as appropriate.",
+      "acceptanceCriteria": [
+        "issue-1181.pdf opens without parse error (or gracefully degrades)",
+        "issue-848.pdf opens without parse error (or gracefully degrades)",
+        "Cross-validation entries updated with actual extraction scores",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "These may be fixed by the error recovery from US-186-1. If not, diagnose each individually. Common causes: malformed cross-reference tables, unsupported encryption, corrupted streams."
     }
   ]
 }

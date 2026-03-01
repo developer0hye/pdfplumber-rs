@@ -281,9 +281,10 @@ impl Pdf {
         for i in 0..page_count {
             let page = LopdfBackend::get_page(&doc, i).map_err(PdfError::from)?;
             let media_box = LopdfBackend::page_media_box(&doc, &page).map_err(PdfError::from)?;
-            let crop_box = LopdfBackend::page_crop_box(&doc, &page).map_err(PdfError::from)?;
             let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
-            let geometry = PageGeometry::new(media_box, crop_box, rotation);
+            // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
+            // CropBox is stored as page metadata but does not affect coordinate transforms.
+            let geometry = PageGeometry::new(media_box, None, rotation);
             page_heights.push(geometry.height());
             // Compute the effective page height for the y-flip transform.
             // Normally this is just media_box.height() (= bottom - top in BBox terms).
@@ -493,7 +494,8 @@ impl Pdf {
             LopdfBackend::page_bleed_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
         let art_box = LopdfBackend::page_art_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
         let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let geometry = PageGeometry::new(media_box, crop_box, rotation);
+        // Use MediaBox (not CropBox) for coordinate transforms to match Python pdfplumber.
+        let geometry = PageGeometry::new(media_box, None, rotation);
 
         // Interpret page content
         let mut handler = CollectingHandler::new(index, self.options.collect_warnings);
