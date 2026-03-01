@@ -1123,10 +1123,11 @@ cross_validate_ignored!(
     "issue-53-example.pdf",
     "chars 94.1%, words 92.1% — slightly below 95%"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_67,
     "issue-67-example.pdf",
-    "words 90.3% — word grouping gap on mixed layouts"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_python_issue_71_dup2,
@@ -1210,10 +1211,11 @@ cross_validate_ignored!(
     "senate-expenditures.pdf",
     "chars 0% — CIDFont gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_word365_structure,
     "word365_structure.pdf",
-    "words 94.6% — slightly below 95% threshold"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 
 // ─── pdfplumber-python: ERROR tests (parse failures) ─────────────────────
