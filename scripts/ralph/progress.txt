@@ -20,6 +20,13 @@
 - `cid_font.rs` already normalizes positive Descent; `font_metrics.rs` now does too.
 - When debugging vertical coordinate offsets, check if Descent sign is wrong in the FontDescriptor.
 
+### Ascent/Descent in Character BBox Calculation
+- Python pdfplumber/pdfminer keeps char bbox height = font_size (1000 glyph units).
+- The formula is: `ascent = 1000 + descent`, `descent` from FontDescriptor. This gives height = ascent - descent = 1000.
+- Using actual FontDescriptor /Ascent (e.g., 975) causes height > font_size, mismatching Python golden data.
+- For CID fonts, descent should come from `cf.cid_metrics` (CID font descriptor), not `cf.metrics` (parent Type0 font).
+- Do NOT use actual /Ascent directly — it breaks compatibility with Python pdfplumber's coordinate system.
+
 ---
 
 # Ralph Progress Log - Issue #187: Improve font metrics precision for near-threshold PDFs
@@ -38,4 +45,23 @@ Started: 2026년  3월  2일 월요일 02시 49분 02초 KST
   - Standard font fallback (14 Type1 fonts) and encoding remapping were also already complete
   - The accuracy improvements that brought these PDFs above threshold likely came from prior PRs (encoding, CID font, standard font work)
   - When a story's acceptance criteria are already met, the work is to verify and promote the tests from ignored to asserting
+---
+
+## 2026-03-02 - US-187-2
+- **What was implemented**:
+  - Improved CID font ascent/descent handling in interpreter: now uses `cf.cid_metrics.descent()` for CID fonts instead of parent Type0 font's `cf.metrics.descent()`, which may have default values instead of actual FontDescriptor values.
+  - Promoted issue-336-example.pdf cross-validation test from `cross_validate_ignored!` to `cross_validate!` (chars 100%, words 100%, target >= 65%)
+  - Updated comment explaining the `1000 + descent` formula and why actual /Ascent is NOT used directly
+- **Files changed**:
+  - `crates/pdfplumber-parse/src/interpreter.rs` — CID font descent source improvement
+  - `crates/pdfplumber/tests/cross_validation.rs` — promoted issue-336 test
+  - `scripts/ralph/prd.json` — marked US-187-2 as passed
+  - `scripts/ralph/progress.txt` — added pattern and progress entry
+- **Dependencies added**: None
+- **Learnings for future iterations:**
+  - Using actual FontDescriptor /Ascent causes bbox height > font_size, breaking compatibility with Python pdfplumber golden data
+  - The `1000 + descent` formula keeps height = font_size, matching Python behavior
+  - Python pdfplumber's golden data always shows char height = font_size regardless of FontDescriptor /Ascent values
+  - For CID fonts, ascent/descent should come from `cf.cid_metrics` (CID font descriptor), not `cf.metrics` (parent Type0 font)
+  - Accuracy benchmarks can catch regressions — always run full test suite before committing
 ---

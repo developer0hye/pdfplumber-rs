@@ -1106,10 +1106,11 @@ cross_validate_ignored!(
     "issue-192-example.pdf",
     "chars 0.9% — CIDFont encoding gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_336,
     "issue-336-example.pdf",
-    "chars 58.5% — font metrics gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_461,

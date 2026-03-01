@@ -1159,12 +1159,31 @@ fn emit_char_events(
         };
 
         // Ascent/descent for bounding box calculation.
-        // Match pdfminer behavior: use the font descriptor's Descent value and
-        // derive ascent as (1000 + descent). This keeps height = font_size while
-        // anchoring the bottom to the font's actual descent below the baseline.
+        // Use FontDescriptor /Descent for vertical anchoring, then derive ascent
+        // as (1000 + descent) to keep char height = font_size. This matches
+        // Python pdfminer/pdfplumber-py behavior where bbox height always equals
+        // the font size. For CID fonts, prefer CID font descriptor descent over
+        // the parent Type0 font metrics.
         // When both Ascent=0 AND Descent=0 (signals "unknown"), use 1000/0 so
         // bbox spans baseline to baseline+fontsize.
         let (ascent, descent) = match cached {
+            Some(cf) if cf.is_cid_font => {
+                let desc = cf
+                    .cid_metrics
+                    .as_ref()
+                    .map_or(cf.metrics.descent(), |cm| cm.descent());
+                if desc == 0.0
+                    && cf
+                        .cid_metrics
+                        .as_ref()
+                        .map_or(cf.metrics.ascent(), |cm| cm.ascent())
+                        == 0.0
+                {
+                    (1000.0, 0.0)
+                } else {
+                    (1000.0 + desc, desc)
+                }
+            }
             Some(cf) if cf.metrics.ascent() == 0.0 && cf.metrics.descent() == 0.0 => (1000.0, 0.0),
             Some(cf) => {
                 let desc = cf.metrics.descent();

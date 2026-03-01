@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs. FontDescriptor has /Ascent, /Descent, /CapHeight, /Flags, /FontBBox, /ItalicAngle, /StemV. The ascent/descent affect the top/bottom bbox calculation for each character. Check how char bbox vertical coordinates are computed and where font descriptor values should be injected."
     }
   ]
