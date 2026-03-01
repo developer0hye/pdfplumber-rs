@@ -1,84 +1,62 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/issue-155-remove-markdown",
+  "description": "Issue #155: Remove Markdown rendering module (out of scope for pdfplumber-rs)",
+  "relatedIssue": 155,
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-155-1",
+      "title": "Delete markdown.rs and remove from pdfplumber-core lib.rs",
+      "description": "Delete the file `crates/pdfplumber-core/src/markdown.rs` entirely (1,065 lines including MarkdownOptions, MarkdownRenderer, helpers, and 30+ tests). In `crates/pdfplumber-core/src/lib.rs`, remove `pub mod markdown;` (line 52) and remove `pub use markdown::{MarkdownOptions, MarkdownRenderer};` (line 99). Verify no other code in pdfplumber-core references the markdown module.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
-        "cargo test --workspace passes",
+        "crates/pdfplumber-core/src/markdown.rs is deleted",
+        "pub mod markdown; removed from crates/pdfplumber-core/src/lib.rs",
+        "pub use markdown::{MarkdownOptions, MarkdownRenderer}; removed from crates/pdfplumber-core/src/lib.rs",
+        "No remaining references to markdown module in pdfplumber-core",
+        "cargo check -p pdfplumber-core passes",
+        "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
+      "passes": false,
+      "notes": "Key file: crates/pdfplumber-core/src/lib.rs. The markdown module is at line 52 (pub mod), line 99 (pub use). No markdown-related external dependencies in Cargo.toml so no dependency cleanup needed."
     },
     {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
+      "id": "US-155-2",
+      "title": "Remove MarkdownOptions/MarkdownRenderer from pdfplumber facade and Page API",
+      "description": "In `crates/pdfplumber/src/lib.rs`, remove `MarkdownOptions` and `MarkdownRenderer` from the re-export list (lines 111-112). In `crates/pdfplumber/src/page.rs`, remove `MarkdownOptions` and `MarkdownRenderer` from imports (lines 4-5) and delete the `Page::to_markdown()` method (lines 377-392, including doc comment). Also check `crates/pdfplumber/src/cropped_page.rs` for any markdown references and remove them.",
       "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
-        "cargo test --workspace passes",
+        "MarkdownOptions and MarkdownRenderer removed from crates/pdfplumber/src/lib.rs re-exports",
+        "MarkdownOptions and MarkdownRenderer removed from crates/pdfplumber/src/page.rs imports",
+        "Page::to_markdown() method deleted from page.rs",
+        "No remaining markdown references in pdfplumber facade crate",
+        "cargo check -p pdfplumber passes",
+        "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber/src/lib.rs (re-exports at lines 111-112), crates/pdfplumber/src/page.rs (imports at lines 4-5, to_markdown method at lines 377-392). Also check cropped_page.rs for any markdown usage."
     },
     {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
+      "id": "US-155-3",
+      "title": "Remove TextFormat::Markdown and related code from CLI",
+      "description": "In `crates/pdfplumber-cli/src/cli.rs`, remove the `Markdown` variant from the `TextFormat` enum (lines 384-385). In `crates/pdfplumber-cli/src/text_cmd.rs`, remove the `MarkdownOptions` import (line 3) and the `TextFormat::Markdown` match arm (lines 48-51). In `crates/pdfplumber-cli/src/bookmarks_cmd.rs`, remove `TextFormat::Markdown` from the match arm (line 18). In `crates/pdfplumber-cli/src/info_cmd.rs`, remove `TextFormat::Markdown` from match arms (lines 54, 113). Verify all CLI tests still pass.",
       "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
+        "Markdown variant removed from TextFormat enum in cli.rs",
+        "TextFormat::Markdown match arm removed from text_cmd.rs",
+        "MarkdownOptions import removed from text_cmd.rs",
+        "TextFormat::Markdown removed from bookmarks_cmd.rs match arm",
+        "TextFormat::Markdown removed from info_cmd.rs match arms",
+        "No remaining markdown references in pdfplumber-cli crate",
+        "cargo check -p pdfplumber-cli passes",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes",
+        "cargo test --workspace passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
-    },
-    {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
-      "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "notes": "Key files: crates/pdfplumber-cli/src/cli.rs (TextFormat enum), crates/pdfplumber-cli/src/text_cmd.rs (match arm + import), crates/pdfplumber-cli/src/bookmarks_cmd.rs (match arm), crates/pdfplumber-cli/src/info_cmd.rs (match arms). The Markdown variant in bookmarks_cmd.rs and info_cmd.rs is grouped with Text and Html variants in | patterns — remove just the Markdown part."
     }
   ]
 }
