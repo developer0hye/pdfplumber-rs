@@ -1,27 +1,38 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-163-annotation-parse",
-  "description": "Issue #163: Fix parser failures on annotation PDFs (annotations.pdf, rotated variants)",
-  "relatedIssue": 163,
+  "branchName": "ralph/issue-164-pr-pdf-parse",
+  "description": "Issue #164: Fix parser failures on pr-136-example.pdf and pr-138-example.pdf",
+  "relatedIssue": 164,
   "userStories": [
     {
-      "id": "US-163-1",
-      "title": "Diagnose and fix parse errors on annotations.pdf",
-      "description": "The parser fails entirely on annotations.pdf, annotations-rotated-90.pdf, annotations-rotated-180.pdf, and annotations-rotated-270.pdf. Python pdfplumber extracts 14 chars and 3 words from annotations.pdf. Diagnose the parse error by attempting to open the PDF and examining the error message. The likely cause is that the parser encounters annotation-related objects or operators in the content stream that it doesn't handle. Fix the parser to gracefully handle or skip annotation data so that text extraction succeeds. Note: annotations-unicode-issues.pdf already works (100% accuracy), so compare its structure to find what differs.",
+      "id": "US-164-1",
+      "title": "Fix parse error on pr-136-example.pdf",
+      "description": "pr-136-example.pdf fails to parse entirely. Python pdfplumber extracts 6 pages, 5182 chars, 438 words from this PDF. Diagnose the parse error by opening the PDF and examining the error. Fix the parser to handle whatever construct causes the failure. This PDF is a table detection regression test from the Python pdfplumber project.",
       "acceptanceCriteria": [
-        "annotations.pdf opens without parse error",
-        "annotations-rotated-90.pdf opens without parse error",
-        "annotations-rotated-180.pdf opens without parse error",
-        "annotations-rotated-270.pdf opens without parse error",
-        "Text extraction from annotations.pdf produces chars (Python expects 14 chars, 3 words)",
-        "No regression on annotations-unicode-issues.pdf (should remain 100%)",
+        "pr-136-example.pdf opens without parse error",
+        "Text extraction produces chars (Python expects 5182 chars across 6 pages)",
         "No regression on existing tests: cargo test --workspace passes",
         "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Test fixture PDFs are in tests/fixtures/pdfs/ (downloaded via full-fixtures feature). The test is in crates/pdfplumber/tests/real_world_cross_validation.rs (rw_annotations, rw_annotations_rotated_90, etc.). Compare the working annotations-unicode-issues.pdf structure with the failing annotations.pdf to find the difference. Common causes: unexpected dictionary keys, unsupported stream filters, or annotation appearance streams."
+      "notes": "Test: crates/pdfplumber/tests/real_world_cross_validation.rs (rw_pr_136). This PDF has table structures - the parse error may be related to complex path operators or content stream constructs used in table borders."
+    },
+    {
+      "id": "US-164-2",
+      "title": "Fix parse error on pr-138-example.pdf",
+      "description": "pr-138-example.pdf fails to parse entirely. Python pdfplumber extracts 2 pages, 10635 chars, 1834 words, 861 lines, 316 rects, and 4 tables. Diagnose and fix the parse error. This PDF likely shares the same root cause as pr-136-example.pdf but may have additional issues due to its more complex structure.",
+      "acceptanceCriteria": [
+        "pr-138-example.pdf opens without parse error",
+        "Text extraction produces chars (Python expects 10635 chars across 2 pages)",
+        "No regression on existing tests: cargo test --workspace passes",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Test: crates/pdfplumber/tests/real_world_cross_validation.rs (rw_pr_138). If the fix for pr-136-example.pdf also fixes this one, mark both stories as passes. 316 rects and 4 tables suggest complex graphical content."
     }
   ]
 }
