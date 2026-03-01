@@ -1512,7 +1512,7 @@ fn unicode_norm_nfc_composes_extracted_chars() {
     // and test normalization by checking the default (no norm) vs NFC
     let bytes = pdf_with_content(b"BT /F1 12 Tf (Hello) Tj ET");
 
-    // Without normalization (default)
+    // With NFC normalization (default)
     let pdf_default = Pdf::open(&bytes, None).unwrap();
     let page_default = pdf_default.page(0).unwrap();
     assert_eq!(page_default.chars().len(), 5);

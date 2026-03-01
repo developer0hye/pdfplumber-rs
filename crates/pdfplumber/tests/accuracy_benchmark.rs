@@ -329,7 +329,12 @@ fn load_golden(pdf_stem: &str) -> GoldenData {
 
 fn open_pdf(subdir: &str, filename: &str) -> Result<Pdf, String> {
     let path = fixtures_dir().join(subdir).join(filename);
-    Pdf::open_file(&path, None).map_err(|e| format!("{}", e))
+    // Use UnicodeNorm::None to match golden data generated without normalization.
+    let opts = pdfplumber::ExtractOptions {
+        unicode_norm: pdfplumber::UnicodeNorm::None,
+        ..pdfplumber::ExtractOptions::default()
+    };
+    Pdf::open_file(&path, Some(opts)).map_err(|e| format!("{}", e))
 }
 
 /// Run the full accuracy benchmark for a single PDF.

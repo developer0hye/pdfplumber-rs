@@ -304,7 +304,7 @@ pub struct ExtractOptions {
     pub max_stream_bytes: usize,
     /// Whether to collect warnings during extraction (default: true).
     pub collect_warnings: bool,
-    /// Unicode normalization form to apply to extracted character text (default: None).
+    /// Unicode normalization form to apply to extracted character text (default: Nfc).
     pub unicode_norm: UnicodeNorm,
     /// Whether to extract image stream data into Image structs (default: false).
     ///
@@ -331,13 +331,26 @@ impl Default for ExtractOptions {
             max_objects_per_page: 100_000,
             max_stream_bytes: 100 * 1024 * 1024,
             collect_warnings: true,
-            unicode_norm: UnicodeNorm::None,
+            unicode_norm: UnicodeNorm::Nfc,
             extract_image_data: false,
             strict_mode: false,
             max_input_bytes: None,
             max_pages: None,
             max_total_image_bytes: None,
             max_total_objects: None,
+        }
+    }
+}
+
+impl ExtractOptions {
+    /// Create options optimized for LLM consumption.
+    ///
+    /// Returns options with NFC Unicode normalization enabled, which ensures
+    /// consistent text representation for language model processing.
+    pub fn for_llm() -> Self {
+        Self {
+            unicode_norm: UnicodeNorm::Nfc,
+            ..Self::default()
         }
     }
 }
@@ -596,12 +609,22 @@ mod tests {
         assert_eq!(opts.max_objects_per_page, 100_000);
         assert_eq!(opts.max_stream_bytes, 100 * 1024 * 1024);
         assert!(opts.collect_warnings);
-        assert_eq!(opts.unicode_norm, UnicodeNorm::None);
+        assert_eq!(opts.unicode_norm, UnicodeNorm::Nfc);
         assert!(!opts.extract_image_data);
         assert!(opts.max_input_bytes.is_none());
         assert!(opts.max_pages.is_none());
         assert!(opts.max_total_image_bytes.is_none());
         assert!(opts.max_total_objects.is_none());
+    }
+
+    #[test]
+    fn extract_options_for_llm() {
+        let opts = ExtractOptions::for_llm();
+        assert_eq!(opts.unicode_norm, UnicodeNorm::Nfc);
+        assert_eq!(opts.max_recursion_depth, 10);
+        assert_eq!(opts.max_objects_per_page, 100_000);
+        assert_eq!(opts.max_stream_bytes, 100 * 1024 * 1024);
+        assert!(opts.collect_warnings);
     }
 
     #[test]

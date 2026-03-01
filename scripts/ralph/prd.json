@@ -1,29 +1,27 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-152-line-clustering",
-  "description": "Issue #152: Optimize O(n²) word-to-line clustering using y-coordinate bucketing",
-  "relatedIssue": 152,
+  "branchName": "ralph/issue-153-unicode-nfc",
+  "description": "Issue #153: Change default Unicode normalization to NFC and add for_llm() preset",
+  "relatedIssue": 153,
   "userStories": [
     {
-      "id": "US-152-1",
-      "title": "Optimize cluster_words_into_lines with y-coordinate bucketing",
-      "description": "Refactor the `cluster_words_into_lines` function in `crates/pdfplumber-core/src/layout.rs` (lines 54-103) to eliminate O(n²) complexity. The current implementation iterates through all existing lines for each word to find a match within `y_tolerance`. Replace the linear scan with a y-coordinate bucketing approach: group lines by y-coordinate ranges (buckets of size `y_tolerance`) so that for each new word, only 1-2 relevant buckets are checked instead of all lines. This brings complexity from O(n²) down to approximately O(n). The refactored function must produce identical output for all existing tests. Add a benchmark test with 10,000+ words across many lines to verify performance improvement.",
+      "id": "US-153-1",
+      "title": "Change UnicodeNorm default to Nfc and add for_llm() preset to ExtractOptions",
+      "description": "In `crates/pdfplumber-core/src/unicode_norm.rs`, change the `#[default]` attribute on the `UnicodeNorm` enum from `None` to `Nfc`. Update the doc comment on the `None` variant to remove '(default)' and add '(default)' to the `Nfc` variant doc comment. Update the `unicode_norm_default_is_none` test to assert `UnicodeNorm::default() == UnicodeNorm::Nfc`. In `crates/pdfplumber-core/src/error.rs`, update the `ExtractOptions::default()` impl to set `unicode_norm: UnicodeNorm::Nfc` (was `UnicodeNorm::None`). Add a `pub fn for_llm() -> Self` constructor to `ExtractOptions` that returns options optimized for LLM consumption: `unicode_norm: UnicodeNorm::Nfc` plus current defaults for other fields. Update any tests that assert `UnicodeNorm::None` as the default. Fix all downstream code in pdfplumber-cli and pdfplumber that may need adjustment for the new default.",
       "acceptanceCriteria": [
-        "cluster_words_into_lines no longer scans all existing lines for each word",
-        "Uses bucket/sorted approach for line matching (O(n) or O(n log n) instead of O(n²))",
-        "All existing cluster_words_into_lines tests in layout.rs pass without modification",
-        "All existing integration tests pass (cargo test --workspace)",
-        "New benchmark test with 10,000+ words demonstrates sub-quadratic behavior",
-        "Function signature remains unchanged: pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLine>",
-        "Output ordering (lines top-to-bottom, words left-to-right within each line) is preserved",
-        "Edge cases handled: empty input, single word, all words on same line, overlapping y ranges",
+        "UnicodeNorm::default() returns UnicodeNorm::Nfc",
+        "#[default] attribute is on Nfc variant, not None",
+        "ExtractOptions::default().unicode_norm == UnicodeNorm::Nfc",
+        "ExtractOptions::for_llm() exists and returns options with unicode_norm: UnicodeNorm::Nfc",
+        "All tests updated to reflect new default (no test expects UnicodeNorm::None as default)",
+        "Doc comments updated: Nfc says '(default)', None does not",
         "cargo fmt --all -- --check passes",
         "cargo clippy --workspace -- -D warnings passes",
         "cargo test --workspace passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key file: crates/pdfplumber-core/src/layout.rs lines 54-103. The current code sorts words by (top, x0) then iterates `lines` vec for each word. A HashMap<i64, usize> keyed by quantized y-coordinate (e.g., (mid_y / y_tolerance) as i64) mapping to line indices would reduce lookups to O(1) amortized. Check adjacent buckets (key-1, key, key+1) to handle boundary cases. Existing tests at lines 314-760 cover many edge cases."
+      "notes": "Key files: crates/pdfplumber-core/src/unicode_norm.rs (enum definition, line 17-29), crates/pdfplumber-core/src/error.rs (ExtractOptions default, line 219). Tests to update: unicode_norm.rs:91 (unicode_norm_default_is_none), error.rs:445 (assert_eq opts.unicode_norm UnicodeNorm::None), error.rs:455. The CLI already handles unicode_norm as Option<UnicodeNormArg> which overrides the default, so it should be unaffected. Check crates/pdfplumber/src/pdf.rs:478 where `UnicodeNorm::None` is used as a comparison — this is checking if normalization is not None, so it should use != pattern which still works."
     }
   ]
 }
