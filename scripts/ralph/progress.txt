@@ -9,6 +9,12 @@ Started: 2026년  3월  2일 월요일 00시 00분 15초 KST
 - BiDi RTL: Unicode RTL chars → chars at ascending x0 → cluster_sort needs ascending x0
 - The WordExtractor's cluster_sort detects physical layout direction within RTL clusters using `windows(2).filter(ascending)` heuristic
 
+### Arabic Diacritical Mark Combining (words.rs)
+- `should_split_horizontal()` checks `is_arabic_diacritic_text()` on both current and previous char
+- If either is a diacritic, never split — diacritics always combine with their base character
+- This is Arabic-specific; general Unicode combining marks (U+0300-U+036F) are NOT combined (matches Python pdfplumber behavior)
+- The `is_arabic_diacritic()` function in `bidi.rs` covers all Arabic combining mark ranges
+
 ### Post-processing Pipeline Order (pdf.rs)
 1. char_from_event() — TRM-based direction
 2. rotation correction — rotate_direction()
@@ -37,4 +43,27 @@ Started: 2026년  3월  2일 월요일 00시 00분 15초 KST
   - The cluster_sort for RTL needs to distinguish physical RTL (TRM negative a, descending x0) from BiDi RTL (Unicode RTL, ascending x0) using spatial heuristic
   - The quick-check `is_strong_rtl()` pre-filter avoids running full BiDi analysis on LTR-only pages — important for performance
   - Arabic presentation forms (U+FE70-U+FEFF) are detected by the BiDi algorithm as RTL
+---
+
+## 2026-03-02 - US-185-2
+- What was implemented: RTL word grouping and Arabic diacritical mark combining
+- Files changed:
+  - `crates/pdfplumber-core/src/bidi.rs` — Added is_arabic_diacritic(), is_arabic_diacritic_text(), and unit tests
+  - `crates/pdfplumber-core/src/lib.rs` — Exported new diacritic detection functions
+  - `crates/pdfplumber-core/src/words.rs` — Modified should_split_horizontal() to never split on Arabic diacritics; added 10 unit tests for diacritic combining and RTL word grouping
+  - `crates/pdfplumber/tests/cross_validation.rs` — Promoted FC60_Times, pdfbox-4531-bidi-ligature-1, pdfbox-4531-bidi-ligature-2 from ignored to passing
+  - `scripts/ralph/prd.json` — Marked US-185-2 as passes: true
+- Dependencies added: none
+- Results:
+  - FC60_Times.pdf: chars 100%, words 100% (was 0% words)
+  - pdfbox-4531-bidi-ligature-1.pdf: chars 100%, words 100% (was 0% chars)
+  - pdfbox-4531-bidi-ligature-2.pdf: chars 100%, words 100% (was 0% chars)
+  - pdfbox-5747-surrogate-diacritic-reduced.pdf: chars 100%, words 100% (already passing)
+  - Cross-validation: 78 PASS, 31 ignored (was 75 PASS, 34 ignored) — 3 more PDFs promoted
+  - No regressions on any existing tests
+- **Learnings for future iterations:**
+  - Arabic diacritical marks (harakat) in PDFs typically overlap with their base character bounding boxes, but can have slight positional gaps. The should_split_horizontal check must handle both directions: a diacritic after a base char AND a base char after a diacritic (when cluster_sort places diacritics above the baseline first)
+  - The is_arabic_diacritic() check covers U+0610-U+061A, U+064B-U+065F, U+0670, U+06D6-U+06ED, U+08D3-U+08FF — a comprehensive set of Arabic combining marks
+  - Python pdfplumber does NOT combine general Unicode combining marks (e.g. U+0302 combining circumflex in pdfbox-5747) — it only groups by x_tolerance/y_tolerance. Our diacritic combining is Arabic-specific to match this behavior
+  - The "multiple diacritics on one base" edge case (e.g. shadda + fatha) requires checking if the PREVIOUS char is a diacritic too, since cluster_sort may reorder diacritics before their base character
 ---

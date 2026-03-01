@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Arabic shaping: Unicode characters have contextual forms (U+FE80-U+FEFC) that map to base letters. Diacritical marks (U+0610-U+061A, U+064B-U+065F) should be combined with preceding base chars. The word extractor needs to handle RTL runs within should_split_horizontal by checking chars in reverse x-order."
     }
   ]
