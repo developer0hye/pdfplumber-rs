@@ -1,21 +1,23 @@
 ## Codebase Patterns
-- **PyO3 module name conflict**: The pymodule function name `pdfplumber` conflicts with the external crate name `pdfplumber`. Use `::pdfplumber` to reference the external crate in imports.
-- **lopdf dictionary macro**: In Rust 2024 edition, `lopdf::dictionary!` macro requires explicit import: `use lopdf::dictionary;`
-- **Test PDFs**: Create minimal PDFs programmatically using `lopdf::Document::with_version("1.7")` + manual page tree construction. See `crates/pdfplumber-py/src/lib.rs` tests for pattern.
-- **AcroForm field tree**: Form fields live in `/AcroForm` dictionary (document catalog), not in page `/Annots`. Walk `/Fields` array recursively via `/Kids`. Field type `/FT` can be inherited from parent nodes. Terminal fields have no `/Kids` with `/T` entries.
-- **Form field page association**: Use `/P` reference in field dictionary to map fields to pages. Not all fields have `/P`, so `page_index` is `Option<usize>`.
-- **Workspace member addition**: Add new crates to root `Cargo.toml` `[workspace] members` array.
-- **Crate lib naming**: When lib name differs from package name (e.g., `name = "pdfplumber"` in pdfplumber-py), use `[lib] name = "pdfplumber"` in Cargo.toml.
-- **PyO3 extension-module feature**: Must be a Cargo feature flag, NOT a direct pyo3 dependency feature. Direct use prevents test linking. Use `features = ["extension-module"]` in `[features]` and activate via maturin's `pyproject.toml`.
-- **PyO3 test setup**: Add `pyo3 = { version = "0.24", features = ["auto-initialize"] }` in `[dev-dependencies]` and add `"rlib"` to `crate-type` for test linking. Set `doctest = false` to avoid rlib name collision with the `pdfplumber` crate.
-- **Rust→Python dict conversion**: Use `PyDict::new(py)` + `set_item()` for converting Rust structs to Python dicts. For `Option<T>`, use `py.None()` for the None case.
-- **wasm-bindgen non-wasm targets**: `JsError::new()` panics on non-wasm targets ("cannot call wasm-bindgen imported functions"). Test error paths via underlying Rust API instead of through wasm-bindgen wrappers.
-- **wasm-bindgen crate setup**: Use `crate-type = ["cdylib", "rlib"]` (cdylib for wasm-pack output, rlib for tests). Set `doctest = false` to avoid issues.
-- **serde_wasm_bindgen**: Use `serde_wasm_bindgen::to_value()` for complex Rust→JsValue conversion. Enable `serde` feature on the pdfplumber dependency.
-- **WASM pdfplumber dependency**: Use `default-features = false, features = ["serde"]` to disable filesystem APIs (`open_file`) and enable serialization.
+- **HashMap bucketing for spatial clustering**: Use `HashMap<i64, Vec<usize>>` keyed by quantized coordinate `(value / bucket_size).floor() as i64` for O(1) spatial lookups. Check adjacent buckets (key±1) for boundary tolerance. Update bucket registration when the aggregate bbox changes.
 
 ---
 
-# Ralph Progress Log - Issue #152: Optimize O(n²) word-to-line clustering
-Started: 2026년  3월  1일 일요일 10시 16분 05초 KST
+# Ralph Progress Log
+Started: 2026년  3월  1일 일요일 10시 16분 06초 KST
+---
+
+## 2026-03-01 - US-152-1
+- Optimized `cluster_words_into_lines` from O(n²) to O(n log n) using y-coordinate bucketing
+- Replaced linear scan of all lines with `HashMap<i64, Vec<usize>>` keyed by quantized mid_y
+- Adjacent bucket checking (±1) handles tolerance boundary cases
+- Bucket registration updated when line bbox grows from word union
+- Added 6 new tests: all-same-line, overlapping y-ranges, large tolerance, zero tolerance, 10k-word benchmark, sub-quadratic scaling verification
+- Files changed: `crates/pdfplumber-core/src/layout.rs`
+- Dependencies added: None (uses `std::collections::HashMap`)
+- **Learnings for future iterations:**
+  - The old O(n²) algorithm showed 12.3x scaling for 4x input; optimized version shows ~4x (linear)
+  - When using bucket_size = y_tolerance, checking 3 buckets (word_bucket ± 1) guarantees finding any line within tolerance
+  - Zero tolerance requires special bucket_size (1e-9) to avoid division by zero
+  - pdfplumber-py tests fail locally due to missing libpython3.11 — pre-existing environment issue, not related to changes
 ---

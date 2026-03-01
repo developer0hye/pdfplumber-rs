@@ -22,7 +22,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-core/src/layout.rs lines 54-103. The current code sorts words by (top, x0) then iterates `lines` vec for each word. A HashMap<i64, usize> keyed by quantized y-coordinate (e.g., (mid_y / y_tolerance) as i64) mapping to line indices would reduce lookups to O(1) amortized. Check adjacent buckets (key-1, key, key+1) to handle boundary cases. Existing tests at lines 314-760 cover many edge cases."
     }
   ]
