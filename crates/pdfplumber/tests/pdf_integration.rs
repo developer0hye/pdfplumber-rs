@@ -1945,3 +1945,53 @@ fn pdf_with_title_and_pages(title: Option<&str>, texts: &[&str]) -> Vec<u8> {
     doc.save_to(&mut buf).unwrap();
     buf
 }
+
+// --- US-165-1: Handle 0-page PDFs gracefully ---
+
+#[test]
+fn us165_issue_297_pdf_opens_without_error() {
+    let pdf_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/issue-297-example.pdf");
+    if !pdf_path.exists() {
+        eprintln!("Skipping: issue-297-example.pdf not found");
+        return;
+    }
+    let result = Pdf::open_file(&pdf_path, None);
+    assert!(
+        result.is_ok(),
+        "issue-297-example.pdf should open without error, got: {:?}",
+        result.err()
+    );
+}
+
+#[test]
+fn us165_issue_297_pdf_has_zero_pages() {
+    let pdf_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/issue-297-example.pdf");
+    if !pdf_path.exists() {
+        eprintln!("Skipping: issue-297-example.pdf not found");
+        return;
+    }
+    let pdf = Pdf::open_file(&pdf_path, None).unwrap();
+    assert_eq!(
+        pdf.page_count(),
+        0,
+        "issue-297-example.pdf should have 0 pages"
+    );
+}
+
+#[test]
+fn us165_issue_297_pdf_pages_iter_is_empty() {
+    let pdf_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/issue-297-example.pdf");
+    if !pdf_path.exists() {
+        eprintln!("Skipping: issue-297-example.pdf not found");
+        return;
+    }
+    let pdf = Pdf::open_file(&pdf_path, None).unwrap();
+    let pages: Vec<_> = pdf.pages_iter().collect();
+    assert!(
+        pages.is_empty(),
+        "iterating pages on issue-297-example.pdf should produce no results"
+    );
+}
