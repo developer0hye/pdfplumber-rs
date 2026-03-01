@@ -150,10 +150,7 @@ fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
         0
     } else {
         let search_limit = bytes.len().min(1024);
-        match bytes[..search_limit]
-            .windows(5)
-            .position(|w| w == b"%PDF-")
-        {
+        match bytes[..search_limit].windows(5).position(|w| w == b"%PDF-") {
             Some(offset) => {
                 cleaned = true;
                 offset
@@ -173,8 +170,7 @@ fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
     let mut pos = 0;
 
     while pos < pdf_bytes.len() {
-        if pos + marker.len() <= pdf_bytes.len() && &pdf_bytes[pos..pos + marker.len()] == marker
-        {
+        if pos + marker.len() <= pdf_bytes.len() && &pdf_bytes[pos..pos + marker.len()] == marker {
             // Look backward from endstream for a "Page N\n" marker.
             // The marker format is "Page " + digits + "\n".
             let written = result.len();
@@ -191,9 +187,7 @@ fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
                     }
                     let has_digits = check_pos < digit_end;
                     // Check for "Page " prefix (5 bytes)
-                    if has_digits
-                        && check_pos >= 5
-                        && &result[check_pos - 5..check_pos] == b"Page "
+                    if has_digits && check_pos >= 5 && &result[check_pos - 5..check_pos] == b"Page "
                     {
                         // Remove the "Page N\n" marker from result
                         result.truncate(check_pos - 5);
@@ -206,11 +200,7 @@ fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
         pos += 1;
     }
 
-    if cleaned {
-        Some(result)
-    } else {
-        None
-    }
+    if cleaned { Some(result) } else { None }
 }
 
 /// Attempt to fix a broken `startxref` offset in raw PDF bytes.
@@ -5209,9 +5199,7 @@ mod tests {
         let cleaned = result.unwrap();
         // The "Page 1\n" marker should be removed
         assert!(
-            !cleaned
-                .windows(7)
-                .any(|w| w == b"Page 1\n"),
+            !cleaned.windows(7).any(|w| w == b"Page 1\n"),
             "page marker should be removed"
         );
         // endstream should still be present
@@ -5228,10 +5216,7 @@ mod tests {
             .unwrap()
             .join("pdfplumber/tests/fixtures/pdfs/issue-848.pdf");
         if !pdf_path.exists() {
-            eprintln!(
-                "Skipping: issue-848.pdf not found at {:?}",
-                pdf_path
-            );
+            eprintln!("Skipping: issue-848.pdf not found at {:?}", pdf_path);
             return;
         }
         let bytes = std::fs::read(&pdf_path).unwrap();

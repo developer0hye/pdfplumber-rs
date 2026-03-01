@@ -169,7 +169,8 @@ fn issue_1181_page0_coordinates_match_golden() {
     let rate = matched as f64 / total as f64;
     eprintln!(
         "issue-1181.pdf page 0: chars={}/{} ({:.1}%)",
-        matched, total,
+        matched,
+        total,
         rate * 100.0
     );
 
@@ -222,7 +223,9 @@ fn issue_1181_both_pages_match_golden() {
         let rate = matched as f64 / total as f64;
         eprintln!(
             "issue-1181.pdf page {}: chars={}/{} ({:.1}%)",
-            golden_page.page_number, matched, total,
+            golden_page.page_number,
+            matched,
+            total,
             rate * 100.0
         );
 
