@@ -19,8 +19,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "Key files: crates/pdfplumber-parse/src/font_metrics.rs, crates/pdfplumber-parse/src/interpreter.rs. The standard font widths work (phase14) may already improve some of these. Focus on cases where /Widths arrays exist but width resolution is subtly wrong (e.g., /FirstChar offset, /Encoding differences, CIDFont width mapping). Compare Rust char positions vs Python golden data to identify the drift pattern."
+      "passes": true,
+      "notes": "Root cause: text state parameters (Tc, Tw, Tz, TL, Tf, Tr, Ts) were not saved/restored by q/Q operators per PDF spec Table 52. Fix: added TextStateSnapshot to save/restore text state alongside graphics state. WARN-Report now >=95%, 150109DSP >=70%, chelsea_pdta >=85%. ca-warn-report.pdf and ag-energy-round-up-2017-02-24.pdf not available in fixtures."
     },
     {
       "id": "US-168-2",

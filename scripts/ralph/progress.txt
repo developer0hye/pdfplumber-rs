@@ -1,3 +1,18 @@
-# Ralph Progress Log - Issue #168: Improve below-target extraction accuracy on complex PDFs
-Started: 2026년  3월  1일 일요일 18시 33분 53초 KST
+# Ralph Progress Log - Issue #168
+Started: 2026-03-01
 ---
+
+## US-168-1: Improve font metrics accuracy for proportional fonts [DONE]
+
+Root cause: Text state parameters (Tc, Tw, Tz, TL, Tf, Tr, Ts) were NOT saved/restored
+by q/Q operators. Per PDF spec Table 52, these are part of the graphics state.
+
+Fix: Added TextStateSnapshot to save/restore text state alongside graphics state in
+both the main content stream q/Q handlers and handle_form_xobject.
+
+Results:
+- WARN-Report: 91.5% → >=95% ✓
+- 150109DSP: 94.5% → >=70% ✓ (was already passing)
+- chelsea_pdta: 93.9% → >=85% ✓ (was already passing)
+- No regressions: 56 passed, 0 failed in cross-validation
+- ca-warn-report.pdf, ag-energy-round-up-2017-02-24.pdf: not in fixtures

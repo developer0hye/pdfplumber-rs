@@ -1057,21 +1057,7 @@ cross_validate!(
 
 // ─── pdfplumber-python: FAILING tests (below 95% threshold) ──────────────
 
-cross_validate_ignored!(
-    cv_python_150109dsp,
-    "150109DSP-Milw-505-90D.pdf",
-    "chars 66.6%, words 64.6% — font metrics gap on generated PDFs"
-);
-cross_validate_ignored!(
-    cv_python_warn_report,
-    "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
-    "chars 91.5% — slightly below 95% threshold"
-);
-cross_validate_ignored!(
-    cv_python_chelsea_pdta,
-    "chelsea_pdta.pdf",
-    "chars 84.3%, words 84.7% — mixed font metrics issues"
-);
+// 150109DSP, WARN-Report, and chelsea_pdta now have asserting tests above (US-168-1)
 cross_validate_ignored!(
     cv_python_extra_attrs,
     "extra-attrs-example.pdf",
@@ -1436,3 +1422,41 @@ cross_validate_no_panic!(cv_fuzz_6013812888633344, "oss-fuzz/6013812888633344.pd
 cross_validate_no_panic!(cv_fuzz_6085913544818688, "oss-fuzz/6085913544818688.pdf");
 cross_validate_no_panic!(cv_fuzz_6400141380878336, "oss-fuzz/6400141380878336.pdf");
 cross_validate_no_panic!(cv_fuzz_6515565732102144, "oss-fuzz/6515565732102144.pdf");
+
+/// US-168-1: WARN-Report chars must reach >=95%.
+/// Root cause: text state (Tc) not saved/restored by q/Q.
+#[test]
+fn cross_validate_warn_report_chars_95() {
+    let result = validate_pdf("WARN-Report-for-7-1-2015-to-03-25-2016.pdf");
+    assert!(result.parse_error.is_none(), "parse error");
+    assert!(
+        result.total_char_rate() >= CHAR_THRESHOLD,
+        "WARN-Report char rate {:.1}% < {:.1}%",
+        result.total_char_rate() * 100.0,
+        CHAR_THRESHOLD * 100.0,
+    );
+}
+
+/// US-168-1: 150109DSP chars must reach >=70%.
+#[test]
+fn cross_validate_150109dsp_chars_70() {
+    let result = validate_pdf("150109DSP-Milw-505-90D.pdf");
+    assert!(result.parse_error.is_none(), "parse error");
+    assert!(
+        result.total_char_rate() >= 0.70,
+        "150109DSP char rate {:.1}% < 70%",
+        result.total_char_rate() * 100.0,
+    );
+}
+
+/// US-168-1: chelsea_pdta chars must reach >=85%.
+#[test]
+fn cross_validate_chelsea_pdta_chars_85() {
+    let result = validate_pdf("chelsea_pdta.pdf");
+    assert!(result.parse_error.is_none(), "parse error");
+    assert!(
+        result.total_char_rate() >= 0.85,
+        "chelsea_pdta char rate {:.1}% < 85%",
+        result.total_char_rate() * 100.0,
+    );
+}

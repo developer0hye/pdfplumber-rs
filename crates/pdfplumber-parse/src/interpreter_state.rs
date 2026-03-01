@@ -8,6 +8,7 @@ use pdfplumber_core::geometry::Ctm;
 use pdfplumber_core::painting::{Color, GraphicsState};
 
 use crate::color_space::ResolvedColorSpace;
+use crate::text_state::TextStateSnapshot;
 
 /// Full interpreter state that combines the CTM with the graphics state.
 ///
@@ -41,6 +42,8 @@ struct SavedState {
     graphics_state: GraphicsState,
     stroking_color_space: Option<ResolvedColorSpace>,
     non_stroking_color_space: Option<ResolvedColorSpace>,
+    /// Text state parameters (Tc, Tw, Tz, TL, Tf, Tr, Ts) per PDF spec Table 52.
+    text_state_snapshot: Option<TextStateSnapshot>,
 }
 
 impl Default for InterpreterState {
@@ -91,13 +94,45 @@ impl InterpreterState {
     // --- q/Q operators ---
 
     /// `q` operator: save the current graphics state onto the stack.
+    ///
+    /// If a text state snapshot is provided, it is saved alongside the
+    /// graphics state so that text parameters (Tc, Tw, etc.) are properly
+    /// restored by the matching `Q` operator.
+    pub fn save_state_with_text(&mut self, text_snapshot: TextStateSnapshot) {
+        self.stack.push(SavedState {
+            ctm: self.ctm,
+            graphics_state: self.graphics_state.clone(),
+            stroking_color_space: self.stroking_color_space.clone(),
+            non_stroking_color_space: self.non_stroking_color_space.clone(),
+            text_state_snapshot: Some(text_snapshot),
+        });
+    }
+
+    /// `q` operator: save the current graphics state without text state.
     pub fn save_state(&mut self) {
         self.stack.push(SavedState {
             ctm: self.ctm,
             graphics_state: self.graphics_state.clone(),
             stroking_color_space: self.stroking_color_space.clone(),
             non_stroking_color_space: self.non_stroking_color_space.clone(),
+            text_state_snapshot: None,
         });
+    }
+
+    /// `Q` operator: restore the most recently saved graphics state.
+    ///
+    /// Returns the saved text state snapshot (if any) so the caller can
+    /// restore text parameters. Returns `None` if the stack is empty.
+    pub fn restore_state_with_text(&mut self) -> Option<Option<TextStateSnapshot>> {
+        if let Some(saved) = self.stack.pop() {
+            self.ctm = saved.ctm;
+            self.graphics_state = saved.graphics_state;
+            self.stroking_color_space = saved.stroking_color_space;
+            self.non_stroking_color_space = saved.non_stroking_color_space;
+            Some(saved.text_state_snapshot)
+        } else {
+            None
+        }
     }
 
     /// `Q` operator: restore the most recently saved graphics state.

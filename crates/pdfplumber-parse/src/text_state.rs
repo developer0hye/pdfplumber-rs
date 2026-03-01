@@ -48,6 +48,31 @@ impl TextRenderMode {
     }
 }
 
+/// Snapshot of text state parameters that are part of the graphics state
+/// and must be saved/restored by q/Q operators (PDF spec Table 52).
+///
+/// This does NOT include text_matrix/line_matrix (managed by BT/ET/Tm/Td)
+/// or in_text_object (not part of the graphics state).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextStateSnapshot {
+    /// Character spacing (Tc).
+    pub char_spacing: f64,
+    /// Word spacing (Tw).
+    pub word_spacing: f64,
+    /// Horizontal scaling (Tz).
+    pub h_scaling: f64,
+    /// Text leading (TL).
+    pub leading: f64,
+    /// Current font name.
+    pub font_name: String,
+    /// Current font size.
+    pub font_size: f64,
+    /// Text rendering mode (Tr).
+    pub render_mode: TextRenderMode,
+    /// Text rise (Ts).
+    pub rise: f64,
+}
+
 /// Text state parameters tracked during content stream interpretation.
 ///
 /// These parameters are set by text state operators (Tc, Tw, Tz, TL, Tf, Tr, Ts)
@@ -264,6 +289,36 @@ impl TextState {
         // Translate text matrix horizontally in text space
         let translation = Ctm::new(1.0, 0.0, 0.0, 1.0, tx, 0.0);
         self.text_matrix = translation.concat(&self.text_matrix);
+    }
+
+    // --- q/Q save/restore (graphics state portion) ---
+
+    /// Save the text state parameters that are part of the graphics state.
+    /// Called by the `q` operator. Does NOT save text_matrix/line_matrix.
+    pub fn save_snapshot(&self) -> TextStateSnapshot {
+        TextStateSnapshot {
+            char_spacing: self.char_spacing,
+            word_spacing: self.word_spacing,
+            h_scaling: self.h_scaling,
+            leading: self.leading,
+            font_name: self.font_name.clone(),
+            font_size: self.font_size,
+            render_mode: self.render_mode,
+            rise: self.rise,
+        }
+    }
+
+    /// Restore text state parameters from a snapshot.
+    /// Called by the `Q` operator. Does NOT restore text_matrix/line_matrix.
+    pub fn restore_snapshot(&mut self, snapshot: TextStateSnapshot) {
+        self.char_spacing = snapshot.char_spacing;
+        self.word_spacing = snapshot.word_spacing;
+        self.h_scaling = snapshot.h_scaling;
+        self.leading = snapshot.leading;
+        self.font_name = snapshot.font_name;
+        self.font_size = snapshot.font_size;
+        self.render_mode = snapshot.render_mode;
+        self.rise = snapshot.rise;
     }
 }
 
