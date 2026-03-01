@@ -1,59 +1,60 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-167-zero-extraction",
-  "description": "Issue #167: Fix 0% extraction on PDFs with structure tags, page boxes, extra attrs",
-  "relatedIssue": 167,
+  "branchName": "ralph/issue-168-accuracy-improvement",
+  "description": "Issue #168: Improve below-target extraction accuracy on complex real-world PDFs",
+  "relatedIssue": 168,
   "userStories": [
     {
-      "id": "US-167-1",
-      "title": "Fix extraction on tagged/structure PDFs (figure_structure, hello_structure, pdf_structure)",
-      "description": "figure_structure.pdf (94 chars), hello_structure.pdf (54 chars), and pdf_structure.pdf (1090 chars) all produce 0% extraction. These are tagged PDFs with structure trees. The content streams may use marked content operators (BMC/BDC/EMC) or other tagged-PDF constructs that the parser doesn't handle, causing it to skip all text operators. Diagnose by examining the content streams and fix the interpreter to handle tagged PDF operators.",
+      "id": "US-168-1",
+      "title": "Improve font metrics accuracy for proportional fonts",
+      "description": "Several PDFs score below 95% due to font metrics gaps causing cumulative x-drift: 150109DSP-Milw-505-90D.pdf (66.6%), ag-energy-round-up-2017-02-24.pdf (83.6%), ca-warn-report.pdf (91.5%), chelsea_pdta.pdf (84.3%). The root cause is that char widths derived from content streams don't match the actual glyph widths for proportional fonts when /Widths arrays are present but not fully utilized, or when font metrics resolution is incomplete. Investigate the font metrics pipeline and improve width resolution to reduce x-drift.",
       "acceptanceCriteria": [
-        "figure_structure.pdf extracts chars (Python expects 94)",
-        "hello_structure.pdf extracts chars (Python expects 54)",
-        "pdf_structure.pdf extracts chars (Python expects 1090)",
-        "Char extraction accuracy >90% for each PDF",
-        "No regression on existing tests: cargo test --workspace passes",
-        "cargo fmt --all -- --check passes",
+        "ca-warn-report.pdf chars >=95% (currently 91.5%)",
+        "WARN-Report-for-7-1-2015-to-03-25-2016.pdf chars >=95% (currently 91.5%)",
+        "ag-energy-round-up-2017-02-24.pdf chars >=85% (currently 83.6%)",
+        "150109DSP-Milw-505-90D.pdf chars >=70% (currently 66.6%)",
+        "chelsea_pdta.pdf chars >=85% (currently 84.3%)",
+        "No regression on existing 100% PDFs",
+        "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Fixed. Root cause: fonts with Ascent=0/Descent=0 in font descriptors caused vertical bbox mismatch. Fix: when both ascent and descent are zero, use 1000/0 so bbox spans baseline to baseline+fontsize (matching pdfminer behavior). All three PDFs now at F1>=0.98."
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/font_metrics.rs, crates/pdfplumber-parse/src/interpreter.rs. The standard font widths work (phase14) may already improve some of these. Focus on cases where /Widths arrays exist but width resolution is subtly wrong (e.g., /FirstChar offset, /Encoding differences, CIDFont width mapping). Compare Rust char positions vs Python golden data to identify the drift pattern."
     },
     {
-      "id": "US-167-2",
-      "title": "Fix extraction on government docs and page-box PDFs",
-      "description": "senate-expenditures.pdf (3880 chars), la-precinct-bulletin-2014-p1.pdf (1996 chars), page-boxes-example.pdf (28 chars, 3.6% accuracy), extra-attrs-example.pdf (13 chars), and malformed-from-issue-932.pdf (7 chars) all produce 0% extraction. These may share common causes: unsupported content stream operators, page box handling (CropBox vs MediaBox), or content stream encoding issues. Diagnose each failure and fix the underlying parser/interpreter issues.",
+      "id": "US-168-2",
+      "title": "Implement character deduplication",
+      "description": "issue-71-duplicate-chars.pdf (words 76.8%), issue-71-duplicate-chars-2.pdf (37.3%), and issue-1114-dedupe-chars.pdf (words 46.2%) have duplicate characters that need deduplication. Python pdfplumber deduplicates chars that have the same text and nearly identical positions (within a small tolerance). Implement a char deduplication step that removes duplicate chars before word grouping.",
       "acceptanceCriteria": [
-        "senate-expenditures.pdf extracts chars (Python expects 3880)",
-        "la-precinct-bulletin-2014-p1.pdf extracts chars (Python expects 1996)",
-        "page-boxes-example.pdf extracts chars >50% (Python expects 28 chars)",
-        "extra-attrs-example.pdf extracts chars (Python expects 13)",
-        "malformed-from-issue-932.pdf extracts chars (Python expects 7)",
-        "No regression on existing tests: cargo test --workspace passes",
-        "cargo fmt --all -- --check passes",
+        "issue-71-duplicate-chars.pdf words >=90% (currently 76.8%)",
+        "issue-71-duplicate-chars-2.pdf chars >=70% (currently 37.3%)",
+        "issue-1114-dedupe-chars.pdf words >=70% (currently 46.2%)",
+        "Deduplication is configurable (can be disabled)",
+        "No regression on PDFs without duplicates",
+        "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Fixed. Three sub-issues: (1) page-boxes-example, senate-expenditures, la-precinct-bulletin already passed after US-167-1 fix. (2) extra-attrs-example: pdfminer uses font descriptor Descent and derives ascent=1000+descent; fixed interpreter to match. (3) malformed-from-issue-932: inverted MediaBox [0,841.68,631,0] caused negative page height; fixed by computing effective height as top+|height|."
+      "passes": false,
+      "notes": "Python pdfplumber's dedupe logic: chars are duplicates if they have the same text content and their (x0, top) positions are within a small tolerance (typically 1 unit). The dedup should happen after char extraction but before word grouping. Key file for implementation: crates/pdfplumber-core/src/text.rs or a new dedup module. Check Python pdfplumber source for exact dedup algorithm."
     },
     {
-      "id": "US-167-3",
-      "title": "Fix extraction on issue regression PDFs (issue-140, issue-461)",
-      "description": "issue-140-example.pdf (709 chars) and issue-461-example.pdf (866 chars) produce 0% extraction. These are regression test PDFs from the Python pdfplumber project. Diagnose what content stream constructs cause the extraction failure and fix them.",
+      "id": "US-168-3",
+      "title": "Improve word grouping accuracy",
+      "description": "Several PDFs have chars at 100% but words below target: issue-71-duplicate-chars.pdf (chars 100%, words 76.8%), line-char-render-example.pdf (chars 100%, words 83.3%), test-punkt.pdf (chars 100%, words 90.0%). The word grouping algorithm differs from Python pdfplumber in edge cases like punctuation handling, rendering mode differences, and spacing thresholds. Investigate and fix word boundary detection to better match Python behavior.",
       "acceptanceCriteria": [
-        "issue-140-example.pdf extracts chars (Python expects 709)",
-        "issue-461-example.pdf extracts chars (Python expects 866)",
-        "Char extraction accuracy >80% for each PDF",
-        "No regression on existing tests: cargo test --workspace passes",
-        "cargo fmt --all -- --check passes",
+        "line-char-render-example.pdf words >=90% (currently 83.3%)",
+        "test-punkt.pdf words >=95% (currently 90.0%)",
+        "word365_structure.pdf words >=95% (currently 94.6%)",
+        "issue-67-example.pdf words >=95% (currently 90.3%)",
+        "No regression on PDFs already at 100%",
+        "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Fixed. Both PDFs already pass (F1=1.000 chars) after US-167-1 and US-167-2 fixes. Root causes were the same: per-font ascent/descent formula and inverted MediaBox handling."
+      "passes": false,
+      "notes": "Key file: crates/pdfplumber-core/src/words.rs (WordExtractor). Python pdfplumber word grouping uses x_tolerance (default 3.0) and y_tolerance (default 3.0). Check if the Rust implementation matches these defaults exactly. Also check handling of: invisible chars (render mode 3), punctuation attachment, extra whitespace between words."
     }
   ]
 }

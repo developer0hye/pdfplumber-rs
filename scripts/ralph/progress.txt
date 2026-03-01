@@ -1,22 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  1일 일요일 17시 13분 12초 KST
+# Ralph Progress Log - Issue #168: Improve below-target extraction accuracy on complex PDFs
+Started: 2026년  3월  1일 일요일 18시 33분 53초 KST
 ---
-## US-167-1: Fix extraction on tagged/structure PDFs
-- Root cause: Fonts with Ascent=0/Descent=0 in descriptors caused vertical bbox mismatch (0% F1)
-- Fix: Added per-font ascent/descent to CharEvent; when both are zero, use 1000/0 (pdfminer behavior)
-- Results: figure_structure F1=1.000, hello_structure F1=0.981, pdf_structure F1=1.000
-- Files changed: handler.rs, interpreter.rs, char_extraction.rs, backend.rs, pdf.rs, accuracy_benchmark.rs
-- Status: DONE
-
-## US-167-2: Fix extraction on government docs and page-box PDFs
-- senate-expenditures, la-precinct-bulletin, page-boxes-example: already passing after US-167-1
-- extra-attrs-example: pdfminer uses descent from font descriptor, derives ascent=1000+descent; fixed interpreter
-- malformed-from-issue-932: inverted MediaBox caused negative page height; fixed with top+|height|
-- Results: all 5 PDFs at F1=1.000 for chars
-- Files changed: interpreter.rs (ascent/descent formula), pdf.rs (MediaBox height), accuracy_benchmark.rs
-- Status: DONE
-
-## US-167-3: Fix extraction on issue regression PDFs
-- Both issue-140-example and issue-461-example already pass (F1=1.000) after US-167-1/2 fixes
-- Added accuracy tests for verification
-- Status: DONE
