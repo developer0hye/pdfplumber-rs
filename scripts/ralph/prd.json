@@ -1,84 +1,27 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/phase9-enterprise",
-  "description": "Phase 9: Enterprise & Advanced - PDF validation, repair, advanced color spaces, digital signatures",
+  "branchName": "ralph/issue-153-unicode-nfc",
+  "description": "Issue #153: Change default Unicode normalization to NFC and add for_llm() preset",
+  "relatedIssue": 153,
   "userStories": [
     {
-      "id": "US-082",
-      "title": "PDF validation and error reporting",
-      "description": "Detect and report common PDF specification violations. pdfcpu and pikepdf provide PDF validation. Real-world PDFs are often malformed — validation helps users understand extraction issues.",
+      "id": "US-153-1",
+      "title": "Change UnicodeNorm default to Nfc and add for_llm() preset to ExtractOptions",
+      "description": "In `crates/pdfplumber-core/src/unicode_norm.rs`, change the `#[default]` attribute on the `UnicodeNorm` enum from `None` to `Nfc`. Update the doc comment on the `None` variant to remove '(default)' and add '(default)' to the `Nfc` variant doc comment. Update the `unicode_norm_default_is_none` test to assert `UnicodeNorm::default() == UnicodeNorm::Nfc`. In `crates/pdfplumber-core/src/error.rs`, update the `ExtractOptions::default()` impl to set `unicode_norm: UnicodeNorm::Nfc` (was `UnicodeNorm::None`). Add a `pub fn for_llm() -> Self` constructor to `ExtractOptions` that returns options optimized for LLM consumption: `unicode_norm: UnicodeNorm::Nfc` plus current defaults for other fields. Update any tests that assert `UnicodeNorm::None` as the default. Fix all downstream code in pdfplumber-cli and pdfplumber that may need adjustment for the new default.",
       "acceptanceCriteria": [
-        "ValidationIssue struct: severity (Warning/Error), code (String), message (String), location (Option<String>)",
-        "Pdf::validate() -> Vec<ValidationIssue>",
-        "Check for: missing required keys (/Type, /Pages), invalid xref table entries, broken object references, invalid page tree structure, missing fonts referenced in content streams",
-        "Severity levels: Error (spec violation likely causing extraction failure), Warning (non-conformance but extractable)",
-        "Add `pdfplumber validate <FILE>` CLI subcommand with --format json/text",
-        "Report total error/warning counts in summary",
-        "Unit tests: valid PDF (no issues), PDF with missing /Type, PDF with broken reference",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
+        "UnicodeNorm::default() returns UnicodeNorm::Nfc",
+        "#[default] attribute is on Nfc variant, not None",
+        "ExtractOptions::default().unicode_norm == UnicodeNorm::Nfc",
+        "ExtractOptions::for_llm() exists and returns options with unicode_norm: UnicodeNorm::Nfc",
+        "All tests updated to reflect new default (no test expects UnicodeNorm::None as default)",
+        "Doc comments updated: Nfc says '(default)', None does not",
+        "cargo fmt --all -- --check passes",
+        "cargo clippy --workspace -- -D warnings passes",
+        "cargo test --workspace passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Validation helps users diagnose why extraction fails or produces unexpected results."
-    },
-    {
-      "id": "US-083",
-      "title": "Best-effort PDF repair",
-      "description": "Attempt to fix common PDF issues that prevent extraction. pikepdf (via QPDF) and pdfplumber(Py) (via Ghostscript) provide repair capabilities.",
-      "acceptanceCriteria": [
-        "Pdf::open_with_repair(bytes, options) -> Result<Pdf, PdfError>",
-        "RepairOptions: rebuild_xref (bool), fix_stream_lengths (bool), remove_broken_objects (bool)",
-        "Rebuild xref: scan file for obj/endobj markers to reconstruct cross-reference table",
-        "Fix stream lengths: recalculate /Length from actual stream data",
-        "Remove broken objects: skip unresolvable references with warnings",
-        "Return repair log as Vec<String> describing what was fixed",
-        "Add --repair flag to CLI subcommands",
-        "Unit tests: PDF with broken xref repaired, PDF with wrong stream length fixed",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Best-effort — not all PDFs can be repaired. Focus on the most common issues."
-    },
-    {
-      "id": "US-084",
-      "title": "Advanced color space handling",
-      "description": "Resolve complex color spaces (ICCBased, Indexed, Separation, DeviceN) to displayable RGB values. Currently only DeviceGray/RGB/CMYK are handled.",
-      "acceptanceCriteria": [
-        "Resolve ICCBased color spaces: parse ICC profile header, determine base color space (RGB, CMYK, Gray), use /Alternate if profile parsing fails",
-        "Resolve Indexed color spaces: look up index in color table, convert to base color space",
-        "Resolve Separation color spaces: use /AlternateSpace and /TintTransform (best-effort function evaluation)",
-        "Resolve DeviceN color spaces: similar to Separation with multiple components",
-        "Color::to_rgb() -> Option<(f32, f32, f32)> helper method",
-        "Char.resolved_color() -> Option<Color> (resolved to RGB when possible)",
-        "Unit tests: ICCBased to RGB, Indexed lookup, Separation fallback to alternate",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "Full ICC profile parsing is complex — focus on common cases and fallback to /Alternate."
-    },
-    {
-      "id": "US-085",
-      "title": "Digital signature information extraction",
-      "description": "Extract digital signature information from PDF signature fields. Not verification — just metadata extraction (signer, date, reason, certificate info).",
-      "acceptanceCriteria": [
-        "SignatureInfo struct: signer_name (Option<String>), sign_date (Option<String>), reason (Option<String>), location (Option<String>), contact_info (Option<String>), is_signed (bool)",
-        "Parse signature form fields (/FT /Sig)",
-        "Extract /V (signature value dictionary): /Name, /M (date), /Reason, /Location, /ContactInfo",
-        "Pdf::signatures() -> Vec<SignatureInfo>",
-        "Add signature info to CLI `info` subcommand output",
-        "Handle unsigned signature fields (is_signed = false)",
-        "Unit tests: signed PDF metadata extraction, unsigned signature field, PDF with no signatures",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 4,
       "passes": false,
-      "notes": "Metadata extraction only — actual signature validation/verification is out of scope."
+      "notes": "Key files: crates/pdfplumber-core/src/unicode_norm.rs (enum definition, line 17-29), crates/pdfplumber-core/src/error.rs (ExtractOptions default, line 219). Tests to update: unicode_norm.rs:91 (unicode_norm_default_is_none), error.rs:445 (assert_eq opts.unicode_norm UnicodeNorm::None), error.rs:455. The CLI already handles unicode_norm as Option<UnicodeNormArg> which overrides the default, so it should be unaffected. Check crates/pdfplumber/src/pdf.rs:478 where `UnicodeNorm::None` is used as a comparison — this is checking if normalization is not None, so it should use != pattern which still works."
     }
   ]
 }
