@@ -1,6 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  2일 월요일 00시 49분 12초 KST
-
 ## Codebase Patterns
 
 ### PageGeometry and Coordinate System
@@ -25,61 +22,20 @@ Started: 2026년  3월  2일 월요일 00시 49분 12초 KST
 
 ---
 
-## 2026-03-02 - US-186-1
-- **What was implemented:**
-  1. Fixed coordinate system to use MediaBox (not CropBox) for page dimensions and transforms, matching Python pdfplumber behavior.
-  2. Added optional `tracing` dependency with `tracing` feature flag to `pdfplumber-parse`.
-  3. Changed interpreter catch-all arm to log skipped operators via `tracing::warn!` when the feature is enabled.
-  4. issue-1054-example.pdf now achieves 100% char matching (was 0%).
-- **Files changed:**
-  - `crates/pdfplumber/src/pdf.rs` — Pass `None` for crop_box in PageGeometry::new() at lines 287 and 496
-  - `crates/pdfplumber-parse/src/interpreter.rs` — Added tracing warning for unrecognized operators
-  - `crates/pdfplumber-parse/Cargo.toml` — Added optional `tracing` dependency with feature flag
-  - `crates/pdfplumber-parse/tests/unrecognized_operator_recovery.rs` — New unit tests
-  - `crates/pdfplumber/tests/issue_1054_robustness.rs` — New integration tests
-  - `scripts/ralph/prd.json` — Marked US-186-1 as passes: true
-- **Dependencies added:** `tracing = { version = "0.1", optional = true }` (behind `tracing` feature flag)
-- **Learnings for future iterations:**
-  - The real cause of 0% char matching for issue-1054 was CropBox-based coordinate transforms, not unrecognized operators.
-  - The interpreter already silently ignored unknown operators; the fix was about coordinate accuracy.
-  - All currently passing cross-validation tests have CropBox == MediaBox, so the change is safe.
-  - PDF operator names are alphabetic only (no underscores) — tokenizer splits on non-alpha chars.
+# Ralph Progress Log - Issue #187: Improve font metrics precision for near-threshold PDFs
+Started: 2026년  3월  2일 월요일 02시 49분 02초 KST
 ---
 
-## 2026-03-02 - US-186-2
-- **What was implemented:**
-  1. Normalized positive FontDescriptor Descent values to negative in `parse_font_descriptor()`.
-  2. Upgraded cross-validation tests: annotations.pdf and annotations-rotated-90.pdf now asserting at 95% threshold.
-  3. Updated annotations-rotated-180/270 from "PDF parse error" to "word grouping gap" (chars 100%).
-  4. Upgraded issue-1054-example.pdf from ignored to asserting (100%).
-- **Files changed:**
-  - `crates/pdfplumber-parse/src/font_metrics.rs` — Added Descent normalization + 3 unit tests
-  - `crates/pdfplumber/tests/cross_validation.rs` — Upgraded 4 annotation tests + issue-1054
-  - `scripts/ralph/prd.json` — Marked US-186-2 as passes: true
-- **Dependencies added:** None
+## 2026-03-02 - US-187-1
+- **What was implemented**: Promoted 3 cross-validation tests from `cross_validate_ignored!` to `cross_validate!` since prior work already brought them above the 95% threshold:
+  - issue-463-example.pdf: chars 100%, words 100% (target >= 92%)
+  - issue-53-example.pdf: chars 100%, words 100% (target >= 95%/93%)
+  - issue-982-example.pdf: chars 99.9%, words 99.5% (target >= 88%)
+- **Files changed**: `crates/pdfplumber/tests/cross_validation.rs`, `scripts/ralph/prd.json`, `scripts/ralph/progress.txt`
+- **Dependencies added**: None
 - **Learnings for future iterations:**
-  - The annotation PDFs were never actually failing to parse — the US-186-1 CropBox→MediaBox fix already resolved the parse errors.
-  - The real issue was a positive Descent value (+211 instead of -211) in BAAAAA+Arial-BoldMT's FontDescriptor.
-  - This caused a consistent 6.79pt vertical offset (2 * descent/1000 * font_size), making cross-validation chars match at 0%.
-  - `cid_font.rs` already had Descent normalization; this fix brings `font_metrics.rs` in line.
-  - Rotated variants (180°/270°) have word grouping issues unrelated to parsing — chars match at 100%.
----
-
-## 2026-03-02 - US-186-3
-- **What was implemented:**
-  1. Unified raw_page_height formula: `|height| + top - min(top, bottom)` handles normal, non-zero origin, and inverted MediaBox.
-  2. Enhanced `try_strip_preamble()` to strip Ghostscript preamble AND "Page N\n" markers before endstream keywords.
-  3. issue-1181.pdf achieves 100% char match on both pages (was 200pt y-offset due to non-zero MediaBox origin).
-  4. issue-848.pdf opens successfully with 8 pages (was 0 pages due to cumulative xref offset errors).
-- **Files changed:**
-  - `crates/pdfplumber/src/pdf.rs` — Unified raw_page_height formula at line ~295
-  - `crates/pdfplumber-parse/src/lopdf_backend.rs` — New `try_strip_preamble()` + 4 unit tests, called in `open()`
-  - `crates/pdfplumber/tests/issue_1181_and_848_robustness.rs` — 5 integration tests
-  - `scripts/ralph/prd.json` — Marked US-186-3 as passes: true
-- **Dependencies added:** None
-- **Learnings for future iterations:**
-  - Python pdfplumber's y-flip: `top = (height - char.y1) + mb_top`. Since Rust doesn't apply pdfminer's initial CTM `translate(-x0, -y0)`, the offset must be folded into raw_page_height.
-  - Ghostscript ps2pdf injects "Page N\n" markers (7 bytes) before each endstream keyword, causing cumulative xref offset errors (+7 per page).
-  - An xref rebuilder approach was tried but had false positives from "N G obj" patterns inside compressed streams. Removing the root cause (page markers) was the correct fix.
-  - Inverted MediaBox (e.g. [0 841.68 631.08 0]) requires raw_page_height = 1684 (double), not 842. The unified formula handles this correctly.
+  - Font /Widths array parsing was already implemented in `font_metrics.rs::extract_font_metrics()`, including /FirstChar, /LastChar, /FontDescriptor support
+  - Standard font fallback (14 Type1 fonts) and encoding remapping were also already complete
+  - The accuracy improvements that brought these PDFs above threshold likely came from prior PRs (encoding, CID font, standard font work)
+  - When a story's acceptance criteria are already met, the work is to verify and promote the tests from ignored to asserting
 ---

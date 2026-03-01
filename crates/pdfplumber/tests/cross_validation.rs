@@ -1117,15 +1117,17 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_463,
     "issue-463-example.pdf",
-    "chars 89.4% — slightly below 95% threshold"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_53,
     "issue-53-example.pdf",
-    "chars 94.1%, words 92.1% — slightly below 95%"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_67,
@@ -1148,10 +1150,11 @@ cross_validate_ignored!(
     "issue-842-example.pdf",
     "chars 2.3% — font encoding gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_982,
     "issue-982-example.pdf",
-    "chars 85.4% — CIDFont pages below threshold"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_python_issue_987,

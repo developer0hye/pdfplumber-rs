@@ -1,56 +1,41 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-186-parser-robustness",
-  "description": "Issue #186: Improve PDF parser robustness for content stream errors",
-  "relatedIssue": 186,
+  "branchName": "ralph/issue-187-font-metrics",
+  "description": "Issue #187: Improve font metrics precision for near-threshold PDFs",
+  "relatedIssue": 187,
   "userStories": [
     {
-      "id": "US-186-1",
-      "title": "Add error recovery for unrecognized content stream operators",
-      "description": "The content stream interpreter fails when encountering unrecognized operators, causing entire pages to produce 0% extraction. Implement graceful error recovery — skip unrecognized operators instead of aborting the page. Log warnings for skipped operators.",
+      "id": "US-187-1",
+      "title": "Extract glyph widths from font descriptors and /Widths arrays",
+      "description": "Many PDFs include per-font /Widths arrays and /FontDescriptor entries with precise glyph metrics. Currently these are not always utilized, causing cumulative x-drift on pages with proportional fonts. Parse /Widths, /FirstChar, /LastChar from font dictionaries and use them for char width calculation.",
       "acceptanceCriteria": [
-        "Unrecognized operators are skipped with a warning instead of aborting",
-        "issue-1054-example.pdf extracts chars > 50% (currently 0%, content stream operator gap)",
-        "No regression on PDFs with standard operators",
-        "Skipped operators are logged via tracing when the tracing feature is enabled",
+        "Font /Widths arrays are parsed and used when available",
+        "issue-463-example.pdf chars >= 92% (currently 89.4%)",
+        "issue-53-example.pdf chars >= 95%, words >= 93% (currently 94.1%/92.1%)",
+        "issue-982-example.pdf chars >= 88% (currently 85.4%)",
+        "No regression on PDFs already at 100%",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs. The interpreter's main loop matches operator names. Add a catch-all arm that logs and continues instead of returning an error. Check which specific operators cause failures in each affected PDF."
+      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs (font setup). /Widths is an array of widths for char codes from /FirstChar to /LastChar. The width for code c is Widths[c - FirstChar]. This should override standard font fallback widths. Check interpreter's resolve_char_width() or equivalent function."
     },
     {
-      "id": "US-186-2",
-      "title": "Fix annotation PDF parse failures",
-      "description": "annotations.pdf and its rotated variants (90°, 180°, 270°) fail to parse entirely. Diagnose the specific parse error and fix it. These PDFs likely use annotation-related content stream operators or form XObjects that the parser doesn't handle.",
+      "id": "US-187-2",
+      "title": "Improve font descriptor ascent/descent handling",
+      "description": "Some PDFs have vertical coordinate offsets because ascent/descent values from /FontDescriptor are not being used. The parser falls back to default ascent/descent (-250/1000) instead of reading /Ascent and /Descent from the font descriptor. Fix by extracting these values when available.",
       "acceptanceCriteria": [
-        "annotations.pdf opens without parse error",
-        "annotations-rotated-90.pdf opens without parse error",
-        "annotations-rotated-180.pdf opens without parse error",
-        "annotations-rotated-270.pdf opens without parse error",
-        "Cross-validation entries upgraded from 'PDF parse error' to actual scores",
+        "Font descriptor /Ascent and /Descent values are used when available",
+        "Vertical coordinate accuracy improves for PDFs with font descriptors",
+        "issue-336-example.pdf chars >= 65% (currently 58.5%)",
+        "No regression on existing PDFs",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Annotation PDFs may use form XObjects (/Subtype /Form) for annotation appearances. The interpreter already handles /Do for XObjects but may not handle all form XObject subtypes. Also check: inline image operators (BI/ID/EI), type 3 font charprocs, or unusual resource dictionaries."
-    },
-    {
-      "id": "US-186-3",
-      "title": "Fix remaining parse failures (issue-1181, issue-848)",
-      "description": "issue-1181.pdf and issue-848.pdf fail to parse. Diagnose each failure, implement fixes or error recovery as appropriate.",
-      "acceptanceCriteria": [
-        "issue-1181.pdf opens without parse error (or gracefully degrades)",
-        "issue-848.pdf opens without parse error (or gracefully degrades)",
-        "Cross-validation entries updated with actual extraction scores",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 3,
-      "passes": true,
-      "notes": "issue-1181: non-zero MediaBox y-origin fixed with unified raw_page_height formula. issue-848: Ghostscript preamble and page markers stripped in try_strip_preamble."
+      "passes": false,
+      "notes": "Key file: crates/pdfplumber-parse/src/interpreter.rs. FontDescriptor has /Ascent, /Descent, /CapHeight, /Flags, /FontBBox, /ItalicAngle, /StemV. The ascent/descent affect the top/bottom bbox calculation for each character. Check how char bbox vertical coordinates are computed and where font descriptor values should be injected."
     }
   ]
 }
