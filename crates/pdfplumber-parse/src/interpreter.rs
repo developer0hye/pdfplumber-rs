@@ -10,6 +10,7 @@ use crate::cid_font::{
     CidFontMetrics, extract_cid_font_metrics, get_descendant_font, get_type0_encoding,
     is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
 };
+use crate::cjk_encoding;
 use crate::cmap::CMap;
 use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
@@ -42,6 +43,9 @@ struct CachedFont {
     writing_mode: u8,
     /// Font encoding from the /Encoding entry (for simple fonts).
     encoding: Option<FontEncoding>,
+    /// CJK encoding for predefined CMap encodings (e.g., GBK-EUC-H).
+    /// When present, used for variable-length byte decoding and Unicode conversion.
+    cjk_encoding: Option<&'static encoding_rs::Encoding>,
 }
 
 /// Entry on the marked content stack, tracking BMC/BDC nesting.
@@ -620,11 +624,15 @@ fn load_font_if_needed(
         font_obj.as_dict().ok()
     })();
 
-    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode, encoding) =
+    let (metrics, cmap, base_name, cid_metrics, is_cid_font, writing_mode, encoding, cjk_enc) =
         if let Some(fd) = font_dict {
             if is_type0_font(fd) {
                 // Type0 (composite/CID) font
                 let (cid_met, wm) = load_cid_font(doc, fd);
+
+                // Detect CJK encoding from predefined CMap name
+                let cjk_enc = get_type0_encoding(fd)
+                    .and_then(|enc_name| cjk_encoding::encoding_for_cmap(&enc_name));
                 let metrics = if let Some(ref cm) = cid_met {
                     // Create a FontMetrics from CID font data for backward compat
                     FontMetrics::new(
@@ -660,7 +668,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, cid_met, true, wm, None)
+                (metrics, cmap, base_name, cid_met, true, wm, None, cjk_enc)
             } else {
                 // Simple font
                 let metrics = match extract_font_metrics(doc, fd) {
@@ -688,7 +696,7 @@ fn load_font_if_needed(
                     .unwrap_or(font_name);
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
-                (metrics, cmap, base_name, None, false, 0, encoding)
+                (metrics, cmap, base_name, None, false, 0, encoding, None)
             }
         } else {
             // Font not found in page resources — use defaults
@@ -710,6 +718,7 @@ fn load_font_if_needed(
                 false,
                 0,
                 None,
+                None,
             )
         };
 
@@ -723,6 +732,7 @@ fn load_font_if_needed(
             is_cid_font,
             writing_mode,
             encoding,
+            cjk_encoding: cjk_enc,
         },
     );
 }
@@ -853,6 +863,79 @@ fn get_width_fn(cached: Option<&CachedFont>) -> Box<dyn Fn(u32) -> f64 + '_> {
     }
 }
 
+/// Show a string using CJK variable-length byte decoding.
+///
+/// Unlike `show_string_cid` which always reads 2-byte pairs, this function
+/// uses the CJK encoding to determine byte boundaries (1 or 2 bytes per char).
+fn show_string_cjk(
+    text_state: &mut TextState,
+    string_bytes: &[u8],
+    get_width: &dyn Fn(u32) -> f64,
+    encoding: &'static encoding_rs::Encoding,
+) -> Vec<crate::text_renderer::RawChar> {
+    let decoded = cjk_encoding::decode_cjk_string(string_bytes, encoding);
+    let mut chars = Vec::with_capacity(decoded.len());
+
+    for dc in decoded {
+        let text_matrix = text_state.text_matrix_array();
+        let w0 = get_width(dc.char_code);
+        let font_size = text_state.font_size;
+        let char_spacing = text_state.char_spacing;
+        let word_spacing = if dc.char_code == 32 {
+            text_state.word_spacing
+        } else {
+            0.0
+        };
+        let h_scaling = text_state.h_scaling_normalized();
+        let tx = ((w0 / 1000.0) * font_size + char_spacing + word_spacing) * h_scaling;
+
+        chars.push(crate::text_renderer::RawChar {
+            char_code: dc.char_code,
+            displacement: tx,
+            text_matrix,
+        });
+
+        text_state.advance_text_position(tx);
+    }
+
+    chars
+}
+
+/// TJ operator with CJK-aware byte decoding.
+///
+/// Like `show_string_with_positioning_mode` but uses CJK variable-length byte
+/// decoding when a CJK encoding is provided. Falls back to 2-byte CID mode when
+/// encoding is `None`.
+fn show_string_with_positioning_cjk(
+    text_state: &mut TextState,
+    elements: &[TjElement],
+    get_width: &dyn Fn(u32) -> f64,
+    encoding: Option<&'static encoding_rs::Encoding>,
+) -> Vec<crate::text_renderer::RawChar> {
+    let mut chars = Vec::new();
+
+    for element in elements {
+        match element {
+            TjElement::String(bytes) => {
+                let mut sub_chars = if let Some(enc) = encoding {
+                    show_string_cjk(text_state, bytes, get_width, enc)
+                } else {
+                    show_string_cid(text_state, bytes, get_width)
+                };
+                chars.append(&mut sub_chars);
+            }
+            TjElement::Adjustment(adj) => {
+                let font_size = text_state.font_size;
+                let h_scaling = text_state.h_scaling_normalized();
+                let tx = -(adj / 1000.0) * font_size * h_scaling;
+                text_state.advance_text_position(tx);
+            }
+        }
+    }
+
+    chars
+}
+
 fn handle_tj(
     tstate: &mut TextState,
     gstate: &InterpreterState,
@@ -868,8 +951,9 @@ fn handle_tj(
 
     let cached = font_cache.get(&tstate.font_name);
     let width_fn = get_width_fn(cached);
-    let is_cid = cached.is_some_and(|c| c.is_cid_font);
-    let raw_chars = if is_cid {
+    let raw_chars = if let Some(enc) = cached.and_then(|c| c.cjk_encoding) {
+        show_string_cjk(tstate, string_bytes, &*width_fn, enc)
+    } else if cached.is_some_and(|c| c.is_cid_font) {
         show_string_cid(tstate, string_bytes, &*width_fn)
     } else {
         show_string(tstate, string_bytes, &*width_fn)
@@ -911,8 +995,13 @@ fn handle_tj_array(
 
     let cached = font_cache.get(&tstate.font_name);
     let width_fn = get_width_fn(cached);
+    let cjk_enc = cached.and_then(|c| c.cjk_encoding);
     let is_cid = cached.is_some_and(|c| c.is_cid_font);
-    let raw_chars = show_string_with_positioning_mode(tstate, &elements, &*width_fn, is_cid);
+    let raw_chars = if cjk_enc.is_some() || is_cid {
+        show_string_with_positioning_cjk(tstate, &elements, &*width_fn, cjk_enc)
+    } else {
+        show_string_with_positioning_mode(tstate, &elements, &*width_fn, false)
+    };
 
     emit_char_events(
         raw_chars,
@@ -936,7 +1025,7 @@ fn emit_char_events(
     let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
 
     for rc in raw_chars {
-        // Unicode resolution chain: CMap → FontEncoding → char::from_u32
+        // Unicode resolution chain: CMap → FontEncoding → CJK encoding → char::from_u32
         let unicode = cached
             .and_then(|c| {
                 // 1. Try ToUnicode CMap (highest priority)
@@ -957,7 +1046,21 @@ fn emit_char_events(
                 })
             })
             .or_else(|| {
-                // 3. Fallback: char::from_u32 for ASCII-range codes
+                // 3. Try CJK encoding (for CID fonts with predefined CMaps like GBK-EUC-H)
+                cached.and_then(|c| {
+                    c.cjk_encoding.map(|enc| {
+                        let bytes = if rc.char_code > 0xFF {
+                            vec![(rc.char_code >> 8) as u8, (rc.char_code & 0xFF) as u8]
+                        } else {
+                            vec![rc.char_code as u8]
+                        };
+                        let (decoded, _, _) = enc.decode(&bytes);
+                        decoded.into_owned()
+                    })
+                })
+            })
+            .or_else(|| {
+                // 4. Fallback: char::from_u32 for ASCII-range codes
                 char::from_u32(rc.char_code).map(|ch| ch.to_string())
             });
 
