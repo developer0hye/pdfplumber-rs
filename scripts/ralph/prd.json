@@ -18,8 +18,8 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
-      "notes": "Tagged PDF operators: BMC (Begin Marked Content), BDC (Begin Marked Content with properties), EMC (End Marked Content), MP (Marked Content Point), DP (Marked Content Point with properties). These should be handled (or safely skipped) in the content stream interpreter at crates/pdfplumber-parse/src/interpreter.rs. The text between BMC/EMC pairs should still be extracted normally."
+      "passes": true,
+      "notes": "Fixed. Root cause: fonts with Ascent=0/Descent=0 in font descriptors caused vertical bbox mismatch. Fix: when both ascent and descent are zero, use 1000/0 so bbox spans baseline to baseline+fontsize (matching pdfminer behavior). All three PDFs now at F1>=0.98."
     },
     {
       "id": "US-167-2",
