@@ -661,11 +661,14 @@ fn load_font_if_needed(
                 // Extract ToUnicode CMap if present
                 let cmap = extract_tounicode_cmap(doc, fd);
 
-                let raw_base_name = fd
-                    .get(b"BaseFont")
-                    .ok()
-                    .and_then(|o| o.as_name_str().ok())
-                    .unwrap_or(font_name);
+                let raw_base_name_owned;
+                let raw_base_name =
+                    if let Some(n) = fd.get(b"BaseFont").ok().and_then(|o| o.as_name().ok()) {
+                        raw_base_name_owned = String::from_utf8_lossy(n).into_owned();
+                        raw_base_name_owned.as_str()
+                    } else {
+                        font_name
+                    };
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
                 (metrics, cmap, base_name, cid_met, true, wm, None, cjk_enc)
@@ -689,11 +692,14 @@ fn load_font_if_needed(
                 };
                 let cmap = extract_tounicode_cmap(doc, fd);
                 let encoding = extract_font_encoding(doc, fd);
-                let raw_base_name = fd
-                    .get(b"BaseFont")
-                    .ok()
-                    .and_then(|o| o.as_name_str().ok())
-                    .unwrap_or(font_name);
+                let raw_base_name_owned;
+                let raw_base_name =
+                    if let Some(n) = fd.get(b"BaseFont").ok().and_then(|o| o.as_name().ok()) {
+                        raw_base_name_owned = String::from_utf8_lossy(n).into_owned();
+                        raw_base_name_owned.as_str()
+                    } else {
+                        font_name
+                    };
                 let base_name = strip_subset_prefix(raw_base_name).to_string();
 
                 (metrics, cmap, base_name, None, false, 0, encoding, None)
@@ -752,12 +758,12 @@ fn extract_font_encoding(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Optio
     let encoding_obj = resolve_ref(doc, encoding_obj);
 
     // Case 1: /Encoding is a name (e.g., /WinAnsiEncoding)
-    if let Ok(name) = encoding_obj.as_name_str() {
+    if let Ok(name) = encoding_obj.as_name() {
         let std_enc = match name {
-            "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
-            "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
-            "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
-            "StandardEncoding" => Some(StandardEncoding::Standard),
+            b"WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+            b"MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+            b"MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+            b"StandardEncoding" => Some(StandardEncoding::Standard),
             _ => None,
         };
         return std_enc.map(FontEncoding::from_standard);
@@ -768,12 +774,12 @@ fn extract_font_encoding(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Optio
         let base = enc_dict
             .get(b"BaseEncoding")
             .ok()
-            .and_then(|o| o.as_name_str().ok())
+            .and_then(|o| o.as_name().ok())
             .and_then(|name| match name {
-                "WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
-                "MacRomanEncoding" => Some(StandardEncoding::MacRoman),
-                "MacExpertEncoding" => Some(StandardEncoding::MacExpert),
-                "StandardEncoding" => Some(StandardEncoding::Standard),
+                b"WinAnsiEncoding" => Some(StandardEncoding::WinAnsi),
+                b"MacRomanEncoding" => Some(StandardEncoding::MacRoman),
+                b"MacExpertEncoding" => Some(StandardEncoding::MacExpert),
+                b"StandardEncoding" => Some(StandardEncoding::Standard),
                 _ => None,
             })
             .unwrap_or(StandardEncoding::Standard);
@@ -1264,14 +1270,14 @@ fn handle_do(
         .dict
         .get(b"Subtype")
         .ok()
-        .and_then(|o| o.as_name_str().ok())
-        .unwrap_or("");
+        .and_then(|o| o.as_name().ok())
+        .unwrap_or(b"");
 
     match subtype {
-        "Form" => handle_form_xobject(
+        b"Form" => handle_form_xobject(
             doc, stream, name, resources, handler, options, depth, gstate, tstate,
         ),
-        "Image" => {
+        b"Image" => {
             handle_image_xobject(stream, name, gstate, handler);
             Ok(())
         }
@@ -1388,8 +1394,8 @@ fn handle_image_xobject(
         .dict
         .get(b"ColorSpace")
         .ok()
-        .and_then(|o| o.as_name_str().ok())
-        .map(|s| s.to_string());
+        .and_then(|o| o.as_name().ok())
+        .map(|s| String::from_utf8_lossy(s).into_owned());
 
     let bits_per_component = stream
         .dict
@@ -1400,13 +1406,13 @@ fn handle_image_xobject(
 
     // Extract the primary filter name from the stream dictionary
     let filter = stream.dict.get(b"Filter").ok().and_then(|o| {
-        if let Ok(name) = o.as_name_str() {
-            Some(name.to_string())
+        if let Ok(name) = o.as_name() {
+            Some(String::from_utf8_lossy(name).into_owned())
         } else if let Ok(arr) = o.as_array() {
             // For filter arrays, use the last filter (the one that determines the format)
             arr.last()
-                .and_then(|item| item.as_name_str().ok())
-                .map(|s| s.to_string())
+                .and_then(|item| item.as_name().ok())
+                .map(|s| String::from_utf8_lossy(s).into_owned())
         } else {
             None
         }
