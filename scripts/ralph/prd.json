@@ -39,7 +39,7 @@
         "cargo test --workspace passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Table detection depends on correct edge/line extraction from the content stream, which relies on proper coordinate transformation through the rotation matrix. This may not work out of the box — if so, mark tests as #[ignore] and document what fails. The goal is to have the test infrastructure in place for future fixes."
     }
   ]
