@@ -8,16 +8,15 @@ use pdfplumber_core::geometry::{BBox, Ctm, Point};
 use pdfplumber_core::painting::Color;
 use pdfplumber_core::text::{Char, TextDirection};
 
-use crate::font_metrics::FontMetrics;
 use crate::handler::CharEvent;
 
-/// Convert a `CharEvent` and font metrics into a fully-populated `Char`
+/// Convert a `CharEvent` into a fully-populated `Char`
 /// with bounding box in top-left origin page coordinates.
 ///
 /// # Arguments
 ///
 /// * `event` - Character rendering event from the content stream interpreter.
-/// * `metrics` - Font metrics for width, ascent, and descent lookup.
+///   Contains per-font ascent/descent for accurate vertical bounding boxes.
 /// * `page_height` - Page height in PDF units (for y-flip from bottom-left to top-left origin).
 /// * `stroking_color` - Current stroking color from the graphics state.
 /// * `non_stroking_color` - Current non-stroking color from the graphics state.
@@ -28,7 +27,6 @@ use crate::handler::CharEvent;
 /// (pdfplumber convention) by flipping: `top = page_height - max_y`.
 pub fn char_from_event(
     event: &CharEvent,
-    metrics: &FontMetrics,
     page_height: f64,
     stroking_color: Option<Color>,
     non_stroking_color: Option<Color>,
@@ -50,9 +48,9 @@ pub fn char_from_event(
     // text_renderer.rs) but not the individual character's visual bbox.
     let w_norm = event.displacement / 1000.0;
 
-    // Ascent/descent in glyph-normalized space (1/1000 units → normalized)
-    let ascent_norm = metrics.ascent() / 1000.0;
-    let descent_norm = metrics.descent() / 1000.0;
+    // Ascent/descent from per-font metrics carried in the event
+    let ascent_norm = event.ascent / 1000.0;
+    let descent_norm = event.descent / 1000.0;
 
     // Four corners of the character rectangle in glyph-normalized space,
     // transformed through Trm to page space (PDF bottom-left origin).
@@ -146,22 +144,11 @@ mod tests {
             word_spacing: 0.0,
             h_scaling: 1.0,
             rise: 0.0,
+            ascent: 750.0,
+            descent: -250.0,
             mcid: None,
             tag: None,
         }
-    }
-
-    /// Helper: create default FontMetrics for testing.
-    fn default_metrics() -> FontMetrics {
-        FontMetrics::new(
-            vec![667.0], // width for char_code 65 ('A')
-            65,
-            65,
-            600.0,  // missing width
-            750.0,  // ascent
-            -250.0, // descent
-            None,
-        )
     }
 
     fn assert_approx(actual: f64, expected: f64, msg: &str) {
@@ -176,9 +163,7 @@ mod tests {
     #[test]
     fn simple_horizontal_text_bbox() {
         let event = default_event();
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, Some(Color::black()));
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, Some(Color::black()));
 
         // Trm = [12, 0, 0, 12, 72, 720]
         // w_norm = 0.667, ascent_norm = 0.75, descent_norm = -0.25
@@ -208,9 +193,7 @@ mod tests {
             font_size: 24.0,
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Trm = [24, 0, 0, 24, 72, 720]
         // BL→(72, 714), BR→(88.008, 714), TR→(88.008, 738), TL→(72, 738)
@@ -232,9 +215,7 @@ mod tests {
             rise: 5.0,
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // font_matrix = [12, 0, 0, 12, 0, 5]
         // Trm = font_matrix.concat(tm).concat(ctm) = [12, 0, 0, 12, 72, 725]
@@ -256,9 +237,7 @@ mod tests {
             text_matrix: [0.0, 1.0, -1.0, 0.0, 200.0, 400.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // font_matrix = [12, 0, 0, 12, 0, 0]
         // tm = [0, 1, -1, 0, 200, 400]
@@ -288,9 +267,7 @@ mod tests {
             ctm: [1.0, 0.0, 0.0, 1.0, 50.0, 50.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Trm = [12, 0, 0, 12, 72, 720].concat([1,0,0,1,50,50])
         //      = [12, 0, 0, 12, 122, 770]
@@ -310,9 +287,7 @@ mod tests {
             char_spacing: 2.0, // 2 units extra spacing (inter-glyph, not visual)
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // char_spacing is inter-glyph spacing, not part of the glyph's visual bbox.
         // w_norm = 667/1000 = 0.667 (same as without spacing)
@@ -333,9 +308,7 @@ mod tests {
             word_spacing: 3.0,
             ..default_event()
         };
-        let metrics = FontMetrics::new(vec![250.0], 32, 32, 600.0, 750.0, -250.0, None);
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // word_spacing is inter-glyph spacing, not part of the glyph's visual bbox.
         // w_norm = 250/1000 = 0.25 (glyph width only)
@@ -349,9 +322,7 @@ mod tests {
             word_spacing: 3.0, // should be ignored for non-space
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Word spacing should not affect non-space characters
         // w_norm = 667/1000 = 0.667, same as no spacing
@@ -363,9 +334,7 @@ mod tests {
     #[test]
     fn upright_for_horizontal_text() {
         let event = default_event();
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert!(ch.upright);
     }
 
@@ -375,9 +344,7 @@ mod tests {
             text_matrix: [0.0, 1.0, -1.0, 0.0, 100.0, 500.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert!(!ch.upright);
     }
 
@@ -386,9 +353,7 @@ mod tests {
     #[test]
     fn direction_ltr_for_normal_text() {
         let event = default_event();
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.direction, TextDirection::Ltr);
     }
 
@@ -398,9 +363,7 @@ mod tests {
             text_matrix: [-1.0, 0.0, 0.0, 1.0, 300.0, 720.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.direction, TextDirection::Rtl);
     }
 
@@ -411,9 +374,7 @@ mod tests {
             text_matrix: [0.0, -1.0, 1.0, 0.0, 100.0, 700.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.direction, TextDirection::Ttb);
     }
 
@@ -424,9 +385,7 @@ mod tests {
             text_matrix: [0.0, 1.0, -1.0, 0.0, 100.0, 100.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.direction, TextDirection::Btt);
     }
 
@@ -439,9 +398,7 @@ mod tests {
             char_code: 66,
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.text, "B");
     }
 
@@ -452,9 +409,7 @@ mod tests {
             char_code: 65, // valid Unicode code point for 'A'
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.text, "A"); // falls back to char::from_u32(65) = 'A'
     }
 
@@ -465,9 +420,7 @@ mod tests {
             char_code: 0xFFFFFFFF, // invalid Unicode code point
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.text, "\u{FFFD}");
     }
 
@@ -480,9 +433,7 @@ mod tests {
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 100.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // In PDF space: min_y = 97, max_y = 109
         // In top-left: top = 792-109 = 683, bottom = 792-97 = 695
@@ -497,18 +448,11 @@ mod tests {
     #[test]
     fn colors_passed_through() {
         let event = default_event();
-        let metrics = default_metrics();
 
         let stroking = Some(Color::Rgb(1.0, 0.0, 0.0));
         let non_stroking = Some(Color::Cmyk(0.0, 0.0, 0.0, 1.0));
 
-        let ch = char_from_event(
-            &event,
-            &metrics,
-            PAGE_HEIGHT,
-            stroking.clone(),
-            non_stroking.clone(),
-        );
+        let ch = char_from_event(&event, PAGE_HEIGHT, stroking.clone(), non_stroking.clone());
 
         assert_eq!(ch.stroking_color, stroking);
         assert_eq!(ch.non_stroking_color, non_stroking);
@@ -522,9 +466,7 @@ mod tests {
             h_scaling: 0.5, // 50% horizontal scaling
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // font_matrix = [12*0.5, 0, 0, 12, 0, 0] = [6, 0, 0, 12, 0, 0]
         // Trm = [6, 0, 0, 12, 72, 720]
@@ -540,9 +482,7 @@ mod tests {
     #[test]
     fn default_metrics_produce_reasonable_bbox() {
         let event = default_event();
-        let metrics = FontMetrics::default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Default ascent=750, descent=-250, width=600 (missing width)
         // displacement=667 from event, so w_norm=0.667
@@ -561,9 +501,7 @@ mod tests {
             ctm: [2.0, 0.0, 0.0, 2.0, 0.0, 0.0],
             ..default_event()
         };
-        let metrics = default_metrics();
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Trm = [12,0,0,12,36,360].concat([2,0,0,2,0,0]) = [24,0,0,24,72,720]
         // Same as font_size=24 test
@@ -579,10 +517,9 @@ mod tests {
             font_size: 0.0,
             ..default_event()
         };
-        let metrics = default_metrics();
 
         // Should not panic, even though bbox will be degenerate
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.size, 0.0);
     }
 
@@ -598,9 +535,7 @@ mod tests {
             word_spacing: 2.0,
             ..default_event()
         };
-        let metrics = FontMetrics::new(vec![250.0], 32, 32, 600.0, 750.0, -250.0, None);
-
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
 
         // Both char_spacing and word_spacing are inter-glyph, not visual.
         // w_norm = 250/1000 = 0.25 (glyph width only)
@@ -615,8 +550,7 @@ mod tests {
             tag: Some("P".to_string()),
             ..default_event()
         };
-        let metrics = default_metrics();
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.mcid, Some(5));
         assert_eq!(ch.tag.as_deref(), Some("P"));
     }
@@ -624,8 +558,7 @@ mod tests {
     #[test]
     fn mcid_none_when_not_in_marked_content() {
         let event = default_event();
-        let metrics = default_metrics();
-        let ch = char_from_event(&event, &metrics, PAGE_HEIGHT, None, None);
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert_eq!(ch.mcid, None);
         assert_eq!(ch.tag, None);
     }

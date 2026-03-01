@@ -501,6 +501,8 @@ mod tests {
                 word_spacing: 0.0,
                 h_scaling: 1.0,
                 rise: 0.0,
+                ascent: 750.0,
+                descent: -250.0,
                 mcid: None,
                 tag: None,
             });

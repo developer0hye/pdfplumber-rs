@@ -46,6 +46,10 @@ pub struct CharEvent {
     pub h_scaling: f64,
     /// Text rise value (Ts operator) for superscript/subscript.
     pub rise: f64,
+    /// Font ascent in glyph space units (1/1000 of text space, positive above baseline).
+    pub ascent: f64,
+    /// Font descent in glyph space units (1/1000 of text space, negative below baseline).
+    pub descent: f64,
     /// Marked content identifier (MCID) from BDC operator, if inside a marked content sequence.
     pub mcid: Option<u32>,
     /// Structure tag name (e.g., "P", "Span", "H1") from BMC/BDC operator.
@@ -203,6 +207,8 @@ mod tests {
             word_spacing: 0.0,
             h_scaling: 1.0,
             rise: 0.0,
+            ascent: 750.0,
+            descent: -250.0,
             mcid: None,
             tag: None,
         }

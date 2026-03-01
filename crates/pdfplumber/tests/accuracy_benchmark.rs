@@ -23,6 +23,9 @@ use std::path::{Path, PathBuf};
 struct GoldenData {
     #[allow(dead_code)]
     source: String,
+    #[allow(dead_code)]
+    #[serde(default)]
+    pdfplumber_version: Option<String>,
     pages: Vec<GoldenPage>,
 }
 
@@ -36,6 +39,7 @@ struct GoldenPage {
     height: f64,
     chars: Vec<GoldenChar>,
     words: Vec<GoldenWord>,
+    #[serde(default)]
     tables: Vec<GoldenTable>,
 }
 
@@ -62,8 +66,34 @@ struct GoldenWord {
 }
 
 #[derive(Deserialize)]
+#[serde(untagged)]
+enum GoldenBBox {
+    Array([f64; 4]),
+    Map {
+        x0: f64,
+        top: f64,
+        x1: f64,
+        bottom: f64,
+    },
+}
+
+impl GoldenBBox {
+    fn as_array(&self) -> [f64; 4] {
+        match self {
+            GoldenBBox::Array(a) => *a,
+            GoldenBBox::Map {
+                x0,
+                top,
+                x1,
+                bottom,
+            } => [*x0, *top, *x1, *bottom],
+        }
+    }
+}
+
+#[derive(Deserialize)]
 struct GoldenTable {
-    bbox: [f64; 4],
+    bbox: GoldenBBox,
     rows: Vec<Vec<Option<String>>>,
 }
 
@@ -317,10 +347,18 @@ fn fixtures_dir() -> PathBuf {
     manifest.join("../../tests/fixtures")
 }
 
+/// Fixtures directory for crate-level test fixtures (pdfs, golden data).
+fn crate_fixtures_dir() -> PathBuf {
+    let manifest = Path::new(env!("CARGO_MANIFEST_DIR"));
+    manifest.join("tests/fixtures")
+}
+
 fn load_golden(pdf_stem: &str) -> GoldenData {
-    let path = fixtures_dir()
-        .join("golden")
-        .join(format!("{pdf_stem}.json"));
+    load_golden_from(&fixtures_dir(), pdf_stem)
+}
+
+fn load_golden_from(base: &Path, pdf_stem: &str) -> GoldenData {
+    let path = base.join("golden").join(format!("{pdf_stem}.json"));
     let content = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("Failed to read golden file {}: {}", path.display(), e));
     serde_json::from_str(&content)
@@ -328,7 +366,11 @@ fn load_golden(pdf_stem: &str) -> GoldenData {
 }
 
 fn open_pdf(subdir: &str, filename: &str) -> Result<Pdf, String> {
-    let path = fixtures_dir().join(subdir).join(filename);
+    open_pdf_from(&fixtures_dir(), subdir, filename)
+}
+
+fn open_pdf_from(base: &Path, subdir: &str, filename: &str) -> Result<Pdf, String> {
+    let path = base.join(subdir).join(filename);
     // Use UnicodeNorm::None to match golden data generated without normalization.
     let opts = pdfplumber::ExtractOptions {
         unicode_norm: pdfplumber::UnicodeNorm::None,
@@ -337,11 +379,30 @@ fn open_pdf(subdir: &str, filename: &str) -> Result<Pdf, String> {
     Pdf::open_file(&path, Some(opts)).map_err(|e| format!("{}", e))
 }
 
+/// Run accuracy benchmark using crate-level fixtures.
+fn benchmark_pdf_crate(
+    subdir: &str,
+    filename: &str,
+    pdf_stem: &str,
+) -> Option<(F1Result, F1Result)> {
+    let base = crate_fixtures_dir();
+    benchmark_pdf_impl(&base, subdir, filename, pdf_stem)
+}
+
 /// Run the full accuracy benchmark for a single PDF.
 /// Returns None if the PDF cannot be parsed.
 fn benchmark_pdf(subdir: &str, filename: &str, pdf_stem: &str) -> Option<(F1Result, F1Result)> {
-    let golden = load_golden(pdf_stem);
-    let pdf = match open_pdf(subdir, filename) {
+    benchmark_pdf_impl(&fixtures_dir(), subdir, filename, pdf_stem)
+}
+
+fn benchmark_pdf_impl(
+    base: &Path,
+    subdir: &str,
+    filename: &str,
+    pdf_stem: &str,
+) -> Option<(F1Result, F1Result)> {
+    let golden = load_golden_from(base, pdf_stem);
+    let pdf = match open_pdf_from(base, subdir, filename) {
         Ok(pdf) => pdf,
         Err(e) => {
             println!("SKIP {filename}: {e}");
@@ -427,7 +488,7 @@ fn benchmark_tables(subdir: &str, filename: &str, pdf_stem: &str) -> Vec<(usize,
 
             for at in &actual_tables {
                 let iou = bbox_iou(
-                    &gt.bbox,
+                    &gt.bbox.as_array(),
                     (at.bbox.x0, at.bbox.top, at.bbox.x1, at.bbox.bottom),
                 );
                 if iou > best_iou {
@@ -720,6 +781,53 @@ fn accuracy_pdffill_demo() {
     // Measured: chars F1=1.000, words F1=1.000 (PRD target: >= 0.95)
     assert!(cf1.f1 >= 0.95, "pdffill-demo chars F1 {:.3} < 0.95", cf1.f1);
     assert!(wf1.f1 >= 0.95, "pdffill-demo words F1 {:.3} < 0.95", wf1.f1);
+}
+
+// ---------------------------------------------------------------------------
+// Tagged/structure PDF tests (US-167-1)
+//
+// PDFs with structure trees and tagged content. Characters are extracted but
+// historically had vertical coordinate mismatch due to using default font
+// metrics instead of per-font ascent/descent values.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_figure_structure() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "figure_structure.pdf", "figure_structure")
+        .expect("figure_structure.pdf should parse");
+    print_text_summary("figure_structure.pdf", &cf1, &wf1);
+    // US-167-1: Char extraction accuracy >90%
+    assert!(
+        cf1.f1 >= 0.90,
+        "figure_structure chars F1 {:.3} < 0.90",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_hello_structure() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "hello_structure.pdf", "hello_structure")
+        .expect("hello_structure.pdf should parse");
+    print_text_summary("hello_structure.pdf", &cf1, &wf1);
+    // US-167-1: Char extraction accuracy >90%
+    assert!(
+        cf1.f1 >= 0.90,
+        "hello_structure chars F1 {:.3} < 0.90",
+        cf1.f1
+    );
+}
+
+#[test]
+fn accuracy_pdf_structure() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "pdf_structure.pdf", "pdf_structure")
+        .expect("pdf_structure.pdf should parse");
+    print_text_summary("pdf_structure.pdf", &cf1, &wf1);
+    // US-167-1: Char extraction accuracy >90%
+    assert!(
+        cf1.f1 >= 0.90,
+        "pdf_structure chars F1 {:.3} < 0.90",
+        cf1.f1
+    );
 }
 
 // ---------------------------------------------------------------------------

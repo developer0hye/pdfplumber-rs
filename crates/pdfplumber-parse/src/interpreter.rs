@@ -1080,6 +1080,15 @@ fn emit_char_events(
             None => 600.0,
         };
 
+        // Ascent/descent for bounding box calculation.
+        // Use standard defaults (750/-250) to match pdfminer behavior for most fonts.
+        // Only override when both Ascent=0 AND Descent=0 in the font descriptor,
+        // which signals "unknown" — use 1000/0 so bbox spans baseline to baseline+fontsize.
+        let (ascent, descent) = match cached {
+            Some(cf) if cf.metrics.ascent() == 0.0 && cf.metrics.descent() == 0.0 => (1000.0, 0.0),
+            _ => (750.0, -250.0),
+        };
+
         handler.on_char(CharEvent {
             char_code: rc.char_code,
             unicode,
@@ -1092,6 +1101,8 @@ fn emit_char_events(
             word_spacing: tstate.word_spacing,
             h_scaling: tstate.h_scaling_normalized(),
             rise: tstate.rise,
+            ascent,
+            descent,
             mcid: marked_content_stack.iter().rev().find_map(|mc| mc.mcid),
             tag: marked_content_stack.last().map(|mc| mc.tag.clone()),
         });

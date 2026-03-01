@@ -11,8 +11,8 @@ use pdfplumber_core::{
     normalize_chars,
 };
 use pdfplumber_parse::{
-    CharEvent, ContentHandler, FontMetrics, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry,
-    PaintOp, PathEvent, PdfBackend, char_from_event,
+    CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
+    PathEvent, PdfBackend, char_from_event,
 };
 
 use crate::Page;
@@ -497,7 +497,6 @@ impl Pdf {
 
         // Convert CharEvents to Chars
         let page_height = self.raw_page_heights[index];
-        let default_metrics = FontMetrics::default_metrics();
         let doctop_offset: f64 = self.page_heights[..index].iter().sum();
         let needs_rotation = geometry.rotation() != 0;
 
@@ -505,7 +504,7 @@ impl Pdf {
             .chars
             .iter()
             .map(|event| {
-                let mut ch = char_from_event(event, &default_metrics, page_height, None, None);
+                let mut ch = char_from_event(event, page_height, None, None);
                 if needs_rotation {
                     // char_from_event applied a simple y-flip using the raw page height.
                     // Undo it to recover PDF native coordinates, then apply the full
