@@ -33,7 +33,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key file: crates/pdfplumber-parse/src/standard_fonts.rs. The current width arrays are indexed by character code position assuming WinAnsiEncoding. A better approach: create a HashMap<&str, u16> mapping glyph name → width for each standard font, then look up by glyph name derived from the active encoding. The glyph names for standard fonts are well-defined in the PDF spec Appendix D."
     }
   ]

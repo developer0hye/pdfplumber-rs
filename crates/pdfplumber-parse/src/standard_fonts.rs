@@ -375,6 +375,45 @@ static ZAPF_DINGBATS: StandardFontData = StandardFontData {
     font_bbox: [-1, -143, 981, 820],
 };
 
+/// Build a 256-element width vector for a standard font, remapped for a target encoding.
+///
+/// The standard font widths are natively indexed by WinAnsiEncoding character codes.
+/// When a different encoding is active (e.g., StandardEncoding), the same byte code
+/// maps to a different glyph, requiring width remapping via Unicode character matching.
+///
+/// `target_decode` maps a byte code to the Unicode character under the target encoding.
+/// Returns `None` if `font_name` is not a standard font.
+pub fn build_remapped_widths(
+    font_name: &str,
+    target_decode: impl Fn(u8) -> Option<char>,
+) -> Option<Vec<f64>> {
+    let std_font = lookup(font_name)?;
+
+    // Build Unicode char → width from WinAnsi positions
+    let mut char_to_width = std::collections::HashMap::new();
+    for code in 0u16..256 {
+        if let Some(ch) = pdfplumber_core::StandardEncoding::WinAnsi.decode(code as u8) {
+            let w = std_font.widths[code as usize];
+            if w > 0 {
+                char_to_width.entry(ch).or_insert(w);
+            }
+        }
+    }
+
+    // Build widths for target encoding
+    let mut result = Vec::with_capacity(256);
+    for code in 0u16..256 {
+        if let Some(ch) = target_decode(code as u8) {
+            let w = char_to_width.get(&ch).copied().unwrap_or(0);
+            result.push(f64::from(w));
+        } else {
+            result.push(0.0);
+        }
+    }
+
+    Some(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -499,5 +538,91 @@ mod tests {
         let data = lookup("Helvetica").unwrap();
         assert_eq!(data.widths.len(), 256);
         assert_eq!(data.font_bbox.len(), 4);
+    }
+
+    // ========== US-182-2: Encoding-aware width remapping ==========
+
+    #[test]
+    fn remap_helvetica_standard_encoding_quoteright() {
+        // StandardEncoding code 0x27 = quoteright (U+2019)
+        // In WinAnsi, quoteright is at code 0x92 (146) with width 222
+        // Without remapping, code 0x27 gets quotesingle width 191 (wrong)
+        let widths = build_remapped_widths("Helvetica", |code| {
+            pdfplumber_core::StandardEncoding::Standard.decode(code)
+        })
+        .unwrap();
+        assert_eq!(
+            widths[0x27] as u16, 222,
+            "code 0x27 under StandardEncoding should be quoteright width 222, not quotesingle 191"
+        );
+    }
+
+    #[test]
+    fn remap_helvetica_standard_encoding_quoteleft() {
+        // StandardEncoding code 0x60 = quoteleft (U+2018)
+        // In WinAnsi, quoteleft is at code 0x91 (145) with width 222
+        // Without remapping, code 0x60 gets grave width 333 (wrong)
+        let widths = build_remapped_widths("Helvetica", |code| {
+            pdfplumber_core::StandardEncoding::Standard.decode(code)
+        })
+        .unwrap();
+        assert_eq!(
+            widths[0x60] as u16, 222,
+            "code 0x60 under StandardEncoding should be quoteleft width 222, not grave 333"
+        );
+    }
+
+    #[test]
+    fn remap_winansi_preserves_original_widths() {
+        // When target encoding is WinAnsi, widths should match the original table
+        let data = lookup("Helvetica").unwrap();
+        let widths = build_remapped_widths("Helvetica", |code| {
+            pdfplumber_core::StandardEncoding::WinAnsi.decode(code)
+        })
+        .unwrap();
+        assert_eq!(
+            widths[0x27] as u16, data.widths[0x27],
+            "WinAnsi remapping should preserve original widths"
+        );
+        assert_eq!(
+            widths[0x27] as u16, 191,
+            "code 0x27 under WinAnsi = quotesingle width 191"
+        );
+    }
+
+    #[test]
+    fn remap_shared_ascii_positions_unchanged() {
+        // ASCII letters/digits are the same in both encodings
+        let data = lookup("Helvetica").unwrap();
+        let widths = build_remapped_widths("Helvetica", |code| {
+            pdfplumber_core::StandardEncoding::Standard.decode(code)
+        })
+        .unwrap();
+        // 'A' (0x41) should be identical
+        assert_eq!(widths[0x41] as u16, data.widths[0x41]);
+        // space (0x20) should be identical
+        assert_eq!(widths[0x20] as u16, data.widths[0x20]);
+    }
+
+    #[test]
+    fn remap_unknown_font_returns_none() {
+        let result = build_remapped_widths("UnknownFont", |code| {
+            pdfplumber_core::StandardEncoding::Standard.decode(code)
+        });
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn remap_times_roman_standard_encoding_quoteright() {
+        // Same remapping test for Times-Roman
+        let widths = build_remapped_widths("Times-Roman", |code| {
+            pdfplumber_core::StandardEncoding::Standard.decode(code)
+        })
+        .unwrap();
+        // Times-Roman quoteright width = 333 (at WinAnsi code 0x92)
+        assert_eq!(
+            widths[0x27] as u16, 333,
+            "Times-Roman code 0x27 under StandardEncoding should be quoteright width"
+        );
     }
 }

@@ -715,6 +715,36 @@ fn load_font_if_needed(
                     }
                 });
 
+                // US-182-2: When a standard font has no /Widths array, the fallback
+                // widths from standard_fonts.rs are indexed by WinAnsiEncoding. If the
+                // active encoding differs (e.g., StandardEncoding), remap widths so each
+                // code position gets the correct glyph width for the active encoding.
+                let metrics = if fd.get(b"Widths").is_err() {
+                    if let Some(ref enc) = encoding {
+                        if let Some(remapped) =
+                            crate::standard_fonts::build_remapped_widths(&base_name, |code| {
+                                enc.decode(code)
+                            })
+                        {
+                            FontMetrics::new(
+                                remapped,
+                                0,
+                                255,
+                                metrics.missing_width(),
+                                metrics.ascent(),
+                                metrics.descent(),
+                                metrics.font_bbox(),
+                            )
+                        } else {
+                            metrics
+                        }
+                    } else {
+                        metrics
+                    }
+                } else {
+                    metrics
+                };
+
                 (metrics, cmap, base_name, None, false, 0, encoding, None)
             }
         } else {
