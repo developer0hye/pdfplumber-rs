@@ -1,158 +1,22 @@
 # Ralph Progress Log
-Started: 2026년  3월  1일 일요일 05시 26분 49초 KST
+Started: 2026년  3월  1일 일요일 10시 16분 06초 KST
 
 ## Codebase Patterns
-- **TableFinder debug**: Use `find_tables_debug()` to get `TableFinderDebug` with intermediate pipeline results (edges, intersections, cells, tables).
-- **Golden data**: Located at `crates/pdfplumber/tests/fixtures/golden/*.json`. Use `serde::Deserialize` with matching struct fields.
-- **PDF fixtures**: Located at `crates/pdfplumber/tests/fixtures/pdfs/`.
-- **Edge pipeline**: Raw edges → filter (min_length) → snap → join → intersections → cells → tables.
-- **Pre-existing failure**: `pdfplumber-py` tests fail locally due to missing `libpython3.11.dylib` — not a code issue.
-- **Key function for US-107**: `intersections_to_cells` at table.rs:455 requires all 4 corners. The fix should use edge coverage instead.
-- **Download scripts**: `scripts/download_test_fixtures.sh` (modular with separate functions per source), `scripts/download_fixtures.sh` (old, hardcoded 4 files)
-- **Golden data generation**: `scripts/generate_golden.py` (currently flat, reads only top-level PDFs dir)
-- **gh api** works for GitHub repos; poppler tests are on GitLab (use curl with raw URLs)
+- **HashMap bucketing for spatial clustering**: Use `HashMap<i64, Vec<usize>>` keyed by quantized coordinate `(value / bucket_size).floor() as i64` for O(1) spatial lookups. Check adjacent buckets (key±1) for boundary tolerance. Update bucket registration when the aggregate bbox changes.
+
 ---
 
-## 2026-03-01 - US-106
-- Wrote diagnostic integration test: `crates/pdfplumber/tests/table_diagnostic.rs`
-- Test opens nics-background-checks-2015-11.pdf and analyzes the full table detection pipeline
-- Files changed: `crates/pdfplumber/tests/table_diagnostic.rs` (new), `scripts/ralph/prd.json`
-- Dependencies added: none
-
-### Diagnostic Findings:
-- Golden: 17 rows x 25 cols = 425 cells
-- Rust: 15 rows x 2 cols = 304 cells (in 1 table)
-- 5 y-positions have incomplete intersection coverage:
-  - y=24.0: 2/26 x-positions (outer border only — title row)
-  - y=61.5: 10/26 x-positions (header row — only major section dividers)
-  - y=489.9: 3/26 x-positions
-  - y=561.9: 3/26 x-positions
-  - y=569.3: 2/26 x-positions (outer border only — bottom)
-- Root cause: `intersections_to_cells` requires all 4 corner intersection points for a cell, but horizontal edges span the full table width at these y-positions (as single long edges) while vertical edges only exist at a subset of x-positions.
-- Fix approach (US-107): Check edge coverage instead of point intersections — if a horizontal edge spans [x0, x1] at a y-position and vertical edges exist at both x0 and x1 spanning [top, bottom], the cell is valid.
-
-### Learnings:
-- After snap+join, 1208 raw edges reduce to 46 processed edges (18H + 28V).
-- 26 unique x-positions and 18 unique y-positions after snapping.
-- The "2 cols" in Rust output is because most y-pairs only have 2 corners matching at the outer borders (x=33.1 and x=975.3).
----
-
-## 2026-03-01 - US-107
-- Implemented `edges_to_cells` function with two-phase grid completion in `crates/pdfplumber-core/src/table.rs`
-- Phase 1: strict 4-edge coverage creates core cells, records established column boundaries
-- Phase 2: grid completion — for remaining positions, if H edges span [x0, x1] at top AND bottom, AND x0/x1 are established column boundaries from Phase 1, create the cell
-- Updated `find_tables()` and `find_tables_debug()` to call `edges_to_cells` instead of `intersections_to_cells`
-- Exported `edges_to_cells` from core and facade crates
-- Wrote 8 unit tests for `edges_to_cells` (complete grid, partial intersections, empty cases, tolerance, etc.)
-- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `scripts/ralph/prd.json`
-
-### Results:
-- nics table accuracy: 6.8% → 87.5% (372/425 cells match positionally)
-- Rust table dimensions: now 17 rows x 25 cols = 425 cells (matches golden exactly)
-- 53 unmatched cells are text extraction differences, not structural
-- All existing tests pass (0 regressions)
----
-
-## 2026-03-01 - US-108
-- Modified Phase 2 in `edges_to_cells` to create merged cells between V-edge boundaries instead of narrow cells at every column
-- Added `normalize_table_columns` function: splits merged cells into uniform grid columns with text in first sub-cell only
-- Called `normalize_table_columns` in `Page::find_tables` and `CroppedPage::find_tables` after text extraction
-- Exported `normalize_table_columns` from core and facade crates
-- Updated `cross_validation.rs` to assert table rate >= TABLE_THRESHOLD (0.90) for nics-background-checks
-- Removed "needs investigation" comments
-- Wrote 3 unit tests for `normalize_table_columns` (uniform grid, merged header, empty table)
-- Files changed: `crates/pdfplumber-core/src/table.rs`, `crates/pdfplumber-core/src/lib.rs`, `crates/pdfplumber/src/lib.rs`, `crates/pdfplumber/src/page.rs`, `crates/pdfplumber/src/cropped_page.rs`, `crates/pdfplumber/tests/cross_validation.rs`, `scripts/ralph/prd.json`
-
-### Results:
-- nics table accuracy: 87.5% → 100% (425/425 cells match)
-- All other cross-validation metrics unchanged: chars=100%, words=100%, lines=100%, rects=100%
-- All existing tests pass (0 regressions)
----
-
-## 2026-03-01 - US-109
-- Created `scripts/download_test_fixtures.sh` — idempotent script using `gh api` to list and `curl` to download PDF fixtures from jsvine/pdfplumber (stable branch)
-- Downloads 62 PDFs from `tests/pdfs/` and 19 from `from-oss-fuzz/load/` into `oss-fuzz/` subdirectory
-- Skips non-PDF files (make_xref.py, issue-948.zip) via `.pdf` extension filter
-- Validates non-zero file size; empty.pdf correctly rejected (0 bytes)
-- Files changed: `scripts/download_test_fixtures.sh` (new), 76 new PDF fixtures
-- Dependencies added: none
+## 2026-03-01 - US-152-1
+- Optimized `cluster_words_into_lines` from O(n²) to O(n log n) using y-coordinate bucketing
+- Replaced linear scan of all lines with `HashMap<i64, Vec<usize>>` keyed by quantized mid_y
+- Adjacent bucket checking (±1) handles tolerance boundary cases
+- Bucket registration updated when line bbox grows from word union
+- Added 6 new tests: all-same-line, overlapping y-ranges, large tolerance, zero tolerance, 10k-word benchmark, sub-quadratic scaling verification
+- Files changed: `crates/pdfplumber-core/src/layout.rs`
+- Dependencies added: None (uses `std::collections::HashMap`)
 - **Learnings for future iterations:**
-  - `empty.pdf` in pdfplumber repo is genuinely 0 bytes — expected failure
-  - Script design is modular with `download_pdfplumber_python()` function — easy to add `download_pdfjs()`, `download_pdfbox()`, `download_poppler()` for US-110/US-111
-  - All 80 PDFs total on disk (4 pre-existing + 76 new)
----
-
-## 2026-03-01 - US-110
-- Added `download_pdfjs()` function to `scripts/download_test_fixtures.sh`
-- Downloads 15 CJK/encoding test PDFs from mozilla/pdf.js (master branch, test/pdfs/)
-- Target files: issue3521.pdf (GBKp-EUC-H Chinese), noembed-eucjp/sjis/jis7/identity/identity-2.pdf (Japanese encodings), vertical.pdf (CJK vertical writing), issue8570.pdf (Japanese), ArabicCIDTrueType.pdf, cid_cff.pdf, text_clip_cff_cid.pdf, issue7696.pdf, issue4875.pdf, issue14117.pdf, issue9262_reduced.pdf (5.3MB)
-- All 15 files placed in `crates/pdfplumber/tests/fixtures/pdfs/pdfjs/`
-- All files have valid %PDF- header and non-zero size
-- Script is idempotent (re-run skips existing files)
-- Files changed: `scripts/download_test_fixtures.sh` (updated), 15 new PDF fixtures, `scripts/ralph/prd.json`
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - pdf.js test PDFs exist directly in `test/pdfs/` (not as .link files) for the selected files
-  - Download URL: `https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs/<filename>`
-  - issue9262_reduced.pdf is 5.3MB — largest fixture file
-  - 95 total PDFs on disk after this story
----
-
-## 2026-03-01 - US-111
-- Added `download_pdfbox()` function to `scripts/download_test_fixtures.sh`
-- Downloads 10 CJK/multilingual test PDFs from apache/pdfbox (trunk branch)
-- Long filenames shortened for readability (e.g., PDFBOX-5350-JX5...pdf → pdfbox-5350-korean-reduced.pdf)
-- Uses source_path|local_name mapping pattern for renaming
-- Added `download_poppler()` function for 3 poppler test PDFs from GitLab
-- Poppler uses `curl` with GitLab raw URLs (not `gh api`)
-- All 13 files are valid PDFs (non-zero size, %PDF- header)
-- Script is idempotent (re-run skips all 108 existing files)
-- Files changed: `scripts/download_test_fixtures.sh` (updated), 13 new PDF fixtures, `scripts/ralph/prd.json`
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - PDFBox raw URL format: `https://raw.githubusercontent.com/apache/pdfbox/trunk/<path>`
-  - Poppler GitLab raw URL format: `https://gitlab.freedesktop.org/poppler/test/-/raw/master/<path>`
-  - Bash associative mapping via `local_name="${mapping##*|}"` pattern works well for rename mappings
-  - 108 total PDFs on disk after this story (10 pdfbox + 3 poppler = 13 new)
----
-
-## 2026-03-01 - US-112
-- Updated `scripts/generate_golden.py` to walk subdirectories recursively using `os.walk()`
-- Added `collect_pdfs()` helper function returning `(relative_path, full_path)` pairs
-- Golden JSON output preserves subdirectory structure (golden/pdfjs/*.json, golden/pdfbox/*.json, golden/poppler/*.json, golden/oss-fuzz/*.json)
-- Added try/except per PDF — gracefully logs failures without aborting
-- Prints summary: N succeeded, M failed + list of failures
-- Created `scripts/setup_golden_venv.sh` — helper script to create .venv-golden with pdfplumber
-- Generated 97 golden JSON files (11 expected failures: 10 malformed oss-fuzz + 1 password-protected)
-- Files changed: `scripts/generate_golden.py` (updated), `scripts/setup_golden_venv.sh` (new), 97 golden JSON files (new), `scripts/ralph/prd.json`
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - 10/19 oss-fuzz PDFs fail in Python pdfplumber (recursion, malformed structure, invalid octals, etc.)
-  - password-example.pdf requires password — could support via CLI arg but not needed for golden data
-  - pdfplumber v0.11.9 used for golden generation — matches existing golden data version
-  - 97 golden JSON files total (4 pre-existing overwritten + 93 new including subdirectories)
----
-
-## 2026-03-01 - US-113
-- Extended `crates/pdfplumber/tests/cross_validation.rs` with data-driven tests for all new fixture PDFs
-- Added `try_validate_pdf()` — graceful validation that returns errors instead of panicking
-- Added `discover_golden_pdfs()` + `scan_golden_dir()` — runtime discovery of all golden JSON files
-- Added `cross_validate_all_fixtures_summary` test — prints per-PDF accuracy table (run with --nocapture)
-- Created 3 macros: `cross_validate!` (passing tests), `cross_validate_ignored!` (failing/error), `cross_validate_no_panic!` (oss-fuzz)
-- Added 109 individual test functions: 49 pass, 60 ignored
-  - pdfplumber-python: 18 PASS (>=95%), 29 FAIL (#[ignore]), 9 ERROR (#[ignore])
-  - pdfjs: 1 PASS (issue14117), 14 FAIL (#[ignore]) — CJK/encoding gaps
-  - pdfbox: 2 PASS (hello3, pdfbox-4322), 8 FAIL (#[ignore]) — CJK/Bidi gaps
-  - poppler: 3 PASS (deseret, pdf20-utf8, russian) — all meet 80% threshold
-  - oss-fuzz: 19 no-panic tests (open+extract without crashing)
-- Existing 4 cross-validation tests unchanged (no regression)
-- Files changed: `crates/pdfplumber/tests/cross_validation.rs`, `scripts/ralph/prd.json`
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - Most CJK/CID font PDFs score 0% — pdfplumber-rs lacks CIDFont ToUnicode/CMap support
-  - Tagged PDF structure files (figure_structure, pdf_structure, mcid_example) also 0% — structure tree not used for text extraction
-  - Rotated PDFs (annotations-rotated-*) fail with parse errors — rotation handling gap
-  - Duplicate char PDFs (issue-71-*) show word grouping degradation from char duplication
-  - WARN-Report at 91.5% chars — just below 95%, close to threshold
-  - poppler tests all pass at 80%+ — Cyrillic, Deseret (supplementary plane), PDF 2.0 UTF-8 work well
+  - The old O(n²) algorithm showed 12.3x scaling for 4x input; optimized version shows ~4x (linear)
+  - When using bucket_size = y_tolerance, checking 3 buckets (word_bucket ± 1) guarantees finding any line within tolerance
+  - Zero tolerance requires special bucket_size (1e-9) to avoid division by zero
+  - pdfplumber-py tests fail locally due to missing libpython3.11 — pre-existing environment issue, not related to changes
 ---
