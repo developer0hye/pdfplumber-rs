@@ -1272,10 +1272,11 @@ cross_validate!(
 
 // ─── pdfjs: FAILING tests (CJK/encoding below 80%) ──────────────────────
 
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_arabic_cid,
     "pdfjs/ArabicCIDTrueType.pdf",
-    "chars 0% — Arabic CID TrueType not supported"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfjs_cid_cff,

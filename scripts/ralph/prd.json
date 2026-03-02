@@ -17,7 +17,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/cmap.rs. ArabicCIDTrueType.pdf likely has a TrueType font with CID-keyed glyph access and a ToUnicode CMap that maps to Arabic Presentation Forms. The challenge is: 1) Correctly parsing the CIDToGIDMap (maps CIDs to TrueType glyph IDs), 2) Using ToUnicode CMap for Unicode resolution, 3) Handling Arabic contextual forms. Note: full glyph shaping (HarfBuzz-like) is NOT required - just correct Unicode character extraction from the existing CID→Unicode path."
     }
   ]

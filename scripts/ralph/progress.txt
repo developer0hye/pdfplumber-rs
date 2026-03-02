@@ -1,15 +1,22 @@
+# Ralph Progress Log
+Started: 2026년  3월  2일 월요일 14시 18분 38초 KST
+---
+
 ## Codebase Patterns
 
-### Content Stream Error Recovery
-- `tokenize()` is strict (returns `Err` on malformed tokens)
-- `tokenize_lenient()` recovers by saving position before each token, catching errors, resetting position to `saved_pos + 1`, and continuing
-- Failed parse functions (e.g., `parse_literal_string`) may advance `pos` to EOF before returning error; always reset to `saved_pos + 1` for robust recovery
-- Operand stack is cleared on error to prevent partial state corruption
-- Interpreter uses `tokenize_lenient()` and emits `ExtractWarning` with `MalformedObject` code for each recovery
-- `Do` operator errors are caught except for recursion depth limits (resource limits must propagate)
+- **Arabic CID TrueType already works**: The CID font parsing (cid_font.rs) and ToUnicode CMap resolution (cmap.rs) already handle Arabic Presentation Forms correctly. The Unicode resolution chain in interpreter.rs (line ~1259) correctly resolves CID→Unicode via ToUnicode CMap lookup.
+- **cross_validate! vs cross_validate_ignored!**: Use `cross_validate!` with `EXTERNAL_CHAR_THRESHOLD`/`EXTERNAL_WORD_THRESHOLD` (0.80) for active tests. Use `cross_validate_ignored!` only for truly broken PDFs.
+- **pdfplumber-py tests**: The Python binding crate requires libpython3.11.dylib; skip with `--exclude pdfplumber-py` for local testing.
 
 ---
 
-# Ralph Progress Log - Issue #205 Cat7: Arabic CID TrueType font support (1 PDF)
-Started: 2026년  3월  2일 월요일 14시 18분 38초 KST
+## 2026-03-02 - US-205-10
+- What was implemented: Enabled the Arabic CID TrueType cross-validation test. The underlying CID→Unicode resolution already works at 100% accuracy for ArabicCIDTrueType.pdf. Changed the test from `cross_validate_ignored!` to `cross_validate!` with standard thresholds.
+- Files changed: `crates/pdfplumber/tests/cross_validation.rs` (1 test declaration updated)
+- Dependencies added: None
+- **Learnings for future iterations:**
+  - The CID font pipeline (ToUnicode CMap → Unicode) already handles Arabic Presentation Forms (U+FE70-U+FEFF) correctly
+  - ArabicCIDTrueType.pdf achieves 100% char accuracy and 100% word accuracy
+  - BidiSample.pdf also achieves 100% with no regression
+  - Some tests are marked as ignored even though the underlying implementation may have been fixed by later PRs
 ---
