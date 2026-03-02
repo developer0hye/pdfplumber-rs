@@ -1,6 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  2일 월요일 12시 37분 20초 KST
-
 ## Codebase Patterns
 
 ### Word grouping direction handling
@@ -19,31 +16,6 @@ Started: 2026년  3월  2일 월요일 12시 37분 20초 KST
 
 ---
 
-## 2026-03-02 - US-205-5
-- What was implemented: Fixed word grouping for 180° and 270° rotated text by merging Rtl with Ltr (horizontal) and Btt with Ttb (vertical) in WordExtractor::extract(). Previously, each per-char direction was partitioned separately, causing Rtl chars to be reverse-sorted and Btt chars to be bottom-to-top sorted, producing reading-order text instead of spatial-order text matching Python pdfplumber.
-- Files changed:
-  - crates/pdfplumber-core/src/words.rs (WordExtractor::extract, tests)
-  - crates/pdfplumber/tests/accuracy_benchmark.rs (added rotated PDF benchmarks)
-  - crates/pdfplumber/tests/fixture_integration.rs (updated 180° text check)
-  - crates/pdfplumber/tests/rotation_integration.rs (updated rotation tests)
-  - crates/pdfplumber/tests/rotation_table_integration.rs (updated 180° table tests)
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - Python pdfplumber uses `upright` flag to partition chars, NOT per-char direction
-  - 180° rotated text in Python appears reversed (e.g., "Dummy" → "ymmuD") — this is expected
-  - The word F1 matching uses text AND bbox center distance — both must match
-  - annotations-rotated-180.pdf and annotations-rotated-270.pdf are crate-level fixtures (use benchmark_pdf_crate)
-  - pdfplumber-py tests fail with libpython3.11 not found — pre-existing environment issue
----
-
-## 2026-03-02 - US-205-6
-- What was implemented: Verified that page-level rotation CTM coordinate transforms already work correctly. The PageGeometry module in page_geometry.rs handles /Rotate values (0°, 90°, 180°, 270°) and transforms PDF native coordinates to display space. Added assertions to accuracy_rotated_pages benchmark test (chars F1=1.000, words F1=1.000, threshold >=0.80).
-- Files changed:
-  - crates/pdfplumber/tests/accuracy_benchmark.rs (added F1 assertions for rotated_pages)
-  - scripts/ralph/prd.json (US-205-6 passes: true)
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - PageGeometry handles rotation via normalize_point/normalize_bbox with MediaBox offset → rotation → CropBox offset → y-flip pipeline
-  - The 0.602pt offset between Rust and Python golden data is within the 2.0pt COORD_TOLERANCE
-  - rotated_pages.pdf coordinates already matched well; the F1=0.241 was stale/outdated
+# Ralph Progress Log - Issue #205 Cat4: TrueType and CFF font metrics from embedded fonts (3 PDFs)
+Started: 2026년  3월  2일 월요일 13시 20분 17초 KST
 ---
