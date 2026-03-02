@@ -1037,8 +1037,8 @@ fn accuracy_pdfjs_vertical() {
     let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "vertical.pdf", "pdfjs/vertical")
         .expect("vertical.pdf should parse");
     print_text_summary("vertical.pdf", &cf1, &wf1);
-    // US-188-1: CJK vertical writing mode — chars > 30%
-    assert!(cf1.f1 >= 0.30, "vertical.pdf chars F1 {:.3} < 0.30", cf1.f1);
+    // US-205-11: CJK vertical writing mode — chars >= 80%
+    assert!(cf1.f1 >= 0.80, "vertical.pdf chars F1 {:.3} < 0.80", cf1.f1);
 }
 
 #[test]
@@ -1050,10 +1050,10 @@ fn accuracy_pdfbox_3127_vfont() {
     )
     .expect("pdfbox-3127-vfont-reduced.pdf should parse");
     print_text_summary("pdfbox-3127-vfont-reduced.pdf", &cf1, &wf1);
-    // US-188-1: CJK vertical font — chars > 10%
+    // US-205-11: CJK vertical font — chars >= 30%
     assert!(
-        cf1.f1 >= 0.10,
-        "pdfbox-3127-vfont-reduced.pdf chars F1 {:.3} < 0.10",
+        cf1.f1 >= 0.30,
+        "pdfbox-3127-vfont-reduced.pdf chars F1 {:.3} < 0.30",
         cf1.f1
     );
 }

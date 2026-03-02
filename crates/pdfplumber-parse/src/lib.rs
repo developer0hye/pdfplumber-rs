@@ -60,3 +60,4 @@ pub use text_renderer::{
 };
 pub use text_state::{TextRenderMode, TextState, TextStateSnapshot};
 pub use tokenizer::{Operand, Operator, tokenize, tokenize_lenient};
+pub use truetype::{TrueTypeVerticalMetrics, TrueTypeWidths};

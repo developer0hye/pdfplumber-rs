@@ -1,11 +1,12 @@
-//! Minimal TrueType font table parsing for glyph width extraction.
+//! Minimal TrueType font table parsing for glyph metric extraction.
 //!
-//! Parses the `hmtx` (horizontal metrics) table from embedded TrueType font
-//! data (/FontFile2 streams) to extract per-glyph advance widths. Also reads
-//! `hhea` and `maxp` tables for required metadata.
+//! Parses the `hmtx` (horizontal metrics) and `vmtx` (vertical metrics) tables
+//! from embedded TrueType font data (/FontFile2 streams) to extract per-glyph
+//! advance widths and heights. Also reads `hhea`, `vhea`, `head`, and `maxp`
+//! tables for required metadata.
 //!
 //! This is intentionally minimal — only enough parsing to extract advance
-//! widths, not full font outline data.
+//! metrics, not full font outline data.
 
 /// Parsed glyph widths from a TrueType font's hmtx table.
 ///
@@ -124,6 +125,19 @@ fn parse_hhea_num_h_metrics(data: &[u8]) -> Option<u16> {
     read_u16(data, off + 34)
 }
 
+/// Parse the `vhea` table to extract `numOfLongVerMetrics`.
+///
+/// vhea table: 36 bytes total (same layout as hhea but for vertical metrics).
+/// numOfLongVerMetrics is at offset 34 within the table.
+fn parse_vhea_num_v_metrics(data: &[u8]) -> Option<u16> {
+    let vhea = find_table(data, b"vhea")?;
+    let off = vhea.offset as usize;
+    if vhea.length < 36 {
+        return None;
+    }
+    read_u16(data, off + 34)
+}
+
 /// Parse the `maxp` table to extract `numGlyphs`.
 ///
 /// maxp table: version(4) + numGlyphs(2) (minimum 6 bytes).
@@ -190,6 +204,98 @@ pub fn parse_truetype_widths(data: &[u8]) -> Option<TrueTypeWidths> {
 
     Some(TrueTypeWidths {
         advance_widths,
+        units_per_em,
+    })
+}
+
+/// Parsed vertical glyph metrics from a TrueType font's vmtx table.
+///
+/// Advance heights are in font design units (typically 1/1000 of em).
+/// This table is optional — only present in fonts with vertical writing support.
+#[derive(Debug, Clone)]
+pub struct TrueTypeVerticalMetrics {
+    /// Per-glyph advance heights indexed by glyph ID.
+    advance_heights: Vec<u16>,
+    /// Units per em from the head table (typically 1000 or 2048).
+    units_per_em: u16,
+}
+
+impl TrueTypeVerticalMetrics {
+    /// Get the advance height for a glyph ID, scaled to 1000 units per em.
+    ///
+    /// Returns `None` if the glyph ID is out of range.
+    pub fn get_height(&self, glyph_id: u16) -> Option<f64> {
+        let raw = self.advance_heights.get(glyph_id as usize)?;
+        if self.units_per_em == 0 {
+            return None;
+        }
+        Some(f64::from(*raw) * 1000.0 / f64::from(self.units_per_em))
+    }
+
+    /// Number of glyphs in the font.
+    pub fn num_glyphs(&self) -> usize {
+        self.advance_heights.len()
+    }
+
+    /// Units per em from the head table.
+    pub fn units_per_em(&self) -> u16 {
+        self.units_per_em
+    }
+}
+
+/// Parse TrueType font data to extract per-glyph vertical advance heights.
+///
+/// Reads the `vmtx`, `vhea`, `maxp`, and `head` tables from raw TrueType
+/// font data (typically from a /FontFile2 PDF stream).
+///
+/// Returns `None` if the data is not valid TrueType or required vertical
+/// tables (`vhea`, `vmtx`) are missing. This is expected — vmtx is only
+/// present in fonts that support vertical writing.
+pub fn parse_truetype_vertical_metrics(data: &[u8]) -> Option<TrueTypeVerticalMetrics> {
+    if data.len() < 28 {
+        return None;
+    }
+
+    let sf_version = read_u32(data, 0)?;
+    if sf_version != 0x00010000 && sf_version != 0x74727565 {
+        return None;
+    }
+
+    let units_per_em = parse_head_units_per_em(data)?;
+    let num_v_metrics = parse_vhea_num_v_metrics(data)? as usize;
+    let num_glyphs = parse_maxp_num_glyphs(data)? as usize;
+
+    if num_v_metrics == 0 || num_glyphs == 0 {
+        return None;
+    }
+
+    let vmtx = find_table(data, b"vmtx")?;
+    let vmtx_off = vmtx.offset as usize;
+
+    // Each longVerMetric is 4 bytes (u16 advanceHeight + i16 topSideBearing)
+    let long_metrics_size = num_v_metrics * 4;
+    if vmtx_off + long_metrics_size > data.len() {
+        return None;
+    }
+
+    let mut advance_heights = Vec::with_capacity(num_glyphs);
+
+    // Read longVerMetric records
+    for i in 0..num_v_metrics {
+        let h = read_u16(data, vmtx_off + i * 4)?;
+        advance_heights.push(h);
+    }
+
+    // Remaining glyphs share the last advance height
+    if num_glyphs > num_v_metrics {
+        let last_height = *advance_heights.last()?;
+        for _ in num_v_metrics..num_glyphs {
+            advance_heights.push(last_height);
+        }
+    }
+
+    Some(TrueTypeVerticalMetrics {
+        advance_heights,
         units_per_em,
     })
 }
@@ -398,5 +504,185 @@ mod tests {
         let r = record.unwrap();
         assert!(r.length > 0);
         assert!(r.offset > 0);
+    }
+
+    // ========== TDD: Vertical metrics (vhea/vmtx) tests ==========
+
+    /// Build minimal TrueType data with head, hhea, maxp, hmtx, vhea, and vmtx tables.
+    ///
+    /// `h_widths` contains horizontal advance widths.
+    /// `v_heights` contains vertical advance heights for `num_v_metrics` longVerMetric entries.
+    fn build_truetype_data_with_vmtx(
+        units_per_em: u16,
+        num_h_metrics: u16,
+        num_v_metrics: u16,
+        num_glyphs: u16,
+        h_widths: &[u16],
+        v_heights: &[u16],
+    ) -> Vec<u8> {
+        assert_eq!(h_widths.len(), num_h_metrics as usize);
+        assert_eq!(v_heights.len(), num_v_metrics as usize);
+
+        let num_tables: u16 = 6;
+
+        let head_len: u32 = 54;
+        let hhea_len: u32 = 36;
+        let maxp_len: u32 = 6;
+        let hmtx_len: u32 = (num_h_metrics as u32) * 4;
+        let vhea_len: u32 = 36;
+        let vmtx_len: u32 = (num_v_metrics as u32) * 4;
+
+        let dir_end: u32 = 12 + num_tables as u32 * 16;
+        let head_off = dir_end;
+        let hhea_off = head_off + head_len;
+        let maxp_off = hhea_off + hhea_len;
+        let hmtx_off = maxp_off + maxp_len;
+        let vhea_off = hmtx_off + hmtx_len;
+        let vmtx_off = vhea_off + vhea_len;
+        let total_len = vmtx_off + vmtx_len;
+
+        let mut buf = vec![0u8; total_len as usize];
+
+        // Offset table
+        buf[0..4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[4..6].copy_from_slice(&num_tables.to_be_bytes());
+
+        // Table directory
+        let tables: [(&[u8; 4], u32, u32); 6] = [
+            (b"head", head_off, head_len),
+            (b"hhea", hhea_off, hhea_len),
+            (b"maxp", maxp_off, maxp_len),
+            (b"hmtx", hmtx_off, hmtx_len),
+            (b"vhea", vhea_off, vhea_len),
+            (b"vmtx", vmtx_off, vmtx_len),
+        ];
+        for (i, (tag, off, len)) in tables.iter().enumerate() {
+            let entry = 12 + i * 16;
+            buf[entry..entry + 4].copy_from_slice(*tag);
+            buf[entry + 4..entry + 8].copy_from_slice(&0u32.to_be_bytes());
+            buf[entry + 8..entry + 12].copy_from_slice(&off.to_be_bytes());
+            buf[entry + 12..entry + 16].copy_from_slice(&len.to_be_bytes());
+        }
+
+        // head table
+        buf[head_off as usize..head_off as usize + 4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[head_off as usize + 18..head_off as usize + 20]
+            .copy_from_slice(&units_per_em.to_be_bytes());
+
+        // hhea table
+        buf[hhea_off as usize..hhea_off as usize + 4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[hhea_off as usize + 34..hhea_off as usize + 36]
+            .copy_from_slice(&num_h_metrics.to_be_bytes());
+
+        // maxp table
+        buf[maxp_off as usize..maxp_off as usize + 4].copy_from_slice(&0x00005000u32.to_be_bytes());
+        buf[maxp_off as usize + 4..maxp_off as usize + 6]
+            .copy_from_slice(&num_glyphs.to_be_bytes());
+
+        // hmtx table
+        for (i, &w) in h_widths.iter().enumerate() {
+            let pos = hmtx_off as usize + i * 4;
+            buf[pos..pos + 2].copy_from_slice(&w.to_be_bytes());
+            buf[pos + 2..pos + 4].copy_from_slice(&0i16.to_be_bytes());
+        }
+
+        // vhea table
+        buf[vhea_off as usize..vhea_off as usize + 4].copy_from_slice(&0x00011000u32.to_be_bytes()); // version 1.1
+        buf[vhea_off as usize + 34..vhea_off as usize + 36]
+            .copy_from_slice(&num_v_metrics.to_be_bytes());
+
+        // vmtx table
+        for (i, &h) in v_heights.iter().enumerate() {
+            let pos = vmtx_off as usize + i * 4;
+            buf[pos..pos + 2].copy_from_slice(&h.to_be_bytes());
+            buf[pos + 2..pos + 4].copy_from_slice(&0i16.to_be_bytes()); // topSideBearing = 0
+        }
+
+        buf
+    }
+
+    #[test]
+    fn parse_vertical_metrics_basic() {
+        let data =
+            build_truetype_data_with_vmtx(1000, 3, 3, 3, &[500, 500, 500], &[1000, 800, 600]);
+        let vmetrics =
+            parse_truetype_vertical_metrics(&data).expect("should parse vertical metrics");
+
+        assert_eq!(vmetrics.num_glyphs(), 3);
+        assert_eq!(vmetrics.units_per_em(), 1000);
+        assert!((vmetrics.get_height(0).unwrap() - 1000.0).abs() < 0.01);
+        assert!((vmetrics.get_height(1).unwrap() - 800.0).abs() < 0.01);
+        assert!((vmetrics.get_height(2).unwrap() - 600.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_vertical_metrics_upem_2048() {
+        let data = build_truetype_data_with_vmtx(2048, 2, 2, 2, &[1024, 512], &[2048, 1024]);
+        let vmetrics = parse_truetype_vertical_metrics(&data).expect("should parse");
+
+        // 2048 * 1000 / 2048 = 1000.0
+        assert!((vmetrics.get_height(0).unwrap() - 1000.0).abs() < 0.01);
+        // 1024 * 1000 / 2048 = 500.0
+        assert!((vmetrics.get_height(1).unwrap() - 500.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_vertical_metrics_inherited_heights() {
+        // 5 glyphs but only 2 longVerMetric entries. Glyphs 2-4 inherit last height.
+        let data = build_truetype_data_with_vmtx(1000, 2, 2, 5, &[500, 500], &[1000, 800]);
+        let vmetrics = parse_truetype_vertical_metrics(&data).expect("should parse");
+
+        assert_eq!(vmetrics.num_glyphs(), 5);
+        assert!((vmetrics.get_height(0).unwrap() - 1000.0).abs() < 0.01);
+        assert!((vmetrics.get_height(1).unwrap() - 800.0).abs() < 0.01);
+        // Inherited from last longVerMetric
+        assert!((vmetrics.get_height(2).unwrap() - 800.0).abs() < 0.01);
+        assert!((vmetrics.get_height(3).unwrap() - 800.0).abs() < 0.01);
+        assert!((vmetrics.get_height(4).unwrap() - 800.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn parse_vertical_metrics_out_of_range() {
+        let data = build_truetype_data_with_vmtx(1000, 2, 2, 2, &[500, 500], &[1000, 800]);
+        let vmetrics = parse_truetype_vertical_metrics(&data).expect("should parse");
+
+        assert!(vmetrics.get_height(2).is_none());
+        assert!(vmetrics.get_height(100).is_none());
+    }
+
+    #[test]
+    fn parse_vertical_metrics_none_without_vhea() {
+        // Data without vhea/vmtx tables should return None
+        let data = build_truetype_data(1000, 2, 2, &[500, 500]);
+        assert!(parse_truetype_vertical_metrics(&data).is_none());
+    }
+
+    #[test]
+    fn parse_vertical_metrics_zero_upem() {
+        let data = build_truetype_data_with_vmtx(0, 1, 1, 1, &[500], &[1000]);
+        if let Some(vm) = parse_truetype_vertical_metrics(&data) {
+            assert!(vm.get_height(0).is_none());
+        }
+    }
+
+    #[test]
+    fn parse_vertical_metrics_single_glyph() {
+        let data = build_truetype_data_with_vmtx(1000, 1, 1, 1, &[500], &[1000]);
+        let vmetrics = parse_truetype_vertical_metrics(&data).expect("should parse");
+        assert_eq!(vmetrics.num_glyphs(), 1);
+        assert!((vmetrics.get_height(0).unwrap() - 1000.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn horizontal_widths_still_work_with_vmtx_present() {
+        // When vmtx is present, horizontal widths should still parse correctly
+        let data = build_truetype_data_with_vmtx(1000, 2, 2, 2, &[300, 600], &[1000, 800]);
+        let hwidths = parse_truetype_widths(&data).expect("should parse horizontal");
+        let vmetrics = parse_truetype_vertical_metrics(&data).expect("should parse vertical");
+
+        assert!((hwidths.get_width(0).unwrap() - 300.0).abs() < 0.01);
+        assert!((hwidths.get_width(1).unwrap() - 600.0).abs() < 0.01);
+        assert!((vmetrics.get_height(0).unwrap() - 1000.0).abs() < 0.01);
+        assert!((vmetrics.get_height(1).unwrap() - 800.0).abs() < 0.01);
     }
 }

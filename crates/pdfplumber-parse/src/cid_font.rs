@@ -7,6 +7,7 @@
 use std::collections::HashMap;
 
 use crate::error::BackendError;
+use crate::truetype;
 
 /// Default CID font width when /DW is not specified (1000/1000 of text space = full em width).
 const DEFAULT_CID_WIDTH: f64 = 1000.0;
@@ -454,13 +455,22 @@ pub fn extract_cid_font_metrics(
         .unwrap_or((DEFAULT_DW2_VY, DEFAULT_DW2_W1));
 
     // Parse /W2 (vertical width overrides)
-    let vertical_widths = cid_font_dict
+    let mut vertical_widths = cid_font_dict
         .get(b"W2")
         .ok()
         .map(|o| resolve_object(doc, o))
         .and_then(|o| o.as_array().ok())
         .map(|arr| parse_w2_array(arr, doc, default_width))
         .unwrap_or_default();
+
+    // For CIDFontType2 (TrueType-based) fonts, try vmtx table as fallback
+    // when W2 is not present. W2/DW2 from the PDF take precedence over vmtx.
+    if vertical_widths.is_empty() && font_type == CidFontType::Type2 {
+        if let Some(vmtx_metrics) = try_extract_vmtx_vertical_metrics(doc, cid_font_dict, &metrics)
+        {
+            vertical_widths = vmtx_metrics;
+        }
+    }
 
     metrics.set_vertical_metrics(vertical_widths, dw2_vy, dw2_w1);
 
@@ -580,6 +590,67 @@ fn parse_cid_font_descriptor(
         });
 
     (ascent, descent, font_bbox)
+}
+
+/// Try to extract vertical metrics from a TrueType vmtx table embedded in FontFile2.
+///
+/// For CIDFontType2 fonts, when /W2 is absent, falls back to the vmtx table
+/// for per-glyph vertical advance heights. Maps CIDs to GIDs using the font's
+/// CIDToGIDMap, then converts vmtx advance heights to VerticalMetric structs.
+///
+/// Returns `None` if FontFile2 is absent or vmtx table is not present.
+fn try_extract_vmtx_vertical_metrics(
+    doc: &lopdf::Document,
+    cid_font_dict: &lopdf::Dictionary,
+    metrics: &CidFontMetrics,
+) -> Option<HashMap<u32, VerticalMetric>> {
+    let desc_obj = cid_font_dict.get(b"FontDescriptor").ok()?;
+    let desc_obj = resolve_object(doc, desc_obj);
+    let desc = desc_obj.as_dict().ok()?;
+
+    let font_file_obj = desc.get(b"FontFile2").ok()?;
+    let font_file_obj = resolve_object(doc, font_file_obj);
+    let stream = font_file_obj.as_stream().ok()?;
+
+    let data = if stream.dict.get(b"Filter").is_ok() {
+        stream.decompressed_content().unwrap_or_default()
+    } else {
+        stream.content.clone()
+    };
+
+    let vmetrics = truetype::parse_truetype_vertical_metrics(&data)?;
+
+    // Build vertical metric map: CID → VerticalMetric
+    // For each glyph with a vertical advance, create an entry using the CIDToGIDMap
+    let mut vertical_widths = HashMap::new();
+    let num_glyphs = vmetrics.num_glyphs();
+
+    for gid in 0..num_glyphs {
+        if let Some(advance_height) = vmetrics.get_height(gid as u16) {
+            // Find CIDs that map to this GID
+            // For Identity mapping: CID == GID
+            // For explicit mappings, we build the reverse lookup
+            let cid = gid as u32; // Default: assume identity
+            let mapped_gid = metrics.map_cid_to_gid(cid);
+            if mapped_gid == gid as u32 {
+                let hw = metrics.get_width(cid);
+                vertical_widths.insert(
+                    cid,
+                    VerticalMetric {
+                        w1y: -advance_height, // negative = downward advance
+                        vx: hw / 2.0,         // horizontal origin at half-width
+                        vy: DEFAULT_DW2_VY,   // default vertical origin
+                    },
+                );
+            }
+        }
+    }
+
+    if vertical_widths.is_empty() {
+        None
+    } else {
+        Some(vertical_widths)
+    }
 }
 
 /// Resolve an indirect reference to the actual object.
