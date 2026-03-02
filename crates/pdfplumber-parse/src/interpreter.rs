@@ -1223,7 +1223,7 @@ fn emit_char_events(
                 })
             })
             .or_else(|| {
-                // 3. Try CJK encoding (for CID fonts with predefined CMaps like GBK-EUC-H)
+                // 3. Try CJK encoding (for CID fonts with predefined CMaps like GBK-EUC-H, EUC-H, H)
                 cached.and_then(|c| {
                     c.cjk_encoding.map(|enc| {
                         let bytes = if rc.char_code > 0xFF {
@@ -1231,8 +1231,7 @@ fn emit_char_events(
                         } else {
                             vec![rc.char_code as u8]
                         };
-                        let (decoded, _, _) = enc.decode(&bytes);
-                        decoded.into_owned()
+                        cjk_encoding::decode_to_unicode(&bytes, enc)
                     })
                 })
             })

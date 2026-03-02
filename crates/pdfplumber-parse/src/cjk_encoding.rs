@@ -45,9 +45,12 @@ pub fn encoding_for_cmap(cmap_name: &str) -> Option<&'static Encoding> {
         }
 
         // Japanese: EUC-JP encoding
-        "EUC" if cmap_name.contains("JIS") || cmap_name.contains("Japan") => {
-            Some(encoding_rs::EUC_JP)
-        }
+        // EUC-H/EUC-V are standard Adobe CMap names for EUC-JP encoded Japanese text
+        "EUC" => Some(encoding_rs::EUC_JP),
+
+        // Japanese: Raw JIS X 0208 encoding (H/V CMaps)
+        // Use ISO_2022_JP as a tag value; actual decoding converts JIS to EUC-JP
+        "H" | "V" => Some(encoding_rs::ISO_2022_JP),
 
         // Korean: EUC-KR encoding
         "KSC-EUC" | "KSCms-UHC" | "UniKS-UCS2" | "UniKS-UTF16" => Some(encoding_rs::EUC_KR),
@@ -116,6 +119,9 @@ fn is_lead_byte(byte: u8, encoding: &'static Encoding) -> bool {
     } else if encoding == encoding_rs::EUC_KR {
         // EUC-KR: lead byte range 0x81-0xFE
         (0x81..=0xFE).contains(&byte)
+    } else if encoding == encoding_rs::ISO_2022_JP {
+        // Raw JIS X 0208 (H/V CMaps): lead byte range 0x21-0x7E
+        (0x21..=0x7E).contains(&byte)
     } else {
         false
     }
@@ -123,8 +129,24 @@ fn is_lead_byte(byte: u8, encoding: &'static Encoding) -> bool {
 
 /// Decode a single character's bytes to a Unicode string using encoding_rs.
 fn decode_bytes_to_unicode(bytes: &[u8], encoding: &'static Encoding) -> String {
-    let (decoded, _, _) = encoding.decode(bytes);
-    decoded.into_owned()
+    decode_to_unicode(bytes, encoding)
+}
+
+/// Decode byte(s) to a Unicode string, handling raw JIS X 0208 specially.
+///
+/// For `ISO_2022_JP` (used as a tag for raw JIS X 0208 from H/V CMaps):
+/// converts JIS bytes to EUC-JP by adding 0x80 to each byte, then decodes.
+/// For all other encodings, uses `encoding_rs` directly.
+pub fn decode_to_unicode(bytes: &[u8], encoding: &'static Encoding) -> String {
+    if encoding == encoding_rs::ISO_2022_JP && bytes.len() == 2 {
+        // Raw JIS X 0208: convert to EUC-JP by adding 0x80 to each byte
+        let euc_bytes = [bytes[0] | 0x80, bytes[1] | 0x80];
+        let (decoded, _, _) = encoding_rs::EUC_JP.decode(&euc_bytes);
+        decoded.into_owned()
+    } else {
+        let (decoded, _, _) = encoding.decode(bytes);
+        decoded.into_owned()
+    }
 }
 
 #[cfg(test)]
@@ -309,5 +331,136 @@ mod tests {
         assert_eq!(decoded.len(), 2);
         assert_eq!(decoded[0].unicode, "浙");
         assert_eq!(decoded[1].unicode, "江");
+    }
+
+    // ========== EUC-JP encoding tests (US-205-2) ==========
+
+    #[test]
+    fn euc_h_returns_euc_jp_encoding() {
+        let enc = encoding_for_cmap("EUC-H");
+        assert_eq!(enc, Some(encoding_rs::EUC_JP));
+    }
+
+    #[test]
+    fn euc_v_returns_euc_jp_encoding() {
+        let enc = encoding_for_cmap("EUC-V");
+        assert_eq!(enc, Some(encoding_rs::EUC_JP));
+    }
+
+    #[test]
+    fn euc_jp_lead_byte_detection() {
+        // EUC-JP: lead byte range 0xA1-0xFE (and 0x8E for half-width katakana)
+        assert!(is_lead_byte(0xA1, encoding_rs::EUC_JP));
+        assert!(is_lead_byte(0xA4, encoding_rs::EUC_JP)); // hiragana block
+        assert!(is_lead_byte(0xFE, encoding_rs::EUC_JP));
+        assert!(is_lead_byte(0x8E, encoding_rs::EUC_JP)); // half-width katakana
+        // NOT lead bytes
+        assert!(!is_lead_byte(0x41, encoding_rs::EUC_JP)); // 'A'
+        assert!(!is_lead_byte(0x20, encoding_rs::EUC_JP)); // space
+        assert!(!is_lead_byte(0x80, encoding_rs::EUC_JP));
+    }
+
+    #[test]
+    fn decode_euc_jp_hiragana() {
+        // あ = EUC-JP 0xA4A2, い = EUC-JP 0xA4A4, う = EUC-JP 0xA4A6
+        let bytes = vec![0xA4, 0xA2, 0xA4, 0xA4, 0xA4, 0xA6];
+        let decoded = decode_cjk_string(&bytes, encoding_rs::EUC_JP);
+
+        assert_eq!(decoded.len(), 3);
+        assert_eq!(decoded[0].unicode, "あ");
+        assert_eq!(decoded[0].char_code, 0xA4A2);
+        assert_eq!(decoded[0].byte_len, 2);
+        assert_eq!(decoded[1].unicode, "い");
+        assert_eq!(decoded[1].char_code, 0xA4A4);
+        assert_eq!(decoded[2].unicode, "う");
+        assert_eq!(decoded[2].char_code, 0xA4A6);
+    }
+
+    #[test]
+    fn decode_euc_jp_mixed_ascii_and_japanese() {
+        // "A" (0x41) followed by あ (0xA4A2)
+        let bytes = vec![0x41, 0xA4, 0xA2];
+        let decoded = decode_cjk_string(&bytes, encoding_rs::EUC_JP);
+
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].unicode, "A");
+        assert_eq!(decoded[0].char_code, 0x41);
+        assert_eq!(decoded[0].byte_len, 1);
+        assert_eq!(decoded[1].unicode, "あ");
+        assert_eq!(decoded[1].char_code, 0xA4A2);
+        assert_eq!(decoded[1].byte_len, 2);
+    }
+
+    // ========== JIS X 0208 (H/V CMap) encoding tests (US-205-2) ==========
+
+    #[test]
+    fn h_cmap_returns_iso_2022_jp_encoding() {
+        // CMap "H" = raw JIS X 0208 horizontal; use ISO_2022_JP as tag
+        let enc = encoding_for_cmap("H");
+        assert_eq!(enc, Some(encoding_rs::ISO_2022_JP));
+    }
+
+    #[test]
+    fn v_cmap_returns_iso_2022_jp_encoding() {
+        let enc = encoding_for_cmap("V");
+        assert_eq!(enc, Some(encoding_rs::ISO_2022_JP));
+    }
+
+    #[test]
+    fn jis_lead_byte_detection() {
+        // JIS X 0208: lead byte range 0x21-0x7E
+        assert!(is_lead_byte(0x21, encoding_rs::ISO_2022_JP));
+        assert!(is_lead_byte(0x24, encoding_rs::ISO_2022_JP)); // hiragana row
+        assert!(is_lead_byte(0x7E, encoding_rs::ISO_2022_JP));
+        // NOT lead bytes
+        assert!(!is_lead_byte(0x20, encoding_rs::ISO_2022_JP)); // space
+        assert!(!is_lead_byte(0x0A, encoding_rs::ISO_2022_JP)); // newline
+        assert!(!is_lead_byte(0x80, encoding_rs::ISO_2022_JP));
+    }
+
+    #[test]
+    fn decode_jis_hiragana() {
+        // あ = JIS 0x2422, い = JIS 0x2424, う = JIS 0x2426
+        // JIS bytes are converted to EUC-JP by adding 0x80, then decoded
+        let bytes = vec![0x24, 0x22, 0x24, 0x24, 0x24, 0x26];
+        let decoded = decode_cjk_string(&bytes, encoding_rs::ISO_2022_JP);
+
+        assert_eq!(decoded.len(), 3);
+        assert_eq!(decoded[0].unicode, "あ");
+        assert_eq!(decoded[0].char_code, 0x2422);
+        assert_eq!(decoded[0].byte_len, 2);
+        assert_eq!(decoded[1].unicode, "い");
+        assert_eq!(decoded[1].char_code, 0x2424);
+        assert_eq!(decoded[2].unicode, "う");
+        assert_eq!(decoded[2].char_code, 0x2426);
+    }
+
+    #[test]
+    fn decode_jis_katakana() {
+        // ア = JIS 0x2522, イ = JIS 0x2524
+        let bytes = vec![0x25, 0x22, 0x25, 0x24];
+        let decoded = decode_cjk_string(&bytes, encoding_rs::ISO_2022_JP);
+
+        assert_eq!(decoded.len(), 2);
+        assert_eq!(decoded[0].unicode, "ア");
+        assert_eq!(decoded[0].char_code, 0x2522);
+        assert_eq!(decoded[1].unicode, "イ");
+        assert_eq!(decoded[1].char_code, 0x2524);
+    }
+
+    #[test]
+    fn decode_to_unicode_jis_converts_via_eucjp() {
+        // あ = JIS 0x2422 → EUC-JP 0xA4A2
+        let bytes = [0x24, 0x22];
+        let result = decode_to_unicode(&bytes, encoding_rs::ISO_2022_JP);
+        assert_eq!(result, "あ");
+    }
+
+    #[test]
+    fn decode_to_unicode_standard_encoding() {
+        // 关 = GBK 0xB9D8
+        let bytes = [0xB9, 0xD8];
+        let result = decode_to_unicode(&bytes, encoding_rs::GBK);
+        assert_eq!(result, "关");
     }
 }

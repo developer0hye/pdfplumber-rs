@@ -15,9 +15,18 @@ Started: 2026년  3월  2일 월요일 11시 16분 42초 KST
 ### CID→Unicode Fallback Chain (interpreter.rs)
 1. ToUnicode CMap lookup
 2. CidToGid + CFF glyph name
-3. Pre-Unicode CMap decoding (encoding_rs)
+3. Pre-Unicode CMap decoding (encoding_rs) — includes EUC-JP, Shift-JIS, GBK, Big5, EUC-KR, and raw JIS X 0208
 4. Adobe CID→Unicode table (Japan1, GB1, CNS1, Korea1)
 5. Fallback: `(cid:N)` for CID fonts, `char::from_u32` for others
+
+### CJK Encoding CMap Name Mapping
+- `GBK-EUC-H/V`, `GBKp-EUC-H/V`, etc. → GBK (encoding_rs::GBK)
+- `ETen-B5-H/V`, `B5pc-H/V`, etc. → Big5 (encoding_rs::BIG5)
+- `90ms-RKSJ-H/V`, etc. → Shift-JIS (encoding_rs::SHIFT_JIS)
+- `EUC-H/V` → EUC-JP (encoding_rs::EUC_JP)
+- `H`, `V` → Raw JIS X 0208 (tagged as encoding_rs::ISO_2022_JP, decoded via JIS→EUC-JP conversion)
+- `KSC-EUC-H/V`, etc. → EUC-KR (encoding_rs::EUC_KR)
+- JIS→Unicode: add 0x80 to each byte → EUC-JP → encoding_rs decode
 
 ---
 
@@ -41,4 +50,28 @@ Started: 2026년  3월  2일 월요일 11시 16분 42초 KST
   - The CID→Unicode tables are large but compile efficiently as static arrays
   - issue-842 uses GB1 ordering (Simplified Chinese with GB2312 font names)
   - issue-987 uses non-CJK content but had font encoding gaps resolved by better fallback
+---
+
+## 2026-03-02 - US-205-2
+- Added EUC-JP and JIS X 0208 encoding decoders for CID fonts with predefined CMaps
+- Fixed `encoding_for_cmap` to recognize EUC-H/EUC-V → EUC-JP and H/V → JIS X 0208
+- JIS X 0208 decoding: convert raw JIS bytes to EUC-JP (add 0x80 to each byte), then decode via encoding_rs::EUC_JP
+- Used `encoding_rs::ISO_2022_JP` as a tag value for raw JIS X 0208 (H/V CMaps)
+- Fixed `parse_predefined_cmap_name` to recognize `EUC` base as Japan1, and `H`/`V` as Japan1 special cases
+- Files changed:
+  - `crates/pdfplumber-parse/src/cjk_encoding.rs` — fixed EUC/JIS CMap matching, added JIS lead byte detection, added `decode_to_unicode` public function
+  - `crates/pdfplumber-parse/src/cid_font.rs` — added H/V and EUC to predefined CMap name parsing
+  - `crates/pdfplumber-parse/src/interpreter.rs` — use `decode_to_unicode` in Unicode resolution step 3
+  - `crates/pdfplumber/tests/cross_validation.rs` — upgraded noembed-eucjp, noembed-jis7, noembed-sjis from ignored to passing
+- Results:
+  - noembed-eucjp.pdf: 0% → 100% chars (target: >=50%)
+  - noembed-jis7.pdf: 58.3% → 100% chars (target: >=80%)
+  - noembed-sjis.pdf: 100% (already passing, no regression)
+  - No regressions on other tests
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - EUC-H CMap = EUC-JP encoding; "EUC" base without JIS/Japan in name IS still Japanese
+  - H/V CMaps = raw JIS X 0208 encoding (bytes 0x21-0x7E for both bytes of a 2-byte code)
+  - JIS→Unicode conversion: add 0x80 to each byte → EUC-JP → decode via encoding_rs
+  - ISO_2022_JP encoding_rs tag works as sentinel for raw JIS since actual ISO-2022-JP (escape sequence variant) doesn't appear in PDF CMaps
 ---

@@ -679,6 +679,26 @@ pub fn parse_predefined_cmap_name(name: &str) -> Option<PredefinedCMapInfo> {
         }
     }
 
+    // Japanese: Raw JIS X 0208 CMaps (H = horizontal, V = vertical)
+    if name == "H" {
+        return Some(PredefinedCMapInfo {
+            name: name.to_string(),
+            registry: "Adobe".to_string(),
+            ordering: "Japan1".to_string(),
+            writing_mode: 0,
+            is_identity: false,
+        });
+    }
+    if name == "V" {
+        return Some(PredefinedCMapInfo {
+            name: name.to_string(),
+            registry: "Adobe".to_string(),
+            ordering: "Japan1".to_string(),
+            writing_mode: 1,
+            is_identity: false,
+        });
+    }
+
     // Standard CJK encoding CMaps with -H/-V suffix
     let (base, writing_mode) = if let Some(b) = name.strip_suffix("-H") {
         (b, 0u8)
@@ -692,6 +712,7 @@ pub fn parse_predefined_cmap_name(name: &str) -> Option<PredefinedCMapInfo> {
     let ordering = if base.contains("JIS")
         || base.contains("Japan")
         || base.contains("EUC-JP")
+        || base == "EUC"
         || base == "78-RKSJ"
         || base == "83pv-RKSJ"
         || base == "90pv-RKSJ"

@@ -38,7 +38,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/interpreter.rs. Encoding detection: CMap name suffix indicates encoding (e.g., 90ms-RKSJ-H → Shift-JIS, EUC-H → EUC-JP). Implement decoders in pure Rust - do NOT add external encoding crates. Shift-JIS: lead byte 0x81-0x9F/0xE0-0xEF + trail byte 0x40-0x7E/0x80-0xFC. EUC-JP: lead byte 0xA1-0xFE + trail byte 0xA1-0xFE. JIS7: uses ESC sequences to switch between ASCII and JIS X 0208."
     },
     {

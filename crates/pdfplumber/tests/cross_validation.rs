@@ -1312,10 +1312,11 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_noembed_eucjp,
     "pdfjs/noembed-eucjp.pdf",
-    "chars 0% — EUC-JP encoding gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_pdfjs_noembed_identity_2,
@@ -1327,15 +1328,17 @@ cross_validate_ignored!(
     "pdfjs/noembed-identity.pdf",
     "chars 58.3% — Identity encoding partial gap"
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_noembed_jis7,
     "pdfjs/noembed-jis7.pdf",
-    "chars 58.3% — JIS7 encoding gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_noembed_sjis,
     "pdfjs/noembed-sjis.pdf",
-    "chars 0% — Shift-JIS encoding gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfjs_text_clip_cff_cid,
