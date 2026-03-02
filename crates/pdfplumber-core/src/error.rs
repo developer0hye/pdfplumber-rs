@@ -322,6 +322,12 @@ pub struct ExtractOptions {
     pub max_total_image_bytes: Option<usize>,
     /// Maximum total extracted objects across all pages (default: None = no limit).
     pub max_total_objects: Option<usize>,
+    /// Character deduplication options (default: enabled with tolerance 1.0).
+    ///
+    /// When `Some`, duplicate overlapping characters are removed after extraction.
+    /// Some PDF generators output duplicate glyphs for bold/shadow effects or
+    /// due to bugs. Set to `None` to disable deduplication.
+    pub dedupe: Option<crate::dedupe::DedupeOptions>,
 }
 
 impl Default for ExtractOptions {
@@ -338,6 +344,7 @@ impl Default for ExtractOptions {
             max_pages: None,
             max_total_image_bytes: None,
             max_total_objects: None,
+            dedupe: Some(crate::dedupe::DedupeOptions::default()),
         }
     }
 }
@@ -641,6 +648,7 @@ mod tests {
             max_pages: Some(10),
             max_total_image_bytes: Some(5 * 1024 * 1024),
             max_total_objects: Some(100_000),
+            dedupe: None,
         };
         assert_eq!(opts.max_recursion_depth, 5);
         assert_eq!(opts.max_objects_per_page, 50_000);

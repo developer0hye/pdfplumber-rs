@@ -1,31 +1,24 @@
+# Ralph Progress Log
+Started: 2026년  3월  2일 월요일 12시 15분 56초 KST
+
 ## Codebase Patterns
-
-### CID→Unicode Table Pattern
-- Tables are stored as sorted static arrays of `(CID, Unicode)` tuples in dedicated modules (e.g., `adobe_gb1_ucs2.rs`)
-- Lookup uses `binary_search_by_key` for O(log n) performance
-- Tables are generated from Adobe's open-source `cmap-resources` repo (`cid2code.txt` files)
-- Column used: `UniXX-UCS2` (e.g., `UniGB-UCS2`, `UniCNS-UCS2`, `UniKS-UCS2`)
-- For multi-value entries, prefer CJK Unified Ideograph range (0x4E00-0x9FFF)
-- Wire into interpreter.rs via `match si.ordering.as_str()` in the CID→Unicode fallback chain (step 4)
-
-### CID→Unicode Fallback Chain (interpreter.rs)
-1. ToUnicode CMap lookup
-2. CidToGid + CFF glyph name
-3. Pre-Unicode CMap decoding (encoding_rs) — includes EUC-JP, Shift-JIS, GBK, Big5, EUC-KR, and raw JIS X 0208
-4. Adobe CID→Unicode table (Japan1, GB1, CNS1, Korea1)
-5. Fallback: Identity-H/V + Identity ordering → `char::from_u32(cid)`; other CID fonts → `(cid:N)`; simple fonts → `char::from_u32`
-
-### CJK Encoding CMap Name Mapping
-- `GBK-EUC-H/V`, `GBKp-EUC-H/V`, etc. → GBK (encoding_rs::GBK)
-- `ETen-B5-H/V`, `B5pc-H/V`, etc. → Big5 (encoding_rs::BIG5)
-- `90ms-RKSJ-H/V`, etc. → Shift-JIS (encoding_rs::SHIFT_JIS)
-- `EUC-H/V` → EUC-JP (encoding_rs::EUC_JP)
-- `H`, `V` → Raw JIS X 0208 (tagged as encoding_rs::ISO_2022_JP, decoded via JIS→EUC-JP conversion)
-- `KSC-EUC-H/V`, etc. → EUC-KR (encoding_rs::EUC_KR)
-- JIS→Unicode: add 0x80 to each byte → EUC-JP → encoding_rs decode
-
+- `ExtractOptions` in `pdfplumber-core/src/error.rs` controls pipeline behavior. Add new options there and apply in `Pdf::page()` in `pdfplumber/src/pdf.rs`.
+- Cross-validation golden data is generated from Python pdfplumber without normalization or dedup. When comparing, disable features Python doesn't apply by default.
+- `Page::from_extraction()` is the internal constructor — dedup/normalization happen in `Pdf::page()` before calling it.
 ---
 
-# Ralph Progress Log - Issue #205 Cat5: Character deduplication for overlapping glyphs (3 PDFs)
-Started: 2026년  3월  2일 월요일 12시 15분 55초 KST
+## 2026-03-02 - US-205-4
+- **What was implemented:** Character deduplication enabled by default in the extraction pipeline. Added `dedupe: Option<DedupeOptions>` field to `ExtractOptions` (default: `Some(DedupeOptions::default())`). Applied dedup in `Pdf::page()` after BiDi + normalization. Updated cross-validation tests to disable dedup (matching Python golden data behavior). Un-ignored 3 dedup-related cross-validation tests.
+- **Files changed:**
+  - `crates/pdfplumber-core/src/error.rs` — Added `dedupe` field to `ExtractOptions`
+  - `crates/pdfplumber/src/pdf.rs` — Added `dedupe_chars` import and dedup step in `Pdf::page()`
+  - `crates/pdfplumber/tests/pdf_integration.rs` — Updated dedupe tests for auto-dedup behavior
+  - `crates/pdfplumber/tests/cross_validation.rs` — Disabled dedup in test harness, un-ignored 3 tests
+  - `crates/pdfplumber/tests/real_world_integration.rs` — Updated overlapping text tests
+  - `scripts/ralph/prd.json` — Set passes: true
+- **Dependencies added:** None
+- **Learnings for future iterations:**
+  - The `dedupe_chars` function and `DedupeOptions` already existed in `pdfplumber-core/src/dedupe.rs` with comprehensive unit tests.
+  - Cross-validation golden data from Python does NOT have dedup applied. Enabling dedup by default causes score drops for PDFs with duplicates (e.g., issue-842: 430→115 chars). Solution: disable dedup in the cross-validation harness.
+  - The acceptance criteria scores (76.8%, 37.3%, 46.2%) were outdated — earlier extraction bugs had been fixed in prior PRs, bringing scores to 100% before this change.
 ---

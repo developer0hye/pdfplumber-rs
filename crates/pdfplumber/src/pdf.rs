@@ -7,8 +7,8 @@ use pdfplumber_core::{
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
     PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
     SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, detect_page_regions, extract_shapes,
-    image_from_ctm, normalize_chars,
+    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
+    extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -546,6 +546,11 @@ impl Pdf {
         // Apply Unicode normalization if configured
         if self.options.unicode_norm != UnicodeNorm::None {
             chars = normalize_chars(&chars, &self.options.unicode_norm);
+        }
+
+        // Apply character deduplication if configured
+        if let Some(ref dedupe_opts) = self.options.dedupe {
+            chars = dedupe_chars(&chars, dedupe_opts);
         }
 
         // Convert PathEvents to Lines/Rects/Curves via PaintedPath + extract_shapes

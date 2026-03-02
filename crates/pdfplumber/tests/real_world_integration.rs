@@ -1249,17 +1249,21 @@ fn edge_cases_whitespace_only_no_meaningful_text() {
 }
 
 #[test]
-fn edge_cases_overlapping_text_extracts_both() {
+fn edge_cases_overlapping_text_extracts_both_without_dedup() {
     ensure_fixtures();
-    let pdf = open_fixture("edge-cases", "overlapping-text.pdf");
+    let opts = ExtractOptions {
+        dedupe: None,
+        ..ExtractOptions::default()
+    };
+    let pdf = open_fixture_with_opts("edge-cases", "overlapping-text.pdf", opts);
     let page = pdf.page(0).unwrap();
     let chars = page.chars();
 
-    // "BOLD" rendered twice = 8 chars
+    // "BOLD" rendered twice = 8 chars (dedup disabled)
     assert_eq!(
         chars.len(),
         8,
-        "overlapping text should extract all 8 chars, got {}",
+        "overlapping text should extract all 8 chars without dedup, got {}",
         chars.len()
     );
 }
@@ -1267,16 +1271,15 @@ fn edge_cases_overlapping_text_extracts_both() {
 #[test]
 fn edge_cases_overlapping_text_dedup_reduces() {
     ensure_fixtures();
+    // Default extraction includes auto-dedup
     let pdf = open_fixture("edge-cases", "overlapping-text.pdf");
     let page = pdf.page(0).unwrap();
+    let chars = page.chars();
 
-    let deduped = page.dedupe_chars(&pdfplumber::DedupeOptions::default());
-    let chars = deduped.chars();
-
-    // After dedup, overlapping chars should be reduced
+    // Auto-dedup: overlapping chars reduced
     assert!(
         chars.len() <= 4,
-        "after dedup, overlapping 'BOLD' should reduce to <= 4 chars, got {}",
+        "after auto-dedup, overlapping 'BOLD' should reduce to <= 4 chars, got {}",
         chars.len()
     );
 }

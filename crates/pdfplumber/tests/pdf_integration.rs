@@ -1450,18 +1450,37 @@ fn pdf_with_two_fonts_content() -> Vec<u8> {
 }
 
 #[test]
-fn dedupe_overlapping_identical_chars() {
+fn dedupe_auto_enabled_by_default() {
+    // Dedup is enabled by default in ExtractOptions — duplicate H should be
+    // removed automatically during extraction.
     let bytes = pdf_with_duplicate_chars();
     let pdf = Pdf::open(&bytes, None).unwrap();
     let page = pdf.page(0).unwrap();
 
-    // Before dedupe: should have 3 chars (H, H, i)
+    // Auto-dedup: duplicate H removed → (H, i)
+    assert_eq!(page.chars().len(), 2);
+    assert_eq!(page.chars()[0].text, "H");
+    assert_eq!(page.chars()[1].text, "i");
+}
+
+#[test]
+fn dedupe_disabled_preserves_all_chars() {
+    // With dedupe disabled, all chars including duplicates are preserved.
+    let bytes = pdf_with_duplicate_chars();
+    let opts = ExtractOptions {
+        dedupe: None,
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+
+    // No dedup: all 3 chars preserved (H, H, i)
     assert_eq!(page.chars().len(), 3);
     assert_eq!(page.chars()[0].text, "H");
     assert_eq!(page.chars()[1].text, "H");
     assert_eq!(page.chars()[2].text, "i");
 
-    // After dedupe: duplicate H removed → (H, i)
+    // Explicit dedupe_chars() still works on the raw chars
     let deduped = page.dedupe_chars(&DedupeOptions::default());
     assert_eq!(deduped.chars().len(), 2);
     assert_eq!(deduped.chars()[0].text, "H");
@@ -1476,9 +1495,10 @@ fn dedupe_preserves_non_overlapping() {
     let pdf = Pdf::open(&bytes, None).unwrap();
     let page = pdf.page(0).unwrap();
 
-    let original_count = page.chars().len();
-    let deduped = page.dedupe_chars(&DedupeOptions::default());
-    assert_eq!(deduped.chars().len(), original_count);
+    // Dedup is on by default but no duplicates exist → count unchanged
+    assert_eq!(page.chars().len(), 5);
+    let texts: Vec<&str> = page.chars().iter().map(|c| c.text.as_str()).collect();
+    assert_eq!(texts, vec!["H", "e", "l", "l", "o"]);
 }
 
 #[test]
@@ -1487,12 +1507,9 @@ fn dedupe_different_font_not_deduped() {
     let pdf = Pdf::open(&bytes, None).unwrap();
     let page = pdf.page(0).unwrap();
 
-    // Two "A" chars at same position but different fonts
+    // Two "A" chars at same position but different fonts — default dedupe
+    // checks fontname, so both are kept
     assert_eq!(page.chars().len(), 2);
-
-    // With default extra_attrs (fontname, size) → NOT deduped (different fontname)
-    let deduped = page.dedupe_chars(&DedupeOptions::default());
-    assert_eq!(deduped.chars().len(), 2);
 
     // With no extra_attrs → deduped (only position + text matter)
     let deduped_no_attrs = page.dedupe_chars(&DedupeOptions {

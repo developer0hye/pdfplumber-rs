@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-core/src/text.rs, crates/pdfplumber/src/page.rs. Python pdfplumber's dedupe logic: chars are duplicates if same text content and (x0, top) within tolerance (default 1 unit). Dedup should happen after char extraction but before word grouping. Implementation approach: sort chars by (x0, top), then linear scan to remove duplicates within tolerance. Add a `dedupe_tolerance: Option<f64>` to extraction options. Check Python source: pdfplumber/utils/text.py for exact algorithm."
     }
   ]

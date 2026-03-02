@@ -128,9 +128,11 @@ fn load_golden(pdf_name: &str) -> GoldenData {
 
 fn open_pdf(pdf_name: &str) -> pdfplumber::Pdf {
     let path = fixtures_dir().join("pdfs").join(pdf_name);
-    // Use UnicodeNorm::None to match golden data generated without normalization.
+    // Match golden data settings: no normalization, no dedup (Python doesn't
+    // dedupe by default either, so golden data contains duplicate chars).
     let opts = pdfplumber::ExtractOptions {
         unicode_norm: pdfplumber::UnicodeNorm::None,
+        dedupe: None,
         ..pdfplumber::ExtractOptions::default()
     };
     pdfplumber::Pdf::open_file(&path, Some(opts))
@@ -716,9 +718,11 @@ fn try_validate_pdf(pdf_path: &str) -> PdfResult {
         }
     };
 
-    // Use UnicodeNorm::None to match golden data generated without normalization.
+    // Match golden data settings: no normalization, no dedup (Python doesn't
+    // dedupe by default either, so golden data contains duplicate chars).
     let opts = pdfplumber::ExtractOptions {
         unicode_norm: pdfplumber::UnicodeNorm::None,
+        dedupe: None,
         ..pdfplumber::ExtractOptions::default()
     };
     let pdf = match pdfplumber::Pdf::open_file(&pdf_file, Some(opts)) {
@@ -1083,10 +1087,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_1114_dedupe,
     "issue-1114-dedupe-chars.pdf",
-    "words 46.2% — duplicate char deduplication gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate_ignored!(
     cv_python_issue_1147,
@@ -1135,15 +1140,17 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_71_dup2,
     "issue-71-duplicate-chars-2.pdf",
-    "chars 37.3% — duplicate char handling gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_71_dup,
     "issue-71-duplicate-chars.pdf",
-    "words 76.8% — duplicate char word grouping gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(cv_python_issue_842, "issue-842-example.pdf", 0.50, 0.05);
 cross_validate!(
