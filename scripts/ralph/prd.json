@@ -34,7 +34,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-parse/src/font_metrics.rs. CFF format: Header → Name INDEX → Top DICT INDEX → String INDEX → Global Subr INDEX → CharStrings INDEX. Width is encoded in the CharString data as the first operand before drawing operators. CFF uses a compact binary encoding. Focus on extracting just the widths, not full outline data. Ref: Adobe Technical Note #5176 (CFF specification). This is complex - implement incrementally and handle parse failures gracefully."
     }
   ]

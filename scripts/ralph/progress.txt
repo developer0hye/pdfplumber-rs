@@ -4,10 +4,13 @@ Started: 2026년  3월  2일 월요일 13시 20분 18초 KST
 
 ## Codebase Patterns
 - TrueType font data is accessed via /FontDescriptor → /FontFile2 stream, decompressed with `stream.decompressed_content()` when Filter is present
-- Font metrics fallback chain: /Widths array → standard font fallback → TrueType hmtx → default width
+- CFF/Type1C font data is accessed via /FontDescriptor → /FontFile3 stream (Subtype=Type1C or CIDFontType0C)
+- Font metrics fallback chain: /Widths array → standard font fallback → TrueType hmtx → CFF CharStrings → default width
 - TrueType binary data is big-endian; use `u16::from_be_bytes()` / `u32::from_be_bytes()` for reading
+- CFF uses DICT encoding: operands (32-254 ranges) precede operators (0-21); INDEX structures for arrays
+- CFF width extraction: parse Top DICT for CharStrings/Private offsets → Private DICT for defaultWidthX/nominalWidthX → CharStrings for per-glyph width
 - Units per em scaling: `raw_width * 1000.0 / units_per_em` converts to PDF glyph space (1/1000 of text space)
-- Tests build synthetic TrueType data using `build_test_truetype_data()` helper for controlled unit tests
+- Tests build synthetic font data using `build_test_truetype_data()` / `build_cff_data_for_test()` helpers
 
 ---
 
@@ -32,4 +35,31 @@ Started: 2026년  3월  2일 월요일 13시 20분 18초 KST
   - The `tag` field in TableRecord was unused after lookup — removed to avoid dead_code warning
   - Rust 2024 edition doesn't allow `ref mut` in implicitly-borrowing pattern matches
   - pdfplumber-py tests fail with dyld libpython3.11 not found — exclude from local testing
+---
+
+## 2026-03-02 - US-205-8
+- What was implemented:
+  - New `cff.rs` module with minimal CFF (Compact Font Format) parsing for glyph width extraction
+  - CFF structures parsed: Header, INDEX, DICT (Top + Private), CharStrings
+  - `parse_cff_widths()` extracts per-glyph widths from Type 2 CharString programs
+  - Width encoding: optional first operand = nominalWidthX + charstring_width, or defaultWidthX if absent
+  - `try_extract_cff_widths()` in font_metrics.rs accesses /FontFile3 streams with Type1C/CIDFontType0C subtype
+  - Fallback chain extended: /Widths → standard fonts → TrueType hmtx → CFF CharStrings → default width
+- Files changed:
+  - `crates/pdfplumber-parse/src/cff.rs` (NEW) — CFF parser module
+  - `crates/pdfplumber-parse/src/font_metrics.rs` — CFF fallback integration + 7 integration tests
+  - `crates/pdfplumber-parse/src/lib.rs` — Module registration
+- Dependencies added: None
+- Test results: 31 CFF unit tests + 6 font_metrics integration tests, all passing
+- Benchmark results:
+  - la-precinct-bulletin-2014-p1.pdf: chars F1=1.000 (unchanged, uses FontFile2/Type1, not CFF)
+  - issue-1279-example.pdf: chars 64.4% → 100.0% (3 Type1C CFF fonts now parsed correctly)
+  - All 29 accuracy benchmarks pass with no regressions
+- **Learnings for future iterations:**
+  - CFF Type 2 CharString width is the first stack operand before the first stack-clearing operator, if the arg count is odd/unexpected
+  - CFF DICT number encoding has 5 formats: 1-byte (32-246), 2-byte positive (247-250), 2-byte negative (251-254), 3-byte (28), 5-byte (29), plus nibble-encoded reals (30)
+  - Operator byte ranges in CharString match overlap carefully; order match arms to avoid unreachable patterns (12, 28 must precede catch-all ranges)
+  - CFF INDEX offsets are 1-based (data starts at offset[0]-1 relative to data start)
+  - la-precinct-bulletin-2014-p1.pdf has FontFile2 (TrueType) + FontFile (Type1 binary), NOT CFF — already perfect before this change
+  - The build_cff_data test helper needs iterative offset fixup since Top DICT size depends on encoded offset values
 ---

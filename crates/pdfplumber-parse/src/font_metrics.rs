@@ -3,6 +3,7 @@
 //! Parses /Widths, /FirstChar, /LastChar, and /FontDescriptor to provide
 //! glyph widths, ascent, and descent for character bounding box calculation.
 
+use crate::cff;
 use crate::error::BackendError;
 use crate::standard_fonts;
 use crate::truetype;
@@ -202,6 +203,26 @@ pub fn extract_font_metrics(
         }
     }
 
+    // CFF/Type1C fallback: when /Widths is absent, try parsing /FontFile3 CFF data
+    if widths.is_empty() {
+        if let Some(cff_widths) = try_extract_cff_widths(doc, font_dict) {
+            let num_glyphs = cff_widths.len();
+            return Ok(FontMetrics::new(
+                cff_widths,
+                0,
+                if num_glyphs > 0 {
+                    (num_glyphs - 1) as u32
+                } else {
+                    0
+                },
+                desc_info.missing_width,
+                desc_info.ascent,
+                desc_info.descent,
+                desc_info.font_bbox,
+            ));
+        }
+    }
+
     Ok(FontMetrics::new(
         widths,
         first_char,
@@ -244,6 +265,53 @@ fn try_extract_truetype_widths(
     let mut widths = Vec::with_capacity(num_glyphs);
     for gid in 0..num_glyphs {
         let w = tt_widths.get_width(gid as u16).unwrap_or(0.0);
+        widths.push(w);
+    }
+
+    Some(widths)
+}
+
+/// Try to extract glyph widths from a CFF /FontFile3 embedded font stream.
+///
+/// Accesses /FontDescriptor → /FontFile3, decompresses the stream, and parses
+/// the CFF data for per-glyph advance widths.
+///
+/// Returns `None` if /FontFile3 is absent, not Type1C, or parsing fails.
+fn try_extract_cff_widths(
+    doc: &lopdf::Document,
+    font_dict: &lopdf::Dictionary,
+) -> Option<Vec<f64>> {
+    let desc_obj = font_dict.get(b"FontDescriptor").ok()?;
+    let desc_obj = resolve_object(doc, desc_obj);
+    let desc = desc_obj.as_dict().ok()?;
+
+    let font_file_obj = desc.get(b"FontFile3").ok()?;
+    let font_file_obj = resolve_object(doc, font_file_obj);
+    let stream = font_file_obj.as_stream().ok()?;
+
+    // Verify subtype is Type1C (CFF)
+    let subtype = stream
+        .dict
+        .get(b"Subtype")
+        .ok()
+        .and_then(|o| o.as_name().ok())
+        .unwrap_or(b"");
+    if subtype != b"Type1C" && subtype != b"CIDFontType0C" {
+        return None;
+    }
+
+    let data = if stream.dict.get(b"Filter").is_ok() {
+        stream.decompressed_content().unwrap_or_default()
+    } else {
+        stream.content.clone()
+    };
+
+    let cff_widths = cff::parse_cff_widths(&data)?;
+
+    let num_glyphs = cff_widths.num_glyphs();
+    let mut widths = Vec::with_capacity(num_glyphs);
+    for gid in 0..num_glyphs {
+        let w = cff_widths.get_width(gid as u16).unwrap_or(0.0);
         widths.push(w);
     }
 
@@ -1207,5 +1275,170 @@ mod tests {
 
         // Should fall back to missing_width since TrueType parse failed
         assert_eq!(metrics.get_width(65), 500.0); // missing_width
+    }
+
+    // ========== US-205-8: CFF /FontFile3 fallback ==========
+
+    /// Helper: build minimal CFF data for testing /FontFile3 integration.
+    fn build_test_cff_data(glyph_widths: &[i32]) -> Vec<u8> {
+        crate::cff::tests::build_cff_data_for_test(0, 0, glyph_widths)
+    }
+
+    /// Helper: add a /FontFile3 stream with Type1C subtype to a font descriptor.
+    fn add_font_file3(doc: &mut Document, font_dict: &mut lopdf::Dictionary, cff_data: Vec<u8>) {
+        let desc_id = if let Ok(obj) = font_dict.get(b"FontDescriptor") {
+            if let lopdf::Object::Reference(id) = obj {
+                *id
+            } else {
+                return;
+            }
+        } else {
+            let desc = dictionary! {
+                "Type" => "FontDescriptor",
+                "FontName" => "TestCFFFont",
+                "Ascent" => Object::Real(750.0),
+                "Descent" => Object::Real(-250.0),
+            };
+            let id = doc.add_object(Object::Dictionary(desc));
+            font_dict.set("FontDescriptor", id);
+            id
+        };
+
+        // Create /FontFile3 stream with Subtype=Type1C
+        let mut stream_dict = lopdf::Dictionary::new();
+        stream_dict.set("Subtype", Object::Name(b"Type1C".to_vec()));
+        let stream = lopdf::Stream::new(stream_dict, cff_data);
+        let ff3_id = doc.add_object(Object::Stream(stream));
+
+        if let Ok(desc_obj) = doc.get_object_mut(desc_id) {
+            if let Object::Dictionary(desc) = desc_obj {
+                desc.set("FontFile3", ff3_id);
+            }
+        }
+    }
+
+    #[test]
+    fn cff_fallback_when_no_widths() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "ABCDEF+CustomCFFFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, Some(500.0), None);
+
+        let cff_data = build_test_cff_data(&[0, 278, 556]);
+        add_font_file3(&mut doc, &mut font_dict, cff_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert!((metrics.get_width(0) - 0.0).abs() < 0.01);
+        assert!((metrics.get_width(1) - 278.0).abs() < 0.01);
+        assert!((metrics.get_width(2) - 556.0).abs() < 0.01);
+        // Out of range falls back to missing_width
+        assert!((metrics.get_width(3) - 500.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn cff_fallback_does_not_override_explicit_widths() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = create_font_dict_with_widths(&mut doc, &[400.0, 600.0], 65, 66);
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, None, None);
+
+        let cff_data = build_test_cff_data(&[0, 278, 556, 722]);
+        add_font_file3(&mut doc, &mut font_dict, cff_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), 400.0);
+        assert_eq!(metrics.get_width(66), 600.0);
+    }
+
+    #[test]
+    fn cff_fallback_standard_font_takes_priority() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        let cff_data = build_test_cff_data(&[999]);
+        add_font_file3(&mut doc, &mut font_dict, cff_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), 667.0); // Helvetica 'A'
+    }
+
+    #[test]
+    fn cff_fallback_preserves_descriptor_values() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "ABCDEF+MyCFF",
+        };
+        add_font_descriptor(
+            &mut doc,
+            &mut font_dict,
+            850.0,
+            -150.0,
+            Some(300.0),
+            Some([-100.0, -200.0, 1100.0, 900.0]),
+        );
+        let cff_data = build_test_cff_data(&[500]);
+        add_font_file3(&mut doc, &mut font_dict, cff_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert!((metrics.ascent() - 850.0).abs() < 1.0);
+        assert!((metrics.descent() - (-150.0)).abs() < 1.0);
+        assert!((metrics.missing_width() - 300.0).abs() < 1.0);
+        assert!(metrics.font_bbox().is_some());
+    }
+
+    #[test]
+    fn cff_fallback_invalid_data_falls_through() {
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "ABCDEF+BrokenCFF",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, Some(500.0), None);
+
+        add_font_file3(&mut doc, &mut font_dict, vec![0xFF; 100]);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert_eq!(metrics.get_width(65), 500.0); // missing_width
+    }
+
+    #[test]
+    fn cff_fallback_truetype_takes_priority_over_cff() {
+        // If both /FontFile2 and /FontFile3 are present, TrueType should be tried first
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ABCDEF+DualFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, Some(500.0), None);
+
+        // Add TrueType data (should win)
+        let tt_data = build_test_truetype_data(1000, &[0, 333, 666]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        // Add CFF data (should not be used)
+        let cff_data = build_test_cff_data(&[0, 999, 999]);
+        add_font_file3(&mut doc, &mut font_dict, cff_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // TrueType widths should be used
+        assert!((metrics.get_width(1) - 333.0).abs() < 0.01);
+        assert!((metrics.get_width(2) - 666.0).abs() < 0.01);
     }
 }
