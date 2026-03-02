@@ -1,7 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  2일 월요일 14시 18분 38초 KST
----
-
 ## Codebase Patterns
 
 - **Arabic CID TrueType already works**: The CID font parsing (cid_font.rs) and ToUnicode CMap resolution (cmap.rs) already handle Arabic Presentation Forms correctly. The Unicode resolution chain in interpreter.rs (line ~1259) correctly resolves CID→Unicode via ToUnicode CMap lookup.
@@ -10,13 +6,6 @@ Started: 2026년  3월  2일 월요일 14시 18분 38초 KST
 
 ---
 
-## 2026-03-02 - US-205-10
-- What was implemented: Enabled the Arabic CID TrueType cross-validation test. The underlying CID→Unicode resolution already works at 100% accuracy for ArabicCIDTrueType.pdf. Changed the test from `cross_validate_ignored!` to `cross_validate!` with standard thresholds.
-- Files changed: `crates/pdfplumber/tests/cross_validation.rs` (1 test declaration updated)
-- Dependencies added: None
-- **Learnings for future iterations:**
-  - The CID font pipeline (ToUnicode CMap → Unicode) already handles Arabic Presentation Forms (U+FE70-U+FEFF) correctly
-  - ArabicCIDTrueType.pdf achieves 100% char accuracy and 100% word accuracy
-  - BidiSample.pdf also achieves 100% with no regression
-  - Some tests are marked as ignored even though the underlying implementation may have been fixed by later PRs
+# Ralph Progress Log - Issue #205 Cat3: Improve CJK vertical writing mode accuracy (2 PDFs)
+Started: 2026년  3월  2일 월요일 14시 30분 23초 KST
 ---

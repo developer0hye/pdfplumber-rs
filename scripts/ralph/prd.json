@@ -1,24 +1,25 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-205-arabic",
-  "description": "Issue #205 Cat 7: Arabic CID TrueType font support",
+  "branchName": "ralph/issue-205-vertical",
+  "description": "Issue #205 Cat 3: Improve CJK vertical writing mode accuracy",
   "relatedIssue": 205,
   "userStories": [
     {
-      "id": "US-205-10",
-      "title": "Support Arabic CID TrueType font character extraction",
-      "description": "pdfjs/ArabicCIDTrueType.pdf contains Arabic text using a CID-based TrueType font. Character extraction fails at 0% because the font uses Arabic Presentation Forms (U+FE70-U+FEFF) and requires proper CID→Unicode resolution for Arabic glyphs. The existing BiDi support (issue #185) handles text reordering but not CID-based Arabic font glyph resolution.",
+      "id": "US-205-11",
+      "title": "Improve CJK vertical writing accuracy with better CID→Unicode and vmtx parsing",
+      "description": "pdfjs/vertical.pdf (~61% chars) and pdfbox/pdfbox-3127-vfont-reduced.pdf (~13% chars) pass their current thresholds but are far from 100%. The remaining accuracy gaps come from: 1) Missing CID→Unicode mappings for vertical glyphs, 2) Missing TrueType vmtx (vertical metrics) table parsing for precise vertical positioning.",
       "acceptanceCriteria": [
-        "pdfjs/ArabicCIDTrueType.pdf chars improve from 0% to >=50%",
-        "Arabic Presentation Forms (U+FE70-U+FEFF) are handled in ToUnicode mapping",
-        "CID→Unicode resolution works for Arabic CID TrueType fonts",
-        "No regression on existing BiDi/Arabic PDFs (BidiSample.pdf stays at 100%)",
+        "pdfjs/vertical.pdf chars improve from ~61% to >=80%",
+        "pdfbox/pdfbox-3127-vfont-reduced.pdf chars improve from ~13% to >=30%",
+        "TrueType vmtx table is parsed for vertical advance/origin metrics",
+        "Vertical CID→Unicode mappings use improved CID tables (from US-205-1)",
+        "No regression on horizontal CJK PDFs (cjk_mixed.pdf stays at F1=1.0)",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": true,
-      "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/cmap.rs. ArabicCIDTrueType.pdf likely has a TrueType font with CID-keyed glyph access and a ToUnicode CMap that maps to Arabic Presentation Forms. The challenge is: 1) Correctly parsing the CIDToGIDMap (maps CIDs to TrueType glyph IDs), 2) Using ToUnicode CMap for Unicode resolution, 3) Handling Arabic contextual forms. Note: full glyph shaping (HarfBuzz-like) is NOT required - just correct Unicode character extraction from the existing CID→Unicode path."
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs (W2/DW2), crates/pdfplumber-parse/src/interpreter.rs. This story depends on US-205-1 (CID tables) for better CID→Unicode resolution. TrueType vmtx table format: vMetrics[numOfLongVerMetrics] with (u16 advanceHeight, i16 topSideBearing), then i16 topSideBearing entries. Need 'vhea' table for numOfLongVerMetrics. vmtx is optional in TrueType - only parse if present. For CIDFonts, W2 and DW2 arrays should take precedence over vmtx when available."
     }
   ]
 }
