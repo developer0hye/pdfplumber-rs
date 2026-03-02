@@ -663,8 +663,16 @@ fn accuracy_rotated_pages() {
     print_text_summary("rotated_pages.pdf", &cf1, &wf1);
     // Measured: chars F1=1.000, words F1=1.000
     // Rotation coordinate transforms now match Python pdfplumber golden data.
-    assert!(cf1.f1 >= 0.80, "rotated_pages chars F1 {:.3} < 0.80", cf1.f1);
-    assert!(wf1.f1 >= 0.80, "rotated_pages words F1 {:.3} < 0.80", wf1.f1);
+    assert!(
+        cf1.f1 >= 0.80,
+        "rotated_pages chars F1 {:.3} < 0.80",
+        cf1.f1
+    );
+    assert!(
+        wf1.f1 >= 0.80,
+        "rotated_pages words F1 {:.3} < 0.80",
+        wf1.f1
+    );
 }
 
 #[test]
