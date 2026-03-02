@@ -29,6 +29,6 @@
 
 ---
 
-# Ralph Progress Log - Issue #188: CJK vertical writing mode support
-Started: 2026년  3월  2일 월요일 03시 19분 10초 KST
+# Ralph Progress Log - Issue #205 Cat1+2: CID→Unicode fallback tables and encoding decoders (11 PDFs)
+Started: 2026년  3월  2일 월요일 11시 16분 41초 KST
 ---

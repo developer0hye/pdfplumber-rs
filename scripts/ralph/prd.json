@@ -1,25 +1,63 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-188-cjk-vertical",
-  "description": "Issue #188: CJK vertical writing mode support",
-  "relatedIssue": 188,
+  "branchName": "ralph/issue-205-cid-tables",
+  "description": "Issue #205 Cat 1+2: CID→Unicode fallback tables and encoding decoders",
+  "relatedIssue": 205,
   "userStories": [
     {
-      "id": "US-188-1",
-      "title": "Detect and handle WMode=1 (vertical writing)",
-      "description": "CJK fonts can use vertical writing mode (WMode=1) where text advances vertically instead of horizontally. Detect WMode from CMap or font dictionary and apply vertical glyph metrics (W2/DW2) for text positioning.",
+      "id": "US-205-1",
+      "title": "Implement Adobe-GB1, Adobe-CNS1, Adobe-Korea1 CID→Unicode tables",
+      "description": "Currently only Adobe-Japan1 CID→Unicode mapping is implemented. Add built-in CID→Unicode fallback tables for the remaining three Adobe CJK systems (Simplified Chinese, Traditional Chinese, Korean). These tables are needed when a CIDFont has no ToUnicode CMap or its ToUnicode only partially covers glyphs.",
       "acceptanceCriteria": [
-        "WMode is detected from CMap streams and font dictionaries",
-        "Vertical writing mode uses W2/DW2 metrics for vertical advance",
-        "pdfjs/vertical.pdf chars > 30% (currently 0%)",
-        "pdfbox/pdfbox-3127-vfont-reduced.pdf chars > 10% (currently 0.3%)",
-        "No regression on horizontal-mode CJK PDFs (cjk_mixed.pdf stays at F1=1.0)",
+        "Adobe-GB1 (Simplified Chinese) CID→Unicode table is bundled and functional",
+        "Adobe-CNS1 (Traditional Chinese) CID→Unicode table is bundled and functional",
+        "Adobe-Korea1 (Korean) CID→Unicode table is bundled and functional",
+        "issue-842-example.pdf chars improve from 2.3% toward >=50%",
+        "issue-987-test.pdf chars improve from 50% toward >=80%",
+        "No regression on existing Adobe-Japan1 CJK PDFs",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": false,
-      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (font setup and text positioning). WMode is found in: 1) CMap definition ('usecmap' or '/WMode' key), 2) Font dictionary /DescendantFonts CIDFont /CIDSystemInfo, 3) Predefined CMap name suffix (-V = vertical, -H = horizontal). W2 array format similar to W but with [cid [w1y v1x v1y ...]] for vertical metrics. DW2 default: [880 -1000]. Depends on #183 (CIDFont support) and #181 (per-char direction)."
+      "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/cmap.rs. Adobe CMap resources are open source: https://github.com/niceferrari/adobe-cmap. The existing Adobe-Japan1 implementation in cid_font.rs can be used as a template. Consider embedding CID→Unicode data as static arrays or include_bytes! for efficiency. The tables map CID numbers to Unicode code points."
+    },
+    {
+      "id": "US-205-2",
+      "title": "Add encoding decoders for EUC-JP, Shift-JIS, and JIS7",
+      "description": "Legacy CJK PDFs use byte-sequence encodings (EUC-JP, Shift-JIS, JIS7/ISO-2022-JP) without ToUnicode CMaps. When a CIDFont references these encodings by CMap name (e.g., 90ms-RKSJ-H for Shift-JIS, EUC-H for EUC-JP), implement byte-to-Unicode decoders as fallback.",
+      "acceptanceCriteria": [
+        "EUC-JP encoded CJK byte sequences are decoded to Unicode",
+        "Shift-JIS (SJIS) encoded CJK byte sequences are decoded to Unicode",
+        "JIS7 (ISO-2022-JP) variable-length byte sequences are decoded to Unicode",
+        "pdfjs/noembed-eucjp.pdf chars improve from 0% toward >=50%",
+        "pdfjs/noembed-sjis.pdf chars improve from 0% toward >=50%",
+        "pdfjs/noembed-jis7.pdf chars improve from 58.3% toward >=80%",
+        "No regression on ToUnicode-based CIDFont PDFs",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/interpreter.rs. Encoding detection: CMap name suffix indicates encoding (e.g., 90ms-RKSJ-H → Shift-JIS, EUC-H → EUC-JP). Implement decoders in pure Rust - do NOT add external encoding crates. Shift-JIS: lead byte 0x81-0x9F/0xE0-0xEF + trail byte 0x40-0x7E/0x80-0xFC. EUC-JP: lead byte 0xA1-0xFE + trail byte 0xA1-0xFE. JIS7: uses ESC sequences to switch between ASCII and JIS X 0208."
+    },
+    {
+      "id": "US-205-3",
+      "title": "Fix Identity-H/V CID fallback and partial ToUnicode handling",
+      "description": "Identity-H/Identity-V encoded CIDFonts sometimes have partial or malformed ToUnicode CMaps. The current parser only handles full-range Identity mappings (<0000> <FFFF>). Implement intelligent fallback: use embedded ToUnicode for mapped CIDs and direct CID→Unicode for unmapped ones (treating CID as Unicode codepoint for Identity encoding).",
+      "acceptanceCriteria": [
+        "pdfjs/noembed-identity.pdf chars improve from 58.3% toward >=80%",
+        "pdfjs/noembed-identity-2.pdf chars improve from 0% toward >=50%",
+        "Partial ToUnicode CMaps are used for mapped CIDs with Identity fallback for unmapped CIDs",
+        "issue-192-example.pdf chars improve from 0.9% toward >=50%",
+        "extra-attrs-example.pdf chars improve from 0% toward >=30%",
+        "No regression on existing Identity-H PDFs",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/cmap.rs, crates/pdfplumber-parse/src/cid_font.rs. For Identity-H encoding, CID values often directly correspond to Unicode codepoints. When ToUnicode is partial, use it for mapped ranges and fall back to CID=Unicode for unmapped ranges. Also handle la-precinct-bulletin-2014-p1.pdf (Type1C/CFF font) and malformed-from-issue-932.pdf (malformed operators) - these may need CFF font parsing and better content stream error recovery respectively."
     }
   ]
 }
