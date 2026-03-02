@@ -1,24 +1,37 @@
 # Ralph Progress Log
-Started: 2026년  3월  2일 월요일 12시 15분 56초 KST
+Started: 2026년  3월  2일 월요일 12시 37분 20초 KST
 
 ## Codebase Patterns
-- `ExtractOptions` in `pdfplumber-core/src/error.rs` controls pipeline behavior. Add new options there and apply in `Pdf::page()` in `pdfplumber/src/pdf.rs`.
-- Cross-validation golden data is generated from Python pdfplumber without normalization or dedup. When comparing, disable features Python doesn't apply by default.
-- `Page::from_extraction()` is the internal constructor — dedup/normalization happen in `Pdf::page()` before calling it.
+
+### Word grouping direction handling
+- WordExtractor merges horizontal (Ltr + Rtl) and vertical (Ttb + Btt) chars separately
+- Horizontal chars always use spatial LTR sorting (ascending x0) matching Python pdfplumber
+- Vertical chars always use spatial TTB sorting (ascending top) matching Python pdfplumber
+- Per-char direction from TRM determines horizontal vs vertical grouping, NOT reading order
+- Python pdfplumber separates by `upright` flag: upright=true → horizontal, upright=false → vertical
+
+### Rotation and direction mapping
+- 0° rotation: direction=Ltr, upright=true
+- 90° rotation: direction=Ttb (|b|>|a|, b<0), upright=false
+- 180° rotation: direction=Rtl (a<0), upright=true
+- 270° rotation: direction=Btt (|b|>|a|, b>0), upright=false
+- Direction determined in char_extraction.rs from Text Rendering Matrix (TRM)
+
 ---
 
-## 2026-03-02 - US-205-4
-- **What was implemented:** Character deduplication enabled by default in the extraction pipeline. Added `dedupe: Option<DedupeOptions>` field to `ExtractOptions` (default: `Some(DedupeOptions::default())`). Applied dedup in `Pdf::page()` after BiDi + normalization. Updated cross-validation tests to disable dedup (matching Python golden data behavior). Un-ignored 3 dedup-related cross-validation tests.
-- **Files changed:**
-  - `crates/pdfplumber-core/src/error.rs` — Added `dedupe` field to `ExtractOptions`
-  - `crates/pdfplumber/src/pdf.rs` — Added `dedupe_chars` import and dedup step in `Pdf::page()`
-  - `crates/pdfplumber/tests/pdf_integration.rs` — Updated dedupe tests for auto-dedup behavior
-  - `crates/pdfplumber/tests/cross_validation.rs` — Disabled dedup in test harness, un-ignored 3 tests
-  - `crates/pdfplumber/tests/real_world_integration.rs` — Updated overlapping text tests
-  - `scripts/ralph/prd.json` — Set passes: true
-- **Dependencies added:** None
+## 2026-03-02 - US-205-5
+- What was implemented: Fixed word grouping for 180° and 270° rotated text by merging Rtl with Ltr (horizontal) and Btt with Ttb (vertical) in WordExtractor::extract(). Previously, each per-char direction was partitioned separately, causing Rtl chars to be reverse-sorted and Btt chars to be bottom-to-top sorted, producing reading-order text instead of spatial-order text matching Python pdfplumber.
+- Files changed:
+  - crates/pdfplumber-core/src/words.rs (WordExtractor::extract, tests)
+  - crates/pdfplumber/tests/accuracy_benchmark.rs (added rotated PDF benchmarks)
+  - crates/pdfplumber/tests/fixture_integration.rs (updated 180° text check)
+  - crates/pdfplumber/tests/rotation_integration.rs (updated rotation tests)
+  - crates/pdfplumber/tests/rotation_table_integration.rs (updated 180° table tests)
+- Dependencies added: none
 - **Learnings for future iterations:**
-  - The `dedupe_chars` function and `DedupeOptions` already existed in `pdfplumber-core/src/dedupe.rs` with comprehensive unit tests.
-  - Cross-validation golden data from Python does NOT have dedup applied. Enabling dedup by default causes score drops for PDFs with duplicates (e.g., issue-842: 430→115 chars). Solution: disable dedup in the cross-validation harness.
-  - The acceptance criteria scores (76.8%, 37.3%, 46.2%) were outdated — earlier extraction bugs had been fixed in prior PRs, bringing scores to 100% before this change.
+  - Python pdfplumber uses `upright` flag to partition chars, NOT per-char direction
+  - 180° rotated text in Python appears reversed (e.g., "Dummy" → "ymmuD") — this is expected
+  - The word F1 matching uses text AND bbox center distance — both must match
+  - annotations-rotated-180.pdf and annotations-rotated-270.pdf are crate-level fixtures (use benchmark_pdf_crate)
+  - pdfplumber-py tests fail with libpython3.11 not found — pre-existing environment issue
 ---

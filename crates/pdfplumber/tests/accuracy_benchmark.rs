@@ -966,6 +966,60 @@ fn accuracy_issue_461_example() {
 }
 
 // ---------------------------------------------------------------------------
+// Rotated page annotation tests (US-205-5)
+//
+// PDFs with page-level rotation (180° and 270°). Word grouping must respect
+// per-char TextDirection for correct grouping matching Python pdfplumber.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_annotations_rotated_180() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "annotations-rotated-180.pdf",
+        "annotations-rotated-180",
+    )
+    .expect("annotations-rotated-180.pdf should parse");
+    print_text_summary("annotations-rotated-180.pdf", &cf1, &wf1);
+    // US-205-5: Word grouping for 180° rotated text
+    assert!(
+        wf1.f1 >= 0.80,
+        "annotations-rotated-180 words F1 {:.3} < 0.80",
+        wf1.f1
+    );
+}
+
+#[test]
+fn accuracy_annotations_rotated_270() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "annotations-rotated-270.pdf",
+        "annotations-rotated-270",
+    )
+    .expect("annotations-rotated-270.pdf should parse");
+    print_text_summary("annotations-rotated-270.pdf", &cf1, &wf1);
+    // US-205-5: Word grouping for 270° rotated text
+    assert!(
+        wf1.f1 >= 0.80,
+        "annotations-rotated-270 words F1 {:.3} < 0.80",
+        wf1.f1
+    );
+}
+
+#[test]
+fn accuracy_issue_1147_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-1147-example.pdf", "issue-1147-example")
+        .expect("issue-1147-example.pdf should parse");
+    print_text_summary("issue-1147-example.pdf", &cf1, &wf1);
+    // US-205-5: Improved word grouping
+    assert!(
+        wf1.f1 >= 0.60,
+        "issue-1147-example words F1 {:.3} < 0.60",
+        wf1.f1
+    );
+}
+
+// ---------------------------------------------------------------------------
 // CJK vertical writing mode tests (Issue #188)
 // ---------------------------------------------------------------------------
 

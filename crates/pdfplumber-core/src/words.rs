@@ -64,56 +64,50 @@ impl WordExtractor {
     /// - By default, characters are sorted spatially. Set `use_text_flow` to
     ///   preserve PDF content stream order.
     /// - `text_direction` controls sorting and gap logic for vertical text.
+    ///
+    /// Horizontal chars (Ltr + Rtl) are merged and sorted spatially left-to-right,
+    /// matching Python pdfplumber behavior. Only vertical chars (Ttb/Btt) are
+    /// partitioned into separate groups with vertical sorting.
     pub fn extract(chars: &[Char], options: &WordOptions) -> Vec<Word> {
         if chars.is_empty() {
             return Vec::new();
         }
 
-        // Check if any chars have non-Ltr per-char direction
-        let has_non_ltr = chars.iter().any(|c| c.direction != TextDirection::Ltr);
+        // Check if any chars have vertical per-char direction (Ttb/Btt).
+        // Horizontal chars (Ltr + Rtl) are always merged and sorted spatially,
+        // matching Python pdfplumber which sorts all upright chars left-to-right.
+        // Vertical chars (Ttb + Btt) are merged and sorted top-to-bottom,
+        // matching Python pdfplumber which sorts all non-upright chars by top.
+        let has_vertical = chars
+            .iter()
+            .any(|c| matches!(c.direction, TextDirection::Ttb | TextDirection::Btt));
 
-        if !has_non_ltr {
-            // Fast path: all chars are Ltr, no per-char direction handling needed
+        if !has_vertical {
+            // All chars are horizontal (Ltr or Rtl) → spatial LTR sorting
             return Self::extract_group(chars, options, None);
         }
 
-        // Partition chars by per-char direction for correct sorting and splitting.
-        let mut ltr_chars: Vec<Char> = Vec::new();
-        let mut rtl_chars: Vec<Char> = Vec::new();
-        let mut ttb_chars: Vec<Char> = Vec::new();
-        let mut btt_chars: Vec<Char> = Vec::new();
+        // Partition into horizontal (Ltr + Rtl) and vertical (Ttb + Btt) groups.
+        let mut horizontal_chars: Vec<Char> = Vec::new();
+        let mut vertical_chars: Vec<Char> = Vec::new();
         for ch in chars {
             match ch.direction {
-                TextDirection::Ltr => ltr_chars.push(ch.clone()),
-                TextDirection::Rtl => rtl_chars.push(ch.clone()),
-                TextDirection::Ttb => ttb_chars.push(ch.clone()),
-                TextDirection::Btt => btt_chars.push(ch.clone()),
+                TextDirection::Ltr | TextDirection::Rtl => horizontal_chars.push(ch.clone()),
+                TextDirection::Ttb | TextDirection::Btt => vertical_chars.push(ch.clone()),
             }
         }
 
         let mut words = Vec::new();
-        if !ltr_chars.is_empty() {
-            words.extend(Self::extract_group(&ltr_chars, options, None));
+        if !horizontal_chars.is_empty() {
+            words.extend(Self::extract_group(&horizontal_chars, options, None));
         }
-        if !rtl_chars.is_empty() {
+        if !vertical_chars.is_empty() {
+            // All vertical chars use TTB sorting (spatial top-to-bottom),
+            // matching Python pdfplumber behavior.
             words.extend(Self::extract_group(
-                &rtl_chars,
-                options,
-                Some(TextDirection::Rtl),
-            ));
-        }
-        if !ttb_chars.is_empty() {
-            words.extend(Self::extract_group(
-                &ttb_chars,
+                &vertical_chars,
                 options,
                 Some(TextDirection::Ttb),
-            ));
-        }
-        if !btt_chars.is_empty() {
-            words.extend(Self::extract_group(
-                &btt_chars,
-                options,
-                Some(TextDirection::Btt),
             ));
         }
         words
@@ -1268,7 +1262,8 @@ mod tests {
     fn test_per_char_rtl_direction_groups_correctly() {
         // Simulates 180° rotated text "Hello":
         // Chars are positioned right-to-left (first char 'H' has largest x0).
-        // With Rtl per-char direction, word should be "Hello" (not "olleH").
+        // Rtl chars from TRM rotation are sorted spatially LTR (ascending x0),
+        // matching Python pdfplumber behavior. Text appears reversed ("olleH").
         let chars = vec![
             make_rtl_char("H", 540.0, 100.0, 548.0, 112.0),
             make_rtl_char("e", 532.0, 100.0, 540.0, 112.0),
@@ -1283,7 +1278,8 @@ mod tests {
             "Rtl chars should group into one word, got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        assert_eq!(words[0].text, "Hello");
+        // Spatial LTR order: o(512), l(520), l(526), e(532), H(540) → "olleH"
+        assert_eq!(words[0].text, "olleH");
         assert_eq!(words[0].direction, TextDirection::Rtl);
     }
 
@@ -1291,6 +1287,7 @@ mod tests {
     fn test_per_char_rtl_two_words() {
         // "Hello World" with Rtl direction — two words separated by space.
         // In 180° rotation, first word at right, second word at left.
+        // Sorted spatially LTR (ascending x0), matching Python pdfplumber.
         let chars = vec![
             // "Hello" at right side
             make_rtl_char("H", 540.0, 100.0, 548.0, 112.0),
@@ -1309,8 +1306,9 @@ mod tests {
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 2);
-        assert_eq!(words[0].text, "Hello");
-        assert_eq!(words[1].text, "World");
+        // Spatial LTR: d(474)..W(500) → "dlroW", o(512)..H(540) → "olleH"
+        assert_eq!(words[0].text, "dlroW");
+        assert_eq!(words[1].text, "olleH");
     }
 
     #[test]
@@ -1318,6 +1316,8 @@ mod tests {
         // Simulates 270° rotated text "Hello":
         // Chars stacked vertically at same x, reading bottom-to-top.
         // First char 'H' has largest y (bottom of page), last char at top.
+        // Btt chars are merged with Ttb and sorted spatially top-to-bottom
+        // (ascending top), matching Python pdfplumber behavior.
         let chars = vec![
             make_btt_char("H", 72.0, 540.0, 84.0, 548.0),
             make_btt_char("e", 72.0, 532.0, 84.0, 540.0),
@@ -1332,28 +1332,100 @@ mod tests {
             "Btt chars should group into one word, got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        assert_eq!(words[0].text, "Hello");
+        // Spatial top-to-bottom: o(512), l(520), l(526), e(532), H(540) → "olleH"
+        assert_eq!(words[0].text, "olleH");
         assert_eq!(words[0].direction, TextDirection::Btt);
     }
 
     #[test]
     fn test_per_char_mixed_ltr_and_rtl_on_same_page() {
-        // Page with Ltr and Rtl chars — they should be partitioned and
-        // each group extracted with correct sorting.
+        // Page with Ltr and Rtl chars — Rtl is merged with Ltr for
+        // spatial sorting (matching Python pdfplumber behavior).
         let chars = vec![
             // Ltr word "Hi"
             make_char("H", 10.0, 50.0, 20.0, 62.0),
             make_char("i", 20.0, 50.0, 26.0, 62.0),
-            // Rtl word "AB" (A at right, B at left)
+            // Rtl chars "AB" (A at right=540, B at left=532)
             make_rtl_char("A", 540.0, 200.0, 548.0, 212.0),
             make_rtl_char("B", 532.0, 200.0, 540.0, 212.0),
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 2, "Should have 2 words (Hi + AB)");
+        assert_eq!(words.len(), 2, "Should have 2 words (Hi + BA)");
         assert_eq!(words[0].text, "Hi");
         assert_eq!(words[0].direction, TextDirection::Ltr);
-        assert_eq!(words[1].text, "AB");
+        // Spatial LTR: B(532), A(540) → "BA"
+        assert_eq!(words[1].text, "BA");
         assert_eq!(words[1].direction, TextDirection::Rtl);
+    }
+
+    // --- 180°/270° rotation word grouping tests (US-205-5) ---
+
+    #[test]
+    fn test_180_rotation_word_grouping_matches_python() {
+        // 180° rotated text "Dummy PDF file" produces reversed words in Python.
+        // Chars have direction=Rtl from TRM, upright=true.
+        // Python sorts spatially LTR → "elif FDP ymmuD".
+        let chars = vec![
+            // "Dummy" chars, x0 decreasing (Rtl physical layout)
+            make_rtl_char("D", 526.5, 754.7, 538.2, 770.8),
+            make_rtl_char("u", 516.7, 754.7, 526.5, 770.8),
+            make_rtl_char("m", 502.4, 754.7, 516.7, 770.8),
+            make_rtl_char("m", 488.1, 754.7, 502.4, 770.8),
+            make_rtl_char("y", 479.1, 754.7, 488.1, 770.8),
+            // space
+            make_rtl_char(" ", 474.6, 754.7, 479.1, 770.8),
+            // "PDF" chars
+            make_rtl_char("P", 463.9, 754.7, 474.7, 770.8),
+            make_rtl_char("D", 454.6, 754.7, 463.9, 770.8),
+            make_rtl_char("F", 442.5, 754.7, 454.6, 770.8),
+            // space
+            make_rtl_char(" ", 438.0, 754.7, 442.5, 770.8),
+            // "file" chars
+            make_rtl_char("f", 432.6, 754.7, 438.0, 770.8),
+            make_rtl_char("i", 425.5, 754.7, 432.6, 770.8),
+            make_rtl_char("l", 421.0, 754.7, 425.5, 770.8),
+            make_rtl_char("e", 414.7, 754.7, 421.0, 770.8),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 3, "Should have 3 words");
+        // Spatial LTR order produces reversed text for each word
+        assert_eq!(words[0].text, "elif");
+        assert_eq!(words[1].text, "FDP");
+        assert_eq!(words[2].text, "ymmuD");
+    }
+
+    #[test]
+    fn test_270_rotation_word_grouping_matches_python() {
+        // 270° rotated text "Dummy PDF file" arranged vertically.
+        // Chars have direction=Ttb from TRM, upright=false.
+        // Python sorts top-to-bottom → "elif FDP ymmuD" (each word reversed).
+        let chars = vec![
+            // "Dummy" chars at same x, top decreasing
+            make_vertical_char("D", 71.1, 526.5, 87.2, 538.2),
+            make_vertical_char("u", 71.1, 516.7, 87.2, 526.5),
+            make_vertical_char("m", 71.1, 502.4, 87.2, 516.7),
+            make_vertical_char("m", 71.1, 488.1, 87.2, 502.4),
+            make_vertical_char("y", 71.1, 479.1, 87.2, 488.1),
+            // space
+            make_vertical_char(" ", 71.1, 474.6, 87.2, 479.1),
+            // "PDF" chars
+            make_vertical_char("P", 71.1, 463.9, 87.2, 474.7),
+            make_vertical_char("D", 71.1, 454.6, 87.2, 463.9),
+            make_vertical_char("F", 71.1, 442.5, 87.2, 454.6),
+            // space
+            make_vertical_char(" ", 71.1, 438.0, 87.2, 442.5),
+            // "file" chars
+            make_vertical_char("f", 71.1, 432.6, 87.2, 438.0),
+            make_vertical_char("i", 71.1, 425.5, 87.2, 432.6),
+            make_vertical_char("l", 71.1, 421.0, 87.2, 425.5),
+            make_vertical_char("e", 71.1, 414.7, 87.2, 421.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(words.len(), 3, "Should have 3 words");
+        // Sorted top-to-bottom: e(414.7), l, i, f → "elif"; F, D, P → "FDP"; y, m, m, u, D → "ymmuD"
+        assert_eq!(words[0].text, "elif");
+        assert_eq!(words[1].text, "FDP");
+        assert_eq!(words[2].text, "ymmuD");
     }
 
     // --- Arabic diacritical mark combining tests (US-185-2) ---

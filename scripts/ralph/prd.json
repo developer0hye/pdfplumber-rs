@@ -1,26 +1,41 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-205-dedup",
-  "description": "Issue #205 Cat 5: Character deduplication for overlapping glyphs",
+  "branchName": "ralph/issue-205-rotation",
+  "description": "Issue #205 Cat 6: Fix word grouping and coordinate transforms for rotated text",
   "relatedIssue": 205,
   "userStories": [
     {
-      "id": "US-205-4",
-      "title": "Implement character deduplication",
-      "description": "Python pdfplumber deduplicates characters at nearly identical positions (overlapping glyphs from form fields, copy-paste artifacts, or shadow/embossed effects). pdfplumber-rs extracts all glyphs independently without deduplication. Implement a char deduplication step that removes duplicate chars before word grouping, matching Python's behavior.",
+      "id": "US-205-5",
+      "title": "Fix word grouping for 180 and 270 degree rotated text",
+      "description": "Several PDFs have chars at 100% but words at 0% due to incorrect word grouping on rotated text. The current WordExtractor uses spatial sorting (left-to-right, top-to-bottom) which breaks for 180° and 270° rotated content. Implement rotation-aware word grouping that uses per-char TextDirection to determine sort order and adjacency.",
       "acceptanceCriteria": [
-        "Chars with same text and (x0, top) within tolerance (~1.0 pt) are deduplicated",
-        "issue-71-duplicate-chars.pdf words improve from 76.8% to >=90%",
-        "issue-71-duplicate-chars-2.pdf chars improve from 37.3% to >=70%",
-        "issue-1114-dedupe-chars.pdf words improve from 46.2% to >=70%",
-        "Deduplication is configurable (enabled by default, can be disabled)",
-        "No regression on PDFs without duplicate chars",
+        "annotations-rotated-180.pdf words improve from 0% to >=80%",
+        "annotations-rotated-270.pdf words improve from 0% to >=80%",
+        "issue-1147-example.pdf words improve from 36.2% to >=60%",
+        "Word grouping respects per-char TextDirection for sort order",
+        "No regression on horizontal text word grouping",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key files: crates/pdfplumber-core/src/text.rs, crates/pdfplumber/src/page.rs. Python pdfplumber's dedupe logic: chars are duplicates if same text content and (x0, top) within tolerance (default 1 unit). Dedup should happen after char extraction but before word grouping. Implementation approach: sort chars by (x0, top), then linear scan to remove duplicates within tolerance. Add a `dedupe_tolerance: Option<f64>` to extraction options. Check Python source: pdfplumber/utils/text.py for exact algorithm."
+      "notes": "Key files: crates/pdfplumber-core/src/words.rs (WordExtractor), crates/pdfplumber-core/src/text.rs (TextDirection). For 180° rotation, chars advance right-to-left and bottom-to-top. For 270° rotation, chars advance bottom-to-top. The WordExtractor should group chars by TextDirection and apply appropriate sort order for each direction. Python pdfplumber handles this via text_direction parameter in word extraction. Check how per-char direction (issue #181) interacts with word grouping."
+    },
+    {
+      "id": "US-205-6",
+      "title": "Fix page-level rotation CTM coordinate transforms",
+      "description": "rotated_pages.pdf (benchmark) has F1=0.241 for chars because page-level /Rotate values are not correctly composed into the CTM transformation matrix. The coordinate transform should map rotated PDF coordinates back to the canonical top-left origin coordinate system.",
+      "acceptanceCriteria": [
+        "rotated_pages.pdf (benchmark) chars F1 improves from 0.241 to >=0.80",
+        "Page /Rotate values (90, 180, 270) are correctly applied to CTM",
+        "Rotated page coordinates match Python pdfplumber golden data",
+        "No regression on non-rotated pages",
+        "cargo test --workspace passes",
+        "cargo clippy --workspace -- -D warnings passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (CTM), crates/pdfplumber/src/page.rs. The /Rotate value in the page dictionary should pre-multiply the initial CTM before interpreting content streams. Rotation angles: 90° = [0 1 -1 0 w 0], 180° = [-1 0 0 -1 w h], 270° = [0 -1 1 0 0 h] where w/h are page dimensions. Compare Rust char coordinates vs Python golden data for rotated_pages.pdf to identify the exact transform error."
     }
   ]
 }
