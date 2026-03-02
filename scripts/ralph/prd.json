@@ -1,26 +1,24 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-205-parse-errors",
-  "description": "Issue #205 Cat 8: Improve content stream error recovery for malformed PDFs",
+  "branchName": "ralph/issue-205-arabic",
+  "description": "Issue #205 Cat 7: Arabic CID TrueType font support",
   "relatedIssue": 205,
   "userStories": [
     {
-      "id": "US-205-9",
-      "title": "Implement graceful content stream error recovery",
-      "description": "issue-1181.pdf and issue-848.pdf fail with content stream parsing errors. The current parser aborts on malformed operators instead of recovering. Implement graceful degradation: skip malformed tokens/operators and continue extracting what can be parsed, rather than failing the entire page.",
+      "id": "US-205-10",
+      "title": "Support Arabic CID TrueType font character extraction",
+      "description": "pdfjs/ArabicCIDTrueType.pdf contains Arabic text using a CID-based TrueType font. Character extraction fails at 0% because the font uses Arabic Presentation Forms (U+FE70-U+FEFF) and requires proper CID→Unicode resolution for Arabic glyphs. The existing BiDi support (issue #185) handles text reordering but not CID-based Arabic font glyph resolution.",
       "acceptanceCriteria": [
-        "issue-1181.pdf no longer produces a parse error; extracts available chars",
-        "issue-848.pdf no longer produces a parse error; extracts available chars",
-        "malformed-from-issue-932.pdf chars improve from 0% toward >=30%",
-        "Content stream parser skips malformed operators and continues",
-        "A warning/diagnostic is emitted for skipped operators (via tracing)",
-        "No regression on well-formed PDFs",
+        "pdfjs/ArabicCIDTrueType.pdf chars improve from 0% to >=50%",
+        "Arabic Presentation Forms (U+FE70-U+FEFF) are handled in ToUnicode mapping",
+        "CID→Unicode resolution works for Arabic CID TrueType fonts",
+        "No regression on existing BiDi/Arabic PDFs (BidiSample.pdf stays at 100%)",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (content stream execution), crates/pdfplumber-parse/src/content_stream.rs (tokenization). The parser should catch errors at the operator level and skip to the next recognizable operator. Common malformed patterns: unexpected '<<' in content stream, invalid operand types, unknown operators, truncated streams. Implement a try-recover loop: try parsing next operator, on error skip bytes until next recognizable operator token. Python pdfplumber (via pdfminer) handles this by silently ignoring unknown operators."
+      "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/cmap.rs. ArabicCIDTrueType.pdf likely has a TrueType font with CID-keyed glyph access and a ToUnicode CMap that maps to Arabic Presentation Forms. The challenge is: 1) Correctly parsing the CIDToGIDMap (maps CIDs to TrueType glyph IDs), 2) Using ToUnicode CMap for Unicode resolution, 3) Handling Arabic contextual forms. Note: full glyph shaping (HarfBuzz-like) is NOT required - just correct Unicode character extraction from the existing CID→Unicode path."
     }
   ]
 }
