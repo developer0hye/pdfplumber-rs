@@ -5,6 +5,7 @@
 
 use crate::error::BackendError;
 use crate::standard_fonts;
+use crate::truetype;
 
 /// Default ascent when not specified (750/1000 of text space).
 const DEFAULT_ASCENT: f64 = 750.0;
@@ -181,6 +182,26 @@ pub fn extract_font_metrics(
         }
     }
 
+    // TrueType fallback: when /Widths is absent, try parsing /FontFile2 hmtx table
+    if widths.is_empty() {
+        if let Some(tt_widths) = try_extract_truetype_widths(doc, font_dict) {
+            let num_glyphs = tt_widths.len();
+            return Ok(FontMetrics::new(
+                tt_widths,
+                0,
+                if num_glyphs > 0 {
+                    (num_glyphs - 1) as u32
+                } else {
+                    0
+                },
+                desc_info.missing_width,
+                desc_info.ascent,
+                desc_info.descent,
+                desc_info.font_bbox,
+            ));
+        }
+    }
+
     Ok(FontMetrics::new(
         widths,
         first_char,
@@ -190,6 +211,43 @@ pub fn extract_font_metrics(
         desc_info.descent,
         desc_info.font_bbox,
     ))
+}
+
+/// Try to extract glyph widths from a TrueType /FontFile2 embedded font stream.
+///
+/// Accesses /FontDescriptor → /FontFile2, decompresses the stream, and parses
+/// the TrueType hmtx table for per-glyph advance widths scaled to 1000 upem.
+///
+/// Returns `None` if /FontFile2 is absent or parsing fails.
+fn try_extract_truetype_widths(
+    doc: &lopdf::Document,
+    font_dict: &lopdf::Dictionary,
+) -> Option<Vec<f64>> {
+    let desc_obj = font_dict.get(b"FontDescriptor").ok()?;
+    let desc_obj = resolve_object(doc, desc_obj);
+    let desc = desc_obj.as_dict().ok()?;
+
+    let font_file_obj = desc.get(b"FontFile2").ok()?;
+    let font_file_obj = resolve_object(doc, font_file_obj);
+    let stream = font_file_obj.as_stream().ok()?;
+
+    let data = if stream.dict.get(b"Filter").is_ok() {
+        stream.decompressed_content().unwrap_or_default()
+    } else {
+        stream.content.clone()
+    };
+
+    let tt_widths = truetype::parse_truetype_widths(&data)?;
+
+    // Build width vector indexed by glyph ID (= char code for simple fonts)
+    let num_glyphs = tt_widths.num_glyphs();
+    let mut widths = Vec::with_capacity(num_glyphs);
+    for gid in 0..num_glyphs {
+        let w = tt_widths.get_width(gid as u16).unwrap_or(0.0);
+        widths.push(w);
+    }
+
+    Some(widths)
 }
 
 /// Look up standard font data from a font dictionary's /BaseFont entry.
@@ -912,5 +970,242 @@ mod tests {
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
         assert_eq!(metrics.descent(), 0.0);
+    }
+
+    // ========== US-205-7: TrueType /FontFile2 hmtx fallback ==========
+
+    /// Helper: build minimal TrueType data for testing /FontFile2 integration.
+    fn build_test_truetype_data(units_per_em: u16, widths: &[u16]) -> Vec<u8> {
+        let num_h_metrics = widths.len() as u16;
+        let num_glyphs = num_h_metrics;
+        let num_tables: u16 = 4;
+
+        let head_len: u32 = 54;
+        let hhea_len: u32 = 36;
+        let maxp_len: u32 = 6;
+        let hmtx_len: u32 = num_h_metrics as u32 * 4;
+
+        let dir_end: u32 = 12 + num_tables as u32 * 16;
+        let head_off = dir_end;
+        let hhea_off = head_off + head_len;
+        let maxp_off = hhea_off + hhea_len;
+        let hmtx_off = maxp_off + maxp_len;
+        let total_len = hmtx_off + hmtx_len;
+
+        let mut buf = vec![0u8; total_len as usize];
+
+        // Offset table
+        buf[0..4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[4..6].copy_from_slice(&num_tables.to_be_bytes());
+
+        // Table directory
+        let tables: [(&[u8; 4], u32, u32); 4] = [
+            (b"head", head_off, head_len),
+            (b"hhea", hhea_off, hhea_len),
+            (b"maxp", maxp_off, maxp_len),
+            (b"hmtx", hmtx_off, hmtx_len),
+        ];
+        for (i, (tag, off, len)) in tables.iter().enumerate() {
+            let entry = 12 + i * 16;
+            buf[entry..entry + 4].copy_from_slice(*tag);
+            buf[entry + 8..entry + 12].copy_from_slice(&off.to_be_bytes());
+            buf[entry + 12..entry + 16].copy_from_slice(&len.to_be_bytes());
+        }
+
+        // head table: unitsPerEm at offset 18
+        buf[head_off as usize..head_off as usize + 4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[head_off as usize + 18..head_off as usize + 20]
+            .copy_from_slice(&units_per_em.to_be_bytes());
+
+        // hhea table: numberOfHMetrics at offset 34
+        buf[hhea_off as usize..hhea_off as usize + 4].copy_from_slice(&0x00010000u32.to_be_bytes());
+        buf[hhea_off as usize + 34..hhea_off as usize + 36]
+            .copy_from_slice(&num_h_metrics.to_be_bytes());
+
+        // maxp table
+        buf[maxp_off as usize..maxp_off as usize + 4].copy_from_slice(&0x00005000u32.to_be_bytes());
+        buf[maxp_off as usize + 4..maxp_off as usize + 6]
+            .copy_from_slice(&num_glyphs.to_be_bytes());
+
+        // hmtx table
+        for (i, &w) in widths.iter().enumerate() {
+            let pos = hmtx_off as usize + i * 4;
+            buf[pos..pos + 2].copy_from_slice(&w.to_be_bytes());
+        }
+
+        buf
+    }
+
+    /// Helper: add a /FontFile2 stream to a /FontDescriptor in a font dictionary.
+    fn add_font_file2(
+        doc: &mut Document,
+        font_dict: &mut lopdf::Dictionary,
+        truetype_data: Vec<u8>,
+    ) {
+        // Get existing FontDescriptor or create one
+        let desc_id = if let Ok(obj) = font_dict.get(b"FontDescriptor") {
+            if let lopdf::Object::Reference(id) = obj {
+                *id
+            } else {
+                // Shouldn't happen in tests, but fallback
+                return;
+            }
+        } else {
+            // Create a minimal descriptor
+            let desc = dictionary! {
+                "Type" => "FontDescriptor",
+                "FontName" => "TestFont",
+                "Ascent" => Object::Real(750.0),
+                "Descent" => Object::Real(-250.0),
+            };
+            let id = doc.add_object(Object::Dictionary(desc));
+            font_dict.set("FontDescriptor", id);
+            id
+        };
+
+        // Create /FontFile2 stream (uncompressed for testing)
+        let stream = lopdf::Stream::new(lopdf::Dictionary::new(), truetype_data);
+        let ff2_id = doc.add_object(Object::Stream(stream));
+
+        // Add /FontFile2 to the descriptor
+        if let Ok(desc_obj) = doc.get_object_mut(desc_id) {
+            if let Object::Dictionary(desc) = desc_obj {
+                desc.set("FontFile2", ff2_id);
+            }
+        }
+    }
+
+    #[test]
+    fn truetype_fallback_when_no_widths() {
+        // TrueType font with /FontFile2 but no /Widths array
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ABCDEF+CustomTTFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, Some(500.0), None);
+
+        // Add TrueType data with known widths: glyph 0=0, glyph 1=278, glyph 2=556
+        let tt_data = build_test_truetype_data(1000, &[0, 278, 556]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should use TrueType hmtx widths, not DEFAULT_WIDTH
+        assert!((metrics.get_width(0) - 0.0).abs() < 0.01); // .notdef
+        assert!((metrics.get_width(1) - 278.0).abs() < 0.01);
+        assert!((metrics.get_width(2) - 556.0).abs() < 0.01);
+        // Out of range falls back to missing_width
+        assert!((metrics.get_width(3) - 500.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn truetype_fallback_with_2048_upem() {
+        // TrueType font with 2048 upem
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "TestFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, None, None);
+
+        // 1024 in 2048 upem = 500 in 1000 upem
+        let tt_data = build_test_truetype_data(2048, &[0, 1024, 2048]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert!((metrics.get_width(1) - 500.0).abs() < 0.1);
+        assert!((metrics.get_width(2) - 1000.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn truetype_fallback_does_not_override_explicit_widths() {
+        // When /Widths IS present, /FontFile2 should NOT be used
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = create_font_dict_with_widths(&mut doc, &[400.0, 600.0], 65, 66);
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, None, None);
+
+        // TrueType data with different widths
+        let tt_data = build_test_truetype_data(1000, &[0, 278, 556, 722, 833]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should use /Widths, not hmtx widths
+        assert_eq!(metrics.get_width(65), 400.0);
+        assert_eq!(metrics.get_width(66), 600.0);
+    }
+
+    #[test]
+    fn truetype_fallback_preserves_descriptor_values() {
+        // TrueType fallback should preserve ascent/descent/bbox from descriptor
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "TestFont",
+        };
+        add_font_descriptor(
+            &mut doc,
+            &mut font_dict,
+            850.0,
+            -150.0,
+            Some(300.0),
+            Some([-100.0, -200.0, 1100.0, 900.0]),
+        );
+        let tt_data = build_test_truetype_data(1000, &[500]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        assert!((metrics.ascent() - 850.0).abs() < 1.0);
+        assert!((metrics.descent() - (-150.0)).abs() < 1.0);
+        assert!((metrics.missing_width() - 300.0).abs() < 1.0);
+        assert!(metrics.font_bbox().is_some());
+    }
+
+    #[test]
+    fn truetype_fallback_standard_font_takes_priority() {
+        // Standard font fallback should take priority over TrueType
+        // (if font is both standard AND has /FontFile2, standard widths win)
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 718.0, -207.0, None, None);
+
+        // Add TrueType data (shouldn't be used since standard font matches first)
+        let tt_data = build_test_truetype_data(1000, &[999]);
+        add_font_file2(&mut doc, &mut font_dict, tt_data);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should use standard Helvetica widths, not TrueType
+        assert_eq!(metrics.get_width(65), 667.0); // Helvetica 'A'
+    }
+
+    #[test]
+    fn truetype_fallback_invalid_data_falls_through() {
+        // If /FontFile2 contains invalid data, should fall through to default
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ABCDEF+BrokenFont",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -200.0, Some(500.0), None);
+
+        // Add invalid TrueType data
+        add_font_file2(&mut doc, &mut font_dict, vec![0xFF; 100]);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
+        // Should fall back to missing_width since TrueType parse failed
+        assert_eq!(metrics.get_width(65), 500.0); // missing_width
     }
 }
