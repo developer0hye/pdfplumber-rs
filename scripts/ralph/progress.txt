@@ -1,65 +1,35 @@
 # Ralph Progress Log
-Started: 2026년  3월  2일 월요일 13시 20분 18초 KST
+Started: 2026년  3월  2일 월요일 13시 55분 26초 KST
 ---
 
 ## Codebase Patterns
-- TrueType font data is accessed via /FontDescriptor → /FontFile2 stream, decompressed with `stream.decompressed_content()` when Filter is present
-- CFF/Type1C font data is accessed via /FontDescriptor → /FontFile3 stream (Subtype=Type1C or CIDFontType0C)
-- Font metrics fallback chain: /Widths array → standard font fallback → TrueType hmtx → CFF CharStrings → default width
-- TrueType binary data is big-endian; use `u16::from_be_bytes()` / `u32::from_be_bytes()` for reading
-- CFF uses DICT encoding: operands (32-254 ranges) precede operators (0-21); INDEX structures for arrays
-- CFF width extraction: parse Top DICT for CharStrings/Private offsets → Private DICT for defaultWidthX/nominalWidthX → CharStrings for per-glyph width
-- Units per em scaling: `raw_width * 1000.0 / units_per_em` converts to PDF glyph space (1/1000 of text space)
-- Tests build synthetic font data using `build_test_truetype_data()` / `build_cff_data_for_test()` helpers
+
+### Content Stream Error Recovery
+- `tokenize()` is strict (returns `Err` on malformed tokens)
+- `tokenize_lenient()` recovers by saving position before each token, catching errors, resetting position to `saved_pos + 1`, and continuing
+- Failed parse functions (e.g., `parse_literal_string`) may advance `pos` to EOF before returning error; always reset to `saved_pos + 1` for robust recovery
+- Operand stack is cleared on error to prevent partial state corruption
+- Interpreter uses `tokenize_lenient()` and emits `ExtractWarning` with `MalformedObject` code for each recovery
+- `Do` operator errors are caught except for recursion depth limits (resource limits must propagate)
 
 ---
 
-## 2026-03-02 - US-205-7
-- What was implemented:
-  - New `truetype.rs` module with minimal TrueType font table parsing (head, hhea, maxp, hmtx)
-  - `parse_truetype_widths()` extracts per-glyph advance widths from raw TrueType data
-  - `TrueTypeWidths` struct scales widths to 1000 upem (PDF glyph space convention)
-  - `try_extract_truetype_widths()` in font_metrics.rs accesses /FontFile2 streams
-  - Fallback chain: /Widths → standard fonts → TrueType hmtx → default width
+## 2026-03-02 - US-205-9
+- Implemented `tokenize_lenient()` in `tokenizer.rs`: error-recovering tokenizer that skips malformed tokens and continues
+- Updated `interpret_content_stream()` in `interpreter.rs` to use `tokenize_lenient()` instead of strict `tokenize()`
+- Changed `Do` operator error handling: catches and emits warnings for malformed XObject errors, but preserves recursion depth limit propagation
+- Emits `ExtractWarning::with_code(MalformedObject, ...)` for tokenizer recovery and Do failures
+- Added tracing support (`#[cfg(feature = "tracing")]`) for recovered errors
+- Exported `tokenize_lenient` from `lib.rs`
 - Files changed:
-  - `crates/pdfplumber-parse/src/truetype.rs` (NEW) — TrueType table parser
-  - `crates/pdfplumber-parse/src/font_metrics.rs` — Integration with TrueType fallback
-  - `crates/pdfplumber-parse/src/lib.rs` — Module registration
-- Dependencies added: None
-- Test results: 20 new tests (13 truetype + 7 font_metrics integration), all passing
-- Benchmark results: hello_structure.pdf F1=1.000, multi_font.pdf F1=1.000 (both already at 1.0 from prior work)
+  - `crates/pdfplumber-parse/src/tokenizer.rs` — added `tokenize_lenient()` + 10 tests
+  - `crates/pdfplumber-parse/src/interpreter.rs` — switched to lenient tokenizer, graceful Do error handling
+  - `crates/pdfplumber-parse/src/lib.rs` — export `tokenize_lenient`
+  - `scripts/ralph/prd.json` — marked US-205-9 passes: true
+- Dependencies added: none
 - **Learnings for future iterations:**
-  - hello_structure.pdf and multi_font.pdf were already at F1=1.0 before this change (standard font fallback + previous fixes sufficient for those specific PDFs)
-  - The TrueType fallback is needed for non-standard TrueType fonts that don't have /Widths arrays and aren't one of the 14 standard Type1 fonts
-  - TrueType table directory parsing is straightforward: 12-byte offset table + 16-byte records per table
-  - The `tag` field in TableRecord was unused after lookup — removed to avoid dead_code warning
-  - Rust 2024 edition doesn't allow `ref mut` in implicitly-borrowing pattern matches
-  - pdfplumber-py tests fail with dyld libpython3.11 not found — exclude from local testing
----
-
-## 2026-03-02 - US-205-8
-- What was implemented:
-  - New `cff.rs` module with minimal CFF (Compact Font Format) parsing for glyph width extraction
-  - CFF structures parsed: Header, INDEX, DICT (Top + Private), CharStrings
-  - `parse_cff_widths()` extracts per-glyph widths from Type 2 CharString programs
-  - Width encoding: optional first operand = nominalWidthX + charstring_width, or defaultWidthX if absent
-  - `try_extract_cff_widths()` in font_metrics.rs accesses /FontFile3 streams with Type1C/CIDFontType0C subtype
-  - Fallback chain extended: /Widths → standard fonts → TrueType hmtx → CFF CharStrings → default width
-- Files changed:
-  - `crates/pdfplumber-parse/src/cff.rs` (NEW) — CFF parser module
-  - `crates/pdfplumber-parse/src/font_metrics.rs` — CFF fallback integration + 7 integration tests
-  - `crates/pdfplumber-parse/src/lib.rs` — Module registration
-- Dependencies added: None
-- Test results: 31 CFF unit tests + 6 font_metrics integration tests, all passing
-- Benchmark results:
-  - la-precinct-bulletin-2014-p1.pdf: chars F1=1.000 (unchanged, uses FontFile2/Type1, not CFF)
-  - issue-1279-example.pdf: chars 64.4% → 100.0% (3 Type1C CFF fonts now parsed correctly)
-  - All 29 accuracy benchmarks pass with no regressions
-- **Learnings for future iterations:**
-  - CFF Type 2 CharString width is the first stack operand before the first stack-clearing operator, if the arg count is odd/unexpected
-  - CFF DICT number encoding has 5 formats: 1-byte (32-246), 2-byte positive (247-250), 2-byte negative (251-254), 3-byte (28), 5-byte (29), plus nibble-encoded reals (30)
-  - Operator byte ranges in CharString match overlap carefully; order match arms to avoid unreachable patterns (12, 28 must precede catch-all ranges)
-  - CFF INDEX offsets are 1-based (data starts at offset[0]-1 relative to data start)
-  - la-precinct-bulletin-2014-p1.pdf has FontFile2 (TrueType) + FontFile (Type1 binary), NOT CFF — already perfect before this change
-  - The build_cff_data test helper needs iterative offset fixup since Top DICT size depends on encoded offset values
+  - Failed parsers may consume arbitrary input before returning error — always reset position on error
+  - Resource limit errors (recursion depth) should propagate, not be swallowed by error recovery
+  - The `matches!` macro with guard clauses is useful for selective error propagation
+  - All existing integration tests pass — error recovery is backwards-compatible
 ---

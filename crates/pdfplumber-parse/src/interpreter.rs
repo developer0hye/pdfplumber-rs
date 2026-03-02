@@ -22,7 +22,7 @@ use crate::text_renderer::{
     TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
 };
 use crate::text_state::TextState;
-use crate::tokenizer::{Operand, Operator, tokenize};
+use crate::tokenizer::{Operand, Operator, tokenize_lenient};
 use pdfplumber_core::{
     ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule, FontEncoding, PathBuilder,
     StandardEncoding, glyph_name_to_char,
@@ -120,7 +120,15 @@ pub(crate) fn interpret_content_stream(
         )));
     }
 
-    let operators = tokenize(stream_bytes)?;
+    let (operators, tokenize_warnings) = tokenize_lenient(stream_bytes);
+    for warning_msg in &tokenize_warnings {
+        handler.on_warning(ExtractWarning::with_code(
+            ExtractWarningCode::MalformedObject,
+            warning_msg.clone(),
+        ));
+        #[cfg(feature = "tracing")]
+        tracing::warn!(warning = %warning_msg, "content stream tokenization error (recovered)");
+    }
     let mut font_cache: HashMap<String, CachedFont> = HashMap::new();
     let mut path_builder = PathBuilder::new(*gstate.ctm());
     let mut marked_content_stack: Vec<MarkedContentEntry> = Vec::new();
@@ -385,9 +393,25 @@ pub(crate) fn interpret_content_stream(
             // --- XObject operator ---
             "Do" => {
                 if let Some(Operand::Name(name)) = op.operands.first() {
-                    handle_do(
+                    if let Err(e) = handle_do(
                         doc, resources, handler, options, depth, gstate, tstate, name,
-                    )?;
+                    ) {
+                        // Resource limit errors (e.g., recursion depth) must propagate
+                        if matches!(&e, BackendError::Interpreter(msg) if msg.contains("recursion depth"))
+                        {
+                            return Err(e);
+                        }
+                        let msg = format!(
+                            "Do operator for XObject '{}' failed (recovered): {}",
+                            name, e
+                        );
+                        handler.on_warning(ExtractWarning::with_code(
+                            ExtractWarningCode::MalformedObject,
+                            &msg,
+                        ));
+                        #[cfg(feature = "tracing")]
+                        tracing::warn!(xobject = %name, error = %e, "Do operator failed (recovered)");
+                    }
                 }
             }
 

@@ -1,41 +1,26 @@
 {
   "project": "pdfplumber-rs",
-  "branchName": "ralph/issue-205-font-metrics",
-  "description": "Issue #205 Cat 4: TrueType and CFF font metrics extraction from embedded fonts",
+  "branchName": "ralph/issue-205-parse-errors",
+  "description": "Issue #205 Cat 8: Improve content stream error recovery for malformed PDFs",
   "relatedIssue": 205,
   "userStories": [
     {
-      "id": "US-205-7",
-      "title": "Parse TrueType hmtx table for horizontal glyph widths",
-      "description": "Embedded TrueType fonts (/FontFile2) contain an 'hmtx' (horizontal metrics) table with per-glyph advance widths. Currently font_metrics.rs only uses /Widths arrays from the PDF font dictionary. For fonts where /Widths is incomplete or absent, parse the hmtx table from the embedded TrueType font data to obtain accurate glyph widths.",
+      "id": "US-205-9",
+      "title": "Implement graceful content stream error recovery",
+      "description": "issue-1181.pdf and issue-848.pdf fail with content stream parsing errors. The current parser aborts on malformed operators instead of recovering. Implement graceful degradation: skip malformed tokens/operators and continue extracting what can be parsed, rather than failing the entire page.",
       "acceptanceCriteria": [
-        "TrueType hmtx table is parsed from /FontFile2 stream data",
-        "Per-glyph advance widths from hmtx are used when /Widths is incomplete",
-        "hello_structure.pdf chars improve from 37% to >=70%",
-        "multi_font.pdf (benchmark) chars F1 improves from 0.588 to >=0.75",
-        "No regression on Type1 or CIDFont metrics",
+        "issue-1181.pdf no longer produces a parse error; extracts available chars",
+        "issue-848.pdf no longer produces a parse error; extracts available chars",
+        "malformed-from-issue-932.pdf chars improve from 0% toward >=30%",
+        "Content stream parser skips malformed operators and continues",
+        "A warning/diagnostic is emitted for skipped operators (via tracing)",
+        "No regression on well-formed PDFs",
         "cargo test --workspace passes",
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Key files: crates/pdfplumber-parse/src/font_metrics.rs, crates/pdfplumber-parse/src/interpreter.rs. TrueType file format: starts with offset table (4 bytes scaler type, 2 bytes numTables, ...), then table directory entries (4-byte tag, checksum, offset, length). Find 'hmtx' table via directory. hmtx format: numOfLongHorMetrics longHorMetric records (each: u16 advanceWidth, i16 lsb), followed by i16 leftSideBearing entries. Also need 'hhea' table to get numOfLongHorMetrics and 'maxp' for numGlyphs. Do NOT add external font parsing crates - implement minimal TrueType parsing inline."
-    },
-    {
-      "id": "US-205-8",
-      "title": "Parse CFF/Type1C font widths for embedded CFF fonts",
-      "description": "Type1C (CFF/Compact Font Format) fonts embedded as /FontFile3 contain glyph widths in the CharStrings data. These fonts are used in many real-world PDFs. Implement minimal CFF parsing to extract per-glyph widths from the embedded font program.",
-      "acceptanceCriteria": [
-        "CFF font data from /FontFile3 is parsed for glyph widths",
-        "la-precinct-bulletin-2014-p1.pdf chars improve from 0% toward >=30%",
-        "issue-1279-example.pdf chars improve from 64.4% toward >=80%",
-        "No regression on Type1 or TrueType font metrics",
-        "cargo test --workspace passes",
-        "cargo clippy --workspace -- -D warnings passes"
-      ],
-      "priority": 2,
-      "passes": true,
-      "notes": "Key files: crates/pdfplumber-parse/src/font_metrics.rs. CFF format: Header → Name INDEX → Top DICT INDEX → String INDEX → Global Subr INDEX → CharStrings INDEX. Width is encoded in the CharString data as the first operand before drawing operators. CFF uses a compact binary encoding. Focus on extracting just the widths, not full outline data. Ref: Adobe Technical Note #5176 (CFF specification). This is complex - implement incrementally and handle parse failures gracefully."
+      "notes": "Key files: crates/pdfplumber-parse/src/interpreter.rs (content stream execution), crates/pdfplumber-parse/src/content_stream.rs (tokenization). The parser should catch errors at the operator level and skip to the next recognizable operator. Common malformed patterns: unexpected '<<' in content stream, invalid operand types, unknown operators, truncated streams. Implement a try-recover loop: try parsing next operator, on error skip bytes until next recognizable operator token. Python pdfplumber (via pdfminer) handles this by silently ignoring unknown operators."
     }
   ]
 }

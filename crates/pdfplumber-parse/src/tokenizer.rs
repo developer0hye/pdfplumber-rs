@@ -47,6 +47,119 @@ pub struct InlineImageData {
     pub data: Vec<u8>,
 }
 
+/// Leniently parse PDF content stream bytes, recovering from malformed tokens.
+///
+/// Unlike [`tokenize`], this function does not abort on parse errors. When a
+/// malformed construct is encountered (unterminated string, invalid hex digit,
+/// unexpected delimiter, etc.), the parser skips forward to the next
+/// recognizable token and continues. Successfully parsed operators before and
+/// after the error are preserved.
+///
+/// Returns a tuple of `(operators, warnings)`. Each warning is a
+/// human-readable description of a skipped malformed token.
+pub fn tokenize_lenient(input: &[u8]) -> (Vec<Operator>, Vec<String>) {
+    let mut ops = Vec::new();
+    let mut operand_stack: Vec<Operand> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+    let mut pos = 0;
+
+    while pos < input.len() {
+        skip_whitespace_and_comments(input, &mut pos);
+        if pos >= input.len() {
+            break;
+        }
+
+        let saved_pos = pos;
+        let b = input[pos];
+
+        // Attempt to parse the next token; on error, recover.
+        let result: Result<(), BackendError> = (|| {
+            match b {
+                b'(' => {
+                    let s = parse_literal_string(input, &mut pos)?;
+                    operand_stack.push(Operand::LiteralString(s));
+                }
+                b'<' => {
+                    if pos + 1 < input.len() && input[pos + 1] == b'<' {
+                        let dict = parse_dictionary(input, &mut pos)?;
+                        operand_stack.push(Operand::Dictionary(dict));
+                    } else {
+                        let s = parse_hex_string(input, &mut pos)?;
+                        operand_stack.push(Operand::HexString(s));
+                    }
+                }
+                b'[' => {
+                    pos += 1;
+                    let arr = parse_array(input, &mut pos)?;
+                    operand_stack.push(Operand::Array(arr));
+                }
+                b'/' => {
+                    let name = parse_name(input, &mut pos);
+                    operand_stack.push(Operand::Name(name));
+                }
+                b'0'..=b'9' | b'+' | b'-' | b'.' => {
+                    let num = parse_number(input, &mut pos)?;
+                    operand_stack.push(num);
+                }
+                b'a'..=b'z' | b'A'..=b'Z' | b'*' | b'\'' | b'"' => {
+                    let keyword = parse_keyword(input, &mut pos);
+                    match keyword.as_str() {
+                        "true" => operand_stack.push(Operand::Boolean(true)),
+                        "false" => operand_stack.push(Operand::Boolean(false)),
+                        "null" => operand_stack.push(Operand::Null),
+                        "BI" => {
+                            let (dict, data) = parse_inline_image(input, &mut pos)?;
+                            ops.push(Operator {
+                                name: "BI".to_string(),
+                                operands: vec![
+                                    Operand::Array(
+                                        dict.into_iter()
+                                            .flat_map(|(k, v)| vec![Operand::Name(k), v])
+                                            .collect(),
+                                    ),
+                                    Operand::LiteralString(data),
+                                ],
+                            });
+                        }
+                        _ => {
+                            ops.push(Operator {
+                                name: keyword,
+                                operands: std::mem::take(&mut operand_stack),
+                            });
+                        }
+                    }
+                }
+                b']' => {
+                    return Err(BackendError::Interpreter(
+                        "unexpected ']' outside array".to_string(),
+                    ));
+                }
+                _ => {
+                    pos += 1;
+                }
+            }
+            Ok(())
+        })();
+
+        if let Err(e) = result {
+            warnings.push(format!(
+                "skipped malformed token at byte offset {}: {}",
+                saved_pos, e
+            ));
+            // Reset to one byte past the error start. Failed parsers may have
+            // consumed arbitrary amounts of input (e.g., parse_literal_string
+            // reads to EOF on unterminated strings). Resetting to saved_pos+1
+            // ensures we re-examine subsequent bytes and can recover operators
+            // that appear after the malformed region.
+            pos = saved_pos + 1;
+            // Discard partial operands accumulated before the error
+            operand_stack.clear();
+        }
+    }
+
+    (ops, warnings)
+}
+
 /// Parse PDF content stream bytes into a sequence of operators.
 ///
 /// Each operator collects the operands that preceded it on the operand stack.
@@ -1216,5 +1329,129 @@ mod tests {
         let ops = tokenize(stream).unwrap();
         assert_eq!(ops.len(), 1);
         assert_eq!(ops[0].name, "BI");
+    }
+
+    // ---- tokenize_lenient tests (error recovery) ----
+
+    #[test]
+    fn lenient_wellformed_stream_matches_strict() {
+        let stream = b"BT /F1 12 Tf (Hello) Tj ET";
+        let strict = tokenize(stream).unwrap();
+        let (lenient, warnings) = tokenize_lenient(stream);
+        assert_eq!(lenient.len(), strict.len());
+        for (s, l) in strict.iter().zip(lenient.iter()) {
+            assert_eq!(s.name, l.name);
+            assert_eq!(s.operands, l.operands);
+        }
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_unexpected_close_bracket_recovers() {
+        // Strict tokenize fails on unexpected ']'
+        assert!(tokenize(b"BT ] ET").is_err());
+        // Lenient should skip ']' and parse the rest
+        let (ops, warnings) = tokenize_lenient(b"BT ] ET");
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(names.contains(&"ET"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_unterminated_string_recovers() {
+        // "(unclosed" causes strict tokenize to fail
+        assert!(tokenize(b"BT (unclosed").is_err());
+        // Lenient should skip the bad string and still parse BT
+        let (ops, warnings) = tokenize_lenient(b"BT (unclosed");
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_unterminated_string_followed_by_valid_ops() {
+        // Malformed string in the middle; valid operators before and after
+        let stream = b"BT (unterminated ET 100 200 Td (Hello) Tj ET";
+        // Lenient should recover and parse operators after the malformed region
+        let (ops, warnings) = tokenize_lenient(stream);
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"), "should parse BT before error");
+        // After recovery, some operators after the malformed string should be parsed
+        assert!(
+            names.contains(&"Tj") || names.contains(&"ET") || names.contains(&"Td"),
+            "should recover and parse operators after malformed region"
+        );
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_unterminated_array_recovers() {
+        assert!(tokenize(b"BT [1 2 3 ET").is_err());
+        let (ops, warnings) = tokenize_lenient(b"BT [1 2 3 ET");
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_invalid_hex_digit_recovers() {
+        assert!(tokenize(b"BT <ZZZZ> Tj ET").is_err());
+        let (ops, warnings) = tokenize_lenient(b"BT <ZZZZ> Tj ET");
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(names.contains(&"ET"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_unterminated_dictionary_recovers() {
+        assert!(tokenize(b"BT << /Key 42 ET").is_err());
+        let (ops, warnings) = tokenize_lenient(b"BT << /Key 42 ET");
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_operators_before_and_after_error_preserved() {
+        // Valid ops, then error, then valid ops
+        let stream = b"q 1 0 0 1 0 0 cm BT ] /F1 12 Tf (Hello) Tj ET Q";
+        let (ops, warnings) = tokenize_lenient(stream);
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        // Operators before the error
+        assert!(names.contains(&"q"));
+        assert!(names.contains(&"cm"));
+        assert!(names.contains(&"BT"));
+        // Operators after recovery
+        assert!(names.contains(&"Tf"));
+        assert!(names.contains(&"Tj"));
+        assert!(names.contains(&"ET"));
+        assert!(names.contains(&"Q"));
+        assert!(!warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_empty_stream_no_warnings() {
+        let (ops, warnings) = tokenize_lenient(b"");
+        assert!(ops.is_empty());
+        assert!(warnings.is_empty());
+    }
+
+    #[test]
+    fn lenient_multiple_errors_all_recovered() {
+        // Two error points: unexpected ']' and invalid hex
+        let stream = b"BT ] /F1 12 Tf <ZZ> Tj ET";
+        let (ops, warnings) = tokenize_lenient(stream);
+        let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
+        assert!(names.contains(&"BT"));
+        assert!(names.contains(&"Tf"));
+        assert!(names.contains(&"ET"));
+        // Should have at least 2 warnings (one per error)
+        assert!(
+            warnings.len() >= 2,
+            "expected at least 2 warnings, got {}",
+            warnings.len()
+        );
     }
 }
