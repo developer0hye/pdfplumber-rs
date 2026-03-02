@@ -1,34 +1,44 @@
+# Ralph Progress Log
+Started: 2026년  3월  2일 월요일 11시 16분 42초 KST
+---
+
 ## Codebase Patterns
 
-### PageGeometry and Coordinate System
-- Python pdfplumber uses **MediaBox** for page dimensions and coordinate transforms, NOT CropBox.
-- The Rust `PageGeometry::new()` should always receive `None` for `crop_box` to match Python behavior.
-- CropBox is stored as page metadata on the `Page` struct but does not affect the coordinate system.
-- PDFs with CropBox ≠ MediaBox (e.g., issue-1054-example.pdf) will produce wrong coordinates if CropBox is used.
+### CID→Unicode Table Pattern
+- Tables are stored as sorted static arrays of `(CID, Unicode)` tuples in dedicated modules (e.g., `adobe_gb1_ucs2.rs`)
+- Lookup uses `binary_search_by_key` for O(log n) performance
+- Tables are generated from Adobe's open-source `cmap-resources` repo (`cid2code.txt` files)
+- Column used: `UniXX-UCS2` (e.g., `UniGB-UCS2`, `UniCNS-UCS2`, `UniKS-UCS2`)
+- For multi-value entries, prefer CJK Unified Ideograph range (0x4E00-0x9FFF)
+- Wire into interpreter.rs via `match si.ordering.as_str()` in the CID→Unicode fallback chain (step 4)
 
-### Content Stream Interpreter
-- The interpreter's catch-all arm (`_ => {}`) silently skips unrecognized operators.
-- When the `tracing` feature is enabled on `pdfplumber-parse`, skipped operators emit `tracing::warn!`.
-- The `tracing` crate is an optional dependency behind the `tracing` feature flag.
-
-### Cross-Validation Tests
-- Most passing tests have CropBox == MediaBox (or no CropBox), so coordinate changes are safe.
-- `pdfplumber-py` tests fail due to missing Python 3.11 library — pre-existing, unrelated to changes.
-
-### FontDescriptor Descent Normalization
-- PDF spec §9.8 requires Descent to be negative. Some PDFs have positive values.
-- `cid_font.rs` already normalizes positive Descent; `font_metrics.rs` now does too.
-- When debugging vertical coordinate offsets, check if Descent sign is wrong in the FontDescriptor.
-
-### Ascent/Descent in Character BBox Calculation
-- Python pdfplumber/pdfminer keeps char bbox height = font_size (1000 glyph units).
-- The formula is: `ascent = 1000 + descent`, `descent` from FontDescriptor. This gives height = ascent - descent = 1000.
-- Using actual FontDescriptor /Ascent (e.g., 975) causes height > font_size, mismatching Python golden data.
-- For CID fonts, descent should come from `cf.cid_metrics` (CID font descriptor), not `cf.metrics` (parent Type0 font).
-- Do NOT use actual /Ascent directly — it breaks compatibility with Python pdfplumber's coordinate system.
+### CID→Unicode Fallback Chain (interpreter.rs)
+1. ToUnicode CMap lookup
+2. CidToGid + CFF glyph name
+3. Pre-Unicode CMap decoding (encoding_rs)
+4. Adobe CID→Unicode table (Japan1, GB1, CNS1, Korea1)
+5. Fallback: `(cid:N)` for CID fonts, `char::from_u32` for others
 
 ---
 
-# Ralph Progress Log - Issue #205 Cat1+2: CID→Unicode fallback tables and encoding decoders (11 PDFs)
-Started: 2026년  3월  2일 월요일 11시 16분 41초 KST
+## 2026-03-02 - US-205-1
+- Implemented Adobe-GB1 (28660 entries), Adobe-CNS1 (18273 entries), Adobe-Korea1 (17094 entries) CID→Unicode tables
+- Generated from adobe-type-tools/cmap-resources (Adobe-GB1-6, Adobe-CNS1-7, Adobe-Korea1-2 cid2code.txt)
+- Files added:
+  - `crates/pdfplumber-parse/src/adobe_gb1_ucs2.rs` (28677 lines)
+  - `crates/pdfplumber-parse/src/adobe_cns1_ucs2.rs` (18290 lines)
+  - `crates/pdfplumber-parse/src/adobe_korea1_ucs2.rs` (17111 lines)
+- Files changed:
+  - `crates/pdfplumber-parse/src/lib.rs` — added module declarations
+  - `crates/pdfplumber-parse/src/interpreter.rs` — wired GB1/CNS1/Korea1 lookups into fallback chain
+  - `crates/pdfplumber/tests/cross_validation.rs` — upgraded issue-842 and issue-987 from ignored to passing
+- Results:
+  - issue-842-example.pdf: 2.3% → 100% chars (target: >=50%)
+  - issue-987-test.pdf: 50% → 100% chars (target: >=80%)
+  - No regressions: 87 cross-validation tests pass, 0 fail
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - The CID→Unicode tables are large but compile efficiently as static arrays
+  - issue-842 uses GB1 ordering (Simplified Chinese with GB2312 font names)
+  - issue-987 uses non-CJK content but had font encoding gaps resolved by better fallback
 ---

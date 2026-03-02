@@ -1245,6 +1245,14 @@ fn emit_char_events(
                                 crate::adobe_japan1_ucs2::lookup_japan1_unicode(rc.char_code)
                                     .map(|ch| ch.to_string())
                             }
+                            "GB1" => crate::adobe_gb1_ucs2::lookup_gb1_unicode(rc.char_code)
+                                .map(|ch| ch.to_string()),
+                            "CNS1" => crate::adobe_cns1_ucs2::lookup_cns1_unicode(rc.char_code)
+                                .map(|ch| ch.to_string()),
+                            "Korea1" => {
+                                crate::adobe_korea1_ucs2::lookup_korea1_unicode(rc.char_code)
+                                    .map(|ch| ch.to_string())
+                            }
                             _ => None,
                         })
                     })

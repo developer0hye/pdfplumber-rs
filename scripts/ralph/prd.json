@@ -19,7 +19,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs, crates/pdfplumber-parse/src/cmap.rs. Adobe CMap resources are open source: https://github.com/niceferrari/adobe-cmap. The existing Adobe-Japan1 implementation in cid_font.rs can be used as a template. Consider embedding CID→Unicode data as static arrays or include_bytes! for efficiency. The tables map CID numbers to Unicode code points."
     },
     {

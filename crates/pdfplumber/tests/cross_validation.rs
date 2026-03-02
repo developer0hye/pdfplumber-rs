@@ -1153,22 +1153,14 @@ cross_validate_ignored!(
     "issue-71-duplicate-chars.pdf",
     "words 76.8% — duplicate char word grouping gap"
 );
-cross_validate_ignored!(
-    cv_python_issue_842,
-    "issue-842-example.pdf",
-    "chars 2.3% — font encoding gap"
-);
+cross_validate!(cv_python_issue_842, "issue-842-example.pdf", 0.50, 0.05);
 cross_validate!(
     cv_python_issue_982,
     "issue-982-example.pdf",
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
-    cv_python_issue_987,
-    "issue-987-test.pdf",
-    "chars 50% — font encoding gap"
-);
+cross_validate!(cv_python_issue_987, "issue-987-test.pdf", 0.80, 0.05);
 cross_validate_ignored!(
     cv_python_la_precinct,
     "la-precinct-bulletin-2014-p1.pdf",
