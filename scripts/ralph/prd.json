@@ -18,7 +18,7 @@
         "cargo clippy --workspace -- -D warnings passes"
       ],
       "priority": 1,
-      "passes": false,
+      "passes": true,
       "notes": "Key files: crates/pdfplumber-parse/src/cid_font.rs (W2/DW2), crates/pdfplumber-parse/src/interpreter.rs. This story depends on US-205-1 (CID tables) for better CID→Unicode resolution. TrueType vmtx table format: vMetrics[numOfLongVerMetrics] with (u16 advanceHeight, i16 topSideBearing), then i16 topSideBearing entries. Need 'vhea' table for numOfLongVerMetrics. vmtx is optional in TrueType - only parse if present. For CIDFonts, W2 and DW2 arrays should take precedence over vmtx when available."
     }
   ]

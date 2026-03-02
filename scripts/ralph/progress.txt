@@ -1,11 +1,29 @@
+# Ralph Progress Log
+Started: 2026년  3월  2일 월요일 14시 30분 23초 KST
+
 ## Codebase Patterns
-
-- **Arabic CID TrueType already works**: The CID font parsing (cid_font.rs) and ToUnicode CMap resolution (cmap.rs) already handle Arabic Presentation Forms correctly. The Unicode resolution chain in interpreter.rs (line ~1259) correctly resolves CID→Unicode via ToUnicode CMap lookup.
-- **cross_validate! vs cross_validate_ignored!**: Use `cross_validate!` with `EXTERNAL_CHAR_THRESHOLD`/`EXTERNAL_WORD_THRESHOLD` (0.80) for active tests. Use `cross_validate_ignored!` only for truly broken PDFs.
-- **pdfplumber-py tests**: The Python binding crate requires libpython3.11.dylib; skip with `--exclude pdfplumber-py` for local testing.
-
+- TrueType table parsing: find_table() → read header → extract metrics. All in truetype.rs
+- CID font metrics fallback chain: W2/DW2 (PDF-level) → vmtx (TrueType) → defaults
+- vmtx integration: try_extract_vmtx_vertical_metrics() in cid_font.rs, only for CIDFontType2 when W2 is absent
+- Test builder pattern: build_truetype_data_with_vmtx() constructs minimal valid TrueType font binaries for unit tests
 ---
 
-# Ralph Progress Log - Issue #205 Cat3: Improve CJK vertical writing mode accuracy (2 PDFs)
-Started: 2026년  3월  2일 월요일 14시 30분 23초 KST
+## 2026-03-02 - US-205-11
+- What was implemented:
+  - TrueType vhea table parsing (numOfLongVerMetrics at offset 34)
+  - TrueType vmtx table parsing (per-glyph vertical advance heights, scaled to 1000 upem)
+  - TrueTypeVerticalMetrics struct with get_height() method
+  - vmtx fallback integration in CID font metrics pipeline (cid_font.rs)
+  - Raised accuracy thresholds: vertical.pdf >= 80%, pdfbox-3127-vfont-reduced >= 30%
+- Files changed:
+  - crates/pdfplumber-parse/src/truetype.rs (TrueTypeVerticalMetrics + parse_truetype_vertical_metrics + vhea parser)
+  - crates/pdfplumber-parse/src/cid_font.rs (try_extract_vmtx_vertical_metrics + integration)
+  - crates/pdfplumber-parse/src/lib.rs (re-export new types)
+  - crates/pdfplumber/tests/accuracy_benchmark.rs (raised thresholds)
+- Dependencies added: none
+- **Learnings for future iterations:**
+  - Both vertical PDFs were already at F1=1.000 before vmtx was added (prior CID tables work was sufficient)
+  - vmtx is optional in TrueType - gracefully returns None when vhea/vmtx absent
+  - W2/DW2 from PDF spec take precedence over vmtx per PDF spec requirement
+  - The build_truetype_data_with_vmtx() test helper creates valid 6-table TrueType binaries
 ---
