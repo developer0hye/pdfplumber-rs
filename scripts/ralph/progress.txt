@@ -1,7 +1,3 @@
-# Ralph Progress Log
-Started: 2026년  3월  2일 월요일 13시 55분 26초 KST
----
-
 ## Codebase Patterns
 
 ### Content Stream Error Recovery
@@ -14,22 +10,6 @@ Started: 2026년  3월  2일 월요일 13시 55분 26초 KST
 
 ---
 
-## 2026-03-02 - US-205-9
-- Implemented `tokenize_lenient()` in `tokenizer.rs`: error-recovering tokenizer that skips malformed tokens and continues
-- Updated `interpret_content_stream()` in `interpreter.rs` to use `tokenize_lenient()` instead of strict `tokenize()`
-- Changed `Do` operator error handling: catches and emits warnings for malformed XObject errors, but preserves recursion depth limit propagation
-- Emits `ExtractWarning::with_code(MalformedObject, ...)` for tokenizer recovery and Do failures
-- Added tracing support (`#[cfg(feature = "tracing")]`) for recovered errors
-- Exported `tokenize_lenient` from `lib.rs`
-- Files changed:
-  - `crates/pdfplumber-parse/src/tokenizer.rs` — added `tokenize_lenient()` + 10 tests
-  - `crates/pdfplumber-parse/src/interpreter.rs` — switched to lenient tokenizer, graceful Do error handling
-  - `crates/pdfplumber-parse/src/lib.rs` — export `tokenize_lenient`
-  - `scripts/ralph/prd.json` — marked US-205-9 passes: true
-- Dependencies added: none
-- **Learnings for future iterations:**
-  - Failed parsers may consume arbitrary input before returning error — always reset position on error
-  - Resource limit errors (recursion depth) should propagate, not be swallowed by error recovery
-  - The `matches!` macro with guard clauses is useful for selective error propagation
-  - All existing integration tests pass — error recovery is backwards-compatible
+# Ralph Progress Log - Issue #205 Cat7: Arabic CID TrueType font support (1 PDF)
+Started: 2026년  3월  2일 월요일 14시 18분 38초 KST
 ---
