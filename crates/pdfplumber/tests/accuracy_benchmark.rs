@@ -1059,10 +1059,714 @@ fn accuracy_pdfbox_3127_vfont() {
 }
 
 // ---------------------------------------------------------------------------
+// Root-level issue/PR regression PDFs — coverage for all crate-level golden
+// files that have matching PDFs. F1 threshold >= 0.0 for initial pass.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_150109dsp_milw_505_90d() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "150109DSP-Milw-505-90D.pdf",
+        "150109DSP-Milw-505-90D",
+    )
+    .expect("150109DSP-Milw-505-90D.pdf should parse");
+    print_text_summary("150109DSP-Milw-505-90D.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_2023_06_20_pv() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "2023-06-20-PV.pdf", "2023-06-20-PV")
+        .expect("2023-06-20-PV.pdf should parse");
+    print_text_summary("2023-06-20-PV.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_annotations() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "annotations.pdf", "annotations")
+        .expect("annotations.pdf should parse");
+    print_text_summary("annotations.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_annotations_rotated_90() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "annotations-rotated-90.pdf",
+        "annotations-rotated-90",
+    )
+    .expect("annotations-rotated-90.pdf should parse");
+    print_text_summary("annotations-rotated-90.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_annotations_unicode_issues() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "annotations-unicode-issues.pdf",
+        "annotations-unicode-issues",
+    )
+    .expect("annotations-unicode-issues.pdf should parse");
+    print_text_summary("annotations-unicode-issues.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_chelsea_pdta() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "chelsea_pdta.pdf", "chelsea_pdta")
+        .expect("chelsea_pdta.pdf should parse");
+    print_text_summary("chelsea_pdta.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_cupertino_usd_4_6_16() {
+    let (cf1, wf1) =
+        benchmark_pdf_crate("pdfs", "cupertino_usd_4-6-16.pdf", "cupertino_usd_4-6-16")
+            .expect("cupertino_usd_4-6-16.pdf should parse");
+    print_text_summary("cupertino_usd_4-6-16.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_federal_register_2020_17221() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "federal-register-2020-17221.pdf",
+        "federal-register-2020-17221",
+    )
+    .expect("federal-register-2020-17221.pdf should parse");
+    print_text_summary("federal-register-2020-17221.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_image_structure() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "image_structure.pdf", "image_structure")
+        .expect("image_structure.pdf should parse");
+    print_text_summary("image_structure.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_1054_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-1054-example.pdf", "issue-1054-example")
+        .expect("issue-1054-example.pdf should parse");
+    print_text_summary("issue-1054-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_1114_dedupe_chars() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "issue-1114-dedupe-chars.pdf",
+        "issue-1114-dedupe-chars",
+    )
+    .expect("issue-1114-dedupe-chars.pdf should parse");
+    print_text_summary("issue-1114-dedupe-chars.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_1181() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-1181.pdf", "issue-1181")
+        .expect("issue-1181.pdf should parse");
+    print_text_summary("issue-1181.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_1279_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-1279-example.pdf", "issue-1279-example")
+        .expect("issue-1279-example.pdf should parse");
+    print_text_summary("issue-1279-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_13_151201dsp_fond_581_90d() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "issue-13-151201DSP-Fond-581-90D.pdf",
+        "issue-13-151201DSP-Fond-581-90D",
+    )
+    .expect("issue-13-151201DSP-Fond-581-90D.pdf should parse");
+    print_text_summary("issue-13-151201DSP-Fond-581-90D.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_192_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-192-example.pdf", "issue-192-example")
+        .expect("issue-192-example.pdf should parse");
+    print_text_summary("issue-192-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_203_decimalize() {
+    let (cf1, wf1) =
+        benchmark_pdf_crate("pdfs", "issue-203-decimalize.pdf", "issue-203-decimalize")
+            .expect("issue-203-decimalize.pdf should parse");
+    print_text_summary("issue-203-decimalize.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_297_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-297-example.pdf", "issue-297-example")
+        .expect("issue-297-example.pdf should parse");
+    print_text_summary("issue-297-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_316_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-316-example.pdf", "issue-316-example")
+        .expect("issue-316-example.pdf should parse");
+    print_text_summary("issue-316-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_33_lorem_ipsum() {
+    let (cf1, wf1) =
+        benchmark_pdf_crate("pdfs", "issue-33-lorem-ipsum.pdf", "issue-33-lorem-ipsum")
+            .expect("issue-33-lorem-ipsum.pdf should parse");
+    print_text_summary("issue-33-lorem-ipsum.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_336_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-336-example.pdf", "issue-336-example")
+        .expect("issue-336-example.pdf should parse");
+    print_text_summary("issue-336-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_463_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-463-example.pdf", "issue-463-example")
+        .expect("issue-463-example.pdf should parse");
+    print_text_summary("issue-463-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_466_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-466-example.pdf", "issue-466-example")
+        .expect("issue-466-example.pdf should parse");
+    print_text_summary("issue-466-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_53_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-53-example.pdf", "issue-53-example")
+        .expect("issue-53-example.pdf should parse");
+    print_text_summary("issue-53-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_598_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-598-example.pdf", "issue-598-example")
+        .expect("issue-598-example.pdf should parse");
+    print_text_summary("issue-598-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_67_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-67-example.pdf", "issue-67-example")
+        .expect("issue-67-example.pdf should parse");
+    print_text_summary("issue-67-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_71_duplicate_chars() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "issue-71-duplicate-chars.pdf",
+        "issue-71-duplicate-chars",
+    )
+    .expect("issue-71-duplicate-chars.pdf should parse");
+    print_text_summary("issue-71-duplicate-chars.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_71_duplicate_chars_2() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "issue-71-duplicate-chars-2.pdf",
+        "issue-71-duplicate-chars-2",
+    )
+    .expect("issue-71-duplicate-chars-2.pdf should parse");
+    print_text_summary("issue-71-duplicate-chars-2.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_842_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-842-example.pdf", "issue-842-example")
+        .expect("issue-842-example.pdf should parse");
+    print_text_summary("issue-842-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_848() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-848.pdf", "issue-848")
+        .expect("issue-848.pdf should parse");
+    print_text_summary("issue-848.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_90_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-90-example.pdf", "issue-90-example")
+        .expect("issue-90-example.pdf should parse");
+    print_text_summary("issue-90-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_905() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-905.pdf", "issue-905")
+        .expect("issue-905.pdf should parse");
+    print_text_summary("issue-905.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_912() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-912.pdf", "issue-912")
+        .expect("issue-912.pdf should parse");
+    print_text_summary("issue-912.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_982_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-982-example.pdf", "issue-982-example")
+        .expect("issue-982-example.pdf should parse");
+    print_text_summary("issue-982-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_issue_987_test() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-987-test.pdf", "issue-987-test")
+        .expect("issue-987-test.pdf should parse");
+    print_text_summary("issue-987-test.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_line_char_render_example() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "line-char-render-example.pdf",
+        "line-char-render-example",
+    )
+    .expect("line-char-render-example.pdf should parse");
+    print_text_summary("line-char-render-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_mcid_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "mcid_example.pdf", "mcid_example")
+        .expect("mcid_example.pdf should parse");
+    print_text_summary("mcid_example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_nics_background_checks_2015_11() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "nics-background-checks-2015-11.pdf",
+        "nics-background-checks-2015-11",
+    )
+    .expect("nics-background-checks-2015-11.pdf should parse");
+    print_text_summary("nics-background-checks-2015-11.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_nics_background_checks_2015_11_rotated() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "nics-background-checks-2015-11-rotated.pdf",
+        "nics-background-checks-2015-11-rotated",
+    )
+    .expect("nics-background-checks-2015-11-rotated.pdf should parse");
+    print_text_summary("nics-background-checks-2015-11-rotated.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pr_136_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "pr-136-example.pdf", "pr-136-example")
+        .expect("pr-136-example.pdf should parse");
+    print_text_summary("pr-136-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pr_138_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "pr-138-example.pdf", "pr-138-example")
+        .expect("pr-138-example.pdf should parse");
+    print_text_summary("pr-138-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pr_88_example() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "pr-88-example.pdf", "pr-88-example")
+        .expect("pr-88-example.pdf should parse");
+    print_text_summary("pr-88-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_table_curves_example() {
+    let (cf1, wf1) =
+        benchmark_pdf_crate("pdfs", "table-curves-example.pdf", "table-curves-example")
+            .expect("table-curves-example.pdf should parse");
+    print_text_summary("table-curves-example.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_warn_report() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
+        "WARN-Report-for-7-1-2015-to-03-25-2016",
+    )
+    .expect("WARN-Report-for-7-1-2015-to-03-25-2016.pdf should parse");
+    print_text_summary("WARN-Report-for-7-1-2015-to-03-25-2016.pdf", &cf1, &wf1);
+}
+
+// ---------------------------------------------------------------------------
+// pdfjs/ PDF tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_pdfjs_arabic_cid_truetype() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "ArabicCIDTrueType.pdf",
+        "pdfjs/ArabicCIDTrueType",
+    )
+    .expect("ArabicCIDTrueType.pdf should parse");
+    print_text_summary("ArabicCIDTrueType.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_cid_cff() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "cid_cff.pdf", "pdfjs/cid_cff")
+        .expect("cid_cff.pdf should parse");
+    print_text_summary("cid_cff.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue14117() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "issue14117.pdf", "pdfjs/issue14117")
+        .expect("issue14117.pdf should parse");
+    print_text_summary("issue14117.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue3521() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "issue3521.pdf", "pdfjs/issue3521")
+        .expect("issue3521.pdf should parse");
+    print_text_summary("issue3521.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue4875() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "issue4875.pdf", "pdfjs/issue4875")
+        .expect("issue4875.pdf should parse");
+    print_text_summary("issue4875.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue7696() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "issue7696.pdf", "pdfjs/issue7696")
+        .expect("issue7696.pdf should parse");
+    print_text_summary("issue7696.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue8570() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "issue8570.pdf", "pdfjs/issue8570")
+        .expect("issue8570.pdf should parse");
+    print_text_summary("issue8570.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_issue9262_reduced() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "issue9262_reduced.pdf",
+        "pdfjs/issue9262_reduced",
+    )
+    .expect("issue9262_reduced.pdf should parse");
+    print_text_summary("issue9262_reduced.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_noembed_eucjp() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "noembed-eucjp.pdf", "pdfjs/noembed-eucjp")
+        .expect("noembed-eucjp.pdf should parse");
+    print_text_summary("noembed-eucjp.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_noembed_identity() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "noembed-identity.pdf",
+        "pdfjs/noembed-identity",
+    )
+    .expect("noembed-identity.pdf should parse");
+    print_text_summary("noembed-identity.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_noembed_identity_2() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "noembed-identity-2.pdf",
+        "pdfjs/noembed-identity-2",
+    )
+    .expect("noembed-identity-2.pdf should parse");
+    print_text_summary("noembed-identity-2.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_noembed_jis7() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "noembed-jis7.pdf", "pdfjs/noembed-jis7")
+        .expect("noembed-jis7.pdf should parse");
+    print_text_summary("noembed-jis7.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_noembed_sjis() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "noembed-sjis.pdf", "pdfjs/noembed-sjis")
+        .expect("noembed-sjis.pdf should parse");
+    print_text_summary("noembed-sjis.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfjs_text_clip_cff_cid() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "text_clip_cff_cid.pdf",
+        "pdfjs/text_clip_cff_cid",
+    )
+    .expect("text_clip_cff_cid.pdf should parse");
+    print_text_summary("text_clip_cff_cid.pdf", &cf1, &wf1);
+}
+
+// ---------------------------------------------------------------------------
+// pdfbox/ PDF tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_pdfbox_bidi_sample() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfbox", "BidiSample.pdf", "pdfbox/BidiSample")
+        .expect("BidiSample.pdf should parse");
+    print_text_summary("BidiSample.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_fc60_times() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfbox", "FC60_Times.pdf", "pdfbox/FC60_Times")
+        .expect("FC60_Times.pdf should parse");
+    print_text_summary("FC60_Times.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_hello3() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfbox", "hello3.pdf", "pdfbox/hello3")
+        .expect("hello3.pdf should parse");
+    print_text_summary("hello3.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_3833_japanese() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-3833-japanese-reduced.pdf",
+        "pdfbox/pdfbox-3833-japanese-reduced",
+    )
+    .expect("pdfbox-3833-japanese-reduced.pdf should parse");
+    print_text_summary("pdfbox-3833-japanese-reduced.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_4322_empty_tounicode() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-4322-empty-tounicode-reduced.pdf",
+        "pdfbox/pdfbox-4322-empty-tounicode-reduced",
+    )
+    .expect("pdfbox-4322-empty-tounicode-reduced.pdf should parse");
+    print_text_summary("pdfbox-4322-empty-tounicode-reduced.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_4531_bidi_ligature_1() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-4531-bidi-ligature-1.pdf",
+        "pdfbox/pdfbox-4531-bidi-ligature-1",
+    )
+    .expect("pdfbox-4531-bidi-ligature-1.pdf should parse");
+    print_text_summary("pdfbox-4531-bidi-ligature-1.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_4531_bidi_ligature_2() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-4531-bidi-ligature-2.pdf",
+        "pdfbox/pdfbox-4531-bidi-ligature-2",
+    )
+    .expect("pdfbox-4531-bidi-ligature-2.pdf should parse");
+    print_text_summary("pdfbox-4531-bidi-ligature-2.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_5350_korean() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-5350-korean-reduced.pdf",
+        "pdfbox/pdfbox-5350-korean-reduced",
+    )
+    .expect("pdfbox-5350-korean-reduced.pdf should parse");
+    print_text_summary("pdfbox-5350-korean-reduced.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_pdfbox_5747_surrogate_diacritic() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfbox",
+        "pdfbox-5747-surrogate-diacritic-reduced.pdf",
+        "pdfbox/pdfbox-5747-surrogate-diacritic-reduced",
+    )
+    .expect("pdfbox-5747-surrogate-diacritic-reduced.pdf should parse");
+    print_text_summary("pdfbox-5747-surrogate-diacritic-reduced.pdf", &cf1, &wf1);
+}
+
+// ---------------------------------------------------------------------------
+// poppler/ PDF tests
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_poppler_deseret() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/poppler", "deseret.pdf", "poppler/deseret")
+        .expect("deseret.pdf should parse");
+    print_text_summary("deseret.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_poppler_pdf20_utf8_test() {
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/poppler",
+        "pdf20-utf8-test.pdf",
+        "poppler/pdf20-utf8-test",
+    )
+    .expect("pdf20-utf8-test.pdf should parse");
+    print_text_summary("pdf20-utf8-test.pdf", &cf1, &wf1);
+}
+
+#[test]
+fn accuracy_poppler_russian() {
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/poppler", "russian.pdf", "poppler/russian")
+        .expect("russian.pdf should parse");
+    print_text_summary("russian.pdf", &cf1, &wf1);
+}
+
+// ---------------------------------------------------------------------------
+// oss-fuzz/ PDF tests (may fail to parse — use if let pattern)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn accuracy_oss_fuzz_4591020179783680() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "4591020179783680.pdf",
+        "oss-fuzz/4591020179783680",
+    ) {
+        print_text_summary("4591020179783680.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_4652594248613888() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "4652594248613888.pdf",
+        "oss-fuzz/4652594248613888",
+    ) {
+        print_text_summary("4652594248613888.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_4715311080734720() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "4715311080734720.pdf",
+        "oss-fuzz/4715311080734720",
+    ) {
+        print_text_summary("4715311080734720.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_4833695495684096() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "4833695495684096.pdf",
+        "oss-fuzz/4833695495684096",
+    ) {
+        print_text_summary("4833695495684096.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_4927662560968704() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "4927662560968704.pdf",
+        "oss-fuzz/4927662560968704",
+    ) {
+        print_text_summary("4927662560968704.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_5317294594523136() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "5317294594523136.pdf",
+        "oss-fuzz/5317294594523136",
+    ) {
+        print_text_summary("5317294594523136.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_5452007745323008() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "5452007745323008.pdf",
+        "oss-fuzz/5452007745323008",
+    ) {
+        print_text_summary("5452007745323008.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_5592736912179200() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "5592736912179200.pdf",
+        "oss-fuzz/5592736912179200",
+    ) {
+        print_text_summary("5592736912179200.pdf", &cf1, &wf1);
+    }
+}
+
+#[test]
+fn accuracy_oss_fuzz_5903429863538688() {
+    if let Some((cf1, wf1)) = benchmark_pdf_crate(
+        "pdfs/oss-fuzz",
+        "5903429863538688.pdf",
+        "oss-fuzz/5903429863538688",
+    ) {
+        print_text_summary("5903429863538688.pdf", &cf1, &wf1);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Aggregate summary test
 // ---------------------------------------------------------------------------
 
 #[test]
+#[ignore] // Run separately: cargo test -p pdfplumber --test accuracy_benchmark accuracy_aggregate_summary -- --ignored --nocapture
 fn accuracy_aggregate_summary() {
     println!("\n========================================");
     println!("  Aggregate Accuracy Benchmark Summary");
@@ -1091,6 +1795,263 @@ fn accuracy_aggregate_summary() {
         ("downloaded", "pdffill-demo.pdf", "pdffill-demo"),
     ];
 
+    // Crate-level fixtures (pdfs/ directory)
+    let all_crate_fixtures: &[(&str, &str, &str)] = &[
+        // Structure / tagged PDFs
+        ("pdfs", "figure_structure.pdf", "figure_structure"),
+        ("pdfs", "hello_structure.pdf", "hello_structure"),
+        ("pdfs", "pdf_structure.pdf", "pdf_structure"),
+        ("pdfs", "image_structure.pdf", "image_structure"),
+        ("pdfs", "mcid_example.pdf", "mcid_example"),
+        // Government / page-box PDFs
+        ("pdfs", "senate-expenditures.pdf", "senate-expenditures"),
+        (
+            "pdfs",
+            "la-precinct-bulletin-2014-p1.pdf",
+            "la-precinct-bulletin-2014-p1",
+        ),
+        ("pdfs", "page-boxes-example.pdf", "page-boxes-example"),
+        ("pdfs", "extra-attrs-example.pdf", "extra-attrs-example"),
+        (
+            "pdfs",
+            "malformed-from-issue-932.pdf",
+            "malformed-from-issue-932",
+        ),
+        // Rotation / annotation PDFs
+        (
+            "pdfs",
+            "annotations-rotated-180.pdf",
+            "annotations-rotated-180",
+        ),
+        (
+            "pdfs",
+            "annotations-rotated-270.pdf",
+            "annotations-rotated-270",
+        ),
+        (
+            "pdfs",
+            "annotations-rotated-90.pdf",
+            "annotations-rotated-90",
+        ),
+        ("pdfs", "annotations.pdf", "annotations"),
+        (
+            "pdfs",
+            "annotations-unicode-issues.pdf",
+            "annotations-unicode-issues",
+        ),
+        // Issue / PR regression PDFs
+        (
+            "pdfs",
+            "150109DSP-Milw-505-90D.pdf",
+            "150109DSP-Milw-505-90D",
+        ),
+        ("pdfs", "2023-06-20-PV.pdf", "2023-06-20-PV"),
+        ("pdfs", "chelsea_pdta.pdf", "chelsea_pdta"),
+        ("pdfs", "cupertino_usd_4-6-16.pdf", "cupertino_usd_4-6-16"),
+        (
+            "pdfs",
+            "federal-register-2020-17221.pdf",
+            "federal-register-2020-17221",
+        ),
+        ("pdfs", "issue-1054-example.pdf", "issue-1054-example"),
+        (
+            "pdfs",
+            "issue-1114-dedupe-chars.pdf",
+            "issue-1114-dedupe-chars",
+        ),
+        ("pdfs", "issue-1147-example.pdf", "issue-1147-example"),
+        ("pdfs", "issue-1181.pdf", "issue-1181"),
+        ("pdfs", "issue-1279-example.pdf", "issue-1279-example"),
+        (
+            "pdfs",
+            "issue-13-151201DSP-Fond-581-90D.pdf",
+            "issue-13-151201DSP-Fond-581-90D",
+        ),
+        ("pdfs", "issue-140-example.pdf", "issue-140-example"),
+        ("pdfs", "issue-192-example.pdf", "issue-192-example"),
+        ("pdfs", "issue-203-decimalize.pdf", "issue-203-decimalize"),
+        ("pdfs", "issue-297-example.pdf", "issue-297-example"),
+        ("pdfs", "issue-316-example.pdf", "issue-316-example"),
+        ("pdfs", "issue-33-lorem-ipsum.pdf", "issue-33-lorem-ipsum"),
+        ("pdfs", "issue-336-example.pdf", "issue-336-example"),
+        ("pdfs", "issue-461-example.pdf", "issue-461-example"),
+        ("pdfs", "issue-463-example.pdf", "issue-463-example"),
+        ("pdfs", "issue-466-example.pdf", "issue-466-example"),
+        ("pdfs", "issue-53-example.pdf", "issue-53-example"),
+        ("pdfs", "issue-598-example.pdf", "issue-598-example"),
+        ("pdfs", "issue-67-example.pdf", "issue-67-example"),
+        (
+            "pdfs",
+            "issue-71-duplicate-chars.pdf",
+            "issue-71-duplicate-chars",
+        ),
+        (
+            "pdfs",
+            "issue-71-duplicate-chars-2.pdf",
+            "issue-71-duplicate-chars-2",
+        ),
+        ("pdfs", "issue-842-example.pdf", "issue-842-example"),
+        ("pdfs", "issue-848.pdf", "issue-848"),
+        ("pdfs", "issue-90-example.pdf", "issue-90-example"),
+        ("pdfs", "issue-905.pdf", "issue-905"),
+        ("pdfs", "issue-912.pdf", "issue-912"),
+        ("pdfs", "issue-982-example.pdf", "issue-982-example"),
+        ("pdfs", "issue-987-test.pdf", "issue-987-test"),
+        (
+            "pdfs",
+            "line-char-render-example.pdf",
+            "line-char-render-example",
+        ),
+        (
+            "pdfs",
+            "nics-background-checks-2015-11.pdf",
+            "nics-background-checks-2015-11",
+        ),
+        (
+            "pdfs",
+            "nics-background-checks-2015-11-rotated.pdf",
+            "nics-background-checks-2015-11-rotated",
+        ),
+        ("pdfs", "pr-136-example.pdf", "pr-136-example"),
+        ("pdfs", "pr-138-example.pdf", "pr-138-example"),
+        ("pdfs", "pr-88-example.pdf", "pr-88-example"),
+        ("pdfs", "table-curves-example.pdf", "table-curves-example"),
+        (
+            "pdfs",
+            "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
+            "WARN-Report-for-7-1-2015-to-03-25-2016",
+        ),
+        // pdfjs/
+        (
+            "pdfs/pdfjs",
+            "ArabicCIDTrueType.pdf",
+            "pdfjs/ArabicCIDTrueType",
+        ),
+        ("pdfs/pdfjs", "cid_cff.pdf", "pdfjs/cid_cff"),
+        ("pdfs/pdfjs", "issue14117.pdf", "pdfjs/issue14117"),
+        ("pdfs/pdfjs", "issue3521.pdf", "pdfjs/issue3521"),
+        ("pdfs/pdfjs", "issue4875.pdf", "pdfjs/issue4875"),
+        ("pdfs/pdfjs", "issue7696.pdf", "pdfjs/issue7696"),
+        ("pdfs/pdfjs", "issue8570.pdf", "pdfjs/issue8570"),
+        (
+            "pdfs/pdfjs",
+            "issue9262_reduced.pdf",
+            "pdfjs/issue9262_reduced",
+        ),
+        ("pdfs/pdfjs", "noembed-eucjp.pdf", "pdfjs/noembed-eucjp"),
+        (
+            "pdfs/pdfjs",
+            "noembed-identity.pdf",
+            "pdfjs/noembed-identity",
+        ),
+        (
+            "pdfs/pdfjs",
+            "noembed-identity-2.pdf",
+            "pdfjs/noembed-identity-2",
+        ),
+        ("pdfs/pdfjs", "noembed-jis7.pdf", "pdfjs/noembed-jis7"),
+        ("pdfs/pdfjs", "noembed-sjis.pdf", "pdfjs/noembed-sjis"),
+        (
+            "pdfs/pdfjs",
+            "text_clip_cff_cid.pdf",
+            "pdfjs/text_clip_cff_cid",
+        ),
+        ("pdfs/pdfjs", "vertical.pdf", "pdfjs/vertical"),
+        // pdfbox/
+        ("pdfs/pdfbox", "BidiSample.pdf", "pdfbox/BidiSample"),
+        ("pdfs/pdfbox", "FC60_Times.pdf", "pdfbox/FC60_Times"),
+        ("pdfs/pdfbox", "hello3.pdf", "pdfbox/hello3"),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-3127-vfont-reduced.pdf",
+            "pdfbox/pdfbox-3127-vfont-reduced",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-3833-japanese-reduced.pdf",
+            "pdfbox/pdfbox-3833-japanese-reduced",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-4322-empty-tounicode-reduced.pdf",
+            "pdfbox/pdfbox-4322-empty-tounicode-reduced",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-4531-bidi-ligature-1.pdf",
+            "pdfbox/pdfbox-4531-bidi-ligature-1",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-4531-bidi-ligature-2.pdf",
+            "pdfbox/pdfbox-4531-bidi-ligature-2",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-5350-korean-reduced.pdf",
+            "pdfbox/pdfbox-5350-korean-reduced",
+        ),
+        (
+            "pdfs/pdfbox",
+            "pdfbox-5747-surrogate-diacritic-reduced.pdf",
+            "pdfbox/pdfbox-5747-surrogate-diacritic-reduced",
+        ),
+        // poppler/
+        ("pdfs/poppler", "deseret.pdf", "poppler/deseret"),
+        (
+            "pdfs/poppler",
+            "pdf20-utf8-test.pdf",
+            "poppler/pdf20-utf8-test",
+        ),
+        ("pdfs/poppler", "russian.pdf", "poppler/russian"),
+        // oss-fuzz/
+        (
+            "pdfs/oss-fuzz",
+            "4591020179783680.pdf",
+            "oss-fuzz/4591020179783680",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "4652594248613888.pdf",
+            "oss-fuzz/4652594248613888",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "4715311080734720.pdf",
+            "oss-fuzz/4715311080734720",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "4833695495684096.pdf",
+            "oss-fuzz/4833695495684096",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "4927662560968704.pdf",
+            "oss-fuzz/4927662560968704",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "5317294594523136.pdf",
+            "oss-fuzz/5317294594523136",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "5452007745323008.pdf",
+            "oss-fuzz/5452007745323008",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "5592736912179200.pdf",
+            "oss-fuzz/5592736912179200",
+        ),
+        (
+            "pdfs/oss-fuzz",
+            "5903429863538688.pdf",
+            "oss-fuzz/5903429863538688",
+        ),
+    ];
+
     let mut total_char_tp = 0usize;
     let mut total_char_golden = 0usize;
     let mut total_char_actual = 0usize;
@@ -1100,8 +2061,29 @@ fn accuracy_aggregate_summary() {
     let mut parsed = 0usize;
     let mut skipped = 0usize;
 
+    // Root-level fixtures (generated + downloaded)
     for &(subdir, filename, stem) in all_fixtures {
         match benchmark_pdf(subdir, filename, stem) {
+            Some((cf1, wf1)) => {
+                print_text_summary(filename, &cf1, &wf1);
+                println!();
+                total_char_tp += cf1.true_positives;
+                total_char_golden += cf1.golden_count;
+                total_char_actual += cf1.actual_count;
+                total_word_tp += wf1.true_positives;
+                total_word_golden += wf1.golden_count;
+                total_word_actual += wf1.actual_count;
+                parsed += 1;
+            }
+            None => {
+                skipped += 1;
+            }
+        }
+    }
+
+    // Crate-level fixtures
+    for &(subdir, filename, stem) in all_crate_fixtures {
+        match benchmark_pdf_crate(subdir, filename, stem) {
             Some((cf1, wf1)) => {
                 print_text_summary(filename, &cf1, &wf1);
                 println!();
