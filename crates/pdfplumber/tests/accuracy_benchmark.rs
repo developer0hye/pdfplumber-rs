@@ -1065,9 +1065,12 @@ fn accuracy_pdfbox_3127_vfont() {
 
 #[test]
 fn accuracy_150109dsp_milw_505_90d() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs", "150109DSP-Milw-505-90D.pdf", "150109DSP-Milw-505-90D")
-            .expect("150109DSP-Milw-505-90D.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "150109DSP-Milw-505-90D.pdf",
+        "150109DSP-Milw-505-90D",
+    )
+    .expect("150109DSP-Milw-505-90D.pdf should parse");
     print_text_summary("150109DSP-Milw-505-90D.pdf", &cf1, &wf1);
 }
 
@@ -1087,9 +1090,12 @@ fn accuracy_annotations() {
 
 #[test]
 fn accuracy_annotations_rotated_90() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs", "annotations-rotated-90.pdf", "annotations-rotated-90")
-            .expect("annotations-rotated-90.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "annotations-rotated-90.pdf",
+        "annotations-rotated-90",
+    )
+    .expect("annotations-rotated-90.pdf should parse");
     print_text_summary("annotations-rotated-90.pdf", &cf1, &wf1);
 }
 
@@ -1146,9 +1152,12 @@ fn accuracy_issue_1054_example() {
 
 #[test]
 fn accuracy_issue_1114_dedupe_chars() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs", "issue-1114-dedupe-chars.pdf", "issue-1114-dedupe-chars")
-            .expect("issue-1114-dedupe-chars.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs",
+        "issue-1114-dedupe-chars.pdf",
+        "issue-1114-dedupe-chars",
+    )
+    .expect("issue-1114-dedupe-chars.pdf should parse");
     print_text_summary("issue-1114-dedupe-chars.pdf", &cf1, &wf1);
 }
 
@@ -1186,8 +1195,9 @@ fn accuracy_issue_192_example() {
 
 #[test]
 fn accuracy_issue_203_decimalize() {
-    let (cf1, wf1) = benchmark_pdf_crate("pdfs", "issue-203-decimalize.pdf", "issue-203-decimalize")
-        .expect("issue-203-decimalize.pdf should parse");
+    let (cf1, wf1) =
+        benchmark_pdf_crate("pdfs", "issue-203-decimalize.pdf", "issue-203-decimalize")
+            .expect("issue-203-decimalize.pdf should parse");
     print_text_summary("issue-203-decimalize.pdf", &cf1, &wf1);
 }
 
@@ -1465,33 +1475,41 @@ fn accuracy_pdfjs_issue8570() {
 
 #[test]
 fn accuracy_pdfjs_issue9262_reduced() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs/pdfjs", "issue9262_reduced.pdf", "pdfjs/issue9262_reduced")
-            .expect("issue9262_reduced.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "issue9262_reduced.pdf",
+        "pdfjs/issue9262_reduced",
+    )
+    .expect("issue9262_reduced.pdf should parse");
     print_text_summary("issue9262_reduced.pdf", &cf1, &wf1);
 }
 
 #[test]
 fn accuracy_pdfjs_noembed_eucjp() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs/pdfjs", "noembed-eucjp.pdf", "pdfjs/noembed-eucjp")
-            .expect("noembed-eucjp.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate("pdfs/pdfjs", "noembed-eucjp.pdf", "pdfjs/noembed-eucjp")
+        .expect("noembed-eucjp.pdf should parse");
     print_text_summary("noembed-eucjp.pdf", &cf1, &wf1);
 }
 
 #[test]
 fn accuracy_pdfjs_noembed_identity() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs/pdfjs", "noembed-identity.pdf", "pdfjs/noembed-identity")
-            .expect("noembed-identity.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "noembed-identity.pdf",
+        "pdfjs/noembed-identity",
+    )
+    .expect("noembed-identity.pdf should parse");
     print_text_summary("noembed-identity.pdf", &cf1, &wf1);
 }
 
 #[test]
 fn accuracy_pdfjs_noembed_identity_2() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs/pdfjs", "noembed-identity-2.pdf", "pdfjs/noembed-identity-2")
-            .expect("noembed-identity-2.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/pdfjs",
+        "noembed-identity-2.pdf",
+        "pdfjs/noembed-identity-2",
+    )
+    .expect("noembed-identity-2.pdf should parse");
     print_text_summary("noembed-identity-2.pdf", &cf1, &wf1);
 }
 
@@ -1624,9 +1642,12 @@ fn accuracy_poppler_deseret() {
 
 #[test]
 fn accuracy_poppler_pdf20_utf8_test() {
-    let (cf1, wf1) =
-        benchmark_pdf_crate("pdfs/poppler", "pdf20-utf8-test.pdf", "poppler/pdf20-utf8-test")
-            .expect("pdf20-utf8-test.pdf should parse");
+    let (cf1, wf1) = benchmark_pdf_crate(
+        "pdfs/poppler",
+        "pdf20-utf8-test.pdf",
+        "poppler/pdf20-utf8-test",
+    )
+    .expect("pdf20-utf8-test.pdf should parse");
     print_text_summary("pdf20-utf8-test.pdf", &cf1, &wf1);
 }
 
@@ -1819,7 +1840,11 @@ fn accuracy_aggregate_summary() {
             "annotations-unicode-issues",
         ),
         // Issue / PR regression PDFs
-        ("pdfs", "150109DSP-Milw-505-90D.pdf", "150109DSP-Milw-505-90D"),
+        (
+            "pdfs",
+            "150109DSP-Milw-505-90D.pdf",
+            "150109DSP-Milw-505-90D",
+        ),
         ("pdfs", "2023-06-20-PV.pdf", "2023-06-20-PV"),
         ("pdfs", "chelsea_pdta.pdf", "chelsea_pdta"),
         ("pdfs", "cupertino_usd_4-6-16.pdf", "cupertino_usd_4-6-16"),
@@ -1890,11 +1915,7 @@ fn accuracy_aggregate_summary() {
         ("pdfs", "pr-136-example.pdf", "pr-136-example"),
         ("pdfs", "pr-138-example.pdf", "pr-138-example"),
         ("pdfs", "pr-88-example.pdf", "pr-88-example"),
-        (
-            "pdfs",
-            "table-curves-example.pdf",
-            "table-curves-example",
-        ),
+        ("pdfs", "table-curves-example.pdf", "table-curves-example"),
         (
             "pdfs",
             "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
