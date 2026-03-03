@@ -6,6 +6,7 @@
 - **IMPORTANT: Read and follow `METHODOLOGY.md`** before starting any task.
 - When editing `CLAUDE.md`, use the minimum words and sentences needed to convey 100% of the meaning.
 - After completing each planned task, run tests and commit before moving to the next task.
+- **Always run `cargo fmt` before committing.** CI enforces formatting checks.
 
 ## Git Configuration
 
