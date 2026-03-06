@@ -189,14 +189,7 @@ mod tests {
         }
     }
 
-    fn make_figure(
-        x0: f64,
-        top: f64,
-        x1: f64,
-        bottom: f64,
-        kind: FigureKind,
-        page: usize,
-    ) -> Figure {
+    fn make_figure(x0: f64, top: f64, x1: f64, bottom: f64, kind: FigureKind, page: usize) -> Figure {
         Figure {
             bbox: BBox::new(x0, top, x1, bottom),
             page_number: page,
@@ -252,8 +245,8 @@ mod tests {
     fn detect_figures_rects_separate_clusters() {
         // Two rects far apart should produce two figures
         let rects = vec![
-            make_rect(50.0, 100.0, 250.0, 300.0), // 200×200
-            make_rect(50.0, 500.0, 250.0, 700.0), // 200×200, gap=200
+            make_rect(50.0, 100.0, 250.0, 300.0),  // 200×200
+            make_rect(50.0, 500.0, 250.0, 700.0),  // 200×200, gap=200
         ];
         let figures = detect_figures_from_rects(&rects, 0, 10.0);
         assert_eq!(figures.len(), 2);

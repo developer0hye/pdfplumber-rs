@@ -68,7 +68,10 @@ mod tests {
 
     #[test]
     fn render_simple_2x2() {
-        let table = make_table(vec![vec![Some("A"), Some("B")], vec![Some("1"), Some("2")]]);
+        let table = make_table(vec![
+            vec![Some("A"), Some("B")],
+            vec![Some("1"), Some("2")],
+        ]);
         let text = render(&table);
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 2);
@@ -78,7 +81,10 @@ mod tests {
 
     #[test]
     fn render_none_cells_are_empty() {
-        let table = make_table(vec![vec![Some("Header"), None], vec![None, Some("value")]]);
+        let table = make_table(vec![
+            vec![Some("Header"), None],
+            vec![None, Some("value")],
+        ]);
         let text = render(&table);
         let lines: Vec<&str> = text.lines().collect();
         assert_eq!(lines.len(), 2);

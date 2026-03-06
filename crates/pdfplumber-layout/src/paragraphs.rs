@@ -117,9 +117,7 @@ mod tests {
     #[test]
     fn caption_detection_regular_text() {
         assert!(!looks_like_caption("The company reported strong earnings."));
-        assert!(!looks_like_caption(
-            "In this section we describe the methodology."
-        ));
+        assert!(!looks_like_caption("In this section we describe the methodology."));
     }
 
     #[test]

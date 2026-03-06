@@ -22,12 +22,12 @@
 use pdfplumber::Pdf;
 use pdfplumber_core::{PageRegionOptions, detect_page_regions};
 
-use crate::LayoutTable;
 use crate::extractor::{LayoutOptions, PageLayout, extract_page_layout};
-use crate::figures::Figure;
 use crate::markdown::sections_to_markdown;
 use crate::sections::{Section, partition_into_sections};
 use crate::{Heading, LayoutBlock, Paragraph};
+use crate::figures::Figure;
+use crate::LayoutTable;
 
 /// Document-wide layout statistics.
 #[derive(Debug, Clone, Default)]
@@ -148,22 +148,10 @@ impl Document {
         let sections = partition_into_sections(all_blocks.clone());
 
         // ── Stats ────────────────────────────────────────────────────────────
-        let heading_count = all_blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Heading(_)))
-            .count();
-        let paragraph_count = all_blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Paragraph(_)))
-            .count();
-        let table_count = all_blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Table(_)))
-            .count();
-        let figure_count = all_blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Figure(_)))
-            .count();
+        let heading_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Heading(_))).count();
+        let paragraph_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Paragraph(_))).count();
+        let table_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Table(_))).count();
+        let figure_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Figure(_))).count();
 
         body_sizes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let body_font_size = if body_sizes.is_empty() {
@@ -184,11 +172,7 @@ impl Document {
             pages_with_footer,
         };
 
-        Document {
-            pages,
-            sections,
-            stats,
-        }
+        Document { pages, sections, stats }
     }
 
     /// Per-page layouts, in page order.

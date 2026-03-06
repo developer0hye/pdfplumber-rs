@@ -72,7 +72,7 @@ pub(crate) mod paragraphs;
 pub(crate) mod sections;
 
 pub use document::{Document, DocumentStats};
-pub use extractor::{LayoutOptions, PageLayout, extract_page_layout};
+pub use extractor::{extract_page_layout, LayoutOptions, PageLayout};
 pub use figures::{Figure, FigureKind};
 pub use headings::{Heading, HeadingLevel};
 pub use lists::{List, ListItem, ListKind};

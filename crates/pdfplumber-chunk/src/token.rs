@@ -24,7 +24,7 @@ pub fn estimate(text: &str) -> usize {
     let words = text.split_ascii_whitespace().count();
     // Use integer arithmetic: multiply by 13, divide by 10, ceiling.
     // ceil(n * 1.3) == (n * 13 + 9) / 10
-    let estimated = (words * 13 + 9) / 10;
+    let estimated = (words * 13).div_ceil(10);
     estimated.max(1)
 }
 
@@ -66,7 +66,7 @@ pub fn split_at_token_boundary(text: &str, max_tokens: usize) -> (&str, &str) {
         word_count += 1;
 
         // Check budget after adding this word (using same formula as estimate).
-        let tokens_so_far = (word_count * 13 + 9) / 10;
+        let tokens_so_far = (word_count * 13).div_ceil(10);
         if tokens_so_far > max_tokens {
             // This word tipped us over — split before it.
             // last_safe_byte is the end of the previous word's trailing whitespace trim.
@@ -214,9 +214,6 @@ mod tests {
         // Overlap words must be a suffix of text words.
         let n = overlap_words.len();
         assert!(n > 0);
-        assert_eq!(
-            &text_words[text_words.len() - n..],
-            overlap_words.as_slice()
-        );
+        assert_eq!(&text_words[text_words.len() - n..], overlap_words.as_slice());
     }
 }

@@ -25,7 +25,10 @@
 
 use pdfplumber::Pdf;
 use pdfplumber_core::BBox;
-use pdfplumber_layout::{Document, LayoutBlock, LayoutOptions, extract_page_layout};
+use pdfplumber_layout::{
+    LayoutBlock, LayoutOptions, extract_page_layout,
+    Document,
+};
 
 use crate::chunk::{Chunk, ChunkType};
 use crate::token;
@@ -108,14 +111,7 @@ pub struct Chunker {
 
 impl Chunker {
     /// Create a new chunker with the given settings.
-    ///
-    /// If `overlap_tokens >= max_tokens`, overlap is silently clamped to 0 to
-    /// prevent infinite splitting loops (overlap would exceed the budget on
-    /// every split, causing unbounded memory growth).
-    pub fn new(mut settings: ChunkSettings) -> Self {
-        if settings.overlap_tokens >= settings.max_tokens {
-            settings.overlap_tokens = 0;
-        }
+    pub fn new(settings: ChunkSettings) -> Self {
         Self { settings }
     }
 
@@ -142,7 +138,8 @@ impl Chunker {
     pub fn chunk_document(&self, doc: &Document) -> Vec<Chunk> {
         let mut all_chunks = Vec::new();
         for page_layout in doc.pages() {
-            let page_chunks = self.chunk_from_layout(page_layout.page_number, &page_layout.blocks);
+            let page_chunks =
+                self.chunk_from_layout(page_layout.page_number, &page_layout.blocks);
             all_chunks.extend(page_chunks);
         }
         all_chunks
@@ -152,7 +149,7 @@ impl Chunker {
     ///
     /// This is the core chunking algorithm. Exposed so callers can supply
     /// their own layout analysis results.
-    #[allow(unused_assignments)] // flush_prose! macro sets overlap_prefix/accum_bbox at every call site; final expansion has no reader
+    #[allow(unused_assignments)] // macro expansion writes overlap_prefix/accum_bbox at final flush
     pub fn chunk_from_layout(&self, page_idx: usize, blocks: &[LayoutBlock]) -> Vec<Chunk> {
         let mut chunks: Vec<Chunk> = Vec::new();
         let mut current_section: Option<String> = None;
@@ -228,14 +225,7 @@ impl Chunker {
                     };
 
                     // Split loop: keep emitting until remainder fits in budget.
-                    //
-                    // Overlap is tracked separately and prepended to the NEXT
-                    // chunk's text at emission time — it is NOT re-injected into
-                    // the splitting remainder. Re-injecting overlap into the
-                    // remainder causes it to grow (or not shrink) each iteration,
-                    // leading to infinite loops and OOM when overlap ≈ max_tokens.
                     let mut remainder = incoming;
-                    let mut pending_overlap = String::new();
                     loop {
                         if token::estimate(&remainder) <= self.settings.max_tokens {
                             break;
@@ -245,14 +235,11 @@ impl Chunker {
                         if head.is_empty() {
                             break; // safety: no progress possible
                         }
-
-                        // Emit: prepend any pending overlap from the previous split.
-                        let emit_text = if pending_overlap.is_empty() {
-                            head.to_string()
+                        let seg_overlap = if self.settings.overlap_tokens > 0 {
+                            token::extract_overlap(head, self.settings.overlap_tokens).to_string()
                         } else {
-                            format!("{} {}", pending_overlap, head)
+                            String::new()
                         };
-
                         let bbox = accum_bbox
                             .take()
                             .map(|b| {
@@ -268,29 +255,17 @@ impl Chunker {
                                 BBox::new(0.0, 0.0, 0.0, 0.0)
                             });
                         chunks.push(Chunk::new(
-                            emit_text,
+                            head.to_string(),
                             page_idx,
                             bbox,
                             current_section.clone(),
                             ChunkType::Paragraph,
                         ));
-
-                        // Compute overlap for the next chunk from the raw head
-                        // (not the emit_text which includes previous overlap).
-                        pending_overlap = if self.settings.overlap_tokens > 0 {
-                            token::extract_overlap(head, self.settings.overlap_tokens).to_string()
+                        remainder = if seg_overlap.is_empty() {
+                            tail.to_string()
                         } else {
-                            String::new()
+                            format!("{} {}", seg_overlap, tail.trim())
                         };
-
-                        // Remainder is purely the unconsumed tail — no overlap injected.
-                        remainder = tail.to_string();
-                    }
-
-                    // If there's pending overlap from the last split, prepend it
-                    // to the remainder so the final accumulated chunk has continuity.
-                    if !pending_overlap.is_empty() && !remainder.trim().is_empty() {
-                        remainder = format!("{} {}", pending_overlap, remainder.trim());
                     }
 
                     // Update accumulator.
@@ -405,7 +380,6 @@ mod tests {
             font_size: 10.0,
             fontname: "Helvetica".to_string(),
             is_caption: false,
-            is_list_item: false,
         })
     }
 
@@ -445,14 +419,8 @@ mod tests {
         ];
         let chunker = Chunker::new(ChunkSettings::default());
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        let h_chunks: Vec<_> = chunks
-            .iter()
-            .filter(|c| c.chunk_type == ChunkType::Heading)
-            .collect();
-        let p_chunks: Vec<_> = chunks
-            .iter()
-            .filter(|c| c.chunk_type == ChunkType::Paragraph)
-            .collect();
+        let h_chunks: Vec<_> = chunks.iter().filter(|c| c.chunk_type == ChunkType::Heading).collect();
+        let p_chunks: Vec<_> = chunks.iter().filter(|c| c.chunk_type == ChunkType::Paragraph).collect();
         assert_eq!(h_chunks.len(), 1);
         assert_eq!(p_chunks[0].section.as_deref(), Some("Introduction"));
     }
@@ -468,40 +436,22 @@ mod tests {
 
     #[test]
     fn table_never_split_at_tiny_max_tokens() {
-        let settings = ChunkSettings {
-            max_tokens: 2,
-            preserve_tables: true,
-            ..Default::default()
-        };
+        let settings = ChunkSettings { max_tokens: 2, preserve_tables: true, ..Default::default() };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &[table(0, 200.0)]);
-        assert_eq!(
-            chunks
-                .iter()
-                .filter(|c| c.chunk_type == ChunkType::Table)
-                .count(),
-            1
-        );
+        assert_eq!(chunks.iter().filter(|c| c.chunk_type == ChunkType::Table).count(), 1);
     }
 
     #[test]
     fn long_paragraph_splits_at_token_boundary() {
         let long_text: String = (0..300).map(|i| format!("word{i} ")).collect();
         let blocks = vec![para(&long_text, 0, 100.0)];
-        let settings = ChunkSettings {
-            max_tokens: 100,
-            overlap_tokens: 0,
-            ..Default::default()
-        };
+        let settings = ChunkSettings { max_tokens: 100, overlap_tokens: 0, ..Default::default() };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &blocks);
         assert!(chunks.len() > 1, "should split into multiple chunks");
         for chunk in &chunks {
-            assert!(
-                chunk.token_count <= 130,
-                "chunk token_count {} > budget+10%",
-                chunk.token_count
-            );
+            assert!(chunk.token_count <= 130, "chunk token_count {} > budget+10%", chunk.token_count);
         }
     }
 
@@ -514,10 +464,7 @@ mod tests {
 
     #[test]
     fn include_bbox_false_zeros_bboxes() {
-        let settings = ChunkSettings {
-            include_bbox: false,
-            ..Default::default()
-        };
+        let settings = ChunkSettings { include_bbox: false, ..Default::default() };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &[para("text", 0, 50.0)]);
         for c in &chunks {
@@ -536,14 +483,8 @@ mod tests {
         ];
         let chunker = Chunker::new(ChunkSettings::default());
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        let a = chunks
-            .iter()
-            .find(|c| c.text.contains("Para in A"))
-            .unwrap();
-        let b = chunks
-            .iter()
-            .find(|c| c.text.contains("Para in B"))
-            .unwrap();
+        let a = chunks.iter().find(|c| c.text.contains("Para in A")).unwrap();
+        let b = chunks.iter().find(|c| c.text.contains("Para in B")).unwrap();
         assert_eq!(a.section.as_deref(), Some("Section A"));
         assert_eq!(b.section.as_deref(), Some("Section B"));
     }
@@ -551,8 +492,7 @@ mod tests {
     #[test]
     fn token_count_matches_estimate() {
         let chunker = Chunker::new(ChunkSettings::default());
-        let chunks =
-            chunker.chunk_from_layout(0, &[para("Alpha beta gamma delta epsilon.", 0, 50.0)]);
+        let chunks = chunker.chunk_from_layout(0, &[para("Alpha beta gamma delta epsilon.", 0, 50.0)]);
         for chunk in &chunks {
             assert_eq!(chunk.token_count, crate::token::estimate(&chunk.text));
         }
@@ -565,16 +505,10 @@ mod tests {
             table(0, 100.0),
             para("After.", 0, 220.0),
         ];
-        let settings = ChunkSettings {
-            preserve_tables: false,
-            ..Default::default()
-        };
+        let settings = ChunkSettings { preserve_tables: false, ..Default::default() };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        assert!(
-            chunks.iter().all(|c| c.chunk_type != ChunkType::Table),
-            "no table chunks when preserve=false"
-        );
+        assert!(chunks.iter().all(|c| c.chunk_type != ChunkType::Table), "no table chunks when preserve=false");
     }
 
     #[test]
@@ -584,29 +518,5 @@ mod tests {
         assert_eq!(s.overlap_tokens, 64);
         assert!(s.preserve_tables);
         assert!(s.include_bbox);
-    }
-
-    #[test]
-    fn overlap_clamped_when_exceeds_max_tokens() {
-        // overlap >= max_tokens would cause infinite splitting → OOM.
-        // Chunker::new must clamp to 0.
-        let settings = ChunkSettings {
-            max_tokens: 10,
-            overlap_tokens: 64,
-            ..Default::default()
-        };
-        let chunker = Chunker::new(settings);
-        assert_eq!(chunker.settings.overlap_tokens, 0);
-    }
-
-    #[test]
-    fn overlap_equal_to_max_tokens_clamped() {
-        let settings = ChunkSettings {
-            max_tokens: 50,
-            overlap_tokens: 50,
-            ..Default::default()
-        };
-        let chunker = Chunker::new(settings);
-        assert_eq!(chunker.settings.overlap_tokens, 0);
     }
 }

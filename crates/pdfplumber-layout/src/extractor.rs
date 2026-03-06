@@ -14,18 +14,18 @@
 
 use pdfplumber::Page;
 use pdfplumber_core::{
-    BBox, Char, ColumnMode, TableSettings, TextBlock, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, detect_columns, sort_blocks_reading_order,
+    BBox, Char, ColumnMode, TableSettings, TextBlock, WordOptions,
+    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines,
+    detect_columns, sort_blocks_reading_order,
 };
 
 use crate::classifier::{compute_body_baseline, is_heading_candidate, mean_font_size};
-use crate::figures::{
-    Figure, detect_figures_from_images, detect_figures_from_rects, merge_overlapping_figures,
-};
+use crate::figures::{Figure, detect_figures_from_images, detect_figures_from_rects,
+    merge_overlapping_figures};
 use crate::headings::{Heading, HeadingLevel};
 use crate::lists::parse_list_prefix;
-use crate::paragraphs::{Paragraph, looks_like_caption};
 use crate::{LayoutBlock, LayoutTable};
+use crate::paragraphs::{Paragraph, looks_like_caption};
 
 /// Options controlling layout extraction behaviour.
 #[derive(Debug, Clone)]
@@ -88,44 +88,28 @@ impl PageLayout {
     /// Iterate headings on this page.
     pub fn headings(&self) -> impl Iterator<Item = &Heading> {
         self.blocks.iter().filter_map(|b| {
-            if let LayoutBlock::Heading(h) = b {
-                Some(h)
-            } else {
-                None
-            }
+            if let LayoutBlock::Heading(h) = b { Some(h) } else { None }
         })
     }
 
     /// Iterate paragraphs on this page.
     pub fn paragraphs(&self) -> impl Iterator<Item = &Paragraph> {
         self.blocks.iter().filter_map(|b| {
-            if let LayoutBlock::Paragraph(p) = b {
-                Some(p)
-            } else {
-                None
-            }
+            if let LayoutBlock::Paragraph(p) = b { Some(p) } else { None }
         })
     }
 
     /// Iterate tables on this page.
     pub fn tables(&self) -> impl Iterator<Item = &LayoutTable> {
         self.blocks.iter().filter_map(|b| {
-            if let LayoutBlock::Table(t) = b {
-                Some(t)
-            } else {
-                None
-            }
+            if let LayoutBlock::Table(t) = b { Some(t) } else { None }
         })
     }
 
     /// Iterate figures on this page.
     pub fn figures(&self) -> impl Iterator<Item = &Figure> {
         self.blocks.iter().filter_map(|b| {
-            if let LayoutBlock::Figure(f) = b {
-                Some(f)
-            } else {
-                None
-            }
+            if let LayoutBlock::Figure(f) = b { Some(f) } else { None }
         })
     }
 }
@@ -365,8 +349,7 @@ fn sort_in_column_order(blocks: &mut Vec<TextBlock>, column_boundaries: &[f64]) 
     // Sort each column top-to-bottom, then emit columns left-to-right.
     for col in &mut columns {
         col.sort_by(|a, b| {
-            a.bbox
-                .top
+            a.bbox.top
                 .partial_cmp(&b.bbox.top)
                 .unwrap_or(std::cmp::Ordering::Equal)
         });
@@ -414,57 +397,27 @@ mod tests {
     fn make_tb(x0: f64, top: f64, x1: f64, bottom: f64) -> TextBlock {
         TextBlock {
             lines: vec![],
-            bbox: BBox {
-                x0,
-                top,
-                x1,
-                bottom,
-            },
+            bbox: BBox { x0, top, x1, bottom },
         }
     }
 
     #[test]
     fn bbox_overlap_no_overlap() {
-        let a = BBox {
-            x0: 0.0,
-            top: 0.0,
-            x1: 10.0,
-            bottom: 10.0,
-        };
-        let b = BBox {
-            x0: 20.0,
-            top: 20.0,
-            x1: 30.0,
-            bottom: 30.0,
-        };
+        let a = BBox { x0: 0.0, top: 0.0, x1: 10.0, bottom: 10.0 };
+        let b = BBox { x0: 20.0, top: 20.0, x1: 30.0, bottom: 30.0 };
         assert_eq!(bbox_overlap_fraction(a, b), 0.0);
     }
 
     #[test]
     fn bbox_overlap_full() {
-        let a = BBox {
-            x0: 0.0,
-            top: 0.0,
-            x1: 10.0,
-            bottom: 10.0,
-        };
+        let a = BBox { x0: 0.0, top: 0.0, x1: 10.0, bottom: 10.0 };
         assert!((bbox_overlap_fraction(a, a) - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn bbox_overlap_half() {
-        let inner = BBox {
-            x0: 0.0,
-            top: 0.0,
-            x1: 10.0,
-            bottom: 10.0,
-        };
-        let outer = BBox {
-            x0: 5.0,
-            top: 0.0,
-            x1: 15.0,
-            bottom: 10.0,
-        };
+        let inner = BBox { x0: 0.0, top: 0.0, x1: 10.0, bottom: 10.0 };
+        let outer = BBox { x0: 5.0, top: 0.0, x1: 15.0, bottom: 10.0 };
         let frac = bbox_overlap_fraction(inner, outer);
         assert!((frac - 0.5).abs() < 1e-9, "got {frac}");
     }
@@ -494,9 +447,9 @@ mod tests {
         // Expected order: left col first (100, 200), then right col (50, 150).
         let mut blocks = vec![
             make_tb(310.0, 50.0, 550.0, 70.0),   // right col, top=50
-            make_tb(72.0, 100.0, 280.0, 120.0),  // left col, top=100
-            make_tb(310.0, 150.0, 550.0, 170.0), // right col, top=150
-            make_tb(72.0, 200.0, 280.0, 220.0),  // left col, top=200
+            make_tb(72.0, 100.0, 280.0, 120.0),   // left col, top=100
+            make_tb(310.0, 150.0, 550.0, 170.0),  // right col, top=150
+            make_tb(72.0, 200.0, 280.0, 220.0),   // left col, top=200
         ];
         sort_in_column_order(&mut blocks, &[300.0]);
         // Left column blocks come first (top=100 then top=200)
