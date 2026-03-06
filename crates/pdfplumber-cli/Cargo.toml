@@ -14,7 +14,7 @@ name = "pdfplumber"
 path = "src/main.rs"
 
 [features]
-signatures = ["pdfplumber/signatures"]
+write = ["pdfplumber/write"]
 
 [dependencies]
 pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
