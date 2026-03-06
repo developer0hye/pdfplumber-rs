@@ -77,6 +77,32 @@ impl Default for RasterOptions {
     }
 }
 
+/// The result of rasterizing a page.
+///
+/// Contains the PNG bytes plus metadata about how the image was produced.
+#[derive(Debug, Clone)]
+pub struct RenderResult {
+    /// PNG-encoded bytes. Valid PNG file, can be written directly to disk.
+    pub png: Vec<u8>,
+    /// Page number (0-based) that was rendered.
+    pub page_number: usize,
+    /// Output image width in pixels.
+    pub width_px: u32,
+    /// Output image height in pixels.
+    pub height_px: u32,
+    /// Scale factor used (`output_px = pdf_points × scale`).
+    pub scale: f32,
+}
+
+impl RenderResult {
+    /// Write the PNG bytes to a file at the given path.
+    ///
+    /// Creates or overwrites the file. Returns an I/O error if writing fails.
+    pub fn save(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        std::fs::write(path, &self.png)
+    }
+}
+
 /// Errors that can occur during rasterization.
 #[derive(Debug)]
 pub enum RasterError {
@@ -118,10 +144,11 @@ impl Rasterizer {
         Self { opts }
     }
 
-    /// Render a [`Page`] to PNG bytes.
+    /// Render a [`Page`] to a [`RenderResult`] containing PNG bytes and metadata.
     ///
-    /// Returns a `Vec<u8>` containing a valid PNG file.
-    pub fn render_page(&self, page: &Page) -> Result<Vec<u8>, RasterError> {
+    /// Returns a [`RenderResult`] with the PNG file bytes, pixel dimensions,
+    /// and the scale factor applied.
+    pub fn render_page(&self, page: &Page) -> Result<RenderResult, RasterError> {
         let scale = self.opts.scale;
         let width_pt = page.width();
         let height_pt = page.height();
@@ -156,11 +183,63 @@ impl Rasterizer {
         }
 
         // Encode to PNG.
-        let png_bytes = pixmap
+        let png = pixmap
             .encode_png()
             .map_err(|e| RasterError::PngEncodeError(e.to_string()))?;
 
-        Ok(png_bytes)
+        Ok(RenderResult {
+            png,
+            page_number: page.page_number(),
+            width_px,
+            height_px,
+            scale,
+        })
+    }
+
+    /// Render all pages of a [`pdfplumber::Pdf`] to a `Vec<RenderResult>`.
+    ///
+    /// Pages that fail to parse are skipped silently. Pages that fail to render
+    /// (e.g., exceed the dimension guard) have their error logged to `stderr`
+    /// and are also skipped — the returned vec contains only successful renders.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use pdfplumber::Pdf;
+    /// use pdfplumber_raster::{Rasterizer, RasterOptions};
+    ///
+    /// let pdf = Pdf::open_file("report.pdf", None).unwrap();
+    /// let pages = Rasterizer::new(RasterOptions::default()).render_all_pages(&pdf);
+    /// for result in &pages {
+    ///     let path = format!("page_{:03}.png", result.page_number + 1);
+    ///     result.save(&path).expect("write failed");
+    /// }
+    /// ```
+    pub fn render_all_pages(&self, pdf: &pdfplumber::Pdf) -> Vec<RenderResult> {
+        let mut results = Vec::new();
+        for page_result in pdf.pages_iter() {
+            let Ok(page) = page_result else { continue };
+            match self.render_page(&page) {
+                Ok(r) => results.push(r),
+                Err(e) => eprintln!(
+                    "pdfplumber-raster: skipping page {}: {e}",
+                    page.page_number()
+                ),
+            }
+        }
+        results
+    }
+
+    /// Render a single page by index from a [`pdfplumber::Pdf`].
+    ///
+    /// Returns `None` if the page index is out of bounds or the page fails to parse.
+    pub fn render_page_index(
+        &self,
+        pdf: &pdfplumber::Pdf,
+        page_idx: usize,
+    ) -> Option<Result<RenderResult, RasterError>> {
+        let page = pdf.page(page_idx).ok()?;
+        Some(self.render_page(&page))
     }
 }
 
@@ -473,27 +552,41 @@ mod tests {
         }
     }
 
+    fn is_png(bytes: &[u8]) -> bool {
+        bytes.len() >= 8 && &bytes[0..8] == b"\x89PNG\r\n\x1a\n"
+    }
+
     #[test]
     fn render_empty_page_produces_png() {
-        // Build a minimal Page with no chars or shapes.
         use pdfplumber::Page;
         let page = Page::new(0, 100.0, 100.0, vec![]);
         let opts = RasterOptions { scale: 1.0, ..Default::default() };
-        let png = Rasterizer::new(opts).render_page(&page).unwrap();
-        // Verify PNG magic bytes.
-        assert_eq!(&png[0..8], b"\x89PNG\r\n\x1a\n");
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert!(is_png(&result.png));
+        assert_eq!(result.page_number, 0);
+        assert_eq!(result.width_px, 100);
+        assert_eq!(result.height_px, 100);
+        assert!((result.scale - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn render_result_dimensions_match_scale() {
+        use pdfplumber::Page;
+        let page = Page::new(0, 200.0, 300.0, vec![]);
+        let opts = RasterOptions { scale: 2.0, ..Default::default() };
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert_eq!(result.width_px, 400);
+        assert_eq!(result.height_px, 600);
     }
 
     #[test]
     fn render_page_with_rect_produces_png() {
         use pdfplumber::Page;
-        let mut page = Page::new(0, 200.0, 200.0, vec![]);
-        // Inject a rect via with_geometry.
         let rect = make_rect(10.0, 10.0, 100.0, 100.0, true, true);
-        page = Page::with_geometry(0, 200.0, 200.0, vec![], vec![], vec![rect], vec![]);
+        let page = Page::with_geometry(0, 200.0, 200.0, vec![], vec![], vec![rect], vec![]);
         let opts = RasterOptions { scale: 1.0, ..Default::default() };
-        let png = Rasterizer::new(opts).render_page(&page).unwrap();
-        assert_eq!(&png[0..8], b"\x89PNG\r\n\x1a\n");
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert!(is_png(&result.png));
     }
 
     #[test]
@@ -505,14 +598,13 @@ mod tests {
         ];
         let page = Page::new(0, 200.0, 200.0, chars);
         let opts = RasterOptions { scale: 1.5, ..Default::default() };
-        let png = Rasterizer::new(opts).render_page(&page).unwrap();
-        assert_eq!(&png[0..8], b"\x89PNG\r\n\x1a\n");
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert!(is_png(&result.png));
     }
 
     #[test]
     fn oversized_page_returns_error() {
         use pdfplumber::Page;
-        // A 10 000 pt page at scale 2.0 → 20 000 px → exceeds MAX_DIM_PX.
         let page = Page::new(0, 10_000.0, 10_000.0, vec![]);
         let opts = RasterOptions { scale: 2.0, ..Default::default() };
         let result = Rasterizer::new(opts).render_page(&page);
@@ -524,26 +616,29 @@ mod tests {
         use pdfplumber::Page;
         let chars = vec![make_char("X", 10.0, 10.0, 20.0, 20.0, 10.0)];
         let page = Page::new(0, 100.0, 100.0, chars);
-        let opts =
-            RasterOptions { scale: 1.0, render_text: false, ..Default::default() };
-        // Must not panic; returns valid PNG.
-        let png = Rasterizer::new(opts).render_page(&page).unwrap();
-        assert_eq!(&png[0..8], b"\x89PNG\r\n\x1a\n");
+        let opts = RasterOptions { scale: 1.0, render_text: false, ..Default::default() };
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert!(is_png(&result.png));
     }
 
     #[test]
     fn background_color_applied() {
         use pdfplumber::Page;
         let page = Page::new(0, 10.0, 10.0, vec![]);
-        // Red background.
         let opts = RasterOptions {
             scale: 1.0,
             background: [255, 0, 0],
             ..Default::default()
         };
-        let png = Rasterizer::new(opts).render_page(&page).unwrap();
-        // Decode and check top-left pixel is red.
-        // PNG header + IHDR + first pixel — just verify it's a valid PNG for now.
-        assert_eq!(&png[0..8], b"\x89PNG\r\n\x1a\n");
+        let result = Rasterizer::new(opts).render_page(&page).unwrap();
+        assert!(is_png(&result.png));
+    }
+
+    #[test]
+    fn render_result_page_number_preserved() {
+        use pdfplumber::Page;
+        let page = Page::new(7, 100.0, 100.0, vec![]);
+        let result = Rasterizer::new(RasterOptions::default()).render_page(&page).unwrap();
+        assert_eq!(result.page_number, 7);
     }
 }
