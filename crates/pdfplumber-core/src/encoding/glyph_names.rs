@@ -258,7 +258,7 @@ static GLYPH_NAME_MAP: &[(&str, char)] = &[
 /// Codes 0x00–0x1F are control characters (mapped to Unicode controls).
 /// Codes 0x20–0x7E match ASCII. Codes 0x80–0xFF include extended Latin characters.
 /// Some codes (0x81, 0x8D, 0x8F, 0x90, 0x9D) are undefined in the PDF spec.
-static WIN_ANSI_TABLE: [Option<char>; 256] = {
+pub(super) static WIN_ANSI_TABLE: [Option<char>; 256] = {
     let mut t = [None; 256];
     // 0x00–0x1F: C0 controls
     t[0x00] = Some('\0');
@@ -524,7 +524,7 @@ static WIN_ANSI_TABLE: [Option<char>; 256] = {
 };
 
 /// MacRomanEncoding — Classic Macintosh character set.
-static MAC_ROMAN_TABLE: [Option<char>; 256] = {
+pub(super) static MAC_ROMAN_TABLE: [Option<char>; 256] = {
     let mut t = [None; 256];
     // 0x00–0x7E: Same as ASCII
     t[0x00] = Some('\0');
@@ -792,7 +792,7 @@ static MAC_ROMAN_TABLE: [Option<char>; 256] = {
 /// This encoding is used for expert glyph sets in Type1 fonts. Many positions
 /// contain special typographic characters like small caps, fractions, and
 /// old-style numerals. Undefined positions are None.
-static MAC_EXPERT_TABLE: [Option<char>; 256] = {
+pub(super) static MAC_EXPERT_TABLE: [Option<char>; 256] = {
     let mut t = [None; 256];
     t[0x20] = Some(' '); // space
     // Expert glyphs — small caps, fractions, special characters
@@ -979,7 +979,7 @@ static MAC_EXPERT_TABLE: [Option<char>; 256] = {
 /// StandardEncoding — Adobe standard Latin character encoding (PDF Reference Table D.1).
 ///
 /// This is the default encoding for Type1 fonts when no explicit /Encoding is specified.
-static STANDARD_TABLE: [Option<char>; 256] = {
+pub(super) static STANDARD_TABLE: [Option<char>; 256] = {
     let mut t = [None; 256];
     // 0x20–0x7E: mostly ASCII but with some differences
     t[0x20] = Some(' '); // space
