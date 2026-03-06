@@ -363,6 +363,22 @@ pub enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+
+    /// Launch the interactive TUI (requires `tui` feature + a TTY)
+    #[cfg(feature = "tui")]
+    Tui {
+        /// PDF file to pre-load in the Extract view
+        #[arg(value_name = "FILE")]
+        file: Option<PathBuf>,
+
+        /// Working directory for Grep and Process screens (default: CWD)
+        #[arg(long, value_name = "DIR")]
+        dir: Option<PathBuf>,
+
+        /// Disable TUI and exit (useful for testing the flag wire-up)
+        #[arg(long)]
+        no_tui: bool,
+    },
 }
 
 /// Table detection strategy.
