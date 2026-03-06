@@ -153,6 +153,12 @@ pub use pdfplumber_parse::{
 #[cfg(feature = "write")]
 pub mod write;
 
+/// Cryptographic PDF signature verification (PKCS#7/CMS).
+///
+/// Only compiled when the `signatures` feature is enabled.
+#[cfg(feature = "signatures")]
+pub mod signatures;
+
 #[cfg(test)]
 mod tests {
     #[test]

@@ -8,6 +8,10 @@ members = [
     "crates/pdfplumber-wasm",
     "crates/pdfplumber-layout",
     "crates/pdfplumber-chunk",
+    "crates/pdfplumber-a11y",
+    "crates/pdfplumber-forensic",
+    "crates/pdfplumber-math",
+    "crates/pdfplumber-raster",
 ]
 resolver = "3"
 

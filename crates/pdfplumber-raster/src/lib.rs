@@ -37,4 +37,4 @@ mod color;
 mod font_cache;
 mod render;
 
-pub use render::{RasterError, RasterOptions, RenderResult, Rasterizer};
+pub use render::{RasterError, RasterOptions, Rasterizer, RenderResult};

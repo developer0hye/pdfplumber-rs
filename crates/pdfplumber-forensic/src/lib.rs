@@ -46,15 +46,15 @@
 
 #![deny(missing_docs)]
 
-mod metadata;
 mod anomaly;
+mod metadata;
 
 // Re-export core types so downstream crates don't need to depend on
 // pdfplumber-core just to inspect forensic findings.
 pub use pdfplumber_core::{
-    ForensicReport as CoreForensicReport, IncrementalUpdate, MetadataFinding,
-    PageGeometryAnomaly, ProducerKind, WatermarkFinding, WatermarkKind,
+    ForensicReport as CoreForensicReport, IncrementalUpdate, MetadataFinding, PageGeometryAnomaly,
+    ProducerKind, WatermarkFinding, WatermarkKind,
 };
 
-pub use metadata::ExtendedMetadata;
 pub use anomaly::{ForensicInspector, ForensicSummary};
+pub use metadata::ExtendedMetadata;

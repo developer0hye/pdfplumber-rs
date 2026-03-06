@@ -102,7 +102,10 @@ impl ExtendedMetadata {
         out.push_str("=== Format Properties ===\n");
         out.push_str(&format!("  {:18} {}\n", "PDF Version:", self.pdf_version));
         out.push_str(&format!("  {:18} {} pages\n", "Pages:", self.page_count));
-        out.push_str(&format!("  {:18} {}\n", "Incr. updates:", self.incremental_update_count));
+        out.push_str(&format!(
+            "  {:18} {}\n",
+            "Incr. updates:", self.incremental_update_count
+        ));
         out.push_str(&format!(
             "  {:18} {} ({})\n",
             "Signatures:",
@@ -113,7 +116,11 @@ impl ExtendedMetadata {
             out.push_str(&format!(
                 "  {:18} {}\n",
                 "All signed:",
-                if self.all_signatures_signed { "yes" } else { "NO ⚠" }
+                if self.all_signatures_signed {
+                    "yes"
+                } else {
+                    "NO ⚠"
+                }
             ));
         }
         if self.dates_identical {

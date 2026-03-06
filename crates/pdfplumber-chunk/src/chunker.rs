@@ -25,10 +25,7 @@
 
 use pdfplumber::Pdf;
 use pdfplumber_core::BBox;
-use pdfplumber_layout::{
-    LayoutBlock, LayoutOptions, extract_page_layout,
-    Document,
-};
+use pdfplumber_layout::{Document, LayoutBlock, LayoutOptions, extract_page_layout};
 
 use crate::chunk::{Chunk, ChunkType};
 use crate::token;
@@ -138,8 +135,7 @@ impl Chunker {
     pub fn chunk_document(&self, doc: &Document) -> Vec<Chunk> {
         let mut all_chunks = Vec::new();
         for page_layout in doc.pages() {
-            let page_chunks =
-                self.chunk_from_layout(page_layout.page_number, &page_layout.blocks);
+            let page_chunks = self.chunk_from_layout(page_layout.page_number, &page_layout.blocks);
             all_chunks.extend(page_chunks);
         }
         all_chunks
@@ -380,6 +376,7 @@ mod tests {
             font_size: 10.0,
             fontname: "Helvetica".to_string(),
             is_caption: false,
+            is_list_item: false,
         })
     }
 
@@ -419,8 +416,14 @@ mod tests {
         ];
         let chunker = Chunker::new(ChunkSettings::default());
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        let h_chunks: Vec<_> = chunks.iter().filter(|c| c.chunk_type == ChunkType::Heading).collect();
-        let p_chunks: Vec<_> = chunks.iter().filter(|c| c.chunk_type == ChunkType::Paragraph).collect();
+        let h_chunks: Vec<_> = chunks
+            .iter()
+            .filter(|c| c.chunk_type == ChunkType::Heading)
+            .collect();
+        let p_chunks: Vec<_> = chunks
+            .iter()
+            .filter(|c| c.chunk_type == ChunkType::Paragraph)
+            .collect();
         assert_eq!(h_chunks.len(), 1);
         assert_eq!(p_chunks[0].section.as_deref(), Some("Introduction"));
     }
@@ -436,22 +439,40 @@ mod tests {
 
     #[test]
     fn table_never_split_at_tiny_max_tokens() {
-        let settings = ChunkSettings { max_tokens: 2, preserve_tables: true, ..Default::default() };
+        let settings = ChunkSettings {
+            max_tokens: 2,
+            preserve_tables: true,
+            ..Default::default()
+        };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &[table(0, 200.0)]);
-        assert_eq!(chunks.iter().filter(|c| c.chunk_type == ChunkType::Table).count(), 1);
+        assert_eq!(
+            chunks
+                .iter()
+                .filter(|c| c.chunk_type == ChunkType::Table)
+                .count(),
+            1
+        );
     }
 
     #[test]
     fn long_paragraph_splits_at_token_boundary() {
         let long_text: String = (0..300).map(|i| format!("word{i} ")).collect();
         let blocks = vec![para(&long_text, 0, 100.0)];
-        let settings = ChunkSettings { max_tokens: 100, overlap_tokens: 0, ..Default::default() };
+        let settings = ChunkSettings {
+            max_tokens: 100,
+            overlap_tokens: 0,
+            ..Default::default()
+        };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &blocks);
         assert!(chunks.len() > 1, "should split into multiple chunks");
         for chunk in &chunks {
-            assert!(chunk.token_count <= 130, "chunk token_count {} > budget+10%", chunk.token_count);
+            assert!(
+                chunk.token_count <= 130,
+                "chunk token_count {} > budget+10%",
+                chunk.token_count
+            );
         }
     }
 
@@ -464,7 +485,10 @@ mod tests {
 
     #[test]
     fn include_bbox_false_zeros_bboxes() {
-        let settings = ChunkSettings { include_bbox: false, ..Default::default() };
+        let settings = ChunkSettings {
+            include_bbox: false,
+            ..Default::default()
+        };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &[para("text", 0, 50.0)]);
         for c in &chunks {
@@ -483,8 +507,14 @@ mod tests {
         ];
         let chunker = Chunker::new(ChunkSettings::default());
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        let a = chunks.iter().find(|c| c.text.contains("Para in A")).unwrap();
-        let b = chunks.iter().find(|c| c.text.contains("Para in B")).unwrap();
+        let a = chunks
+            .iter()
+            .find(|c| c.text.contains("Para in A"))
+            .unwrap();
+        let b = chunks
+            .iter()
+            .find(|c| c.text.contains("Para in B"))
+            .unwrap();
         assert_eq!(a.section.as_deref(), Some("Section A"));
         assert_eq!(b.section.as_deref(), Some("Section B"));
     }
@@ -492,7 +522,8 @@ mod tests {
     #[test]
     fn token_count_matches_estimate() {
         let chunker = Chunker::new(ChunkSettings::default());
-        let chunks = chunker.chunk_from_layout(0, &[para("Alpha beta gamma delta epsilon.", 0, 50.0)]);
+        let chunks =
+            chunker.chunk_from_layout(0, &[para("Alpha beta gamma delta epsilon.", 0, 50.0)]);
         for chunk in &chunks {
             assert_eq!(chunk.token_count, crate::token::estimate(&chunk.text));
         }
@@ -505,10 +536,16 @@ mod tests {
             table(0, 100.0),
             para("After.", 0, 220.0),
         ];
-        let settings = ChunkSettings { preserve_tables: false, ..Default::default() };
+        let settings = ChunkSettings {
+            preserve_tables: false,
+            ..Default::default()
+        };
         let chunker = Chunker::new(settings);
         let chunks = chunker.chunk_from_layout(0, &blocks);
-        assert!(chunks.iter().all(|c| c.chunk_type != ChunkType::Table), "no table chunks when preserve=false");
+        assert!(
+            chunks.iter().all(|c| c.chunk_type != ChunkType::Table),
+            "no table chunks when preserve=false"
+        );
     }
 
     #[test]

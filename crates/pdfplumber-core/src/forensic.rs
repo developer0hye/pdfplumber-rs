@@ -1095,6 +1095,9 @@ mod tests {
                 reason: None,
                 location: None,
                 contact_info: None,
+                filter: None,
+                sub_filter: None,
+                byte_range: None,
                 is_signed: true,
             },
             SignatureInfo {
@@ -1103,6 +1106,9 @@ mod tests {
                 reason: None,
                 location: None,
                 contact_info: None,
+                filter: None,
+                sub_filter: None,
+                byte_range: None,
                 is_signed: true,
             },
         ];
@@ -1129,6 +1135,9 @@ mod tests {
             reason: None,
             location: None,
             contact_info: None,
+            filter: None,
+            sub_filter: None,
+            byte_range: None,
             is_signed: false,
         }];
         let bytes = b"%PDF-1.7\nstartxref\n0\n%%EOF";

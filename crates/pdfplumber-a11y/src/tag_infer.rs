@@ -66,7 +66,9 @@ impl InferredTag {
             text: String::new(),
             children: vec![],
             needs_review: true,
-            review_reason: Some("Figure requires /Alt text — describe the image content".to_owned()),
+            review_reason: Some(
+                "Figure requires /Alt text — describe the image content".to_owned(),
+            ),
         }
     }
 
@@ -156,7 +158,11 @@ impl TagInferrer {
             // Artifact zone detection (header/footer)
             let mid_y = (bbox.top + bbox.bottom) / 2.0;
             if mid_y < artifact_top || mid_y > artifact_bottom {
-                tags.push(InferredTag::artifact(bbox, page_idx, "Possible header/footer region"));
+                tags.push(InferredTag::artifact(
+                    bbox,
+                    page_idx,
+                    "Possible header/footer region",
+                ));
                 continue;
             }
 
@@ -177,8 +183,16 @@ impl TagInferrer {
 
         // Sort by reading order: top-to-bottom, then left-to-right
         tags.sort_by(|a, b| {
-            a.bbox.top.partial_cmp(&b.bbox.top).unwrap_or(std::cmp::Ordering::Equal)
-                .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap_or(std::cmp::Ordering::Equal))
+            a.bbox
+                .top
+                .partial_cmp(&b.bbox.top)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then(
+                    a.bbox
+                        .x0
+                        .partial_cmp(&b.bbox.x0)
+                        .unwrap_or(std::cmp::Ordering::Equal),
+                )
         });
 
         tags
@@ -198,9 +212,9 @@ impl TagInferrer {
     /// Count how many inferred tags need manual review.
     pub fn review_count(&self, tags: &[InferredTag]) -> usize {
         fn count_recursive(tags: &[InferredTag]) -> usize {
-            tags.iter().map(|t| {
-                (if t.needs_review { 1 } else { 0 }) + count_recursive(&t.children)
-            }).sum()
+            tags.iter()
+                .map(|t| (if t.needs_review { 1 } else { 0 }) + count_recursive(&t.children))
+                .sum()
         }
         count_recursive(tags)
     }
@@ -211,7 +225,9 @@ impl TagInferrer {
 // ─────────────────────────────────────────────────────────────────────────────
 
 fn median_font_size(page: &Page) -> f64 {
-    let mut sizes: Vec<f64> = page.chars().iter()
+    let mut sizes: Vec<f64> = page
+        .chars()
+        .iter()
         .filter(|c| c.size > 0.0)
         .map(|c| c.size)
         .collect();
@@ -228,7 +244,8 @@ fn median_font_size(page: &Page) -> f64 {
 }
 
 fn block_median_size(chars: &[&pdfplumber_core::Char]) -> f64 {
-    let mut sizes: Vec<f64> = chars.iter()
+    let mut sizes: Vec<f64> = chars
+        .iter()
         .filter(|c| c.size > 0.0)
         .map(|c| c.size)
         .collect();
@@ -239,18 +256,25 @@ fn block_median_size(chars: &[&pdfplumber_core::Char]) -> f64 {
     sizes[sizes.len() / 2]
 }
 
-fn group_chars_into_blocks<'a>(
-    chars: &'a [pdfplumber_core::Char],
+fn group_chars_into_blocks(
+    chars: &[pdfplumber_core::Char],
     gap: f64,
-) -> Vec<Vec<&'a pdfplumber_core::Char>> {
+) -> Vec<Vec<&pdfplumber_core::Char>> {
     if chars.is_empty() {
         return vec![];
     }
     // Sort chars by doctop (y position in document space) then x0
     let mut sorted: Vec<&pdfplumber_core::Char> = chars.iter().collect();
     sorted.sort_by(|a, b| {
-        a.doctop.partial_cmp(&b.doctop).unwrap_or(std::cmp::Ordering::Equal)
-            .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap_or(std::cmp::Ordering::Equal))
+        a.doctop
+            .partial_cmp(&b.doctop)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then(
+                a.bbox
+                    .x0
+                    .partial_cmp(&b.bbox.x0)
+                    .unwrap_or(std::cmp::Ordering::Equal),
+            )
     });
 
     let mut blocks: Vec<Vec<&pdfplumber_core::Char>> = Vec::new();
@@ -259,11 +283,9 @@ fn group_chars_into_blocks<'a>(
 
     for ch in &sorted[1..] {
         let vertical_gap = ch.bbox.top - prev_bottom;
-        if vertical_gap > gap {
-            if !current.is_empty() {
-                blocks.push(current.clone());
-                current.clear();
-            }
+        if vertical_gap > gap && !current.is_empty() {
+            blocks.push(current.clone());
+            current.clear();
         }
         current.push(ch);
         prev_bottom = ch.bbox.bottom.max(prev_bottom);
@@ -279,7 +301,12 @@ fn block_bbox(chars: &[&pdfplumber_core::Char]) -> BBox {
     let x1 = chars.iter().map(|c| c.bbox.x1).fold(f64::MIN, f64::max);
     let top = chars.iter().map(|c| c.bbox.top).fold(f64::MAX, f64::min);
     let bottom = chars.iter().map(|c| c.bbox.bottom).fold(f64::MIN, f64::max);
-    BBox { x0, top, x1, bottom }
+    BBox {
+        x0,
+        top,
+        x1,
+        bottom,
+    }
 }
 
 fn infer_table_tag(table: &pdfplumber_core::Table, page_idx: usize) -> InferredTag {
@@ -308,10 +335,22 @@ fn infer_table_tag(table: &pdfplumber_core::Table, page_idx: usize) -> InferredT
             table.bbox
         } else {
             BBox {
-                x0: row_children.iter().map(|c| c.bbox.x0).fold(f64::MAX, f64::min),
-                x1: row_children.iter().map(|c| c.bbox.x1).fold(f64::MIN, f64::max),
-                top: row_children.iter().map(|c| c.bbox.top).fold(f64::MAX, f64::min),
-                bottom: row_children.iter().map(|c| c.bbox.bottom).fold(f64::MIN, f64::max),
+                x0: row_children
+                    .iter()
+                    .map(|c| c.bbox.x0)
+                    .fold(f64::MAX, f64::min),
+                x1: row_children
+                    .iter()
+                    .map(|c| c.bbox.x1)
+                    .fold(f64::MIN, f64::max),
+                top: row_children
+                    .iter()
+                    .map(|c| c.bbox.top)
+                    .fold(f64::MAX, f64::min),
+                bottom: row_children
+                    .iter()
+                    .map(|c| c.bbox.bottom)
+                    .fold(f64::MIN, f64::max),
             }
         };
         children.push(InferredTag {
@@ -348,7 +387,12 @@ mod tests {
     fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64, size: f64) -> Char {
         Char {
             text: text.to_owned(),
-            bbox: BBox { x0, top, x1, bottom },
+            bbox: BBox {
+                x0,
+                top,
+                x1,
+                bottom,
+            },
             fontname: "Helvetica".to_owned(),
             size,
             doctop: top,
@@ -365,10 +409,15 @@ mod tests {
 
     #[test]
     fn median_font_size_single() {
-        let page = pdfplumber::Page::new(0, 200.0, 200.0, vec![
-            make_char("A", 0.0, 0.0, 10.0, 12.0, 12.0),
-            make_char("B", 10.0, 0.0, 20.0, 12.0, 12.0),
-        ]);
+        let page = pdfplumber::Page::new(
+            0,
+            200.0,
+            200.0,
+            vec![
+                make_char("A", 0.0, 0.0, 10.0, 12.0, 12.0),
+                make_char("B", 10.0, 0.0, 20.0, 12.0, 12.0),
+            ],
+        );
         assert!((median_font_size(&page) - 12.0).abs() < 0.01);
     }
 
@@ -397,7 +446,17 @@ mod tests {
 
     #[test]
     fn inferred_tag_fields() {
-        let tag = InferredTag::text_tag("P", BBox { x0: 0.0, top: 0.0, x1: 100.0, bottom: 12.0 }, 0, "Hello".to_owned());
+        let tag = InferredTag::text_tag(
+            "P",
+            BBox {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 12.0,
+            },
+            0,
+            "Hello".to_owned(),
+        );
         assert_eq!(tag.role, "P");
         assert!(!tag.needs_review);
         assert_eq!(tag.text, "Hello");
@@ -405,7 +464,15 @@ mod tests {
 
     #[test]
     fn figure_tag_needs_review() {
-        let tag = InferredTag::figure(BBox { x0: 0.0, top: 0.0, x1: 100.0, bottom: 100.0 }, 0);
+        let tag = InferredTag::figure(
+            BBox {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 100.0,
+            },
+            0,
+        );
         assert_eq!(tag.role, "Figure");
         assert!(tag.needs_review);
         assert!(tag.review_reason.is_some());
@@ -413,7 +480,16 @@ mod tests {
 
     #[test]
     fn artifact_tag_no_review() {
-        let tag = InferredTag::artifact(BBox { x0: 0.0, top: 0.0, x1: 100.0, bottom: 10.0 }, 0, "header");
+        let tag = InferredTag::artifact(
+            BBox {
+                x0: 0.0,
+                top: 0.0,
+                x1: 100.0,
+                bottom: 10.0,
+            },
+            0,
+            "header",
+        );
         assert_eq!(tag.role, "Artifact");
         assert!(!tag.needs_review);
     }
@@ -428,10 +504,37 @@ mod tests {
     #[test]
     fn review_count_recursive() {
         let tags = vec![
-            InferredTag { role: "P".to_owned(), bbox: BBox { x0:0.0,top:0.0,x1:100.0,bottom:12.0 }, page: 0, text: "t".to_owned(), children: vec![
-                InferredTag::figure(BBox { x0:0.0,top:0.0,x1:50.0,bottom:50.0 }, 0),
-            ], needs_review: false, review_reason: None },
-            InferredTag::figure(BBox { x0:0.0,top:0.0,x1:50.0,bottom:50.0 }, 0),
+            InferredTag {
+                role: "P".to_owned(),
+                bbox: BBox {
+                    x0: 0.0,
+                    top: 0.0,
+                    x1: 100.0,
+                    bottom: 12.0,
+                },
+                page: 0,
+                text: "t".to_owned(),
+                children: vec![InferredTag::figure(
+                    BBox {
+                        x0: 0.0,
+                        top: 0.0,
+                        x1: 50.0,
+                        bottom: 50.0,
+                    },
+                    0,
+                )],
+                needs_review: false,
+                review_reason: None,
+            },
+            InferredTag::figure(
+                BBox {
+                    x0: 0.0,
+                    top: 0.0,
+                    x1: 50.0,
+                    bottom: 50.0,
+                },
+                0,
+            ),
         ];
         assert_eq!(TagInferrer::new().review_count(&tags), 2);
     }

@@ -10,12 +10,12 @@ use pdfplumber_core::StructElement;
 /// Severity of an accessibility violation.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Severity {
-    /// Document will fail PDF/UA validation (hard requirement).
-    Error,
-    /// Document may pass strict validators but the issue reduces usability.
-    Warning,
     /// Informational note — not a failure, but worth knowing.
     Info,
+    /// Document may pass strict validators but the issue reduces usability.
+    Warning,
+    /// Document will fail PDF/UA validation (hard requirement).
+    Error,
 }
 
 impl std::fmt::Display for Severity {
@@ -30,10 +30,15 @@ impl std::fmt::Display for Severity {
 
 impl std::fmt::Display for Violation {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let page = self.page
+        let page = self
+            .page
             .map(|p| format!(" [page {}]", p + 1))
             .unwrap_or_default();
-        write!(f, "[{}] {}{}: {}", self.severity, self.rule_id, page, self.message)?;
+        write!(
+            f,
+            "[{}] {}{}: {}",
+            self.severity, self.rule_id, page, self.message
+        )?;
         if let Some(s) = &self.suggestion {
             write!(f, " → {s}")?;
         }
@@ -55,7 +60,13 @@ pub struct Violation {
 
 impl Violation {
     fn new(rule_id: &'static str, severity: Severity, message: impl Into<String>) -> Self {
-        Self { rule_id, severity, message: message.into(), page: None, suggestion: None }
+        Self {
+            rule_id,
+            severity,
+            message: message.into(),
+            page: None,
+            suggestion: None,
+        }
     }
 
     fn on_page(mut self, page: usize) -> Self {
@@ -111,7 +122,10 @@ pub struct A11yReport {
 impl A11yReport {
     /// Returns `true` if the document has no `Error`-severity violations.
     pub fn is_compliant(&self) -> bool {
-        !self.violations.iter().any(|v| v.severity == Severity::Error)
+        !self
+            .violations
+            .iter()
+            .any(|v| v.severity == Severity::Error)
     }
 
     /// All violations found (errors + warnings + info).
@@ -121,7 +135,9 @@ impl A11yReport {
 
     /// Only error-severity violations.
     pub fn errors(&self) -> impl Iterator<Item = &Violation> {
-        self.violations.iter().filter(|v| v.severity == Severity::Error)
+        self.violations
+            .iter()
+            .filter(|v| v.severity == Severity::Error)
     }
 
     /// Count of error-severity violations.
@@ -174,12 +190,24 @@ impl A11yReport {
             if self.is_tagged { "yes" } else { "no" },
             if self.has_lang { "yes" } else { "no" },
             if self.has_title { "yes" } else { "no" },
-            self.violations.iter().filter(|v| v.severity == Severity::Error).count(),
-            self.violations.iter().filter(|v| v.severity == Severity::Warning).count(),
+            self.violations
+                .iter()
+                .filter(|v| v.severity == Severity::Error)
+                .count(),
+            self.violations
+                .iter()
+                .filter(|v| v.severity == Severity::Warning)
+                .count(),
         );
         for v in &self.violations {
-            let page = v.page.map(|p| format!(" [page {}]", p + 1)).unwrap_or_default();
-            s.push_str(&format!("  [{:5}] {}{}: {}\n", v.severity, v.rule_id, page, v.message));
+            let page = v
+                .page
+                .map(|p| format!(" [page {}]", p + 1))
+                .unwrap_or_default();
+            s.push_str(&format!(
+                "  [{:5}] {}{}: {}\n",
+                v.severity, v.rule_id, page, v.message
+            ));
             if let Some(sug) = &v.suggestion {
                 s.push_str(&format!("         → {sug}\n"));
             }
@@ -195,15 +223,10 @@ impl A11yReport {
 /// PDF/UA-1 accessibility analyzer.
 ///
 /// Construct once and call [`analyze`](Self::analyze) for each document.
+#[derive(Default)]
 pub struct A11yAnalyzer {
     /// If `true`, emit `Info`-level notices in addition to errors and warnings.
     pub emit_info: bool,
-}
-
-impl Default for A11yAnalyzer {
-    fn default() -> Self {
-        Self { emit_info: false }
-    }
 }
 
 impl A11yAnalyzer {
@@ -223,18 +246,22 @@ impl A11yAnalyzer {
         // UA-001: Document must be tagged.
         // Detect via structure elements — a tagged PDF will have StructElements.
         let is_tagged = (0..page_count).any(|i| {
-            pdf.page(i).ok()
+            pdf.page(i)
+                .ok()
                 .map(|p| !p.structure_elements().is_empty())
                 .unwrap_or(false)
         });
         if !is_tagged {
             violations.push(
-                Violation::new("UA-001", Severity::Error,
-                    "Document is not tagged — no structure elements found on any page")
+                Violation::new(
+                    "UA-001",
+                    Severity::Error,
+                    "Document is not tagged — no structure elements found on any page",
+                )
                 .with_suggestion(
                     "Add /MarkInfo << /Marked true >> to the document catalog \
-                     and generate a complete structure tree"
-                )
+                     and generate a complete structure tree",
+                ),
             );
         }
 
@@ -243,65 +270,86 @@ impl A11yAnalyzer {
         // StructElement that carries a lang attribute (common in well-tagged PDFs).
         // When none are found, emit a Warning so authors know to check.
         let has_lang = (0..page_count).any(|i| {
-            pdf.page(i).ok()
+            pdf.page(i)
+                .ok()
                 .map(|p| p.structure_elements().iter().any(|e| e.lang.is_some()))
                 .unwrap_or(false)
         });
         if !has_lang && is_tagged {
             violations.push(
-                Violation::new("UA-005", Severity::Warning,
+                Violation::new(
+                    "UA-005",
+                    Severity::Warning,
                     "No /Lang attribute found on any structure element — \
-                     verify the document catalog has a /Lang entry")
-                .with_suggestion(
-                    "Add /Lang (en-US) or appropriate BCP-47 language tag to the document catalog"
+                     verify the document catalog has a /Lang entry",
                 )
+                .with_suggestion(
+                    "Add /Lang (en-US) or appropriate BCP-47 language tag to the document catalog",
+                ),
             );
         }
 
         // UA-008: Document title.
-        let has_title = pdf.metadata()
-            .title.as_deref()
+        let has_title = pdf
+            .metadata()
+            .title
+            .as_deref()
             .map(|t| !t.trim().is_empty())
             .unwrap_or(false);
         if !has_title {
             violations.push(
-                Violation::new("UA-008", Severity::Error,
-                    "Document /Title metadata is missing or empty")
-                .with_suggestion(
-                    "Set a non-empty /Title in the document's DocInfo dictionary or XMP metadata"
+                Violation::new(
+                    "UA-008",
+                    Severity::Error,
+                    "Document /Title metadata is missing or empty",
                 )
+                .with_suggestion(
+                    "Set a non-empty /Title in the document's DocInfo dictionary or XMP metadata",
+                ),
             );
         }
 
         // Per-page analysis.
         for page_idx in 0..page_count {
-            let Ok(page) = pdf.page(page_idx) else { continue };
+            let Ok(page) = pdf.page(page_idx) else {
+                continue;
+            };
             let elems = page.structure_elements();
 
             if is_tagged {
                 // UA-002 / UA-003 / UA-006: check element tree for this page
-                check_structure_tree(elems, &mut violations, self.emit_info);
+                check_structure_tree(&elems, &mut violations, self.emit_info);
                 // UA-007 / UA-010: per-page coverage and link checks
-                check_page_structure(&page, page_idx, elems, &mut violations);
+                check_page_structure(&page, page_idx, &elems, &mut violations);
             } else {
                 // UA-003: untagged images have no alt text by definition
                 if !page.images().is_empty() {
                     violations.push(
-                        Violation::new("UA-003", Severity::Error,
+                        Violation::new(
+                            "UA-003",
+                            Severity::Error,
                             format!(
                                 "Page {} has {} image(s) with no alt text \
                                  (document is untagged)",
                                 page_idx + 1,
                                 page.images().len()
-                            ))
+                            ),
+                        )
                         .on_page(page_idx)
-                        .with_suggestion("Tag images with Figure elements and /Alt text")
+                        .with_suggestion("Tag images with Figure elements and /Alt text"),
                     );
                 }
             }
         }
 
-        A11yReport { violations, page_count, is_tagged, has_lang, has_title, inferred_tags: None }
+        A11yReport {
+            violations,
+            page_count,
+            is_tagged,
+            has_lang,
+            has_title,
+            inferred_tags: None,
+        }
     }
 
     /// Analyze a [`Pdf`] for PDF/UA-1 compliance AND run [`TagInferrer`] on
@@ -332,12 +380,54 @@ impl A11yAnalyzer {
 
 /// Standard PDF/UA structure element role names.
 const STANDARD_ROLES: &[&str] = &[
-    "Document", "Art", "Sect", "Div", "BlockQuote", "Caption", "TOC", "TOCI",
-    "Index", "NonStruct", "Private", "H", "H1", "H2", "H3", "H4", "H5", "H6",
-    "P", "L", "LI", "Lbl", "LBody", "Table", "TR", "TH", "TD", "THead",
-    "TBody", "TFoot", "Span", "Quote", "Note", "Reference", "BibEntry", "Code",
-    "Link", "Annot", "Ruby", "RB", "RT", "RP", "Warichu", "WT", "WP",
-    "Figure", "Formula", "Form",
+    "Document",
+    "Art",
+    "Sect",
+    "Div",
+    "BlockQuote",
+    "Caption",
+    "TOC",
+    "TOCI",
+    "Index",
+    "NonStruct",
+    "Private",
+    "H",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "P",
+    "L",
+    "LI",
+    "Lbl",
+    "LBody",
+    "Table",
+    "TR",
+    "TH",
+    "TD",
+    "THead",
+    "TBody",
+    "TFoot",
+    "Span",
+    "Quote",
+    "Note",
+    "Reference",
+    "BibEntry",
+    "Code",
+    "Link",
+    "Annot",
+    "Ruby",
+    "RB",
+    "RT",
+    "RP",
+    "Warichu",
+    "WT",
+    "WP",
+    "Figure",
+    "Formula",
+    "Form",
 ];
 
 fn is_standard_role(role: &str) -> bool {
@@ -369,24 +459,25 @@ fn check_element(
     // check the surface here. Always flag as Warning; Info-level details only when
     // emit_info is set.
     if !is_standard_role(role) && !role.starts_with('/') {
-        violations.push(
-            Violation::new("UA-002", Severity::Warning,
-                format!("Non-standard structure type '{role}' — ensure it has a RoleMap entry"))
-        );
+        violations.push(Violation::new(
+            "UA-002",
+            Severity::Warning,
+            format!("Non-standard structure type '{role}' — ensure it has a RoleMap entry"),
+        ));
     } else if emit_info && !role.starts_with('/') {
         // Info: confirm recognized role (useful for verbose audits).
-        violations.push(
-            Violation::new("UA-002", Severity::Info,
-                format!("Standard role '{role}' recognized"))
-        );
+        violations.push(Violation::new(
+            "UA-002",
+            Severity::Info,
+            format!("Standard role '{role}' recognized"),
+        ));
     }
 
     // UA-003: Figures need alt text
     if role == "Figure" && elem.alt_text.is_none() {
         violations.push(
-            Violation::new("UA-003", Severity::Error,
-                "Figure element has no /Alt text")
-            .with_suggestion("Add /Alt entry to the Figure's attribute dictionary")
+            Violation::new("UA-003", Severity::Error, "Figure element has no /Alt text")
+                .with_suggestion("Add /Alt entry to the Figure's attribute dictionary"),
         );
     }
 
@@ -397,11 +488,14 @@ fn check_element(
     // if a TH element has no children and no alt_text, it likely needs review.
     if role == "TH" {
         violations.push(
-            Violation::new("UA-004", Severity::Warning,
-                "TH (table header cell) found — verify /Scope attribute (Column/Row/Both) is set")
-            .with_suggestion(
-                "Add /Scope /Column (or /Row or /Both) to each TH element's attribute dictionary"
+            Violation::new(
+                "UA-004",
+                Severity::Warning,
+                "TH (table header cell) found — verify /Scope attribute (Column/Row/Both) is set",
             )
+            .with_suggestion(
+                "Add /Scope /Column (or /Row or /Both) to each TH element's attribute dictionary",
+            ),
         );
     }
 
@@ -420,9 +514,14 @@ fn check_element(
         if let Some(&prev) = heading_stack.last() {
             if level > prev + 1 {
                 violations.push(
-                    Violation::new("UA-006", Severity::Error,
-                        format!("Heading H{level} appears after H{prev} — headings must not skip levels"))
-                    .with_suggestion(format!("Add an H{} between H{prev} and H{level}", prev + 1))
+                    Violation::new(
+                        "UA-006",
+                        Severity::Error,
+                        format!(
+                            "Heading H{level} appears after H{prev} — headings must not skip levels"
+                        ),
+                    )
+                    .with_suggestion(format!("Add an H{} between H{prev} and H{level}", prev + 1)),
                 );
             }
         }
@@ -446,10 +545,16 @@ fn check_page_structure(
     // If page has chars but no structure elements at all, that's untagged content.
     if !page.chars().is_empty() && elements.is_empty() {
         violations.push(
-            Violation::new("UA-007", Severity::Error,
-                format!("Page {} has text content with no structure elements", page_idx + 1))
+            Violation::new(
+                "UA-007",
+                Severity::Error,
+                format!(
+                    "Page {} has text content with no structure elements",
+                    page_idx + 1
+                ),
+            )
             .on_page(page_idx)
-            .with_suggestion("Tag all text content with appropriate structure elements")
+            .with_suggestion("Tag all text content with appropriate structure elements"),
         );
     }
 
@@ -466,12 +571,22 @@ fn check_page_structure(
         });
         if !has_text {
             violations.push(
-                Violation::new("UA-010", Severity::Warning,
-                    format!("Link on page {} at ({:.1},{:.1})-({:.1},{:.1}) has no visible text",
+                Violation::new(
+                    "UA-010",
+                    Severity::Warning,
+                    format!(
+                        "Link on page {} at ({:.1},{:.1})-({:.1},{:.1}) has no visible text",
                         page_idx + 1,
-                        link_bbox.x0, link_bbox.top, link_bbox.x1, link_bbox.bottom))
+                        link_bbox.x0,
+                        link_bbox.top,
+                        link_bbox.x1,
+                        link_bbox.bottom
+                    ),
+                )
                 .on_page(page_idx)
-                .with_suggestion("Add /Alt text to the link annotation or ensure it overlaps visible text")
+                .with_suggestion(
+                    "Add /Alt text to the link annotation or ensure it overlaps visible text",
+                ),
             );
         }
     }
@@ -513,9 +628,11 @@ mod tests {
     #[test]
     fn report_compliant_no_errors() {
         let report = A11yReport {
-            violations: vec![
-                Violation::new("UA-009", Severity::Warning, "possible artifact"),
-            ],
+            violations: vec![Violation::new(
+                "UA-009",
+                Severity::Warning,
+                "possible artifact",
+            )],
             page_count: 1,
             is_tagged: true,
             has_lang: true,
@@ -529,9 +646,7 @@ mod tests {
     #[test]
     fn report_not_compliant_with_errors() {
         let report = A11yReport {
-            violations: vec![
-                Violation::new("UA-001", Severity::Error, "not tagged"),
-            ],
+            violations: vec![Violation::new("UA-001", Severity::Error, "not tagged")],
             page_count: 2,
             is_tagged: false,
             has_lang: false,
@@ -552,11 +667,29 @@ mod tests {
     }
 
     fn make_elem(et: &str) -> StructElement {
-        StructElement { element_type: et.to_owned(), mcids: vec![], alt_text: None, actual_text: None, lang: None, bbox: None, children: vec![], page_index: None }
+        StructElement {
+            element_type: et.to_owned(),
+            mcids: vec![],
+            alt_text: None,
+            actual_text: None,
+            lang: None,
+            bbox: None,
+            children: vec![],
+            page_index: None,
+        }
     }
 
     fn make_elem_alt(et: &str, alt: &str) -> StructElement {
-        StructElement { element_type: et.to_owned(), mcids: vec![], alt_text: Some(alt.to_owned()), actual_text: None, lang: None, bbox: None, children: vec![], page_index: None }
+        StructElement {
+            element_type: et.to_owned(),
+            mcids: vec![],
+            alt_text: Some(alt.to_owned()),
+            actual_text: None,
+            lang: None,
+            bbox: None,
+            children: vec![],
+            page_index: None,
+        }
     }
 
     #[test]
@@ -586,7 +719,10 @@ mod tests {
         let mut violations = Vec::new();
         check_structure_tree(&elems, &mut violations, false);
         let ua003 = violations.iter().find(|v| v.rule_id == "UA-003");
-        assert!(ua003.is_some(), "Figure without alt text should trigger UA-003");
+        assert!(
+            ua003.is_some(),
+            "Figure without alt text should trigger UA-003"
+        );
     }
 
     #[test]
@@ -621,9 +757,18 @@ mod tests {
             .with_suggestion("Add /Alt text");
         let s = v.to_string();
         assert!(s.contains("UA-003"), "display must include rule id");
-        assert!(s.contains("[ERROR]") || s.contains("ERROR"), "display must include severity");
-        assert!(s.contains("page 5"), "display must include 1-based page number");
-        assert!(s.contains("Add /Alt text"), "display must include suggestion");
+        assert!(
+            s.contains("[ERROR]") || s.contains("ERROR"),
+            "display must include severity"
+        );
+        assert!(
+            s.contains("page 5"),
+            "display must include 1-based page number"
+        );
+        assert!(
+            s.contains("Add /Alt text"),
+            "display must include suggestion"
+        );
     }
 
     #[test]
@@ -641,7 +786,10 @@ mod tests {
         let mut violations = Vec::new();
         check_structure_tree(&elems, &mut violations, false);
         let ua002 = violations.iter().find(|v| v.rule_id == "UA-002");
-        assert!(ua002.is_some(), "non-standard role should trigger UA-002 as Warning");
+        assert!(
+            ua002.is_some(),
+            "non-standard role should trigger UA-002 as Warning"
+        );
         assert_eq!(ua002.unwrap().severity, Severity::Warning);
     }
 
@@ -652,7 +800,10 @@ mod tests {
         let mut violations = Vec::new();
         check_structure_tree(&elems, &mut violations, false);
         let ua004 = violations.iter().find(|v| v.rule_id == "UA-004");
-        assert!(ua004.is_some(), "TH element should trigger UA-004 scope check");
+        assert!(
+            ua004.is_some(),
+            "TH element should trigger UA-004 scope check"
+        );
     }
 
     #[test]

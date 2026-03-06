@@ -70,6 +70,13 @@ impl Chunk {
         chunk_type: ChunkType,
     ) -> Self {
         let token_count = crate::token::estimate(&text);
-        Self { text, page, bbox, section, chunk_type, token_count }
+        Self {
+            text,
+            page,
+            bbox,
+            section,
+            chunk_type,
+            token_count,
+        }
     }
 }

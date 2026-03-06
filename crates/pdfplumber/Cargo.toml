@@ -19,11 +19,22 @@ parallel = ["dep:rayon"]
 # Does NOT appear in the default dependency tree.
 # Usage: cargo add pdfplumber --features ollama-fallback
 ollama-fallback = ["dep:reqwest", "dep:base64", "dep:serde_json"]
+write = ["dep:lopdf"]
+signatures = ["dep:cms", "dep:x509-cert", "dep:sha2", "dep:sha1", "dep:rsa", "dep:p256", "dep:der", "dep:spki"]
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
 pdfplumber-parse = { version = "0.2.0", path = "../pdfplumber-parse" }
 rayon = { version = "1.10", optional = true }
+lopdf = { version = "0.34", optional = true }
+cms = { version = "0.2", optional = true }
+x509-cert = { version = "0.2", optional = true }
+sha2 = { version = "0.10", optional = true }
+sha1 = { version = "0.10", optional = true }
+rsa = { version = "0.9", optional = true }
+p256 = { version = "0.13", optional = true }
+der = { version = "0.7", optional = true }
+spki = { version = "0.7", optional = true }
 # Ollama fallback deps — only compiled when ollama-fallback feature is active
 reqwest = { version = "0.12", features = ["blocking", "json"], optional = true }
 base64 = { version = "0.22", optional = true }

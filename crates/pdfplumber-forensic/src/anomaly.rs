@@ -35,7 +35,11 @@ impl ForensicInspector {
         let core_report = pdf.inspect(raw_bytes);
         let metadata = ExtendedMetadata::from_report(&core_report);
         let anomaly_score = Self::compute_score(&core_report);
-        ForensicSummary { core_report, metadata, anomaly_score }
+        ForensicSummary {
+            core_report,
+            metadata,
+            anomaly_score,
+        }
     }
 
     /// Open a PDF from raw bytes and run forensic inspection in one step.
@@ -51,9 +55,7 @@ impl ForensicInspector {
     /// let summary = ForensicInspector::inspect_bytes(&bytes).unwrap();
     /// println!("{}", summary.summary());
     /// ```
-    pub fn inspect_bytes(
-        raw_bytes: &[u8],
-    ) -> Result<ForensicSummary, pdfplumber::PdfError> {
+    pub fn inspect_bytes(raw_bytes: &[u8]) -> Result<ForensicSummary, pdfplumber::PdfError> {
         let pdf = Pdf::open(raw_bytes, None)?;
         Ok(Self::inspect(&pdf, raw_bytes))
     }

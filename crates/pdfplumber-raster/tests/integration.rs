@@ -6,7 +6,7 @@
 //! -- --ignored` with fixture files checked in.
 
 use pdfplumber::Pdf;
-use pdfplumber_raster::{RasterError, RasterOptions, RenderResult, Rasterizer};
+use pdfplumber_raster::{RasterError, RasterOptions, Rasterizer, RenderResult};
 
 /// Check PNG magic bytes.
 fn is_png(bytes: &[u8]) -> bool {
@@ -18,7 +18,10 @@ fn is_png(bytes: &[u8]) -> bool {
 #[test]
 fn empty_page_round_trip() {
     let page = pdfplumber::Page::new(0, 595.0, 842.0, vec![]);
-    let opts = RasterOptions { scale: 1.0, ..Default::default() };
+    let opts = RasterOptions {
+        scale: 1.0,
+        ..Default::default()
+    };
     let result = Rasterizer::new(opts).render_page(&page).unwrap();
     assert!(is_png(&result.png), "output must be valid PNG");
     assert_eq!(result.page_number, 0);
@@ -30,13 +33,22 @@ fn empty_page_round_trip() {
 fn scale_2x_produces_larger_png() {
     use pdfplumber::Page;
     let page = Page::new(0, 100.0, 100.0, vec![]);
-    let res_1x = Rasterizer::new(RasterOptions { scale: 1.0, ..Default::default() })
-        .render_page(&page)
-        .unwrap();
-    let res_2x = Rasterizer::new(RasterOptions { scale: 2.0, ..Default::default() })
-        .render_page(&page)
-        .unwrap();
-    assert!(res_2x.png.len() > res_1x.png.len(), "2× render should be larger than 1× render");
+    let res_1x = Rasterizer::new(RasterOptions {
+        scale: 1.0,
+        ..Default::default()
+    })
+    .render_page(&page)
+    .unwrap();
+    let res_2x = Rasterizer::new(RasterOptions {
+        scale: 2.0,
+        ..Default::default()
+    })
+    .render_page(&page)
+    .unwrap();
+    assert!(
+        res_2x.png.len() > res_1x.png.len(),
+        "2× render should be larger than 1× render"
+    );
     assert_eq!(res_2x.width_px, 200);
     assert_eq!(res_2x.height_px, 200);
 }
@@ -45,8 +57,11 @@ fn scale_2x_produces_larger_png() {
 fn max_dimension_guard() {
     use pdfplumber::Page;
     let page = Page::new(0, 9_000.0, 9_000.0, vec![]);
-    let result = Rasterizer::new(RasterOptions { scale: 2.0, ..Default::default() })
-        .render_page(&page);
+    let result = Rasterizer::new(RasterOptions {
+        scale: 2.0,
+        ..Default::default()
+    })
+    .render_page(&page);
     assert!(
         matches!(result, Err(RasterError::DimensionsTooLarge { .. })),
         "must reject oversized pages"
@@ -59,9 +74,13 @@ fn geometry_only_mode() {
     use pdfplumber_core::{Color as PdfColor, Rect};
 
     let rect = Rect {
-        x0: 10.0, top: 10.0, x1: 90.0, bottom: 90.0,
+        x0: 10.0,
+        top: 10.0,
+        x1: 90.0,
+        bottom: 90.0,
         line_width: 1.0,
-        fill: true, stroke: true,
+        fill: true,
+        stroke: true,
         fill_color: PdfColor::Rgb(0.8, 0.2, 0.2),
         stroke_color: PdfColor::Gray(0.0),
     };
@@ -83,7 +102,12 @@ fn text_only_mode() {
 
     let ch = Char {
         text: "A".to_owned(),
-        bbox: BBox { x0: 10.0, top: 10.0, x1: 20.0, bottom: 22.0 },
+        bbox: BBox {
+            x0: 10.0,
+            top: 10.0,
+            x1: 20.0,
+            bottom: 22.0,
+        },
         fontname: "Helvetica".to_owned(),
         size: 12.0,
         doctop: 10.0,
@@ -111,7 +135,9 @@ fn text_only_mode() {
 fn render_result_page_number_is_preserved() {
     use pdfplumber::Page;
     let page = Page::new(5, 100.0, 100.0, vec![]);
-    let result = Rasterizer::new(RasterOptions::default()).render_page(&page).unwrap();
+    let result = Rasterizer::new(RasterOptions::default())
+        .render_page(&page)
+        .unwrap();
     assert_eq!(result.page_number, 5);
 }
 
@@ -119,7 +145,10 @@ fn render_result_page_number_is_preserved() {
 fn render_result_scale_is_preserved() {
     use pdfplumber::Page;
     let page = Page::new(0, 100.0, 100.0, vec![]);
-    let opts = RasterOptions { scale: 3.0, ..Default::default() };
+    let opts = RasterOptions {
+        scale: 3.0,
+        ..Default::default()
+    };
     let result = Rasterizer::new(opts).render_page(&page).unwrap();
     assert!((result.scale - 3.0).abs() < 1e-6);
 }
@@ -143,14 +172,19 @@ const PDF_FIXTURE: &str = "tests/fixtures/sample.pdf";
 fn render_pdf_first_page_produces_valid_png() {
     let path = std::env::var("PDF_FIXTURE").unwrap_or_else(|_| PDF_FIXTURE.to_owned());
     let pdf = Pdf::open_file(&path, None).expect("fixture PDF must be openable");
-    let page = pdf.pages_iter().next()
+    let page = pdf
+        .pages_iter()
+        .next()
         .expect("PDF must have at least one page")
         .expect("first page must parse successfully");
     let result = Rasterizer::new(RasterOptions::default())
         .render_page(&page)
         .expect("render must not fail");
     assert!(is_png(&result.png), "output must be valid PNG");
-    assert!(result.png.len() > 10_000, "PNG for a real page must be non-trivial in size");
+    assert!(
+        result.png.len() > 10_000,
+        "PNG for a real page must be non-trivial in size"
+    );
     assert_eq!(result.page_number, page.page_number());
 }
 
@@ -162,10 +196,17 @@ fn render_all_pages_no_panic() {
     let rasterizer = Rasterizer::new(RasterOptions::default());
     let results = rasterizer.render_all_pages(&pdf);
     // Must have rendered at least one page.
-    assert!(!results.is_empty(), "render_all_pages must return at least one page");
+    assert!(
+        !results.is_empty(),
+        "render_all_pages must return at least one page"
+    );
     // All results must be valid PNGs.
     for r in &results {
-        assert!(is_png(&r.png), "page {} must produce valid PNG", r.page_number);
+        assert!(
+            is_png(&r.png),
+            "page {} must produce valid PNG",
+            r.page_number
+        );
     }
 }
 
@@ -176,7 +217,8 @@ fn render_page_index_convenience() {
     let pdf = Pdf::open_file(&path, None).expect("fixture PDF must be openable");
     let rasterizer = Rasterizer::new(RasterOptions::default());
     // Page 0 must exist.
-    let result = rasterizer.render_page_index(&pdf, 0)
+    let result = rasterizer
+        .render_page_index(&pdf, 0)
         .expect("page 0 must exist")
         .expect("page 0 must render");
     assert!(is_png(&result.png));

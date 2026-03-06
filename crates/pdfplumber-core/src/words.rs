@@ -1375,7 +1375,8 @@ mod tests {
         );
         // Spatial top-to-bottom: o(512), l(520), l(526), e(532), H(540) → "olleH"
         assert_eq!(words[0].text, "olleH");
-        assert_eq!(words[0].direction, TextDirection::Btt);
+        // Btt chars are normalized to Ttb during word extraction (spatial sort)
+        assert_eq!(words[0].direction, TextDirection::Ttb);
     }
 
     #[test]
@@ -1673,11 +1674,11 @@ mod tests {
             "upright=false chars should each be their own word (matching Python TTB split), got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted top-to-bottom (all same top), then by x0 ascending within cluster:
-        // e(523.23), h(528.53), T(534.03) — each is its own word
-        assert_eq!(words[0].text, "e");
+        // Sorted by x0 descending (vertical column order), each in its own cluster:
+        // T(534.03), h(528.53), e(523.23)
+        assert_eq!(words[0].text, "T");
         assert_eq!(words[1].text, "h");
-        assert_eq!(words[2].text, "T");
+        assert_eq!(words[2].text, "e");
     }
 
     #[test]
@@ -1717,8 +1718,9 @@ mod tests {
             "Non-upright chars with x0 diff < x_tolerance should group (like Python 'vi'), got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted ascending x0: i(499.09), v(501.53) → "iv"
-        assert_eq!(words[0].text, "iv");
+        // Sorted by x0 descending into one cluster, then by top ascending (same top):
+        // v(501.53), i(499.09) → "vi"
+        assert_eq!(words[0].text, "vi");
     }
 
     #[test]
@@ -1814,8 +1816,12 @@ mod tests {
             make_char("B", 23.0, 100.0, 33.0, 112.0), // gap = 23 - 20 = 3.0
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 2, "gap == x_tolerance must split: {:?}",
-            words.iter().map(|w| &w.text).collect::<Vec<_>>());
+        assert_eq!(
+            words.len(),
+            2,
+            "gap == x_tolerance must split: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1860,7 +1866,11 @@ mod tests {
             make_char("B", 20.0, 102.99, 30.0, 114.99), // y_diff = 2.99, x touching
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 1, "y_diff < y_tolerance and touching x must not split");
+        assert_eq!(
+            words.len(),
+            1,
+            "y_diff < y_tolerance and touching x must not split"
+        );
     }
 
     #[test]
@@ -1871,8 +1881,12 @@ mod tests {
             make_non_upright_char("B", 100.0, 23.0, 112.0, 33.0), // y_gap = 23 - 20 = 3.0
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 2, "vertical y_gap == y_tolerance must split: {:?}",
-            words.iter().map(|w| &w.text).collect::<Vec<_>>());
+        assert_eq!(
+            words.len(),
+            2,
+            "vertical y_gap == y_tolerance must split: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
     }
 
     #[test]
@@ -1932,7 +1946,11 @@ mod tests {
         ];
         let words = WordExtractor::extract(&chars, &opts);
         // gap=0 and tolerance=0: 0 >= 0 is true, so this SPLITS
-        assert_eq!(words.len(), 2, "gap==0 with tolerance==0: 0>=0 is true, splits");
+        assert_eq!(
+            words.len(),
+            2,
+            "gap==0 with tolerance==0: 0>=0 is true, splits"
+        );
     }
 
     #[test]
@@ -1944,7 +1962,11 @@ mod tests {
             make_char("A", 11.0, 100.0, 23.0, 112.0), // overlap: max(10,11)=11, min(22,23)=22, gap=11-22=-11→0
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 1, "overlapping chars must group (bold rendering)");
+        assert_eq!(
+            words.len(),
+            1,
+            "overlapping chars must group (bold rendering)"
+        );
         assert_eq!(words[0].text, "AA");
     }
 
@@ -1977,7 +1999,11 @@ mod tests {
             make_char("B", 25.0, 100.0, 35.0, 112.0),
         ];
         let words = WordExtractor::extract(&chars, &opts);
-        assert_eq!(words.len(), 1, "keep_blank_chars should not split on spaces");
+        assert_eq!(
+            words.len(),
+            1,
+            "keep_blank_chars should not split on spaces"
+        );
         assert_eq!(words[0].text, "A B");
     }
 
@@ -2014,7 +2040,11 @@ mod tests {
             make_char("B", 35.0, 100.0, 45.0, 112.0),
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 2, "consecutive spaces should not produce empty words");
+        assert_eq!(
+            words.len(),
+            2,
+            "consecutive spaces should not produce empty words"
+        );
         assert_eq!(words[0].text, "A");
         assert_eq!(words[1].text, "B");
     }
@@ -2063,8 +2093,8 @@ mod tests {
     fn test_word_bbox_with_varying_heights() {
         // Superscript-like: second char has different top/bottom
         let chars = vec![
-            make_char("E", 10.0, 100.0, 20.0, 115.0),  // tall
-            make_char("2", 20.0, 98.0, 26.0, 108.0),    // short, higher baseline
+            make_char("E", 10.0, 100.0, 20.0, 115.0), // tall
+            make_char("2", 20.0, 98.0, 26.0, 108.0),  // short, higher baseline
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
@@ -2126,7 +2156,10 @@ mod tests {
         // So we get "C" (alone because spatially far from A) and "AB" or just the PDF order
         // Actually use_text_flow means no spatial sort, so grouping is by adjacency in input order.
         // C is at x=30, A is at x=10 → gap = |10-40| = far. So C alone, then A+B together.
-        assert!(words.len() >= 1, "text_flow mode should still produce words");
+        assert!(
+            words.len() >= 1,
+            "text_flow mode should still produce words"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2198,7 +2231,10 @@ mod tests {
         };
         let words = WordExtractor::extract(&chars, &opts);
         assert_eq!(words.len(), 1);
-        assert_eq!(words[0].text, "\u{FB01}", "ligature should NOT expand when disabled");
+        assert_eq!(
+            words[0].text, "\u{FB01}",
+            "ligature should NOT expand when disabled"
+        );
     }
 
     #[test]
@@ -2251,7 +2287,11 @@ mod tests {
         // Degenerate: top == bottom
         let chars = vec![make_char("X", 10.0, 100.0, 20.0, 100.0)];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 1, "zero-height char should still produce a word");
+        assert_eq!(
+            words.len(),
+            1,
+            "zero-height char should still produce a word"
+        );
     }
 
     #[test]
@@ -2307,8 +2347,12 @@ mod tests {
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         for w in &words {
-            assert_eq!(w.direction, TextDirection::Ttb,
-                "non-upright words should be Ttb, got {:?}", w.direction);
+            assert_eq!(
+                w.direction,
+                TextDirection::Ttb,
+                "non-upright words should be Ttb, got {:?}",
+                w.direction
+            );
         }
     }
 
@@ -2329,8 +2373,12 @@ mod tests {
             make_char("界", 151.0, 50.0, 167.0, 66.0), // touching
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        assert_eq!(words.len(), 2, "CJK chars with 3pt gap (== tolerance) must split into 2 words: {:?}",
-            words.iter().map(|w| &w.text).collect::<Vec<_>>());
+        assert_eq!(
+            words.len(),
+            2,
+            "CJK chars with 3pt gap (== tolerance) must split into 2 words: {:?}",
+            words.iter().map(|w| &w.text).collect::<Vec<_>>()
+        );
         assert_eq!(words[0].text, "你好");
         assert_eq!(words[1].text, "世界");
     }
@@ -2385,8 +2433,10 @@ mod tests {
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
         let char_text: String = words[0].chars.iter().map(|c| c.text.as_str()).collect();
-        assert_eq!(words[0].text, char_text,
-            "word.text must equal concatenation of word.chars[].text");
+        assert_eq!(
+            words[0].text, char_text,
+            "word.text must equal concatenation of word.chars[].text"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2405,8 +2455,10 @@ mod tests {
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         let total_word_chars: usize = words.iter().map(|w| w.chars.len()).sum();
         let non_space_input = chars.iter().filter(|c| !c.text.trim().is_empty()).count();
-        assert_eq!(total_word_chars, non_space_input,
-            "every non-space input char must appear in exactly one word");
+        assert_eq!(
+            total_word_chars, non_space_input,
+            "every non-space input char must appear in exactly one word"
+        );
     }
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -2451,10 +2503,20 @@ mod tests {
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         for w in &words {
-            assert!(w.bbox.x0 <= w.bbox.x1,
-                "word '{}': x0 ({}) > x1 ({})", w.text, w.bbox.x0, w.bbox.x1);
-            assert!(w.bbox.top <= w.bbox.bottom,
-                "word '{}': top ({}) > bottom ({})", w.text, w.bbox.top, w.bbox.bottom);
+            assert!(
+                w.bbox.x0 <= w.bbox.x1,
+                "word '{}': x0 ({}) > x1 ({})",
+                w.text,
+                w.bbox.x0,
+                w.bbox.x1
+            );
+            assert!(
+                w.bbox.top <= w.bbox.bottom,
+                "word '{}': top ({}) > bottom ({})",
+                w.text,
+                w.bbox.top,
+                w.bbox.bottom
+            );
             assert!(w.bbox.width() >= 0.0, "negative width");
             assert!(w.bbox.height() >= 0.0, "negative height");
         }

@@ -15,7 +15,12 @@ use pdfplumber_core::{BBox, Char, Color as PdfColor, TextDirection};
 fn make_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64, size: f64) -> Char {
     Char {
         text: text.to_owned(),
-        bbox: BBox { x0, top, x1, bottom },
+        bbox: BBox {
+            x0,
+            top,
+            x1,
+            bottom,
+        },
         fontname: "Helvetica".to_owned(),
         size,
         doctop: top,
@@ -40,8 +45,10 @@ fn infer_empty_page_returns_empty_tags() {
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_page(&page, 0);
     // No chars → no text tags. May have empty vec.
-    assert!(tags.iter().all(|t| t.role != "P" && t.role != "H1"),
-        "empty page should have no text tags");
+    assert!(
+        tags.iter().all(|t| t.role != "P" && t.role != "H1"),
+        "empty page should have no text tags"
+    );
 }
 
 #[test]
@@ -50,19 +57,26 @@ fn infer_body_text_tagged_as_p() {
     let chars: Vec<Char> = "Hello world"
         .chars()
         .enumerate()
-        .map(|(i, c)| make_char(
-            &c.to_string(),
-            10.0 + i as f64 * 6.0, 100.0,
-            16.0 + i as f64 * 6.0, 112.0,
-            10.0,
-        ))
+        .map(|(i, c)| {
+            make_char(
+                &c.to_string(),
+                10.0 + i as f64 * 6.0,
+                100.0,
+                16.0 + i as f64 * 6.0,
+                112.0,
+                10.0,
+            )
+        })
         .collect();
     let page = Page::new(0, 595.0, 842.0, chars);
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_page(&page, 0);
     let p_tags: Vec<_> = tags.iter().filter(|t| t.role == "P").collect();
-    assert!(!p_tags.is_empty(), "body text should be tagged as P; got: {:?}",
-        tags.iter().map(|t| &t.role).collect::<Vec<_>>());
+    assert!(
+        !p_tags.is_empty(),
+        "body text should be tagged as P; got: {:?}",
+        tags.iter().map(|t| &t.role).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -72,32 +86,41 @@ fn infer_large_text_tagged_as_heading() {
     let mut chars: Vec<Char> = "Body text here"
         .chars()
         .enumerate()
-        .map(|(i, c)| make_char(
-            &c.to_string(),
-            10.0 + i as f64 * 6.0, 400.0,
-            16.0 + i as f64 * 6.0, 412.0,
-            10.0,
-        ))
+        .map(|(i, c)| {
+            make_char(
+                &c.to_string(),
+                10.0 + i as f64 * 6.0,
+                400.0,
+                16.0 + i as f64 * 6.0,
+                412.0,
+                10.0,
+            )
+        })
         .collect();
     // heading chars (20pt — 2× body) — well above h1_ratio=1.4×
     let heading_text = "Title";
     for (i, c) in heading_text.chars().enumerate() {
         chars.push(make_char(
             &c.to_string(),
-            10.0 + i as f64 * 12.0, 50.0,
-            22.0 + i as f64 * 12.0, 70.0,
+            10.0 + i as f64 * 12.0,
+            50.0,
+            22.0 + i as f64 * 12.0,
+            70.0,
             20.0,
         ));
     }
     let page = Page::new(0, 595.0, 842.0, chars);
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_page(&page, 0);
-    let heading_tags: Vec<_> = tags.iter()
+    let heading_tags: Vec<_> = tags
+        .iter()
         .filter(|t| t.role == "H1" || t.role == "H2" || t.role == "H3")
         .collect();
-    assert!(!heading_tags.is_empty(),
+    assert!(
+        !heading_tags.is_empty(),
         "large text should be classified as a heading; tags: {:?}",
-        tags.iter().map(|t| (&t.role, &t.text)).collect::<Vec<_>>());
+        tags.iter().map(|t| (&t.role, &t.text)).collect::<Vec<_>>()
+    );
 }
 
 #[test]
@@ -106,20 +129,29 @@ fn infer_header_zone_text_tagged_as_artifact() {
     let chars: Vec<Char> = "Header text"
         .chars()
         .enumerate()
-        .map(|(i, c)| make_char(
-            &c.to_string(),
-            10.0 + i as f64 * 6.0, 5.0,  // near top of page
-            16.0 + i as f64 * 6.0, 15.0,
-            10.0,
-        ))
+        .map(|(i, c)| {
+            make_char(
+                &c.to_string(),
+                10.0 + i as f64 * 6.0,
+                5.0, // near top of page
+                16.0 + i as f64 * 6.0,
+                15.0,
+                10.0,
+            )
+        })
         .collect();
     let page = Page::new(0, 595.0, 842.0, chars);
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_page(&page, 0);
     let artifact_tags: Vec<_> = tags.iter().filter(|t| t.role == "Artifact").collect();
-    assert!(!artifact_tags.is_empty(), "top-of-page text should be tagged as Artifact");
-    assert!(artifact_tags.iter().all(|t| !t.needs_review),
-        "artifacts should not require review");
+    assert!(
+        !artifact_tags.is_empty(),
+        "top-of-page text should be tagged as Artifact"
+    );
+    assert!(
+        artifact_tags.iter().all(|t| !t.needs_review),
+        "artifacts should not require review"
+    );
 }
 
 #[test]
@@ -136,27 +168,33 @@ fn infer_page_number_preserved() {
 #[test]
 fn review_count_counts_figures_recursively() {
     let inferrer = TagInferrer::new();
-    let tags = vec![
-        InferredTag {
-            role: "P".to_owned(),
-            bbox: BBox { x0: 0.0, top: 0.0, x1: 100.0, bottom: 12.0 },
-            page: 0,
-            text: "text".to_owned(),
-            children: vec![
-                InferredTag {
-                    role: "Figure".to_owned(),
-                    bbox: BBox { x0: 0.0, top: 0.0, x1: 50.0, bottom: 50.0 },
-                    page: 0,
-                    text: String::new(),
-                    children: vec![],
-                    needs_review: true,
-                    review_reason: Some("needs alt".to_owned()),
-                },
-            ],
-            needs_review: false,
-            review_reason: None,
+    let tags = vec![InferredTag {
+        role: "P".to_owned(),
+        bbox: BBox {
+            x0: 0.0,
+            top: 0.0,
+            x1: 100.0,
+            bottom: 12.0,
         },
-    ];
+        page: 0,
+        text: "text".to_owned(),
+        children: vec![InferredTag {
+            role: "Figure".to_owned(),
+            bbox: BBox {
+                x0: 0.0,
+                top: 0.0,
+                x1: 50.0,
+                bottom: 50.0,
+            },
+            page: 0,
+            text: String::new(),
+            children: vec![],
+            needs_review: true,
+            review_reason: Some("needs alt".to_owned()),
+        }],
+        needs_review: false,
+        review_reason: None,
+    }];
     assert_eq!(inferrer.review_count(&tags), 1);
 }
 
@@ -166,24 +204,42 @@ fn infer_tags_sorted_top_to_bottom() {
     let mut chars = vec![];
     // Block at y=500 (lower on page)
     for (i, c) in "Lower".chars().enumerate() {
-        chars.push(make_char(&c.to_string(), 10.0 + i as f64 * 6.0, 500.0, 16.0 + i as f64 * 6.0, 512.0, 10.0));
+        chars.push(make_char(
+            &c.to_string(),
+            10.0 + i as f64 * 6.0,
+            500.0,
+            16.0 + i as f64 * 6.0,
+            512.0,
+            10.0,
+        ));
     }
     // Block at y=100 (higher on page)
     for (i, c) in "Upper".chars().enumerate() {
-        chars.push(make_char(&c.to_string(), 10.0 + i as f64 * 6.0, 100.0, 16.0 + i as f64 * 6.0, 112.0, 10.0));
+        chars.push(make_char(
+            &c.to_string(),
+            10.0 + i as f64 * 6.0,
+            100.0,
+            16.0 + i as f64 * 6.0,
+            112.0,
+            10.0,
+        ));
     }
     let page = Page::new(0, 595.0, 842.0, chars);
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_page(&page, 0);
     // Filter to only text tags (not artifacts)
-    let text_tags: Vec<_> = tags.iter()
+    let text_tags: Vec<_> = tags
+        .iter()
         .filter(|t| t.role == "P" || t.role.starts_with('H'))
         .collect();
     // Should be sorted top-to-bottom (lower bbox.top first)
     for window in text_tags.windows(2) {
-        assert!(window[0].bbox.top <= window[1].bbox.top,
+        assert!(
+            window[0].bbox.top <= window[1].bbox.top,
             "tags should be sorted top-to-bottom: {:?} before {:?}",
-            window[0].bbox.top, window[1].bbox.top);
+            window[0].bbox.top,
+            window[1].bbox.top
+        );
     }
 }
 
@@ -233,8 +289,13 @@ fn analyze_untagged_pdf_has_ua001() {
 #[test]
 #[ignore]
 fn analyze_pdf_with_images_no_panic() {
-    let path = format!("{}/{}", "../../tests/fixtures/real-world/images", "annotated_figures.pdf");
-    let Ok(pdf) = pdfplumber::Pdf::open_file(&path, None) else { return };
+    let path = format!(
+        "{}/{}",
+        "../../tests/fixtures/real-world/images", "annotated_figures.pdf"
+    );
+    let Ok(pdf) = pdfplumber::Pdf::open_file(&path, None) else {
+        return;
+    };
     let report = A11yAnalyzer::new().analyze(&pdf);
     let _ = report.summary();
 }
@@ -247,22 +308,28 @@ fn infer_document_all_pages_no_panic() {
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_document(&pdf);
     // Every page should produce some tags.
-    assert!(!tags.is_empty(), "long document should produce some inferred tags");
+    assert!(
+        !tags.is_empty(),
+        "long document should produce some inferred tags"
+    );
 }
 
 #[test]
 #[ignore]
 fn infer_multi_font_sizes_detects_headings() {
-    let path = format!("{}/{}", "../../tests/fixtures/real-world/layout", "multi-font-sizes.pdf");
-    let pdf = pdfplumber::Pdf::open_file(&path, None)
-        .expect("multi-font-sizes fixture must be openable");
+    let path = format!(
+        "{}/{}",
+        "../../tests/fixtures/real-world/layout", "multi-font-sizes.pdf"
+    );
+    let pdf =
+        pdfplumber::Pdf::open_file(&path, None).expect("multi-font-sizes fixture must be openable");
     let inferrer = TagInferrer::new();
     let tags = inferrer.infer_document(&pdf);
-    let heading_tags: Vec<_> = tags.iter()
-        .filter(|t| t.role.starts_with('H'))
-        .collect();
-    assert!(!heading_tags.is_empty(),
-        "multi-font-sizes PDF should produce at least one heading tag");
+    let heading_tags: Vec<_> = tags.iter().filter(|t| t.role.starts_with('H')).collect();
+    assert!(
+        !heading_tags.is_empty(),
+        "multi-font-sizes PDF should produce at least one heading tag"
+    );
 }
 
 #[test]

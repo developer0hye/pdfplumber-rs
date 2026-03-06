@@ -7,9 +7,9 @@
 //! This is the primary output format for LLM context building, RAG indexing,
 //! and human-readable document export.
 
-use crate::{Heading, LayoutBlock, LayoutTable, Paragraph, Section};
 use crate::figures::Figure;
 use crate::headings::HeadingLevel;
+use crate::{Heading, LayoutBlock, LayoutTable, Paragraph, Section};
 
 /// Render a [`Heading`] to an ATX markdown heading line.
 pub fn heading_to_markdown(h: &Heading) -> String {
@@ -35,7 +35,7 @@ pub fn paragraph_to_markdown(p: &Paragraph) -> String {
     } else if p.is_list_item {
         // Text already starts with the bullet/ordinal from the PDF.
         // Normalise the prefix to a standard GFM form.
-        use crate::lists::{parse_list_prefix, ListKind};
+        use crate::lists::{ListKind, parse_list_prefix};
         if let Some((_, rest, kind)) = parse_list_prefix(text) {
             match kind {
                 ListKind::Unordered => format!("- {rest}"),

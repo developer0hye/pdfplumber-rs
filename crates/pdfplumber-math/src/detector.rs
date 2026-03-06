@@ -102,7 +102,7 @@ impl Default for MathOptions {
 /// Math region extractor.
 ///
 /// Stateless — create once, reuse across pages.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MathExtractor {
     options: MathOptions,
 }
@@ -111,11 +111,6 @@ impl MathExtractor {
     /// Create a new extractor with the given options.
     pub fn new(options: MathOptions) -> Self {
         Self { options }
-    }
-
-    /// Create with default options.
-    pub fn default() -> Self {
-        Self::new(MathOptions::default())
     }
 
     /// Extract math regions from a page.
@@ -241,9 +236,8 @@ impl MathExtractor {
         let mut clusters: Vec<Vec<&Char>> = Vec::new();
         let mut current: Vec<&Char> = vec![sorted[0]];
 
-        for i in 1..sorted.len() {
+        for curr in &sorted[1..] {
             let prev = current.last().unwrap();
-            let curr = sorted[i];
 
             let h_gap = curr.bbox.x0 - prev.bbox.x1;
             let v_gap = (curr.bbox.top - prev.bbox.top).abs();
