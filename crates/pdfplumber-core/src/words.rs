@@ -1374,8 +1374,9 @@ mod tests {
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
         // Spatial top-to-bottom: o(512), l(520), l(526), e(532), H(540) → "olleH"
+        // Direction is Ttb — non-upright chars are processed via the Ttb path
         assert_eq!(words[0].text, "olleH");
-        assert_eq!(words[0].direction, TextDirection::Btt);
+        assert_eq!(words[0].direction, TextDirection::Ttb);
     }
 
     #[test]
@@ -1673,11 +1674,10 @@ mod tests {
             "upright=false chars should each be their own word (matching Python TTB split), got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted top-to-bottom (all same top), then by x0 ascending within cluster:
-        // e(523.23), h(528.53), T(534.03) — each is its own word
-        assert_eq!(words[0].text, "e");
+        // TTB sort: x0 descending (rightmost column first), so T(534.03) > h(528.53) > e(523.23)
+        assert_eq!(words[0].text, "T");
         assert_eq!(words[1].text, "h");
-        assert_eq!(words[2].text, "T");
+        assert_eq!(words[2].text, "e");
     }
 
     #[test]
@@ -1717,8 +1717,8 @@ mod tests {
             "Non-upright chars with x0 diff < x_tolerance should group (like Python 'vi'), got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted ascending x0: i(499.09), v(501.53) → "iv"
-        assert_eq!(words[0].text, "iv");
+        // TTB sort: x0 descending, v(501.53) > i(499.09) → "vi"
+        assert_eq!(words[0].text, "vi");
     }
 
     #[test]
