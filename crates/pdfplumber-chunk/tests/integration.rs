@@ -11,17 +11,19 @@
 use pdfplumber::Pdf;
 use pdfplumber_chunk::{Chunk, ChunkSettings, ChunkType, Chunker};
 
-const FIXTURES_DIR: &str =
-    "crates/pdfplumber/tests/fixtures/pdfs";
-
 fn fixture_path(name: &str) -> std::path::PathBuf {
-    std::path::PathBuf::from(FIXTURES_DIR).join(name)
+    // CARGO_MANIFEST_DIR is the crates/pdfplumber-chunk directory.
+    // Fixtures live two levels up in crates/pdfplumber/tests/fixtures/pdfs.
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent() // crates/
+        .unwrap()
+        .join("pdfplumber/tests/fixtures/pdfs")
+        .join(name)
 }
 
 fn open_fixture(name: &str) -> Pdf {
     let path = fixture_path(name);
-    Pdf::open_file(&path, None)
-        .unwrap_or_else(|e| panic!("failed to open fixture {name}: {e}"))
+    Pdf::open_file(&path, None).unwrap_or_else(|e| panic!("failed to open fixture {name}: {e}"))
 }
 
 // ───────────────────────────── helpers ─────────────────────────────
@@ -56,7 +58,8 @@ fn assert_token_budget(chunks: &[Chunk], max_tokens: usize, context: &str) {
         assert!(
             chunk.token_count <= limit,
             "{context}: chunk {i} token_count {} exceeds budget {} (limit with tolerance: {limit})",
-            chunk.token_count, max_tokens
+            chunk.token_count,
+            max_tokens
         );
     }
 }
@@ -95,7 +98,11 @@ fn chelsea_pdta_produces_chunks() {
 #[test]
 fn federal_register_token_budget_512() {
     let pdf = open_fixture("federal-register-2020-17221.pdf");
-    let settings = ChunkSettings { max_tokens: 512, overlap_tokens: 0, ..Default::default() };
+    let settings = ChunkSettings {
+        max_tokens: 512,
+        overlap_tokens: 0,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let chunks = chunker.chunk(&pdf).unwrap();
     assert_token_budget(&chunks, 512, "federal-register max_tokens=512");
@@ -104,7 +111,11 @@ fn federal_register_token_budget_512() {
 #[test]
 fn federal_register_token_budget_256() {
     let pdf = open_fixture("federal-register-2020-17221.pdf");
-    let settings = ChunkSettings { max_tokens: 256, overlap_tokens: 0, ..Default::default() };
+    let settings = ChunkSettings {
+        max_tokens: 256,
+        overlap_tokens: 0,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let chunks = chunker.chunk(&pdf).unwrap();
     assert_token_budget(&chunks, 256, "federal-register max_tokens=256");
@@ -113,7 +124,11 @@ fn federal_register_token_budget_256() {
 #[test]
 fn cupertino_token_budget_128() {
     let pdf = open_fixture("cupertino_usd_4-6-16.pdf");
-    let settings = ChunkSettings { max_tokens: 128, overlap_tokens: 0, ..Default::default() };
+    let settings = ChunkSettings {
+        max_tokens: 128,
+        overlap_tokens: 0,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let chunks = chunker.chunk(&pdf).unwrap();
     assert_token_budget(&chunks, 128, "cupertino max_tokens=128");
@@ -133,14 +148,14 @@ fn chunks_carry_page_index() {
         assert!(
             chunk.page < page_count,
             "chunk.page {} out of range (page_count={})",
-            chunk.page, page_count
+            chunk.page,
+            page_count
         );
     }
 
     // If the PDF has >1 page, chunks from different pages should appear.
     if page_count > 1 {
-        let pages_seen: std::collections::HashSet<usize> =
-            chunks.iter().map(|c| c.page).collect();
+        let pages_seen: std::collections::HashSet<usize> = chunks.iter().map(|c| c.page).collect();
         assert!(
             pages_seen.len() > 1,
             "multi-page PDF should produce chunks from multiple pages"
@@ -153,7 +168,10 @@ fn chunks_carry_page_index() {
 #[test]
 fn bboxes_populated_when_include_bbox() {
     let pdf = open_fixture("cupertino_usd_4-6-16.pdf");
-    let settings = ChunkSettings { include_bbox: true, ..Default::default() };
+    let settings = ChunkSettings {
+        include_bbox: true,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let chunks = chunker.chunk(&pdf).unwrap();
 
@@ -161,21 +179,34 @@ fn bboxes_populated_when_include_bbox() {
         let b = &chunk.bbox;
         // Non-degenerate bbox: either has width or height.
         let has_extent = b.x1 > b.x0 || b.bottom > b.top;
-        assert!(has_extent, "chunk {i} on page {} has degenerate bbox {:?}", chunk.page, b);
+        assert!(
+            has_extent,
+            "chunk {i} on page {} has degenerate bbox {:?}",
+            chunk.page, b
+        );
     }
 }
 
 #[test]
 fn bboxes_zero_when_not_include_bbox() {
     let pdf = open_fixture("cupertino_usd_4-6-16.pdf");
-    let settings = ChunkSettings { include_bbox: false, ..Default::default() };
+    let settings = ChunkSettings {
+        include_bbox: false,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let chunks = chunker.chunk(&pdf).unwrap();
 
     for (i, chunk) in chunks.iter().enumerate() {
         let b = &chunk.bbox;
-        assert_eq!(b.x0, 0.0, "chunk {i} bbox.x0 should be 0 when include_bbox=false");
-        assert_eq!(b.x1, 0.0, "chunk {i} bbox.x1 should be 0 when include_bbox=false");
+        assert_eq!(
+            b.x0, 0.0,
+            "chunk {i} bbox.x0 should be 0 when include_bbox=false"
+        );
+        assert_eq!(
+            b.x1, 0.0,
+            "chunk {i} bbox.x1 should be 0 when include_bbox=false"
+        );
     }
 }
 
@@ -187,9 +218,16 @@ fn overlap_increases_chunk_count() {
     // requires more splits → more chunks than without overlap.
     let pdf = open_fixture("federal-register-2020-17221.pdf");
 
-    let no_overlap = ChunkSettings { max_tokens: 200, overlap_tokens: 0, ..Default::default() };
-    let with_overlap =
-        ChunkSettings { max_tokens: 200, overlap_tokens: 40, ..Default::default() };
+    let no_overlap = ChunkSettings {
+        max_tokens: 200,
+        overlap_tokens: 0,
+        ..Default::default()
+    };
+    let with_overlap = ChunkSettings {
+        max_tokens: 200,
+        overlap_tokens: 40,
+        ..Default::default()
+    };
 
     let chunks_no = Chunker::new(no_overlap).chunk(&pdf).unwrap();
     let chunks_ov = Chunker::new(with_overlap).chunk(&pdf).unwrap();
@@ -197,7 +235,9 @@ fn overlap_increases_chunk_count() {
     // Overlap must produce at least as many chunks (usually more).
     assert!(
         chunks_ov.len() >= chunks_no.len(),
-        "overlap should produce >= chunks than no-overlap: {}/{}", chunks_ov.len(), chunks_no.len()
+        "overlap should produce >= chunks than no-overlap: {}/{}",
+        chunks_ov.len(),
+        chunks_no.len()
     );
 }
 
@@ -209,7 +249,8 @@ fn table_chunks_never_split() {
     // which has confirmed tables from the cross-validation harness.
     let pdf = open_fixture("cupertino_usd_4-6-16.pdf");
     let settings = ChunkSettings {
-        max_tokens: 10, // very small limit — tables must still be single chunks
+        max_tokens: 10,    // very small limit — tables must still be single chunks
+        overlap_tokens: 0, // MUST be 0 when max_tokens is tiny — otherwise overlap > budget causes infinite splitting and OOM
         preserve_tables: true,
         ..Default::default()
     };
@@ -249,13 +290,14 @@ fn headings_precede_section_assignment() {
             last_heading_text = Some(chunk.text.clone());
             last_heading_page = Some(chunk.page);
         } else if chunk.chunk_type == ChunkType::Paragraph {
-            if let (Some(ref heading), Some(hpage)) = (&last_heading_text, last_heading_page) {
+            if let (Some(heading), Some(hpage)) = (&last_heading_text, last_heading_page) {
                 if chunk.page == hpage {
                     assert_eq!(
                         chunk.section.as_deref(),
                         Some(heading.as_str()),
                         "paragraph on page {} should inherit section '{}'",
-                        chunk.page, heading
+                        chunk.page,
+                        heading
                     );
                 }
             }
@@ -300,7 +342,11 @@ fn zero_max_tokens_gives_single_word_chunks() {
     // Edge case: max_tokens=1 means every word boundary triggers a split.
     // We just verify it doesn't panic or infinite-loop.
     let pdf = open_fixture("cupertino_usd_4-6-16.pdf");
-    let settings = ChunkSettings { max_tokens: 1, overlap_tokens: 0, ..Default::default() };
+    let settings = ChunkSettings {
+        max_tokens: 1,
+        overlap_tokens: 0,
+        ..Default::default()
+    };
     let chunker = Chunker::new(settings);
     let result = chunker.chunk(&pdf);
     assert!(result.is_ok(), "max_tokens=1 should not error");

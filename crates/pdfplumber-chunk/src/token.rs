@@ -214,6 +214,9 @@ mod tests {
         // Overlap words must be a suffix of text words.
         let n = overlap_words.len();
         assert!(n > 0);
-        assert_eq!(&text_words[text_words.len() - n..], overlap_words.as_slice());
+        assert_eq!(
+            &text_words[text_words.len() - n..],
+            overlap_words.as_slice()
+        );
     }
 }

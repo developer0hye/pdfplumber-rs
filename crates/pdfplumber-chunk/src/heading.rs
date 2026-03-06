@@ -146,8 +146,8 @@ pub fn is_heading(
     }
 
     // Positional gate: top-fraction OR gap.
-    let in_top_fraction = page_height > 0.0
-        && (block.bbox.top / page_height) < HEADING_TOP_FRACTION;
+    let in_top_fraction =
+        page_height > 0.0 && (block.bbox.top / page_height) < HEADING_TOP_FRACTION;
     let after_large_gap = prev_block_bottom
         .map(|bottom| block.bbox.top - bottom >= HEADING_GAP_THRESHOLD)
         .unwrap_or(true); // First block on page: gap is implicitly large.
@@ -157,11 +157,7 @@ pub fn is_heading(
 
 /// Classify a sequence of blocks on a single page, returning `true` at each
 /// index where the block is a heading.
-pub fn classify_blocks(
-    blocks: &[TextBlock],
-    page_height: f64,
-    median_font_size: f64,
-) -> Vec<bool> {
+pub fn classify_blocks(blocks: &[TextBlock], page_height: f64, median_font_size: f64) -> Vec<bool> {
     let mut result = Vec::with_capacity(blocks.len());
     let mut prev_bottom: Option<f64> = None;
     for block in blocks {
@@ -204,8 +200,42 @@ mod tests {
             direction: TextDirection::Ltr,
             chars,
         };
-        let line = TextLine { words: vec![word], bbox };
-        TextBlock { lines: vec![line], bbox }
+        let line = TextLine {
+            words: vec![word],
+            bbox,
+        };
+        TextBlock {
+            lines: vec![line],
+            bbox,
+        }
+    }
+
+    /// Build a block with `n` separate single-char words — exercises word count gate.
+    fn make_multi_word_block(
+        n: usize,
+        size: f64,
+        fontname: &str,
+        top: f64,
+        bottom: f64,
+    ) -> TextBlock {
+        let bbox = BBox::new(0.0, top, 200.0, bottom);
+        let words: Vec<Word> = (0..n)
+            .map(|i| {
+                let ch = make_char(size, fontname);
+                Word {
+                    text: ch.text.clone(),
+                    bbox: BBox::new(i as f64 * 8.0, top, i as f64 * 8.0 + 7.0, bottom),
+                    doctop: top,
+                    direction: TextDirection::Ltr,
+                    chars: vec![ch],
+                }
+            })
+            .collect();
+        let line = TextLine { words, bbox };
+        TextBlock {
+            lines: vec![line],
+            bbox,
+        }
     }
 
     #[test]
@@ -224,9 +254,9 @@ mod tests {
 
     #[test]
     fn long_block_is_not_heading_even_if_large() {
-        let chars: Vec<Char> = (0..25).map(|_| make_char(20.0, "Arial")).collect();
-        let block = make_block(chars, 10.0, 30.0);
-        // word count > HEADING_MAX_WORDS even though font is large
+        // 25 separate words, each large font — word count gate fires first
+        let block = make_multi_word_block(25, 20.0, "Arial", 10.0, 30.0);
+        // block_word_count = 25 > HEADING_MAX_WORDS (20) → not heading regardless of font
         assert!(!is_heading(&block, 800.0, 12.0, None));
     }
 
