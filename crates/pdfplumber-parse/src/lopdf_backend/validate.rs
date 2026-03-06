@@ -489,3 +489,69 @@ fn fix_references_in_object(
         other => other,
     }
 }
+
+/// Attempt to strip a non-PDF preamble before the `%PDF-` header, and
+/// remove any Ghostscript `Page N` markers embedded in the PDF body.
+pub(super) fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
+    let mut cleaned = false;
+    let start_offset = if bytes.starts_with(b"%PDF-") {
+        0
+    } else {
+        let search_limit = bytes.len().min(1024);
+        match bytes[..search_limit].windows(5).position(|w| w == b"%PDF-") {
+            Some(offset) => { cleaned = true; offset }
+            None => return None,
+        }
+    };
+    let pdf_bytes = &bytes[start_offset..];
+    let marker = b"endstream";
+    let mut result: Vec<u8> = Vec::with_capacity(pdf_bytes.len());
+    let mut pos = 0;
+    while pos < pdf_bytes.len() {
+        if pos + marker.len() <= pdf_bytes.len() && &pdf_bytes[pos..pos + marker.len()] == marker {
+            let written = result.len();
+            if written >= 7 {
+                let mut check_pos = written;
+                if check_pos > 0 && result[check_pos - 1] == b'\n' {
+                    check_pos -= 1;
+                    let digit_end = check_pos;
+                    while check_pos > 0 && result[check_pos - 1].is_ascii_digit() {
+                        check_pos -= 1;
+                    }
+                    let has_digits = check_pos < digit_end;
+                    if has_digits && check_pos >= 5 && &result[check_pos - 5..check_pos] == b"Page " {
+                        result.truncate(check_pos - 5);
+                        cleaned = true;
+                    }
+                }
+            }
+        }
+        result.push(pdf_bytes[pos]);
+        pos += 1;
+    }
+    if cleaned { Some(result) } else { None }
+}
+
+/// Attempt to fix a broken `startxref` offset in raw PDF bytes.
+pub(super) fn try_fix_startxref(bytes: &[u8]) -> Option<Vec<u8>> {
+    let startxref_marker = b"startxref";
+    let startxref_pos = bytes.windows(startxref_marker.len()).rposition(|w| w == startxref_marker)?;
+    let xref_marker = b"xref";
+    let actual_xref_pos = bytes.windows(xref_marker.len()).rposition(|w| {
+        if w != xref_marker { return false; }
+        let pos = w.as_ptr() as usize - bytes.as_ptr() as usize;
+        if pos >= 5 { let before = &bytes[pos - 5..pos]; if before == b"start" { return false; } }
+        true
+    })?;
+    let after_startxref = startxref_pos + startxref_marker.len();
+    let offset_start = bytes[after_startxref..].iter().position(|&b| b.is_ascii_digit())? + after_startxref;
+    let offset_end = bytes[offset_start..].iter().position(|&b| !b.is_ascii_digit())? + offset_start;
+    let current_offset: usize = std::str::from_utf8(&bytes[offset_start..offset_end]).ok()?.parse().ok()?;
+    if current_offset == actual_xref_pos { return None; }
+    let new_offset_str = actual_xref_pos.to_string();
+    let mut repaired = Vec::with_capacity(bytes.len());
+    repaired.extend_from_slice(&bytes[..offset_start]);
+    repaired.extend_from_slice(new_offset_str.as_bytes());
+    repaired.extend_from_slice(&bytes[offset_end..]);
+    Some(repaired)
+}
