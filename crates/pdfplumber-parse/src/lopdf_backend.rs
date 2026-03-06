@@ -2283,20 +2283,14 @@ fn walk_signature_tree(
             let byte_range = extract_byte_range(doc, v_dict);
 
             // Extract /Filter and /SubFilter names
-            let filter = v_dict
-                .get(b"Filter")
-                .ok()
-                .and_then(|o| match o {
-                    lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
-                    _ => None,
-                });
-            let sub_filter = v_dict
-                .get(b"SubFilter")
-                .ok()
-                .and_then(|o| match o {
-                    lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
-                    _ => None,
-                });
+            let filter = v_dict.get(b"Filter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
+            let sub_filter = v_dict.get(b"SubFilter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
 
             SignatureInfo {
                 signer_name: extract_string_from_dict(doc, v_dict, b"Name"),
@@ -2331,10 +2325,7 @@ fn walk_signature_tree(
 /// The PDF spec requires `/ByteRange` to be an array of 4 non-negative integers:
 /// `[offset1, length1, offset2, length2]`. Returns `None` if the entry is absent
 /// or malformed.
-fn extract_byte_range(
-    doc: &lopdf::Document,
-    v_dict: &lopdf::Dictionary,
-) -> Option<[u64; 4]> {
+fn extract_byte_range(doc: &lopdf::Document, v_dict: &lopdf::Dictionary) -> Option<[u64; 4]> {
     let obj = v_dict.get(b"ByteRange").ok()?;
     // Resolve indirect reference
     let obj = match obj {
@@ -2470,7 +2461,14 @@ fn walk_raw_signature_tree(
             if has_child_fields {
                 for kid in kids_array {
                     if let lopdf::Object::Reference(kid_id) = kid {
-                        walk_raw_signature_tree(doc, *kid_id, field_type, depth + 1, max_depth, out);
+                        walk_raw_signature_tree(
+                            doc,
+                            *kid_id,
+                            field_type,
+                            depth + 1,
+                            max_depth,
+                            out,
+                        );
                     }
                 }
                 return;
@@ -2536,8 +2534,14 @@ fn walk_raw_signature_tree(
         }
         None => {
             let info = pdfplumber_core::SignatureInfo {
-                signer_name: None, sign_date: None, reason: None, location: None,
-                contact_info: None, filter: None, sub_filter: None, byte_range: None,
+                signer_name: None,
+                sign_date: None,
+                reason: None,
+                location: None,
+                contact_info: None,
+                filter: None,
+                sub_filter: None,
+                byte_range: None,
                 is_signed: false,
             };
             (info, Vec::new())

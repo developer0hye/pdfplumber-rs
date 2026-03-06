@@ -4,19 +4,15 @@
 //! metadata fields. With `signatures` feature enabled, also performs full
 //! cryptographic verification.
 
-use std::path::PathBuf;
-
-use pdfplumber::Pdf;
-
-use crate::cli::OutputFormat;
+use std::path::Path;
 
 pub fn run(
-    file: &PathBuf,
+    file: &Path,
     verify: bool,
     format: &crate::cli::SignaturesFormat,
     password: Option<&str>,
 ) -> Result<(), i32> {
-    let pdf = crate::shared::open_pdf(file, password, false).map_err(|e| {
+    let pdf = crate::shared::open_pdf_full(file, None, password).map_err(|e| {
         eprintln!("error: {e}");
         1i32
     })?;
@@ -100,7 +96,11 @@ pub fn run(
                             for (ci, cert) in v.cert_chain.iter().enumerate() {
                                 let cn = cert.subject_cn.as_deref().unwrap_or("?");
                                 let issuer = cert.issuer_cn.as_deref().unwrap_or("?");
-                                let self_signed = if cert.is_self_signed { " (self-signed)" } else { "" };
+                                let self_signed = if cert.is_self_signed {
+                                    " (self-signed)"
+                                } else {
+                                    ""
+                                };
                                 println!("    [{ci}] {cn} ← {issuer}{self_signed}");
                                 if let Some(fp) = &cert.sha256_fingerprint {
                                     println!("        SHA-256: {}", &fp[..fp.len().min(47)]);
@@ -137,12 +137,14 @@ pub fn run(
             };
 
             #[cfg(not(feature = "signatures"))]
-            let verifications: Vec<Option<()>> = infos.iter().map(|_| None).collect();
+            let _verifications: Vec<Option<()>> = infos.iter().map(|_| None).collect();
 
+            #[allow(clippy::unused_enumerate_index)]
             let json_array: Vec<serde_json::Value> = infos
                 .iter()
                 .enumerate()
-                .map(|(i, info)| {
+                .map(|(_i, info)| {
+                    #[allow(unused_mut)]
                     let mut obj = serde_json::json!({
                         "is_signed": info.is_signed,
                         "signer_name": info.signer_name,
@@ -156,7 +158,7 @@ pub fn run(
                     });
 
                     #[cfg(feature = "signatures")]
-                    if let Some(Some(v)) = verifications.get(i) {
+                    if let Some(Some(v)) = verifications.get(_i) {
                         obj["verification"] = serde_json::json!({
                             "is_valid": v.is_valid,
                             "signer_cn": v.signer_cn,

@@ -150,8 +150,9 @@ mod tests {
 
     #[test]
     fn signature_info_covers_entire_document_yes() {
-        // File: 1000 bytes. Byte range: [0, 400, 600, 400] — covers all but the hex contents.
-        let sig = make_info(Some([0, 400, 600, 400]));
+        // File: 1000 bytes. Byte range: [0, 400, 400, 600] — covers all but the hex contents.
+        // o1=0, l1=400, o2=400, l2=600 → o1+l1==o2 (400==400) ✓, o2+l2==1000 ✓
+        let sig = make_info(Some([0, 400, 400, 600]));
         assert!(sig.covers_entire_document(1000));
     }
 

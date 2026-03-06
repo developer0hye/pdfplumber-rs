@@ -82,7 +82,10 @@ pub fn verify_signature(raw: &RawSignature, file_bytes: &[u8]) -> SignatureVerif
 
     // Only handle detached PKCS#7 / CAdES detached
     let sub_filter = info.sub_filter.as_deref().unwrap_or("");
-    if !matches!(sub_filter, "adbe.pkcs7.detached" | "ETSI.CAdES.detached" | "") {
+    if !matches!(
+        sub_filter,
+        "adbe.pkcs7.detached" | "ETSI.CAdES.detached" | ""
+    ) {
         return fail(&format!("unsupported /SubFilter: {sub_filter}"));
     }
 
@@ -114,10 +117,7 @@ pub fn verify_signature(raw: &RawSignature, file_bytes: &[u8]) -> SignatureVerif
     let certs = extract_certificates(&signed_data);
 
     // Find the first SignerInfo and verify it
-    let signer_infos = signed_data
-        .signer_infos
-        .0
-        .as_slice();
+    let signer_infos = signed_data.signer_infos.0.as_slice();
 
     if signer_infos.is_empty() {
         return fail("CMS SignedData has no SignerInfos");
@@ -195,8 +195,7 @@ fn fail(msg: &str) -> SignatureVerification {
 
 fn parse_signed_data(der: &[u8]) -> Result<SignedData, String> {
     // The /Contents in a PDF is a CMS ContentInfo wrapping a SignedData.
-    let ci = ContentInfo::from_der(der)
-        .map_err(|e| format!("ContentInfo::from_der: {e}"))?;
+    let ci = ContentInfo::from_der(der).map_err(|e| format!("ContentInfo::from_der: {e}"))?;
 
     // The content OID should be id-signedData (1.2.840.113549.1.7.2)
     let signed_data = ci
@@ -466,13 +465,18 @@ fn cert_to_cert_info(cert: &Certificate) -> CertInfo {
     let (subject_cn, _) = extract_cn_email(cert);
 
     // Issuer CN
-    let issuer_cn = tbs.issuer.0.iter().flat_map(|rdn| rdn.0.iter()).find_map(|atv| {
-        if atv.oid.to_string() == "2.5.4.3" {
-            atv_to_string(&atv.value)
-        } else {
-            None
-        }
-    });
+    let issuer_cn = tbs
+        .issuer
+        .0
+        .iter()
+        .flat_map(|rdn| rdn.0.iter())
+        .find_map(|atv| {
+            if atv.oid.to_string() == "2.5.4.3" {
+                atv_to_string(&atv.value)
+            } else {
+                None
+            }
+        });
 
     let is_self_signed = tbs.subject == tbs.issuer;
 
@@ -481,15 +485,13 @@ fn cert_to_cert_info(cert: &Certificate) -> CertInfo {
     let not_after = validity_to_iso(&tbs.validity.not_after);
 
     // SHA-256 fingerprint over the DER-encoded certificate
-    let sha256_fingerprint = der::Encode::to_der(cert)
-        .ok()
-        .map(|der_bytes| {
-            let hash = sha2::Sha256::digest(&der_bytes);
-            hash.iter()
-                .map(|b| format!("{b:02x}"))
-                .collect::<Vec<_>>()
-                .join(":")
-        });
+    let sha256_fingerprint = der::Encode::to_der(cert).ok().map(|der_bytes| {
+        let hash = sha2::Sha256::digest(&der_bytes);
+        hash.iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<Vec<_>>()
+            .join(":")
+    });
 
     CertInfo {
         subject_cn,
@@ -619,7 +621,10 @@ mod tests {
         let result = compute_digest(b"", OID_SHA256).unwrap();
         assert_eq!(result.len(), 32);
         let hex: String = result.iter().map(|b| format!("{b:02x}")).collect();
-        assert_eq!(hex, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        assert_eq!(
+            hex,
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
     }
 
     #[test]

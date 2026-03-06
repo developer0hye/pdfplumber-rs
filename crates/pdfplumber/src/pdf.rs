@@ -5,11 +5,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    RawSignature, SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection,
-    TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
-    extract_shapes, image_from_ctm, normalize_chars,
+    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, RawSignature, Rect, RepairOptions,
+    RepairResult, SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection,
+    TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
+    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -29,7 +28,7 @@ pub struct PagesIter<'a> {
     count: usize,
 }
 
-impl<'a> Iterator for PagesIter<'a> {
+impl Iterator for PagesIter<'_> {
     type Item = Result<Page, PdfError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -816,7 +815,7 @@ impl Pdf {
     /// [`verify_signature`]: crate::signatures::verify_signature
     pub fn raw_signatures(&self) -> Result<Vec<RawSignature>, PdfError> {
         use pdfplumber_parse::extract_raw_document_signatures;
-        extract_raw_document_signatures(&self.doc).map_err(PdfError::from)
+        extract_raw_document_signatures(self.doc.inner()).map_err(PdfError::from)
     }
 
     /// Detect repeating headers and footers across all pages.
