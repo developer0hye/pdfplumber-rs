@@ -1585,4 +1585,157 @@ mod tests {
         assert_eq!(words[0].text, "中");
         assert_eq!(words[1].text, "国");
     }
+
+    // ===== should_split_horizontal exact boundary conditions =====
+    //
+    // The formula is:
+    //   x_gap = max(0, max(last.x0, cur.x0) - min(last.x1, cur.x1))
+    //   split iff x_gap > x_tolerance  OR  y_diff > y_tolerance
+    //
+    // The critical property: at exactly `tolerance`, chars JOIN; above → SPLIT.
+
+    #[test]
+    fn x_gap_exactly_at_tolerance_chars_join() {
+        // x_gap == x_tolerance (3.0) → must join (same word)
+        // last: [10, 100, 20, 112]  (x1=20)
+        // cur:  [23, 100, 33, 112]  (x0=23, gap=23-20=3.0)
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 23.0, 100.0, 33.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "x_gap == x_tolerance should produce 1 word, got {}",
+            words.len()
+        );
+        assert_eq!(words[0].text, "AB");
+    }
+
+    #[test]
+    fn x_gap_just_above_tolerance_chars_split() {
+        // x_gap = 3.001 > x_tolerance (3.0) → must split
+        // last: [10, 100, 20, 112]  (x1=20)
+        // cur:  [23.001, 100, 33, 112]  (gap=3.001)
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 23.001, 100.0, 33.001, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            2,
+            "x_gap > x_tolerance should split into 2 words, got {}",
+            words.len()
+        );
+    }
+
+    #[test]
+    fn x_gap_just_below_tolerance_chars_join() {
+        // x_gap = 2.999 < x_tolerance (3.0) → must join
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 22.999, 100.0, 32.999, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "x_gap < x_tolerance should join, got {} words",
+            words.len()
+        );
+    }
+
+    #[test]
+    fn y_diff_exactly_at_tolerance_chars_join() {
+        // y_diff == y_tolerance (3.0) → join
+        // last.top = 100, cur.top = 103 → y_diff = 3.0
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 103.0, 30.0, 115.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "y_diff == y_tolerance should join, got {} words",
+            words.len()
+        );
+    }
+
+    #[test]
+    fn y_diff_just_above_tolerance_chars_split() {
+        // y_diff = 3.001 > y_tolerance (3.0) → split
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 103.001, 30.0, 115.001),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            2,
+            "y_diff > y_tolerance should split into 2 words, got {}",
+            words.len()
+        );
+    }
+
+    #[test]
+    fn overlapping_x_intervals_zero_gap_always_join() {
+        // Overlapping chars have x_gap = 0 (max(..., 0)) → always join regardless of tolerance
+        // last: [10, 100, 25, 112], cur: [20, 100, 35, 112] → overlap → gap = 0
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 25.0, 112.0),
+            make_char("B", 20.0, 100.0, 35.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words.len(),
+            1,
+            "overlapping x intervals → gap=0 → should always join"
+        );
+    }
+
+    #[test]
+    fn custom_tolerance_zero_any_gap_splits() {
+        // With x_tolerance=0.0, ANY gap (even 0.001) splits.
+        let opts = WordOptions {
+            x_tolerance: 0.0,
+            y_tolerance: 0.0,
+            ..WordOptions::default()
+        };
+        // gap = 0.001 (chars are non-overlapping with tiny gap)
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.001, 100.0, 30.0, 112.0),
+        ];
+        let words = WordExtractor::extract(&chars, &opts);
+        assert_eq!(
+            words.len(),
+            2,
+            "x_tolerance=0: any gap should split, got {} words",
+            words.len()
+        );
+    }
+
+    #[test]
+    fn custom_tolerance_large_joins_widely_spaced_chars() {
+        // With x_tolerance=100, a gap of 50 should still join
+        let opts = WordOptions {
+            x_tolerance: 100.0,
+            y_tolerance: 3.0,
+            ..WordOptions::default()
+        };
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 70.0, 100.0, 80.0, 112.0), // gap = 50
+        ];
+        let words = WordExtractor::extract(&chars, &opts);
+        assert_eq!(
+            words.len(),
+            1,
+            "x_tolerance=100 should join 50-gap chars, got {} words",
+            words.len()
+        );
+    }
 }
