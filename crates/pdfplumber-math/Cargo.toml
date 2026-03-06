@@ -1,0 +1,23 @@
+[package]
+name = "pdfplumber-math"
+version = "0.2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Math region detection and LaTeX reconstruction from PDF documents"
+keywords = ["pdf", "math", "latex", "equation", "mathml"]
+categories = ["parser-implementations", "text-processing"]
+
+[features]
+default = []
+# Enables Ollama vision-model escalation for complex equations that
+# the heuristic reconstructor cannot handle reliably.
+ollama-escalation = []
+
+[dependencies]
+pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
+pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
+
+[dev-dependencies]
+pdfplumber = { version = "0.2.0", path = "../pdfplumber" }

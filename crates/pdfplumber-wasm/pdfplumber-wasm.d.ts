@@ -1,19 +1,21 @@
 /**
  * TypeScript type definitions for pdfplumber-wasm.
  *
- * These types provide rich typing for the objects returned by the WASM
- * bindings. The auto-generated wasm-bindgen types use `any` for complex
- * return values (JsValue); use these interfaces instead for type safety.
+ * Full API parity with the Python pdfplumber library and the PyO3 bindings —
+ * every method available on Page is available on WasmPage; every method on
+ * CroppedPage is available on WasmCroppedPage.
  *
  * @example
  * ```typescript
- * import { WasmPdf, WasmPage } from 'pdfplumber-wasm';
- * import type { PdfChar, PdfWord, PdfSearchMatch, PdfMetadata } from 'pdfplumber-wasm';
+ * import { WasmPdf, WasmPage, WasmCroppedPage } from 'pdfplumber-wasm';
+ * import type { PdfChar, PdfWord, PdfLine, PdfRect, PdfSearchMatch, PdfMetadata } from 'pdfplumber-wasm';
  *
  * const pdf = WasmPdf.open(pdfBytes);
  * const page: WasmPage = pdf.page(0);
  * const chars: PdfChar[] = page.chars() as PdfChar[];
  * const words: PdfWord[] = page.extractWords() as PdfWord[];
+ * const header: WasmCroppedPage = page.crop(0, 0, page.width, 80);
+ * const headerText: string = header.extractText();
  * ```
  */
 
@@ -123,6 +125,75 @@ export interface PdfSearchMatch {
   char_indices: number[];
 }
 
+// ---- Geometry primitives ----
+
+/** A line path segment on the page. */
+export interface PdfLine {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
+  line_width: number;
+  /** "horizontal" | "vertical" | "diagonal" */
+  orientation: string;
+}
+
+/** A rectangle on the page. */
+export interface PdfRect {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
+  line_width: number;
+  stroke: boolean;
+  fill: boolean;
+}
+
+/** A Bézier curve on the page. */
+export interface PdfCurve {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
+  /** Control points as [x, y] pairs. */
+  pts: [number, number][];
+  line_width: number;
+  stroke: boolean;
+  fill: boolean;
+}
+
+/** An image on the page. */
+export interface PdfImage {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
+  width: number;
+  height: number;
+  name: string;
+  src_width: number | null;
+  src_height: number | null;
+  bits_per_component: number | null;
+  color_space: string | null;
+}
+
+/** A document outline/bookmark entry. */
+export interface PdfBookmark {
+  title: string;
+  level: number;
+  page_number: number | null;
+  dest_top: number | null;
+}
+
+/** A hyperlink annotation. */
+export interface PdfHyperlink {
+  x0: number;
+  top: number;
+  x1: number;
+  bottom: number;
+  uri: string | null;
+}
+
 // ---- Metadata ----
 
 /** Document metadata from the PDF info dictionary. */
@@ -148,6 +219,7 @@ export interface PdfMetadata {
  * const bytes = new Uint8Array(await response.arrayBuffer());
  * const pdf = WasmPdf.open(bytes);
  * console.log(`Pages: ${pdf.pageCount}`);
+ * const toc = pdf.bookmarks() as PdfBookmark[];
  * ```
  */
 export class WasmPdf {
@@ -155,10 +227,10 @@ export class WasmPdf {
   free(): void;
   [Symbol.dispose](): void;
 
-  /** Open a PDF from raw bytes (Uint8Array). */
+  /** Open a PDF from raw bytes (Uint8Array). Throws on invalid PDF. */
   static open(data: Uint8Array): WasmPdf;
 
-  /** Get a page by 0-based index. */
+  /** Get a page by 0-based index. Throws if index is out of range. */
   page(index: number): WasmPage;
 
   /** Document metadata. */
@@ -166,22 +238,34 @@ export class WasmPdf {
 
   /** Number of pages in the document. */
   readonly pageCount: number;
+
+  /** Document bookmarks (outline / table of contents). */
+  bookmarks(): PdfBookmark[];
 }
 
 /**
  * A single PDF page (WASM binding).
+ *
+ * Exposes full extraction API: text, words, characters, tables, geometry
+ * (lines, rects, curves, images), annotations, hyperlinks, and spatial
+ * cropping operations.
  *
  * @example
  * ```typescript
  * const page = pdf.page(0);
  * console.log(page.extractText());
  * const words = page.extractWords() as PdfWord[];
+ * // Extract only the header region
+ * const header = page.crop(0, 0, page.width, 80);
+ * const headerText = header.extractText();
  * ```
  */
 export class WasmPage {
   private constructor();
   free(): void;
   [Symbol.dispose](): void;
+
+  // ---- Text extraction ----
 
   /** Return all characters as an array of PdfChar objects. */
   chars(): PdfChar[];
@@ -199,6 +283,8 @@ export class WasmPage {
    */
   extractWords(x_tolerance?: number | null, y_tolerance?: number | null): PdfWord[];
 
+  // ---- Table extraction ----
+
   /** Find tables on the page. Returns table objects with cells and rows. */
   findTables(): PdfTable[];
 
@@ -208,6 +294,8 @@ export class WasmPage {
    */
   extractTables(): PdfTableData[];
 
+  // ---- Search ----
+
   /**
    * Search for a text pattern on the page.
    * @param pattern - Text or regex pattern to search for.
@@ -215,6 +303,47 @@ export class WasmPage {
    * @param _case - Case-sensitive search (default: true).
    */
   search(pattern: string, regex?: boolean | null, _case?: boolean | null): PdfSearchMatch[];
+
+  // ---- Geometry ----
+
+  /** Return lines on this page. */
+  lines(): PdfLine[];
+
+  /** Return rectangles on this page. */
+  rects(): PdfRect[];
+
+  /** Return Bézier curves on this page. */
+  curves(): PdfCurve[];
+
+  /** Return images on this page. */
+  images(): PdfImage[];
+
+  /** Return annotations (highlights, notes, etc.). */
+  annots(): unknown[];
+
+  /** Return hyperlinks on this page. */
+  hyperlinks(): PdfHyperlink[];
+
+  // ---- Spatial filtering ----
+
+  /**
+   * Crop this page to a bounding box.
+   * Returns a WasmCroppedPage with only objects intersecting the bbox.
+   * Coordinates are in page points (origin at top-left).
+   */
+  crop(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
+
+  /**
+   * Return a view containing only objects **fully within** the bbox.
+   */
+  within_bbox(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
+
+  /**
+   * Return a view containing only objects **outside** the bbox.
+   */
+  outside_bbox(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
+
+  // ---- Page properties ----
 
   /** Page height in points. */
   readonly height: number;
@@ -224,4 +353,60 @@ export class WasmPage {
 
   /** Page width in points. */
   readonly width: number;
+
+  /** Page rotation in degrees (0, 90, 180, or 270). */
+  readonly rotation: number;
+
+  /** Page bounding box. */
+  readonly bbox: BBox;
+
+  /** MediaBox as defined in the PDF dictionary. */
+  readonly mediaBox: BBox;
+}
+
+/**
+ * A spatially-filtered view of a PDF page (WASM binding).
+ *
+ * Produced by `WasmPage.crop()`, `.within_bbox()`, or `.outside_bbox()`.
+ * Supports the same extraction methods as `WasmPage` plus further cropping.
+ *
+ * @example
+ * ```typescript
+ * // Extract text from just the header region
+ * const header = page.crop(0, 0, page.width, 80);
+ * const headerText = header.extractText();
+ *
+ * // Extract tables from the body region only
+ * const body = page.crop(0, 80, page.width, page.height - 40);
+ * const tables = body.extractTables();
+ * ```
+ */
+export class WasmCroppedPage {
+  private constructor();
+  free(): void;
+  [Symbol.dispose](): void;
+
+  // ---- Dimensions ----
+  readonly width: number;
+  readonly height: number;
+
+  // ---- Text extraction ----
+  chars(): PdfChar[];
+  extractText(layout?: boolean | null): string;
+  extractWords(x_tolerance?: number | null, y_tolerance?: number | null): PdfWord[];
+
+  // ---- Table extraction ----
+  findTables(): PdfTable[];
+  extractTables(): PdfTableData[];
+
+  // ---- Geometry ----
+  lines(): PdfLine[];
+  rects(): PdfRect[];
+  curves(): PdfCurve[];
+  images(): PdfImage[];
+
+  // ---- Further spatial filtering ----
+  crop(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
+  within_bbox(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
+  outside_bbox(x0: number, top: number, x1: number, bottom: number): WasmCroppedPage;
 }
