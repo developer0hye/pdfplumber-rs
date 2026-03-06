@@ -15,11 +15,36 @@ mod text_cmd;
 mod validate_cmd;
 mod words_cmd;
 
+#[cfg(feature = "tui")]
+mod tui;
+
 use clap::Parser;
 use cli::Cli;
 
 fn main() {
     let cli = Cli::parse();
+
+    // TUI mode: `pdfplumber --tui [file]` — requires a TTY.
+    // When `--no-tui` is passed, or stdout is not a TTY, fall through to
+    // the regular subcommand dispatch.
+    #[cfg(feature = "tui")]
+    if let cli::Commands::Tui { ref file, ref dir, no_tui } = cli.command {
+        if no_tui {
+            eprintln!("pdfplumber: --no-tui flag set, falling back to headless mode");
+            std::process::exit(0);
+        }
+        // Check we actually have a TTY on stderr (where ratatui draws)
+        use std::io::IsTerminal;
+        if !std::io::stderr().is_terminal() {
+            eprintln!("pdfplumber: not a TTY, cannot launch TUI. Use headless subcommands.");
+            std::process::exit(1);
+        }
+        if let Err(e) = tui::run(file.clone(), dir.clone()) {
+            eprintln!("pdfplumber tui error: {e}");
+            std::process::exit(1);
+        }
+        return;
+    }
 
     let result = match cli.command {
         cli::Commands::Text {
@@ -184,6 +209,11 @@ fn main() {
             ref format,
             ref password,
         } => validate_cmd::run(file, format, password.as_deref()),
+
+        // Tui variant is handled above before the match; reaching here is
+        // unreachable in practice, but required for exhaustive matching.
+        #[cfg(feature = "tui")]
+        cli::Commands::Tui { .. } => Ok(()),
     };
 
     if let Err(code) = result {
