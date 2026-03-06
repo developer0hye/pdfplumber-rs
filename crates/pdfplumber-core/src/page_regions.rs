@@ -499,4 +499,105 @@ mod tests {
             assert!(region.header.is_none());
         }
     }
+
+    // =========================================================================
+    // Wave 4: additional page_regions tests
+    // =========================================================================
+
+    #[test]
+    fn mask_mixed_digits_and_text() {
+        assert_eq!(mask_variable_elements("v2.0.1"), "v#.#.#");
+        assert_eq!(mask_variable_elements("Q3 2024"), "Q# #");
+    }
+
+    #[test]
+    fn mask_unicode_preserved() {
+        assert_eq!(mask_variable_elements("Seite 5 von 10"), "Seite # von #");
+        assert_eq!(mask_variable_elements("ページ3"), "ページ#");
+    }
+
+    #[test]
+    fn mask_whitespace_only() {
+        assert_eq!(mask_variable_elements("   "), "   ");
+    }
+
+    #[test]
+    fn detect_empty_pages() {
+        let page_data: Vec<(String, String, f64, f64)> = Vec::new();
+        let regions = detect_page_regions(&page_data, &PageRegionOptions::default());
+        assert!(regions.is_empty());
+    }
+
+    #[test]
+    fn detect_exact_min_pages_threshold() {
+        // Exactly 3 pages with same header — should detect (min_pages=3)
+        let page_data: Vec<(String, String, f64, f64)> = (0..3)
+            .map(|_| ("Same".to_string(), "".to_string(), 612.0, 792.0))
+            .collect();
+        let regions = detect_page_regions(&page_data, &PageRegionOptions::default());
+        for region in &regions {
+            assert!(region.header.is_some());
+        }
+    }
+
+    #[test]
+    fn whitespace_only_header_not_detected() {
+        let page_data: Vec<(String, String, f64, f64)> = (0..5)
+            .map(|_| ("   ".to_string(), "".to_string(), 612.0, 792.0))
+            .collect();
+        let regions = detect_page_regions(&page_data, &PageRegionOptions::default());
+        for region in &regions {
+            assert!(region.header.is_none());
+        }
+    }
+
+    #[test]
+    fn different_page_sizes_handled() {
+        let page_data = vec![
+            ("Header".to_string(), "".to_string(), 612.0, 792.0),
+            ("Header".to_string(), "".to_string(), 800.0, 600.0),
+            ("Header".to_string(), "".to_string(), 612.0, 792.0),
+        ];
+        let regions = detect_page_regions(&page_data, &PageRegionOptions::default());
+        assert_eq!(regions.len(), 3);
+        // Each page's header bbox should use its own dimensions
+        let h0 = regions[0].header.unwrap();
+        let h1 = regions[1].header.unwrap();
+        assert_eq!(h0.x1, 612.0);
+        assert_eq!(h1.x1, 800.0);
+    }
+
+    #[test]
+    fn custom_margins() {
+        let page_data: Vec<(String, String, f64, f64)> = (0..4)
+            .map(|_| ("H".to_string(), "F".to_string(), 100.0, 1000.0))
+            .collect();
+        let options = PageRegionOptions {
+            header_margin: 0.2,
+            footer_margin: 0.3,
+            min_pages: 3,
+        };
+        let regions = detect_page_regions(&page_data, &options);
+        let r = &regions[0];
+        let h = r.header.unwrap();
+        let f = r.footer.unwrap();
+        assert!((h.bottom - 200.0).abs() < 0.1); // 20% of 1000
+        assert!((f.top - 700.0).abs() < 0.1); // 1000 - 30% of 1000
+    }
+
+    #[test]
+    fn page_regions_clone_eq() {
+        let r = PageRegions {
+            header: Some(BBox::new(0.0, 0.0, 100.0, 10.0)),
+            footer: None,
+            body: BBox::new(0.0, 10.0, 100.0, 100.0),
+        };
+        assert_eq!(r, r.clone());
+    }
+
+    #[test]
+    fn options_clone_eq() {
+        let opts = PageRegionOptions::default();
+        assert_eq!(opts, opts.clone());
+    }
 }

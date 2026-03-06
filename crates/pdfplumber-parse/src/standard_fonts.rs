@@ -625,4 +625,106 @@ mod tests {
             "Times-Roman code 0x27 under StandardEncoding should be quoteright width"
         );
     }
+
+    // =========================================================================
+    // Wave 6: additional standard font tests
+    // =========================================================================
+
+    #[test]
+    fn lookup_all_14_standard_fonts() {
+        let names = [
+            "Courier", "Courier-Bold", "Courier-Oblique", "Courier-BoldOblique",
+            "Helvetica", "Helvetica-Oblique", "Helvetica-Bold", "Helvetica-BoldOblique",
+            "Times-Roman", "Times-Bold", "Times-Italic", "Times-BoldItalic",
+            "Symbol", "ZapfDingbats",
+        ];
+        for name in names {
+            assert!(lookup(name).is_some(), "{name} should be a standard font");
+        }
+    }
+
+    #[test]
+    fn lookup_unknown_returns_none() {
+        assert!(lookup("Arial").is_none());
+        assert!(lookup("ComicSans").is_none());
+        assert!(lookup("").is_none());
+    }
+
+    #[test]
+    fn courier_is_monospaced() {
+        let data = lookup("Courier").unwrap();
+        // All non-zero widths should be 600
+        for w in data.widths.iter() {
+            assert!(*w == 0 || *w == 600, "Courier should be monospaced, got {w}");
+        }
+    }
+
+    #[test]
+    fn courier_variants_share_widths() {
+        let c = lookup("Courier").unwrap();
+        let cb = lookup("Courier-Bold").unwrap();
+        let co = lookup("Courier-Oblique").unwrap();
+        let cbo = lookup("Courier-BoldOblique").unwrap();
+        // All Courier variants are monospaced 600
+        assert_eq!(c.widths, cb.widths);
+        assert_eq!(c.widths, co.widths);
+        assert_eq!(c.widths, cbo.widths);
+    }
+
+    #[test]
+    fn helvetica_space_width() {
+        let data = lookup("Helvetica").unwrap();
+        assert_eq!(data.widths[0x20], 278); // Helvetica space = 278
+    }
+
+    #[test]
+    fn helvetica_a_width() {
+        let data = lookup("Helvetica").unwrap();
+        assert_eq!(data.widths[0x41], 667); // Helvetica 'A' = 667
+    }
+
+    #[test]
+    fn helvetica_bold_different_from_regular() {
+        let reg = lookup("Helvetica").unwrap();
+        let bold = lookup("Helvetica-Bold").unwrap();
+        // Bold 'A' should be wider than regular
+        assert!(bold.widths[0x41] >= reg.widths[0x41]);
+    }
+
+    #[test]
+    fn times_roman_space_width() {
+        let data = lookup("Times-Roman").unwrap();
+        assert_eq!(data.widths[0x20], 250); // Times-Roman space = 250
+    }
+
+    #[test]
+    fn font_bbox_is_sensible() {
+        for name in ["Helvetica", "Times-Roman", "Courier", "Symbol"] {
+            let data = lookup(name).unwrap();
+            let [llx, lly, urx, ury] = data.font_bbox;
+            assert!(llx < urx, "{name} bbox: llx < urx");
+            assert!(lly < ury, "{name} bbox: lly < ury");
+        }
+    }
+
+    #[test]
+    fn printable_ascii_all_nonzero_width() {
+        for name in ["Helvetica", "Times-Roman", "Courier"] {
+            let data = lookup(name).unwrap();
+            for code in 0x20..=0x7E_u8 {
+                assert!(
+                    data.widths[code as usize] > 0,
+                    "{name} code 0x{code:02X} should have non-zero width"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn helvetica_oblique_shares_widths_with_regular() {
+        // Helvetica-Oblique shares metrics with Helvetica
+        let h = lookup("Helvetica").unwrap();
+        let ho = lookup("Helvetica-Oblique").unwrap();
+        assert_eq!(h.widths, ho.widths);
+    }
 }

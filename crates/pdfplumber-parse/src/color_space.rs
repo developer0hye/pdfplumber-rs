@@ -674,4 +674,178 @@ mod tests {
         let cs = resolve_color_space_name("CS1", &doc, &resources).unwrap();
         assert_eq!(cs.num_components(), 3);
     }
+
+    // =========================================================================
+    // Wave 6: additional color space tests
+    // =========================================================================
+
+    #[test]
+    fn resolve_device_gray_full_range() {
+        let cs = ResolvedColorSpace::DeviceGray;
+        assert_eq!(cs.resolve_color(&[0.0]), Color::Gray(0.0));
+        assert_eq!(cs.resolve_color(&[1.0]), Color::Gray(1.0));
+        assert_eq!(cs.resolve_color(&[0.5]), Color::Gray(0.5));
+    }
+
+    #[test]
+    fn resolve_device_gray_missing_component() {
+        let cs = ResolvedColorSpace::DeviceGray;
+        assert_eq!(cs.resolve_color(&[]), Color::Gray(0.0));
+    }
+
+    #[test]
+    fn resolve_device_rgb_full() {
+        let cs = ResolvedColorSpace::DeviceRGB;
+        assert_eq!(cs.resolve_color(&[1.0, 0.0, 0.0]), Color::Rgb(1.0, 0.0, 0.0));
+        assert_eq!(cs.resolve_color(&[0.0, 1.0, 0.0]), Color::Rgb(0.0, 1.0, 0.0));
+        assert_eq!(cs.resolve_color(&[0.0, 0.0, 1.0]), Color::Rgb(0.0, 0.0, 1.0));
+    }
+
+    #[test]
+    fn resolve_device_rgb_missing_components() {
+        let cs = ResolvedColorSpace::DeviceRGB;
+        assert_eq!(cs.resolve_color(&[]), Color::Rgb(0.0, 0.0, 0.0));
+        assert_eq!(cs.resolve_color(&[0.5]), Color::Rgb(0.5, 0.0, 0.0));
+    }
+
+    #[test]
+    fn resolve_device_cmyk_full() {
+        let cs = ResolvedColorSpace::DeviceCMYK;
+        assert_eq!(cs.resolve_color(&[1.0, 0.0, 0.0, 0.0]), Color::Cmyk(1.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn resolve_device_cmyk_missing_components() {
+        let cs = ResolvedColorSpace::DeviceCMYK;
+        assert_eq!(cs.resolve_color(&[]), Color::Cmyk(0.0, 0.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn icc_based_delegates_to_alternate() {
+        let cs = ResolvedColorSpace::ICCBased {
+            num_components: 3,
+            alternate: Box::new(ResolvedColorSpace::DeviceRGB),
+        };
+        assert_eq!(cs.resolve_color(&[0.1, 0.2, 0.3]), Color::Rgb(0.1, 0.2, 0.3));
+    }
+
+    #[test]
+    fn icc_based_gray_alternate() {
+        let cs = ResolvedColorSpace::ICCBased {
+            num_components: 1,
+            alternate: Box::new(ResolvedColorSpace::DeviceGray),
+        };
+        assert_eq!(cs.resolve_color(&[0.7]), Color::Gray(0.7));
+    }
+
+    #[test]
+    fn indexed_out_of_bounds_lookup() {
+        // lookup_table too short — should return Color::Other
+        let cs = ResolvedColorSpace::Indexed {
+            base: Box::new(ResolvedColorSpace::DeviceRGB),
+            hival: 10,
+            lookup_table: vec![255, 0, 0], // only 1 entry
+        };
+        let color = cs.resolve_color(&[5.0]);
+        // Index 5 requires offset 15 but table only has 3 bytes
+        assert!(matches!(color, Color::Other(_)));
+    }
+
+    #[test]
+    fn indexed_index_zero() {
+        let cs = ResolvedColorSpace::Indexed {
+            base: Box::new(ResolvedColorSpace::DeviceGray),
+            hival: 1,
+            lookup_table: vec![128, 255],
+        };
+        let color = cs.resolve_color(&[0.0]);
+        assert_eq!(color, Color::Gray(128.0 / 255.0));
+    }
+
+    #[test]
+    fn separation_with_gray_alternate() {
+        let cs = ResolvedColorSpace::Separation {
+            alternate: Box::new(ResolvedColorSpace::DeviceGray),
+        };
+        assert_eq!(cs.resolve_color(&[0.8]), Color::Gray(0.8));
+    }
+
+    #[test]
+    fn separation_with_nested_icc_alternate() {
+        let cs = ResolvedColorSpace::Separation {
+            alternate: Box::new(ResolvedColorSpace::ICCBased {
+                num_components: 3,
+                alternate: Box::new(ResolvedColorSpace::DeviceRGB),
+            }),
+        };
+        // Separation with non-simple alternate → Color::Other
+        let color = cs.resolve_color(&[0.5]);
+        assert!(matches!(color, Color::Other(_)));
+    }
+
+    #[test]
+    fn default_color_space_from_components_all() {
+        assert!(matches!(default_color_space_from_components(1), ResolvedColorSpace::DeviceGray));
+        assert!(matches!(default_color_space_from_components(3), ResolvedColorSpace::DeviceRGB));
+        assert!(matches!(default_color_space_from_components(4), ResolvedColorSpace::DeviceCMYK));
+        assert!(matches!(default_color_space_from_components(5), ResolvedColorSpace::DeviceGray));
+        assert!(matches!(default_color_space_from_components(0), ResolvedColorSpace::DeviceGray));
+    }
+
+    #[test]
+    fn resolve_named_device_gray() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = lopdf::Dictionary::new();
+        let cs = resolve_color_space_name("DeviceGray", &doc, &resources).unwrap();
+        assert_eq!(cs.num_components(), 1);
+    }
+
+    #[test]
+    fn resolve_named_shorthand_g() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = lopdf::Dictionary::new();
+        assert!(resolve_color_space_name("G", &doc, &resources).is_some());
+    }
+
+    #[test]
+    fn resolve_named_shorthand_rgb() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = lopdf::Dictionary::new();
+        assert!(resolve_color_space_name("RGB", &doc, &resources).is_some());
+    }
+
+    #[test]
+    fn resolve_named_shorthand_cmyk() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = lopdf::Dictionary::new();
+        assert!(resolve_color_space_name("CMYK", &doc, &resources).is_some());
+    }
+
+    #[test]
+    fn resolve_named_unknown_returns_none() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = lopdf::Dictionary::new();
+        assert!(resolve_color_space_name("UnknownCS", &doc, &resources).is_none());
+    }
+
+    #[test]
+    fn device_n_passes_components_through() {
+        let cs = ResolvedColorSpace::DeviceN {
+            num_components: 3,
+            alternate: Box::new(ResolvedColorSpace::DeviceCMYK),
+        };
+        // 3 components passed to CMYK alternate (4th defaults to 0)
+        let color = cs.resolve_color(&[0.1, 0.2, 0.3]);
+        assert_eq!(color, Color::Cmyk(0.1, 0.2, 0.3, 0.0));
+    }
+
+    #[test]
+    fn color_space_clone() {
+        let cs = ResolvedColorSpace::ICCBased {
+            num_components: 3,
+            alternate: Box::new(ResolvedColorSpace::DeviceRGB),
+        };
+        let cloned = cs.clone();
+        assert_eq!(cloned.num_components(), 3);
+    }
 }

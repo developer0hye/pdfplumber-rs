@@ -1783,4 +1783,482 @@ mod tests {
         assert_eq!(StandardEncoding::MacExpert.decode(0x20), Some(' '));
         assert_eq!(StandardEncoding::Standard.decode(0x20), Some(' '));
     }
+
+    // =========================================================================
+    // Wave 3: glyph_name_to_char exhaustive tests
+    // =========================================================================
+
+    #[test]
+    fn glyph_uni_4_hex_basic() {
+        assert_eq!(glyph_name_to_char("uni0041"), Some('A'));
+        assert_eq!(glyph_name_to_char("uni00E9"), Some('é'));
+        assert_eq!(glyph_name_to_char("uni20AC"), Some('€'));
+    }
+
+    #[test]
+    fn glyph_uni_8_hex_supplementary() {
+        // Valid 8-hex form: U+00010000 Linear B syllable B008
+        assert_eq!(glyph_name_to_char("uni00010000"), Some('\u{10000}'));
+        // U+0001F600 GRINNING FACE — 8 hex digits
+        assert_eq!(glyph_name_to_char("uni0001F600"), Some('\u{1F600}'));
+    }
+
+    #[test]
+    fn glyph_uni_wrong_length_returns_none() {
+        assert_eq!(glyph_name_to_char("uni00"), None);
+        assert_eq!(glyph_name_to_char("uni041"), None); // 3 hex
+        assert_eq!(glyph_name_to_char("uni00041"), None); // 5 hex
+        assert_eq!(glyph_name_to_char("uni0000041"), None); // 7 hex
+    }
+
+    #[test]
+    fn glyph_uni_invalid_hex_returns_none() {
+        assert_eq!(glyph_name_to_char("uniGGGG"), None);
+        assert_eq!(glyph_name_to_char("uni____"), None);
+    }
+
+    #[test]
+    fn glyph_uni_invalid_codepoint_returns_none() {
+        // U+D800 is a surrogate — not a valid char
+        assert_eq!(glyph_name_to_char("uniD800"), None);
+        // U+FFFFFFFF is beyond Unicode range
+        assert_eq!(glyph_name_to_char("uniFFFFFFFF"), None);
+    }
+
+    #[test]
+    fn glyph_name_map_known_entries() {
+        assert_eq!(glyph_name_to_char("space"), Some(' '));
+        assert_eq!(glyph_name_to_char("period"), Some('.'));
+        assert_eq!(glyph_name_to_char("comma"), Some(','));
+        assert_eq!(glyph_name_to_char("hyphen"), Some('-'));
+        assert_eq!(glyph_name_to_char("Euro"), Some('€'));
+        assert_eq!(glyph_name_to_char("endash"), Some('\u{2013}'));
+        assert_eq!(glyph_name_to_char("emdash"), Some('\u{2014}'));
+        assert_eq!(glyph_name_to_char("fi"), Some('\u{FB01}'));
+        assert_eq!(glyph_name_to_char("fl"), Some('\u{FB02}'));
+    }
+
+    #[test]
+    fn glyph_name_map_single_letters() {
+        for c in 'A'..='Z' {
+            let name = c.to_string();
+            assert_eq!(glyph_name_to_char(&name), Some(c), "uppercase {c}");
+        }
+        for c in 'a'..='z' {
+            let name = c.to_string();
+            assert_eq!(glyph_name_to_char(&name), Some(c), "lowercase {c}");
+        }
+    }
+
+    #[test]
+    fn glyph_name_unknown_returns_none() {
+        assert_eq!(glyph_name_to_char("nonexistentglyph"), None);
+        assert_eq!(glyph_name_to_char(""), None);
+        assert_eq!(glyph_name_to_char("AAAA"), None);
+    }
+
+    #[test]
+    fn glyph_name_digits() {
+        assert_eq!(glyph_name_to_char("zero"), Some('0'));
+        assert_eq!(glyph_name_to_char("one"), Some('1'));
+        assert_eq!(glyph_name_to_char("two"), Some('2'));
+        assert_eq!(glyph_name_to_char("three"), Some('3'));
+        assert_eq!(glyph_name_to_char("four"), Some('4'));
+        assert_eq!(glyph_name_to_char("five"), Some('5'));
+        assert_eq!(glyph_name_to_char("six"), Some('6'));
+        assert_eq!(glyph_name_to_char("seven"), Some('7'));
+        assert_eq!(glyph_name_to_char("eight"), Some('8'));
+        assert_eq!(glyph_name_to_char("nine"), Some('9'));
+    }
+
+    #[test]
+    fn glyph_name_accented_chars() {
+        assert_eq!(glyph_name_to_char("Aacute"), Some('\u{00C1}'));
+        assert_eq!(glyph_name_to_char("eacute"), Some('\u{00E9}'));
+        assert_eq!(glyph_name_to_char("Ntilde"), Some('\u{00D1}'));
+        assert_eq!(glyph_name_to_char("ntilde"), Some('\u{00F1}'));
+        assert_eq!(glyph_name_to_char("Ccedilla"), Some('\u{00C7}'));
+        assert_eq!(glyph_name_to_char("ccedilla"), Some('\u{00E7}'));
+        assert_eq!(glyph_name_to_char("Udieresis"), Some('\u{00DC}'));
+        assert_eq!(glyph_name_to_char("udieresis"), Some('\u{00FC}'));
+    }
+
+    #[test]
+    fn glyph_name_punctuation_symbols() {
+        assert_eq!(glyph_name_to_char("exclam"), Some('!'));
+        assert_eq!(glyph_name_to_char("question"), Some('?'));
+        assert_eq!(glyph_name_to_char("colon"), Some(':'));
+        assert_eq!(glyph_name_to_char("semicolon"), Some(';'));
+        assert_eq!(glyph_name_to_char("parenleft"), Some('('));
+        assert_eq!(glyph_name_to_char("parenright"), Some(')'));
+        assert_eq!(glyph_name_to_char("bracketleft"), Some('['));
+        assert_eq!(glyph_name_to_char("bracketright"), Some(']'));
+    }
+
+    #[test]
+    fn glyph_name_currency_and_special() {
+        assert_eq!(glyph_name_to_char("dollar"), Some('$'));
+        assert_eq!(glyph_name_to_char("percent"), Some('%'));
+        assert_eq!(glyph_name_to_char("ampersand"), Some('&'));
+        assert_eq!(glyph_name_to_char("at"), Some('@'));
+        assert_eq!(glyph_name_to_char("numbersign"), Some('#'));
+    }
+
+    // =========================================================================
+    // Wave 3: StandardEncoding boundary and coverage tests
+    // =========================================================================
+
+    #[test]
+    fn winansi_null_byte_is_nul_char() {
+        // WinAnsi maps 0x00 to NUL character (not None)
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x00), Some('\0'));
+    }
+
+    #[test]
+    fn winansi_undefined_high_bytes() {
+        // Several bytes in 0x80-0x9F range are undefined in WinAnsi
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x81), None);
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x8D), None);
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x8F), None);
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x90), None);
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x9D), None);
+    }
+
+    #[test]
+    fn winansi_euro_at_0x80() {
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x80), Some('€'));
+    }
+
+    #[test]
+    fn winansi_smart_quotes() {
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x91), Some('\u{2018}')); // left single
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x92), Some('\u{2019}')); // right single
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x93), Some('\u{201C}')); // left double
+        assert_eq!(StandardEncoding::WinAnsi.decode(0x94), Some('\u{201D}')); // right double
+    }
+
+    #[test]
+    fn winansi_decode_bytes_full_ascii() {
+        let bytes: Vec<u8> = (0x20..=0x7E).collect();
+        let result = StandardEncoding::WinAnsi.decode_bytes(&bytes);
+        let expected: String = (' '..='~').collect();
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn mac_roman_apple_logo() {
+        // MacRoman 0xF0 is Apple logo (U+F8FF, private use area)
+        assert_eq!(StandardEncoding::MacRoman.decode(0xF0), Some('\u{F8FF}'));
+    }
+
+    #[test]
+    fn mac_expert_has_oldstyle_digits() {
+        // MacExpertEncoding should have old-style digit glyphs in various positions
+        // Code 0xB0 in MacExpert typically maps to something specific
+        let result = StandardEncoding::MacExpert.decode(0x20);
+        assert_eq!(result, Some(' ')); // space is universal
+    }
+
+    #[test]
+    fn standard_encoding_has_fi_ligature() {
+        // StandardEncoding maps 0xAE to fi ligature
+        assert_eq!(StandardEncoding::Standard.decode(0xAE), Some('\u{FB01}'));
+    }
+
+    #[test]
+    fn standard_encoding_has_fl_ligature() {
+        assert_eq!(StandardEncoding::Standard.decode(0xAF), Some('\u{FB02}'));
+    }
+
+    #[test]
+    fn decode_bytes_empty_input() {
+        assert_eq!(StandardEncoding::WinAnsi.decode_bytes(&[]), String::new());
+    }
+
+    #[test]
+    fn decode_bytes_single_byte() {
+        assert_eq!(StandardEncoding::WinAnsi.decode_bytes(&[0x41]), "A");
+    }
+
+    #[test]
+    fn decode_bytes_replacement_char_for_undefined() {
+        let result = StandardEncoding::WinAnsi.decode_bytes(&[0x41, 0x81, 0x42]);
+        assert_eq!(result, "A\u{FFFD}B");
+    }
+
+    // =========================================================================
+    // Wave 3: FontEncoding edge cases
+    // =========================================================================
+
+    #[test]
+    fn font_encoding_empty_table_all_none() {
+        let table = [None; 256];
+        let enc = FontEncoding::from_table(table);
+        for code in 0..=255u8 {
+            assert_eq!(enc.decode(code), None);
+        }
+    }
+
+    #[test]
+    fn font_encoding_from_table_preserves_entries() {
+        let mut table = [None; 256];
+        table[0] = Some('Z');
+        table[255] = Some('Y');
+        let enc = FontEncoding::from_table(table);
+        assert_eq!(enc.decode(0), Some('Z'));
+        assert_eq!(enc.decode(255), Some('Y'));
+        assert_eq!(enc.decode(1), None);
+    }
+
+    #[test]
+    fn font_encoding_differences_override_existing() {
+        let differences = vec![(0x41, '☺')]; // A → smiley
+        let enc =
+            FontEncoding::from_standard_with_differences(StandardEncoding::WinAnsi, &differences);
+        assert_eq!(enc.decode(0x41), Some('☺'));
+        // B unchanged
+        assert_eq!(enc.decode(0x42), Some('B'));
+    }
+
+    #[test]
+    fn font_encoding_differences_multiple_overrides_same_code() {
+        // Last write wins
+        let differences = vec![(0x41, 'X'), (0x41, 'Y')];
+        let enc =
+            FontEncoding::from_standard_with_differences(StandardEncoding::WinAnsi, &differences);
+        assert_eq!(enc.decode(0x41), Some('Y'));
+    }
+
+    #[test]
+    fn font_encoding_differences_empty_slice() {
+        let enc =
+            FontEncoding::from_standard_with_differences(StandardEncoding::WinAnsi, &[]);
+        assert_eq!(enc.decode(0x41), Some('A')); // unchanged
+    }
+
+    #[test]
+    fn font_encoding_differences_all_256_codes() {
+        let differences: Vec<(u8, char)> = (0..=255u8).map(|c| (c, '★')).collect();
+        let enc =
+            FontEncoding::from_standard_with_differences(StandardEncoding::WinAnsi, &differences);
+        for code in 0..=255u8 {
+            assert_eq!(enc.decode(code), Some('★'));
+        }
+    }
+
+    #[test]
+    fn font_encoding_decode_bytes_empty() {
+        let enc = FontEncoding::from_standard(StandardEncoding::WinAnsi);
+        assert_eq!(enc.decode_bytes(&[]), String::new());
+    }
+
+    #[test]
+    fn font_encoding_decode_bytes_with_differences() {
+        let differences = vec![(0x41, '→')];
+        let enc =
+            FontEncoding::from_standard_with_differences(StandardEncoding::WinAnsi, &differences);
+        assert_eq!(enc.decode_bytes(&[0x41, 0x42]), "→B");
+    }
+
+    // =========================================================================
+    // Wave 3: EncodingResolver edge cases
+    // =========================================================================
+
+    #[test]
+    fn resolver_default_only_no_layers() {
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi));
+        assert_eq!(resolver.resolve(0x41), Some("A".to_string()));
+        assert_eq!(resolver.resolve(0x81), None);
+    }
+
+    #[test]
+    fn resolver_font_encoding_overrides_default() {
+        let mut font_table = [None; 256];
+        font_table[0x41] = Some('Z');
+        let font_enc = FontEncoding::from_table(font_table);
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_font_encoding(font_enc);
+
+        assert_eq!(resolver.resolve(0x41), Some("Z".to_string()));
+    }
+
+    #[test]
+    fn resolver_to_unicode_overrides_font_encoding() {
+        let mut font_table = [None; 256];
+        font_table[0x41] = Some('Z');
+        let font_enc = FontEncoding::from_table(font_table);
+
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x41, "WINNER".to_string());
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_font_encoding(font_enc)
+                .with_to_unicode(to_unicode);
+
+        assert_eq!(resolver.resolve(0x41), Some("WINNER".to_string()));
+    }
+
+    #[test]
+    fn resolver_to_unicode_fallthrough_to_font_encoding() {
+        let mut font_table = [None; 256];
+        font_table[0x42] = Some('Z');
+        let font_enc = FontEncoding::from_table(font_table);
+
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x41, "TU".to_string());
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_font_encoding(font_enc)
+                .with_to_unicode(to_unicode);
+
+        // 0x41 → ToUnicode, 0x42 → font encoding, 0x43 → default
+        assert_eq!(resolver.resolve(0x41), Some("TU".to_string()));
+        assert_eq!(resolver.resolve(0x42), Some("Z".to_string()));
+        assert_eq!(resolver.resolve(0x43), Some("C".to_string()));
+    }
+
+    #[test]
+    fn resolver_code_above_255_only_to_unicode() {
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x0100, "Ā".to_string());
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_to_unicode(to_unicode);
+
+        assert_eq!(resolver.resolve(0x0100), Some("Ā".to_string()));
+    }
+
+    #[test]
+    fn resolver_code_above_255_without_to_unicode_returns_none() {
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi));
+        assert_eq!(resolver.resolve(0x0100), None);
+        assert_eq!(resolver.resolve(0xFFFF), None);
+    }
+
+    #[test]
+    fn resolver_decode_bytes_mixed() {
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x41, "α".to_string());
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_to_unicode(to_unicode);
+
+        // 0x41=α (toUnicode), 0x42=B (default), 0x81=FFFD (undefined)
+        assert_eq!(resolver.decode_bytes(&[0x41, 0x42, 0x81]), "αB\u{FFFD}");
+    }
+
+    #[test]
+    fn resolver_decode_bytes_empty() {
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi));
+        assert_eq!(resolver.decode_bytes(&[]), String::new());
+    }
+
+    #[test]
+    fn resolver_to_unicode_empty_string_mapping() {
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x41, String::new()); // empty mapping
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_to_unicode(to_unicode);
+
+        // Empty string is still Some — ToUnicode wins even with empty
+        assert_eq!(resolver.resolve(0x41), Some(String::new()));
+    }
+
+    #[test]
+    fn resolver_to_unicode_multi_char_ligature() {
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0xFB01, "fi".to_string());
+        to_unicode.insert(0xFB02, "fl".to_string());
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_to_unicode(to_unicode);
+
+        assert_eq!(resolver.resolve(0xFB01), Some("fi".to_string()));
+        assert_eq!(resolver.resolve(0xFB02), Some("fl".to_string()));
+    }
+
+    // =========================================================================
+    // Wave 3: property / invariant tests
+    // =========================================================================
+
+    #[test]
+    fn all_encodings_decode_0xff() {
+        // Every encoding should have *some* mapping for 0xFF (ÿ in most)
+        assert!(StandardEncoding::WinAnsi.decode(0xFF).is_some());
+        assert!(StandardEncoding::MacRoman.decode(0xFF).is_some());
+    }
+
+    #[test]
+    fn winansi_printable_ascii_all_defined() {
+        for code in 0x20..=0x7E_u8 {
+            assert!(
+                StandardEncoding::WinAnsi.decode(code).is_some(),
+                "WinAnsi undefined at 0x{code:02X}"
+            );
+        }
+    }
+
+    #[test]
+    fn mac_roman_printable_ascii_all_defined() {
+        for code in 0x20..=0x7E_u8 {
+            assert!(
+                StandardEncoding::MacRoman.decode(code).is_some(),
+                "MacRoman undefined at 0x{code:02X}"
+            );
+        }
+    }
+
+    #[test]
+    fn glyph_name_map_is_sorted() {
+        // Binary search requires sorted order — verify the invariant
+        for window in GLYPH_NAME_MAP.windows(2) {
+            assert!(
+                window[0].0 < window[1].0,
+                "GLYPH_NAME_MAP not sorted: {:?} >= {:?}",
+                window[0].0,
+                window[1].0,
+            );
+        }
+    }
+
+    #[test]
+    fn resolver_builder_pattern_all_layers() {
+        let mut to_unicode = HashMap::new();
+        to_unicode.insert(0x01, "ONE".to_string());
+
+        let mut font_table = [None; 256];
+        font_table[0x02] = Some('T');
+        let font_enc = FontEncoding::from_table(font_table);
+
+        let resolver =
+            EncodingResolver::new(FontEncoding::from_standard(StandardEncoding::WinAnsi))
+                .with_font_encoding(font_enc)
+                .with_to_unicode(to_unicode);
+
+        assert_eq!(resolver.resolve(0x01), Some("ONE".to_string()));
+        assert_eq!(resolver.resolve(0x02), Some("T".to_string()));
+        assert_eq!(resolver.resolve(0x41), Some("A".to_string()));
+        assert_eq!(resolver.resolve(0x81), None);
+    }
+
+    #[test]
+    fn font_encoding_clone_independence() {
+        let mut enc = FontEncoding::from_standard(StandardEncoding::WinAnsi);
+        let cloned = enc.clone();
+        enc.apply_differences(&[(0x41, '★')]);
+        assert_eq!(enc.decode(0x41), Some('★'));
+        assert_eq!(cloned.decode(0x41), Some('A')); // clone unaffected
+    }
 }

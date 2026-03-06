@@ -470,4 +470,150 @@ mod tests {
         let edges = derive_edges(&[], &rects, &[]);
         assert_eq!(edges.len(), 8); // 4 edges per rect × 2
     }
+
+    // =========================================================================
+    // Wave 3: Edge cases and property tests
+    // =========================================================================
+
+    // --- classify_edge_orientation ---
+
+    #[test]
+    fn test_classify_horizontal_exact() {
+        assert_eq!(classify_edge_orientation(0.0, 50.0, 100.0, 50.0), Orientation::Horizontal);
+    }
+
+    #[test]
+    fn test_classify_horizontal_within_tolerance() {
+        // dy = 1e-7 < 1e-6 → horizontal
+        assert_eq!(
+            classify_edge_orientation(0.0, 50.0, 100.0, 50.0 + 1e-7),
+            Orientation::Horizontal
+        );
+    }
+
+    #[test]
+    fn test_classify_vertical_exact() {
+        assert_eq!(classify_edge_orientation(50.0, 0.0, 50.0, 100.0), Orientation::Vertical);
+    }
+
+    #[test]
+    fn test_classify_vertical_within_tolerance() {
+        assert_eq!(
+            classify_edge_orientation(50.0, 0.0, 50.0 + 1e-7, 100.0),
+            Orientation::Vertical
+        );
+    }
+
+    #[test]
+    fn test_classify_diagonal() {
+        assert_eq!(classify_edge_orientation(0.0, 0.0, 100.0, 100.0), Orientation::Diagonal);
+    }
+
+    #[test]
+    fn test_classify_nearly_horizontal_but_diagonal() {
+        // dy = 1e-5 > 1e-6 AND dx > 1e-6 → diagonal
+        assert_eq!(
+            classify_edge_orientation(0.0, 50.0, 100.0, 50.0 + 1e-5),
+            Orientation::Diagonal
+        );
+    }
+
+    // --- edge_from_curve: degenerate cases ---
+
+    #[test]
+    fn test_edge_from_curve_two_point() {
+        // Minimal curve with just 2 points
+        let curve = make_curve(vec![(10.0, 50.0), (100.0, 50.0)]);
+        let edge = edge_from_curve(&curve);
+        assert_approx(edge.x0, 10.0);
+        assert_approx(edge.x1, 100.0);
+        assert_eq!(edge.orientation, Orientation::Horizontal);
+    }
+
+    #[test]
+    fn test_edge_from_curve_reversed_points() {
+        // Start point is to the right of end → x0/x1 should still be min/max
+        let curve = make_curve(vec![
+            (100.0, 50.0),
+            (80.0, 30.0),
+            (20.0, 30.0),
+            (0.0, 50.0),
+        ]);
+        let edge = edge_from_curve(&curve);
+        assert_approx(edge.x0, 0.0);
+        assert_approx(edge.x1, 100.0);
+    }
+
+    #[test]
+    fn test_edge_from_curve_single_point() {
+        // Degenerate: single point curve → zero-length edge
+        let curve = make_curve(vec![(50.0, 50.0)]);
+        let edge = edge_from_curve(&curve);
+        assert_approx(edge.x0, 50.0);
+        assert_approx(edge.x1, 50.0);
+        assert_approx(edge.top, 50.0);
+        assert_approx(edge.bottom, 50.0);
+    }
+
+    // --- edges_from_rect: zero-size rect ---
+
+    #[test]
+    fn test_edges_from_zero_width_rect() {
+        let rect = make_rect(50.0, 20.0, 50.0, 70.0);
+        let edges = edges_from_rect(&rect);
+        assert_eq!(edges.len(), 4);
+        // Top and bottom edges have zero length (x0 == x1)
+        assert_approx(edges[0].x0, 50.0);
+        assert_approx(edges[0].x1, 50.0);
+    }
+
+    #[test]
+    fn test_edges_from_zero_height_rect() {
+        let rect = make_rect(10.0, 50.0, 110.0, 50.0);
+        let edges = edges_from_rect(&rect);
+        assert_eq!(edges.len(), 4);
+        // Left and right edges have zero height
+        assert_approx(edges[2].top, 50.0);
+        assert_approx(edges[2].bottom, 50.0);
+    }
+
+    // --- Property: edge_from_line preserves all coordinates ---
+
+    #[test]
+    fn test_edge_from_line_preserves_coordinates() {
+        let line = make_line(42.5, 99.9, 142.5, 99.9, Orientation::Horizontal);
+        let edge = edge_from_line(&line);
+        assert_approx(edge.x0, 42.5);
+        assert_approx(edge.top, 99.9);
+        assert_approx(edge.x1, 142.5);
+        assert_approx(edge.bottom, 99.9);
+    }
+
+    // --- Property: derive_edges count = sum of components ---
+
+    #[test]
+    fn test_derive_edges_count_property() {
+        let lines = vec![
+            make_line(0.0, 0.0, 100.0, 0.0, Orientation::Horizontal),
+            make_line(0.0, 100.0, 100.0, 100.0, Orientation::Horizontal),
+        ];
+        let rects = vec![make_rect(0.0, 0.0, 50.0, 50.0)];
+        let curves = vec![
+            make_curve(vec![(0.0, 0.0), (50.0, 50.0), (100.0, 0.0)]),
+            make_curve(vec![(0.0, 100.0), (50.0, 50.0), (100.0, 100.0)]),
+        ];
+        let edges = derive_edges(&lines, &rects, &curves);
+        let expected = lines.len() + rects.len() * 4 + curves.len();
+        assert_eq!(edges.len(), expected);
+    }
+
+    // --- EdgeSource::Stream and Explicit ---
+
+    #[test]
+    fn test_edge_source_stream_and_explicit_exist() {
+        let stream = EdgeSource::Stream;
+        let explicit = EdgeSource::Explicit;
+        assert_ne!(stream, explicit);
+        assert_ne!(stream, EdgeSource::Line);
+    }
 }

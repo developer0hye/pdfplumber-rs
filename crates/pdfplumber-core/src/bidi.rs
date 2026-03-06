@@ -500,4 +500,168 @@ mod tests {
         assert_eq!(groups[0].len(), 2, "line 1 should have 2 chars");
         assert_eq!(groups[1].len(), 1, "line 2 should have 1 char");
     }
+
+    // =========================================================================
+    // Wave 3: additional bidi tests
+    // =========================================================================
+
+    #[test]
+    fn single_ltr_char_unchanged() {
+        let chars = vec![make_char_at("A", 10.0, 0.0, 20.0, 12.0)];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].direction, TextDirection::Ltr);
+    }
+
+    #[test]
+    fn single_rtl_char_tagged() {
+        let chars = vec![make_char_at("ع", 10.0, 0.0, 20.0, 12.0)];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].direction, TextDirection::Rtl);
+    }
+
+    #[test]
+    fn hebrew_alef_bet_gimel_tagged_rtl() {
+        let chars = vec![
+            make_char_at("א", 10.0, 0.0, 18.0, 12.0),
+            make_char_at("ב", 18.0, 0.0, 26.0, 12.0),
+            make_char_at("ג", 26.0, 0.0, 34.0, 12.0),
+        ];
+        let result = apply_bidi_directions(&chars, 3.0);
+        for ch in &result {
+            assert_eq!(ch.direction, TextDirection::Rtl);
+        }
+    }
+
+    #[test]
+    fn numbers_in_arabic_context_stay_ltr() {
+        // Numbers embedded in Arabic text should remain LTR
+        let chars = vec![
+            make_char_at("م", 10.0, 0.0, 18.0, 12.0),
+            make_char_at("1", 18.0, 0.0, 24.0, 12.0),
+            make_char_at("2", 24.0, 0.0, 30.0, 12.0),
+            make_char_at("م", 30.0, 0.0, 38.0, 12.0),
+        ];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result[0].direction, TextDirection::Rtl);
+        assert_eq!(result[1].direction, TextDirection::Ltr);
+        assert_eq!(result[2].direction, TextDirection::Ltr);
+        assert_eq!(result[3].direction, TextDirection::Rtl);
+    }
+
+    #[test]
+    fn neutral_space_between_rtl_becomes_rtl() {
+        // Space between two Arabic words should resolve to RTL
+        let chars = vec![
+            make_char_at("م", 10.0, 0.0, 18.0, 12.0),
+            make_char_at(" ", 18.0, 0.0, 22.0, 12.0),
+            make_char_at("ع", 22.0, 0.0, 30.0, 12.0),
+        ];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result[0].direction, TextDirection::Rtl);
+        assert_eq!(result[1].direction, TextDirection::Rtl); // neutral resolves to RTL
+        assert_eq!(result[2].direction, TextDirection::Rtl);
+    }
+
+    #[test]
+    fn text_bbox_and_fontname_preserved() {
+        let chars = vec![make_char_at("ع", 10.0, 5.0, 20.0, 17.0)];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result[0].bbox, BBox::new(10.0, 5.0, 20.0, 17.0));
+        assert_eq!(result[0].fontname, "TestFont");
+        assert_eq!(result[0].size, 12.0);
+    }
+
+    #[test]
+    fn output_length_matches_input() {
+        let chars = vec![
+            make_char_at("H", 10.0, 0.0, 18.0, 12.0),
+            make_char_at("ع", 18.0, 0.0, 26.0, 12.0),
+            make_char_at("3", 26.0, 0.0, 34.0, 12.0),
+        ];
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result.len(), chars.len());
+    }
+
+    #[test]
+    fn btt_direction_not_overridden() {
+        let mut chars = vec![
+            make_char_at("ع", 10.0, 0.0, 18.0, 12.0),
+        ];
+        chars[0].direction = TextDirection::Btt;
+        chars[0].upright = false;
+
+        let result = apply_bidi_directions(&chars, 3.0);
+        assert_eq!(result[0].direction, TextDirection::Btt);
+    }
+
+    #[test]
+    fn large_y_tolerance_merges_all_lines() {
+        let chars = vec![
+            make_char_at("ع", 10.0, 0.0, 18.0, 12.0),
+            make_char_at("H", 10.0, 100.0, 18.0, 112.0),
+        ];
+        let result = apply_bidi_directions(&chars, 200.0);
+        // Both on "same line" — Arabic char is RTL, Latin is LTR
+        assert_eq!(result[0].direction, TextDirection::Rtl);
+        assert_eq!(result[1].direction, TextDirection::Ltr);
+    }
+
+    #[test]
+    fn group_chars_single_char() {
+        let chars = vec![make_char_at("A", 0.0, 0.0, 10.0, 12.0)];
+        let groups = group_chars_into_lines(&chars, 3.0);
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].len(), 1);
+    }
+
+    #[test]
+    fn group_chars_empty() {
+        let groups = group_chars_into_lines(&[], 3.0);
+        assert!(groups.is_empty());
+    }
+
+    #[test]
+    fn group_chars_exact_tolerance_boundary() {
+        let chars = vec![
+            make_char_at("A", 10.0, 0.0, 20.0, 12.0),
+            make_char_at("B", 20.0, 3.0, 30.0, 15.0), // dy=3.0, exactly at tolerance
+        ];
+        let groups = group_chars_into_lines(&chars, 3.0);
+        // At tolerance=3.0, dy=3.0 should be same line (<=)
+        assert_eq!(groups.len(), 1);
+    }
+
+    #[test]
+    fn group_chars_beyond_tolerance() {
+        let chars = vec![
+            make_char_at("A", 10.0, 0.0, 20.0, 12.0),
+            make_char_at("B", 20.0, 4.0, 30.0, 16.0), // dy=4.0, beyond tolerance=3.0
+        ];
+        let groups = group_chars_into_lines(&chars, 3.0);
+        assert_eq!(groups.len(), 2);
+    }
+
+    #[test]
+    fn is_strong_rtl_arabic_letters() {
+        assert!(is_strong_rtl('ا'));
+        assert!(is_strong_rtl('ع'));
+        assert!(is_strong_rtl('م'));
+    }
+
+    #[test]
+    fn is_strong_rtl_hebrew_letters() {
+        assert!(is_strong_rtl('א'));
+        assert!(is_strong_rtl('ב'));
+        assert!(is_strong_rtl('ג'));
+    }
+
+    #[test]
+    fn is_strong_rtl_latin_not_rtl() {
+        assert!(!is_strong_rtl('A'));
+        assert!(!is_strong_rtl('z'));
+        assert!(!is_strong_rtl('0'));
+        assert!(!is_strong_rtl(' '));
+    }
 }

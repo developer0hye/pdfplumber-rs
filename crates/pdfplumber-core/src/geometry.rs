@@ -300,4 +300,198 @@ mod tests {
         assert_eq!(u.x1, 35.0);
         assert_eq!(u.bottom, 45.0);
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CTM ROTATION TESTS — these are the transforms that broke upright detection
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_ctm_90_degree_rotation() {
+        // 90° CCW: [cos90, sin90, -sin90, cos90, 0, 0] = [0, 1, -1, 0, 0, 0]
+        let ctm = Ctm::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0);
+        let p = ctm.transform_point(Point::new(10.0, 0.0));
+        assert_point_approx(p, 0.0, 10.0);
+    }
+
+    #[test]
+    fn test_ctm_180_degree_rotation() {
+        // 180°: [-1, 0, 0, -1, 0, 0]
+        let ctm = Ctm::new(-1.0, 0.0, 0.0, -1.0, 0.0, 0.0);
+        let p = ctm.transform_point(Point::new(10.0, 5.0));
+        assert_point_approx(p, -10.0, -5.0);
+    }
+
+    #[test]
+    fn test_ctm_270_degree_rotation() {
+        // 270° CCW (= 90° CW): [0, -1, 1, 0, 0, 0]
+        let ctm = Ctm::new(0.0, -1.0, 1.0, 0.0, 0.0, 0.0);
+        let p = ctm.transform_point(Point::new(10.0, 0.0));
+        assert_point_approx(p, 0.0, -10.0);
+    }
+
+    #[test]
+    fn test_ctm_mirror_x() {
+        // Mirror across Y axis: [-1, 0, 0, 1, 0, 0]
+        // This is the 180° rotation that broke upright detection (trm.a < 0)
+        let ctm = Ctm::new(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        let p = ctm.transform_point(Point::new(10.0, 5.0));
+        assert_point_approx(p, -10.0, 5.0);
+        // upright check: b≈0, c≈0, a>0 → false (a=-1 < 0)
+        assert!(ctm.b.abs() < 1e-6);
+        assert!(ctm.c.abs() < 1e-6);
+        assert!(ctm.a < 0.0, "mirrored x-scale must be negative");
+    }
+
+    #[test]
+    fn test_ctm_concat_rotation_then_translation() {
+        // Common pattern: rotate 90° then translate to page position
+        let rot90 = Ctm::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0);
+        let translate = Ctm::new(1.0, 0.0, 0.0, 1.0, 100.0, 200.0);
+        let combined = rot90.concat(&translate);
+        let p = combined.transform_point(Point::new(10.0, 0.0));
+        // rot90: (0, 10), then translate: (100, 210)
+        assert_point_approx(p, 100.0, 210.0);
+    }
+
+    #[test]
+    fn test_ctm_concat_scale_rotation_translation() {
+        // Full PDF text matrix: scale 12pt, rotate 90°, translate to position
+        let scale = Ctm::new(12.0, 0.0, 0.0, 12.0, 0.0, 0.0);
+        let rot90 = Ctm::new(0.0, 1.0, -1.0, 0.0, 0.0, 0.0);
+        let translate = Ctm::new(1.0, 0.0, 0.0, 1.0, 72.0, 720.0);
+        let combined = scale.concat(&rot90).concat(&translate);
+        let p = combined.transform_point(Point::new(1.0, 0.0));
+        // scale: (12, 0), rot90: (0, 12), translate: (72, 732)
+        assert_point_approx(p, 72.0, 732.0);
+    }
+
+    #[test]
+    fn test_ctm_concat_is_associative() {
+        let a = Ctm::new(2.0, 1.0, -1.0, 3.0, 10.0, 20.0);
+        let b = Ctm::new(0.5, -0.3, 0.3, 0.5, 5.0, 7.0);
+        let c = Ctm::new(1.0, 0.0, 0.0, 1.0, 100.0, 200.0);
+
+        let ab_c = a.concat(&b).concat(&c);
+        let a_bc = a.concat(&b.concat(&c));
+
+        let p = Point::new(3.0, 4.0);
+        let p1 = ab_c.transform_point(p);
+        let p2 = a_bc.transform_point(p);
+        assert_point_approx(p2, p1.x, p1.y);
+    }
+
+    #[test]
+    fn test_ctm_identity_is_left_identity() {
+        let a = Ctm::new(2.0, 0.5, -0.5, 3.0, 10.0, 20.0);
+        let id = Ctm::identity();
+        let result = id.concat(&a);
+        // id.concat(a) should equal a
+        let p = Point::new(7.0, 11.0);
+        let p1 = a.transform_point(p);
+        let p2 = result.transform_point(p);
+        assert_point_approx(p2, p1.x, p1.y);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // BBOX PROPERTY TESTS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_bbox_union_is_commutative() {
+        let a = BBox::new(10.0, 20.0, 30.0, 40.0);
+        let b = BBox::new(5.0, 25.0, 35.0, 45.0);
+        assert_eq!(a.union(&b), b.union(&a));
+    }
+
+    #[test]
+    fn test_bbox_union_is_associative() {
+        let a = BBox::new(10.0, 20.0, 30.0, 40.0);
+        let b = BBox::new(5.0, 25.0, 35.0, 45.0);
+        let c = BBox::new(0.0, 15.0, 25.0, 50.0);
+        assert_eq!(a.union(&b).union(&c), a.union(&b.union(&c)));
+    }
+
+    #[test]
+    fn test_bbox_union_with_self_is_identity() {
+        let a = BBox::new(10.0, 20.0, 30.0, 40.0);
+        assert_eq!(a.union(&a), a);
+    }
+
+    #[test]
+    fn test_bbox_union_contained_box_unchanged() {
+        // If b is entirely inside a, union(a, b) == a
+        let a = BBox::new(0.0, 0.0, 100.0, 100.0);
+        let b = BBox::new(10.0, 10.0, 50.0, 50.0);
+        assert_eq!(a.union(&b), a);
+    }
+
+    #[test]
+    fn test_bbox_negative_dimensions() {
+        // x1 < x0 should produce negative width
+        let bbox = BBox::new(30.0, 40.0, 10.0, 20.0);
+        assert_eq!(bbox.width(), -20.0);
+        assert_eq!(bbox.height(), -20.0);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // UPRIGHT DETECTION HELPERS — the exact logic that caused 3 test failures
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /// Simulates the upright check from char_extraction.rs
+    fn is_upright(ctm: &Ctm) -> bool {
+        ctm.b.abs() < 1e-6 && ctm.c.abs() < 1e-6 && ctm.a > 0.0
+    }
+
+    #[test]
+    fn test_upright_identity() {
+        assert!(is_upright(&Ctm::identity()));
+    }
+
+    #[test]
+    fn test_upright_positive_scale() {
+        assert!(is_upright(&Ctm::new(12.0, 0.0, 0.0, 12.0, 72.0, 720.0)));
+    }
+
+    #[test]
+    fn test_not_upright_negative_x_scale() {
+        // 180° rotation with translation — common in rot180 PDFs
+        assert!(!is_upright(&Ctm::new(-12.0, 0.0, 0.0, -12.0, 500.0, 700.0)));
+    }
+
+    #[test]
+    fn test_not_upright_mirror_x() {
+        // Mirror across Y axis
+        assert!(!is_upright(&Ctm::new(-1.0, 0.0, 0.0, 1.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_not_upright_90_rotation() {
+        assert!(!is_upright(&Ctm::new(0.0, 12.0, -12.0, 0.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_not_upright_270_rotation() {
+        assert!(!is_upright(&Ctm::new(0.0, -12.0, 12.0, 0.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_not_upright_slight_rotation() {
+        // 5° rotation — small but non-zero b and c
+        let angle = 5.0_f64.to_radians();
+        let ctm = Ctm::new(angle.cos(), angle.sin(), -angle.sin(), angle.cos(), 0.0, 0.0);
+        assert!(!is_upright(&ctm), "5° rotation should not be upright");
+    }
+
+    #[test]
+    fn test_upright_very_small_shear() {
+        // Floating point noise: b and c are ~1e-15 (below threshold)
+        let ctm = Ctm::new(12.0, 1e-15, -1e-15, 12.0, 72.0, 720.0);
+        assert!(is_upright(&ctm), "FP noise below 1e-6 should still be upright");
+    }
+
+    #[test]
+    fn test_not_upright_zero_a() {
+        // a = 0 means no x-scale component — degenerate
+        assert!(!is_upright(&Ctm::new(0.0, 0.0, 0.0, 12.0, 0.0, 0.0)));
+    }
 }

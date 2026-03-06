@@ -1113,4 +1113,198 @@ mod tests {
         let cmap = CMap::parse(data).unwrap();
         assert!(!cmap.is_identity());
     }
+
+    // =========================================================================
+    // Wave 2: Edge cases and adversarial inputs
+    // =========================================================================
+
+    // --- Empty / degenerate inputs ---
+
+    #[test]
+    fn empty_cmap_data() {
+        let cmap = CMap::parse(b"").unwrap();
+        assert!(cmap.is_empty());
+        assert_eq!(cmap.len(), 0);
+        assert!(!cmap.is_identity());
+    }
+
+    #[test]
+    fn cmap_no_sections_only_boilerplate() {
+        let data = b"/CIDInit /ProcSet findresource begin\n12 dict begin\nbegincmap\nendcmap\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(cmap.is_empty());
+    }
+
+    #[test]
+    fn empty_bfchar_section() {
+        let data = b"beginbfchar\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.len(), 0);
+    }
+
+    #[test]
+    fn empty_bfrange_section() {
+        let data = b"beginbfrange\nendbfrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.len(), 0);
+    }
+
+    #[test]
+    fn empty_cidcmap_data() {
+        let cmap = CidCMap::parse(b"").unwrap();
+        assert!(cmap.is_empty());
+        assert_eq!(cmap.len(), 0);
+        assert_eq!(cmap.name(), None);
+        assert_eq!(cmap.writing_mode(), 0);
+    }
+
+    // --- lookup_or_replacement ---
+
+    #[test]
+    fn lookup_or_replacement_found() {
+        let data = b"beginbfchar\n<0041> <0041>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup_or_replacement(0x0041), "A");
+    }
+
+    #[test]
+    fn lookup_or_replacement_not_found() {
+        let data = b"beginbfchar\n<0041> <0041>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup_or_replacement(0x9999), "\u{FFFD}");
+    }
+
+    // --- Surrogate pairs (characters beyond BMP) ---
+
+    #[test]
+    fn utf16be_surrogate_pair_emoji() {
+        // U+1F600 (😀) in UTF-16BE is D83D DE00
+        let data = b"beginbfchar\n<0001> <D83DDE00>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0001), Some("😀"));
+    }
+
+    #[test]
+    fn utf16be_supplementary_cjk() {
+        // U+20000 (𠀀, CJK Extension B) in UTF-16BE is D840 DC00
+        let data = b"beginbfchar\n<0001> <D840DC00>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0001), Some("\u{20000}"));
+    }
+
+    // --- Multi-character mappings (ligatures) ---
+
+    #[test]
+    fn bfchar_multi_char_mapping() {
+        // Some fonts map a single code to multiple Unicode chars
+        // <0001> → "fi" (f=0046, i=0069)
+        let data = b"beginbfchar\n<0001> <00660069>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0001), Some("fi"));
+    }
+
+    #[test]
+    fn bfchar_three_char_mapping() {
+        // <0001> → "ffi" (f=0066, f=0066, i=0069)
+        let data = b"beginbfchar\n<0001> <006600660069>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0001), Some("ffi"));
+    }
+
+    // --- bfrange with array: edge cases ---
+
+    #[test]
+    fn bfrange_array_single_element() {
+        let data = b"beginbfrange\n<0041> <0041> [<005A>]\nendbfrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.lookup(0x0041), Some("Z"));
+        assert_eq!(cmap.len(), 1);
+    }
+
+    // --- Overwriting: later entry wins ---
+
+    #[test]
+    fn bfchar_duplicate_code_later_wins() {
+        let data = b"beginbfchar\n<0041> <0041>\n<0041> <0042>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        // HashMap: last insert wins
+        assert_eq!(cmap.lookup(0x0041), Some("B"));
+    }
+
+    // --- cidrange with non-zero start ---
+
+    #[test]
+    fn cidrange_non_zero_cid_start() {
+        let data = b"begincidrange\n<0000> <0002> 65\nendcidrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(!cmap.is_identity());
+        // code 0 → CID 65 → U+0041 = 'A'
+        assert_eq!(cmap.lookup(0x0000), Some("A"));
+        assert_eq!(cmap.lookup(0x0001), Some("B"));
+        assert_eq!(cmap.lookup(0x0002), Some("C"));
+    }
+
+    // --- CidCMap edge cases ---
+
+    #[test]
+    fn cidcmap_empty_cidchar_section() {
+        let data = b"begincidchar\nendcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert!(cmap.is_empty());
+    }
+
+    #[test]
+    fn cidcmap_name_with_spaces() {
+        // CMap name parsing should handle various formats
+        let data = b"/CMapName /My-Custom-CMap def\nbegincidchar\n<0001> 1\nendcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert_eq!(cmap.name(), Some("My-Custom-CMap"));
+    }
+
+    // --- Property: bfrange produces exactly (high - low + 1) mappings ---
+
+    #[test]
+    fn bfrange_exact_count() {
+        let data = b"beginbfrange\n<0010> <001F> <0041>\nendbfrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.len(), 16); // 0x1F - 0x10 + 1 = 16
+        // First and last
+        assert_eq!(cmap.lookup(0x0010), Some("A")); // 0x0041
+        assert_eq!(cmap.lookup(0x001F), Some("P")); // 0x0041 + 15 = 0x0050 = 'P'
+    }
+
+    // --- Property: is_empty vs len consistency ---
+
+    #[test]
+    fn cmap_is_empty_consistency() {
+        let data = b"beginbfchar\n<0041> <0041>\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert!(!cmap.is_empty());
+        assert!(cmap.len() > 0);
+    }
+
+    #[test]
+    fn cidcmap_is_empty_consistency() {
+        let data = b"begincidchar\n<0041> 1\nendcidchar\n";
+        let cmap = CidCMap::parse(data).unwrap();
+        assert!(!cmap.is_empty());
+        assert!(cmap.len() > 0);
+    }
+
+    // --- Garbage tolerance: lines without hex tokens should be skipped ---
+
+    #[test]
+    fn bfchar_skips_garbage_lines() {
+        let data = b"beginbfchar\nthis is garbage\n<0041> <0041>\nmore garbage\nendbfchar\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.len(), 1);
+        assert_eq!(cmap.lookup(0x0041), Some("A"));
+    }
+
+    #[test]
+    fn bfrange_skips_garbage_lines() {
+        let data = b"beginbfrange\ngarbage\n<0041> <0043> <0041>\nmore garbage\nendbfrange\n";
+        let cmap = CMap::parse(data).unwrap();
+        assert_eq!(cmap.len(), 3);
+    }
 }

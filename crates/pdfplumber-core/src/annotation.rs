@@ -163,4 +163,107 @@ mod tests {
         let annot2 = annot1.clone();
         assert_eq!(annot1, annot2);
     }
+
+    // =========================================================================
+    // Wave 4: exhaustive annotation tests
+    // =========================================================================
+
+    #[test]
+    fn all_known_subtypes_roundtrip() {
+        let known = [
+            "Text", "Link", "FreeText", "Highlight", "Underline",
+            "StrikeOut", "Stamp", "Square", "Circle", "Ink", "Popup", "Widget",
+        ];
+        for name in known {
+            let t = AnnotationType::from_subtype(name);
+            assert_ne!(t, AnnotationType::Other(name.to_string()), "{name} should be known");
+        }
+    }
+
+    #[test]
+    fn remaining_known_subtypes() {
+        assert_eq!(AnnotationType::from_subtype("Square"), AnnotationType::Square);
+        assert_eq!(AnnotationType::from_subtype("Circle"), AnnotationType::Circle);
+        assert_eq!(AnnotationType::from_subtype("Ink"), AnnotationType::Ink);
+        assert_eq!(AnnotationType::from_subtype("Popup"), AnnotationType::Popup);
+        assert_eq!(AnnotationType::from_subtype("Widget"), AnnotationType::Widget);
+    }
+
+    #[test]
+    fn other_subtype_preserves_string() {
+        let t = AnnotationType::from_subtype("3DAnnotation");
+        assert_eq!(t, AnnotationType::Other("3DAnnotation".to_string()));
+    }
+
+    #[test]
+    fn empty_string_subtype() {
+        let t = AnnotationType::from_subtype("");
+        assert_eq!(t, AnnotationType::Other(String::new()));
+    }
+
+    #[test]
+    fn case_sensitive_subtype() {
+        // "text" (lowercase) should be Other, not Text
+        assert_eq!(
+            AnnotationType::from_subtype("text"),
+            AnnotationType::Other("text".to_string())
+        );
+    }
+
+    #[test]
+    fn annotation_type_eq_reflexive() {
+        let t = AnnotationType::Highlight;
+        assert_eq!(t, t.clone());
+    }
+
+    #[test]
+    fn annotation_ne_different_types() {
+        assert_ne!(AnnotationType::Text, AnnotationType::Link);
+        assert_ne!(AnnotationType::Highlight, AnnotationType::Underline);
+    }
+
+    #[test]
+    fn annotation_other_ne_different_strings() {
+        assert_ne!(
+            AnnotationType::Other("A".to_string()),
+            AnnotationType::Other("B".to_string())
+        );
+    }
+
+    #[test]
+    fn annotation_bbox_preserved() {
+        let annot = Annotation {
+            annot_type: AnnotationType::Square,
+            bbox: BBox::new(1.5, 2.5, 3.5, 4.5),
+            contents: None,
+            author: None,
+            date: None,
+            raw_subtype: "Square".to_string(),
+        };
+        assert_eq!(annot.bbox.x0, 1.5);
+        assert_eq!(annot.bbox.top, 2.5);
+        assert_eq!(annot.bbox.x1, 3.5);
+        assert_eq!(annot.bbox.bottom, 4.5);
+    }
+
+    #[test]
+    fn annotation_ne_different_contents() {
+        let a = Annotation {
+            annot_type: AnnotationType::Text,
+            bbox: BBox::new(0.0, 0.0, 10.0, 10.0),
+            contents: Some("A".to_string()),
+            author: None,
+            date: None,
+            raw_subtype: "Text".to_string(),
+        };
+        let b = Annotation {
+            annot_type: AnnotationType::Text,
+            bbox: BBox::new(0.0, 0.0, 10.0, 10.0),
+            contents: Some("B".to_string()),
+            author: None,
+            date: None,
+            raw_subtype: "Text".to_string(),
+        };
+        assert_ne!(a, b);
+    }
 }

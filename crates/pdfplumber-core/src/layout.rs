@@ -1718,4 +1718,329 @@ mod tests {
 
         assert_eq!(text, "Left1\nLeft2\n\nRight1\nRight2");
     }
+
+    // =========================================================================
+    // Wave 2: Edge cases and property tests for layout pipeline
+    // =========================================================================
+
+    // --- cluster_words_into_lines: boundary conditions ---
+
+    #[test]
+    fn test_cluster_words_exact_tolerance_boundary() {
+        // Words with y-midpoint difference exactly equal to tolerance
+        // Word 1: midpoint = (100+112)/2 = 106
+        // Word 2: midpoint = (103+115)/2 = 109, diff = 3.0 = tolerance → same line
+        let words = vec![
+            make_word("A", 10.0, 100.0, 30.0, 112.0),
+            make_word("B", 40.0, 103.0, 60.0, 115.0),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 1, "Words at exact tolerance should cluster");
+    }
+
+    #[test]
+    fn test_cluster_words_just_beyond_tolerance() {
+        // Word midpoints differ by 3.01 > 3.0 → separate lines
+        // Word 1: mid_y = 106, Word 2: mid_y = 109.01
+        let words = vec![
+            make_word("A", 10.0, 100.0, 30.0, 112.0),
+            make_word("B", 40.0, 103.01, 60.0, 115.01),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 2, "Words beyond tolerance should split");
+    }
+
+    #[test]
+    fn test_cluster_words_negative_y_coordinates() {
+        // Some PDFs have negative coordinates
+        let words = vec![
+            make_word("Above", 10.0, -20.0, 50.0, -8.0),
+            make_word("Below", 10.0, -5.0, 50.0, 7.0),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 2);
+    }
+
+    #[test]
+    fn test_cluster_words_very_tall_word() {
+        // A word with enormous height — its midpoint should still cluster correctly
+        let words = vec![
+            make_word("Tiny", 10.0, 100.0, 50.0, 112.0),
+            make_word("HUGE", 60.0, 80.0, 100.0, 140.0), // midpoint = 110 vs 106, diff=4
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 2, "Tall word midpoint too far away");
+    }
+
+    #[test]
+    fn test_cluster_many_words_same_line() {
+        // 100 words all on the same y-line
+        let words: Vec<Word> = (0..100)
+            .map(|i| make_word(&format!("w{i}"), i as f64 * 10.0, 100.0, i as f64 * 10.0 + 8.0, 112.0))
+            .collect();
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].words.len(), 100);
+    }
+
+    // --- split_lines_at_columns ---
+
+    #[test]
+    fn test_split_lines_exact_gap_boundary() {
+        // Gap exactly equal to x_density — should NOT split (> not >=)
+        let line = TextLine {
+            words: vec![
+                make_word("A", 10.0, 100.0, 50.0, 112.0),
+                make_word("B", 60.0, 100.0, 100.0, 112.0), // gap = 60-50 = 10 = x_density
+            ],
+            bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+        };
+        let result = split_lines_at_columns(vec![line], 10.0);
+        assert_eq!(result.len(), 1, "Gap equal to x_density should NOT split");
+    }
+
+    #[test]
+    fn test_split_lines_just_beyond_gap() {
+        let line = TextLine {
+            words: vec![
+                make_word("A", 10.0, 100.0, 50.0, 112.0),
+                make_word("B", 60.01, 100.0, 100.0, 112.0), // gap = 10.01 > 10
+            ],
+            bbox: BBox::new(10.0, 100.0, 100.0, 112.0),
+        };
+        let result = split_lines_at_columns(vec![line], 10.0);
+        assert_eq!(result.len(), 2, "Gap beyond x_density should split");
+    }
+
+    #[test]
+    fn test_split_lines_three_segments() {
+        let line = TextLine {
+            words: vec![
+                make_word("L", 10.0, 100.0, 40.0, 112.0),
+                make_word("M", 100.0, 100.0, 130.0, 112.0), // gap 60
+                make_word("R", 200.0, 100.0, 230.0, 112.0), // gap 70
+            ],
+            bbox: BBox::new(10.0, 100.0, 230.0, 112.0),
+        };
+        let result = split_lines_at_columns(vec![line], 10.0);
+        assert_eq!(result.len(), 3);
+    }
+
+    // --- cluster_lines_into_blocks: x-overlap requirement ---
+
+    #[test]
+    fn test_cluster_lines_no_x_overlap_separate_blocks() {
+        // Two lines vertically close but no x-overlap → separate blocks
+        let lines = vec![
+            TextLine {
+                words: vec![make_word("Left", 10.0, 100.0, 50.0, 112.0)],
+                bbox: BBox::new(10.0, 100.0, 50.0, 112.0),
+            },
+            TextLine {
+                words: vec![make_word("Right", 200.0, 115.0, 250.0, 127.0)],
+                bbox: BBox::new(200.0, 115.0, 250.0, 127.0),
+            },
+        ];
+        let blocks = cluster_lines_into_blocks(lines, 10.0);
+        assert_eq!(blocks.len(), 2, "Lines without x-overlap should be separate blocks");
+    }
+
+    #[test]
+    fn test_cluster_lines_gap_exactly_at_y_density() {
+        // Gap = 10.0 = y_density. Condition is gap <= y_density → should merge
+        let lines = vec![
+            TextLine {
+                words: vec![make_word("A", 10.0, 100.0, 50.0, 112.0)],
+                bbox: BBox::new(10.0, 100.0, 50.0, 112.0),
+            },
+            TextLine {
+                words: vec![make_word("B", 10.0, 122.0, 50.0, 134.0)], // gap = 122-112 = 10
+                bbox: BBox::new(10.0, 122.0, 50.0, 134.0),
+            },
+        ];
+        let blocks = cluster_lines_into_blocks(lines, 10.0);
+        assert_eq!(blocks.len(), 1, "Gap equal to y_density should merge");
+    }
+
+    // --- detect_columns ---
+
+    #[test]
+    fn test_detect_columns_gap_smaller_than_min() {
+        // Words with gap smaller than min_column_gap → no columns detected
+        let words = vec![
+            make_word("Hello", 10.0, 100.0, 50.0, 112.0),
+            make_word("World", 55.0, 100.0, 95.0, 112.0), // gap = 5
+        ];
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert!(boundaries.is_empty());
+    }
+
+    #[test]
+    fn test_detect_columns_single_word_per_line() {
+        // Lines with only 1 word can't have intra-line gaps
+        let words = vec![
+            make_word("A", 10.0, 100.0, 50.0, 112.0),
+            make_word("B", 10.0, 120.0, 50.0, 132.0),
+        ];
+        let boundaries = detect_columns(&words, 20.0, 6);
+        assert!(boundaries.is_empty());
+    }
+
+    // --- column_index ---
+
+    #[test]
+    fn test_column_index_before_first_boundary() {
+        assert_eq!(column_index(10.0, &[100.0, 200.0]), 0);
+    }
+
+    #[test]
+    fn test_column_index_between_boundaries() {
+        assert_eq!(column_index(150.0, &[100.0, 200.0]), 1);
+    }
+
+    #[test]
+    fn test_column_index_after_last_boundary() {
+        assert_eq!(column_index(250.0, &[100.0, 200.0]), 2);
+    }
+
+    #[test]
+    fn test_column_index_exactly_on_boundary() {
+        // x == boundary → next column (x < boundary is false)
+        assert_eq!(column_index(100.0, &[100.0, 200.0]), 1);
+    }
+
+    #[test]
+    fn test_column_index_empty_boundaries() {
+        assert_eq!(column_index(50.0, &[]), 0);
+    }
+
+    // --- has_x_overlap ---
+
+    #[test]
+    fn test_has_x_overlap_touching_no_overlap() {
+        // [0,50] and [50,100] — touching but a.x0 < b.x1 (0 < 100) ✓ AND b.x0 < a.x1 (50 < 50) ✗
+        let a = BBox::new(0.0, 0.0, 50.0, 10.0);
+        let b = BBox::new(50.0, 0.0, 100.0, 10.0);
+        assert!(!has_x_overlap(&a, &b));
+    }
+
+    #[test]
+    fn test_has_x_overlap_partial() {
+        let a = BBox::new(0.0, 0.0, 60.0, 10.0);
+        let b = BBox::new(50.0, 0.0, 100.0, 10.0);
+        assert!(has_x_overlap(&a, &b));
+    }
+
+    #[test]
+    fn test_has_x_overlap_contained() {
+        let a = BBox::new(0.0, 0.0, 100.0, 10.0);
+        let b = BBox::new(20.0, 0.0, 80.0, 10.0);
+        assert!(has_x_overlap(&a, &b));
+        assert!(has_x_overlap(&b, &a)); // symmetric
+    }
+
+    // --- blocks_to_text edge cases ---
+
+    #[test]
+    fn test_blocks_to_text_single_word_per_line() {
+        let blocks = vec![TextBlock {
+            lines: vec![
+                TextLine {
+                    words: vec![make_word("One", 10.0, 100.0, 40.0, 112.0)],
+                    bbox: BBox::new(10.0, 100.0, 40.0, 112.0),
+                },
+                TextLine {
+                    words: vec![make_word("Two", 10.0, 120.0, 40.0, 132.0)],
+                    bbox: BBox::new(10.0, 120.0, 40.0, 132.0),
+                },
+            ],
+            bbox: BBox::new(10.0, 100.0, 40.0, 132.0),
+        }];
+        assert_eq!(blocks_to_text(&blocks), "One\nTwo");
+    }
+
+    // --- words_to_text ---
+
+    #[test]
+    fn test_words_to_text_unsorted_input() {
+        // Words given in random order — should still produce correct text
+        let words = vec![
+            make_word("World", 55.0, 100.0, 95.0, 112.0),
+            make_word("Hello", 10.0, 100.0, 50.0, 112.0),
+        ];
+        assert_eq!(words_to_text(&words, 3.0), "Hello World");
+    }
+
+    // --- Property: cluster_words_into_lines preserves all words ---
+
+    #[test]
+    fn test_cluster_preserves_word_count() {
+        let words: Vec<Word> = (0..20)
+            .map(|i| {
+                let y = (i / 5) as f64 * 20.0 + 100.0;
+                let x = (i % 5) as f64 * 30.0;
+                make_word(&format!("w{i}"), x, y, x + 25.0, y + 12.0)
+            })
+            .collect();
+        let lines = cluster_words_into_lines(&words, 3.0);
+        let total: usize = lines.iter().map(|l| l.words.len()).sum();
+        assert_eq!(total, 20, "All words must be accounted for");
+    }
+
+    // --- Property: blocks preserve all lines ---
+
+    #[test]
+    fn test_blocks_preserve_line_count() {
+        let lines: Vec<TextLine> = (0..10)
+            .map(|i| {
+                let y = i as f64 * 15.0 + 100.0;
+                TextLine {
+                    words: vec![make_word(&format!("L{i}"), 10.0, y, 50.0, y + 12.0)],
+                    bbox: BBox::new(10.0, y, 50.0, y + 12.0),
+                }
+            })
+            .collect();
+        let blocks = cluster_lines_into_blocks(lines, 10.0);
+        let total: usize = blocks.iter().map(|b| b.lines.len()).sum();
+        assert_eq!(total, 10, "All lines must be accounted for");
+    }
+
+    // --- Rtl word sorting ---
+
+    fn make_rtl_word(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Word {
+        Word {
+            text: text.to_string(),
+            bbox: BBox::new(x0, top, x1, bottom),
+            doctop: top,
+            direction: crate::text::TextDirection::Rtl,
+            chars: vec![],
+        }
+    }
+
+    #[test]
+    fn test_cluster_rtl_words_sorted_right_to_left() {
+        let words = vec![
+            make_rtl_word("First", 100.0, 100.0, 150.0, 112.0),
+            make_rtl_word("Second", 50.0, 100.0, 90.0, 112.0),
+            make_rtl_word("Third", 10.0, 100.0, 45.0, 112.0),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines.len(), 1);
+        // Rtl: sorted by x0 descending
+        assert_eq!(lines[0].words[0].text, "First");
+        assert_eq!(lines[0].words[1].text, "Second");
+        assert_eq!(lines[0].words[2].text, "Third");
+    }
+
+    #[test]
+    fn test_cluster_mixed_ltr_rtl_uses_majority() {
+        // 2 Ltr + 1 Rtl → majority Ltr → sort left-to-right
+        let words = vec![
+            make_word("B", 50.0, 100.0, 80.0, 112.0),
+            make_word("A", 10.0, 100.0, 40.0, 112.0),
+            make_rtl_word("C", 90.0, 100.0, 120.0, 112.0),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+        assert_eq!(lines[0].words[0].text, "A"); // Ltr order
+    }
 }

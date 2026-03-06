@@ -1013,4 +1013,269 @@ mod tests {
         let result = render_elements(&elements);
         assert_eq!(result, "<p>Hello world</p>");
     }
+
+    // =========================================================================
+    // Wave 5: additional HTML tests
+    // =========================================================================
+
+    #[test]
+    fn test_detect_heading_level_boundary_ratios() {
+        // ratio=2.0 → H1
+        assert_eq!(detect_heading_level(24.0, 12.0, 1.2), Some(1));
+        // ratio≈1.99 → H2
+        assert_eq!(detect_heading_level(23.9, 12.0, 1.2), Some(2));
+        // ratio≈1.59 → H3 (just below 1.6 threshold)
+        assert_eq!(detect_heading_level(19.1, 12.0, 1.2), Some(3));
+        // ratio≈1.29 → H4 (just below 1.3 threshold)
+        assert_eq!(detect_heading_level(15.5, 12.0, 1.2), Some(4));
+        // ratio=1.2 → H4
+        assert_eq!(detect_heading_level(14.4, 12.0, 1.2), Some(4));
+        // ratio≈1.19 → None (below min_ratio)
+        assert_eq!(detect_heading_level(14.3, 12.0, 1.2), None);
+    }
+
+    #[test]
+    fn test_detect_heading_negative_size() {
+        assert_eq!(detect_heading_level(-1.0, 12.0, 1.2), None);
+    }
+
+    #[test]
+    fn test_detect_heading_negative_median() {
+        assert_eq!(detect_heading_level(12.0, -5.0, 1.2), None);
+    }
+
+    #[test]
+    fn test_escape_html_less_than() {
+        assert_eq!(escape_html("a < b"), "a &lt; b");
+    }
+
+    #[test]
+    fn test_escape_html_greater_than() {
+        assert_eq!(escape_html("a > b"), "a &gt; b");
+    }
+
+    #[test]
+    fn test_escape_html_double_quotes() {
+        assert_eq!(escape_html(r#"say "hello""#), "say &quot;hello&quot;");
+    }
+
+    #[test]
+    fn test_escape_html_all_special_chars() {
+        assert_eq!(escape_html("<a & b>"), "&lt;a &amp; b&gt;");
+    }
+
+    #[test]
+    fn test_escape_html_empty() {
+        assert_eq!(escape_html(""), "");
+    }
+
+    #[test]
+    fn test_escape_html_no_special() {
+        assert_eq!(escape_html("Hello World"), "Hello World");
+    }
+
+    #[test]
+    fn test_is_bold_font_heavy() {
+        assert!(is_bold_font("Arial-Heavy"));
+    }
+
+    #[test]
+    fn test_is_bold_font_black() {
+        assert!(is_bold_font("Helvetica-Black"));
+    }
+
+    #[test]
+    fn test_is_bold_font_case_insensitive() {
+        assert!(is_bold_font("ARIAL-BOLD"));
+        assert!(is_bold_font("arial-bold"));
+    }
+
+    #[test]
+    fn test_is_italic_font_case_insensitive() {
+        assert!(is_italic_font("TIMES-ITALIC"));
+    }
+
+    #[test]
+    fn test_detect_bullet_star() {
+        let result = detect_list_item("* item");
+        assert_eq!(result, Some((false, "item".to_string())));
+    }
+
+    #[test]
+    fn test_detect_bullet_unicode() {
+        let result = detect_list_item("\u{2022} bullet");
+        assert_eq!(result, Some((false, "bullet".to_string())));
+    }
+
+    #[test]
+    fn test_detect_bullet_em_dash() {
+        let result = detect_list_item("\u{2014} item");
+        assert_eq!(result, Some((false, "item".to_string())));
+    }
+
+    #[test]
+    fn test_detect_bullet_en_dash() {
+        let result = detect_list_item("\u{2013} item");
+        assert_eq!(result, Some((false, "item".to_string())));
+    }
+
+    #[test]
+    fn test_detect_numbered_dot() {
+        let result = detect_list_item("1. first");
+        assert_eq!(result, Some((true, "first".to_string())));
+    }
+
+    #[test]
+    fn test_detect_numbered_paren() {
+        let result = detect_list_item("2) second");
+        assert_eq!(result, Some((true, "second".to_string())));
+    }
+
+    #[test]
+    fn test_detect_numbered_multi_digit() {
+        let result = detect_list_item("123. many");
+        assert_eq!(result, Some((true, "many".to_string())));
+    }
+
+    #[test]
+    fn test_detect_not_a_list() {
+        assert_eq!(detect_list_item("Hello world"), None);
+        assert_eq!(detect_list_item(""), None);
+        assert_eq!(detect_list_item("  "), None);
+    }
+
+    #[test]
+    fn test_detect_no_space_after_bullet() {
+        // "-item" without space should not match
+        assert_eq!(detect_list_item("-item"), None);
+    }
+
+    #[test]
+    fn test_compute_median_empty() {
+        assert_eq!(compute_median_font_size(&[]), 12.0);
+    }
+
+    #[test]
+    fn test_compute_median_single() {
+        let chars = vec![make_char("A", 0.0, 0.0, 10.0, 12.0, 16.0)];
+        assert_eq!(compute_median_font_size(&chars), 16.0);
+    }
+
+    #[test]
+    fn test_compute_median_even_count() {
+        let chars = vec![
+            make_char("A", 0.0, 0.0, 10.0, 12.0, 10.0),
+            make_char("B", 10.0, 0.0, 20.0, 12.0, 20.0),
+        ];
+        assert_eq!(compute_median_font_size(&chars), 15.0);
+    }
+
+    #[test]
+    fn test_compute_median_skips_zero_size() {
+        let chars = vec![
+            make_char("A", 0.0, 0.0, 10.0, 12.0, 0.0),
+            make_char("B", 10.0, 0.0, 20.0, 12.0, 14.0),
+        ];
+        assert_eq!(compute_median_font_size(&chars), 14.0);
+    }
+
+    #[test]
+    fn test_compute_median_skips_whitespace() {
+        let chars = vec![
+            make_char(" ", 0.0, 0.0, 10.0, 12.0, 12.0),
+            make_char("A", 10.0, 0.0, 20.0, 12.0, 16.0),
+        ];
+        assert_eq!(compute_median_font_size(&chars), 16.0);
+    }
+
+    #[test]
+    fn test_render_multiple_elements() {
+        let elements = vec![
+            HtmlElement::Heading { level: 1, text: "Title".to_string() },
+            HtmlElement::Paragraph("Body text".to_string()),
+        ];
+        let result = render_elements(&elements);
+        assert!(result.contains("<h1>Title</h1>"));
+        assert!(result.contains("<p>Body text</p>"));
+    }
+
+    #[test]
+    fn test_render_table_element() {
+        let elements = vec![HtmlElement::Table("<table><tr><td>X</td></tr></table>".to_string())];
+        let result = render_elements(&elements);
+        assert_eq!(result, "<table><tr><td>X</td></tr></table>");
+    }
+
+    #[test]
+    fn test_render_list_item_ordered() {
+        let elements = vec![
+            HtmlElement::ListItem { ordered: true, text: "first".to_string() },
+            HtmlElement::ListItem { ordered: true, text: "second".to_string() },
+        ];
+        let result = render_elements(&elements);
+        assert!(result.contains("<ol>"), "Expected ordered list, got: {result}");
+        assert!(result.contains("<li>first</li>"));
+        assert!(result.contains("<li>second</li>"));
+        assert!(result.contains("</ol>"));
+    }
+
+    #[test]
+    fn test_render_list_item_unordered() {
+        let elements = vec![
+            HtmlElement::ListItem { ordered: false, text: "a".to_string() },
+            HtmlElement::ListItem { ordered: false, text: "b".to_string() },
+        ];
+        let result = render_elements(&elements);
+        assert!(result.contains("<ul>"));
+        assert!(result.contains("</ul>"));
+    }
+
+    #[test]
+    fn test_html_options_custom() {
+        let opts = HtmlOptions {
+            y_tolerance: 5.0,
+            y_density: 20.0,
+            x_density: 15.0,
+            heading_min_ratio: 1.5,
+            detect_lists: false,
+            detect_emphasis: false,
+        };
+        assert_eq!(opts.y_tolerance, 5.0);
+        assert!(!opts.detect_lists);
+        assert!(!opts.detect_emphasis);
+    }
+
+    #[test]
+    fn test_heading_level_all_six() {
+        let elements: Vec<HtmlElement> = (1..=6).map(|l| HtmlElement::Heading {
+            level: l,
+            text: format!("H{l}"),
+        }).collect();
+        let result = render_elements(&elements);
+        for l in 1..=6 {
+            assert!(result.contains(&format!("<h{l}>H{l}</h{l}>")), "Missing h{l}");
+        }
+    }
+
+    #[test]
+    fn test_render_emphasis_no_bold_no_italic() {
+        let line = TextLine {
+            words: vec![make_word_from_text("plain", 0.0, 0.0, 40.0, 12.0, 12.0, "Helvetica")],
+            bbox: BBox::new(0.0, 0.0, 40.0, 12.0),
+        };
+        let result = render_line_with_emphasis(&line);
+        assert_eq!(result, "plain");
+    }
+
+    #[test]
+    fn test_word_dominant_font_empty_word() {
+        let word = Word {
+            text: "".to_string(),
+            chars: vec![],
+            bbox: BBox::new(0.0, 0.0, 0.0, 0.0),
+            doctop: 0.0,
+            direction: TextDirection::Ltr,
+        };
+        assert_eq!(word_dominant_font(&word), "");
+    }
 }

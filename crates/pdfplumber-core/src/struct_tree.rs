@@ -259,4 +259,118 @@ mod tests {
             assert_eq!(elem.element_type, format!("H{level}"));
         }
     }
+
+    // =========================================================================
+    // Wave 4: additional struct tree tests
+    // =========================================================================
+
+    fn make_elem(etype: &str) -> StructElement {
+        StructElement {
+            element_type: etype.to_string(),
+            mcids: vec![],
+            alt_text: None,
+            actual_text: None,
+            lang: None,
+            bbox: None,
+            children: vec![],
+            page_index: None,
+        }
+    }
+
+    #[test]
+    fn struct_element_deep_nesting() {
+        // Document > Section > P > Span (4 levels deep)
+        let span = make_elem("Span");
+        let mut p = make_elem("P");
+        p.children = vec![span];
+        let mut section = make_elem("Sect");
+        section.children = vec![p];
+        let mut doc = make_elem("Document");
+        doc.children = vec![section];
+
+        assert_eq!(doc.children[0].children[0].children[0].element_type, "Span");
+    }
+
+    #[test]
+    fn struct_element_many_mcids() {
+        let elem = StructElement {
+            element_type: "P".to_string(),
+            mcids: (0..100).collect(),
+            alt_text: None,
+            actual_text: None,
+            lang: None,
+            bbox: None,
+            children: vec![],
+            page_index: Some(0),
+        };
+        assert_eq!(elem.mcids.len(), 100);
+        assert_eq!(elem.mcids[99], 99);
+    }
+
+    #[test]
+    fn struct_element_list_structure() {
+        // L > LI > LBody pattern
+        let lbody = make_elem("LBody");
+        let mut li1 = make_elem("LI");
+        li1.children = vec![lbody];
+        let mut list = make_elem("L");
+        list.children = vec![li1];
+
+        assert_eq!(list.children[0].element_type, "LI");
+        assert_eq!(list.children[0].children[0].element_type, "LBody");
+    }
+
+    #[test]
+    fn struct_element_ne_different_types() {
+        let a = make_elem("P");
+        let b = make_elem("Span");
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn struct_element_ne_different_mcids() {
+        let mut a = make_elem("P");
+        a.mcids = vec![1];
+        let mut b = make_elem("P");
+        b.mcids = vec![2];
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn struct_element_eq_same_fields() {
+        let a = make_elem("P");
+        let b = make_elem("P");
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn struct_element_with_bbox() {
+        let elem = StructElement {
+            element_type: "Figure".to_string(),
+            mcids: vec![],
+            alt_text: None,
+            actual_text: None,
+            lang: None,
+            bbox: Some(BBox::new(0.0, 0.0, 100.0, 200.0)),
+            children: vec![],
+            page_index: None,
+        };
+        let bbox = elem.bbox.unwrap();
+        assert_eq!(bbox.x0, 0.0);
+        assert_eq!(bbox.x1, 100.0);
+        assert_eq!(bbox.bottom, 200.0);
+    }
+
+    #[test]
+    fn struct_element_multiple_children_order() {
+        let mut parent = make_elem("TR");
+        parent.children = vec![
+            make_elem("TH"),
+            make_elem("TD"),
+            make_elem("TD"),
+        ];
+        assert_eq!(parent.children.len(), 3);
+        assert_eq!(parent.children[0].element_type, "TH");
+        assert_eq!(parent.children[1].element_type, "TD");
+    }
 }

@@ -395,4 +395,191 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].page_number, 5);
     }
+
+    // =========================================================================
+    // Wave 3: additional search tests
+    // =========================================================================
+
+    #[test]
+    fn multiple_non_overlapping_matches() {
+        // "ABCABC" — search for "AB"
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char("B", 18.0, 100.0, 26.0, 112.0),
+            make_char("C", 26.0, 100.0, 34.0, 112.0),
+            make_char("A", 34.0, 100.0, 42.0, 112.0),
+            make_char("B", 42.0, 100.0, 50.0, 112.0),
+            make_char("C", 50.0, 100.0, 58.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "AB", &opts, 0);
+        assert_eq!(matches.len(), 2);
+        assert_eq!(matches[0].char_indices, vec![0, 1]);
+        assert_eq!(matches[1].char_indices, vec![3, 4]);
+    }
+
+    #[test]
+    fn regex_dot_star_greedy() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char("X", 18.0, 100.0, 26.0, 112.0),
+            make_char("A", 26.0, 100.0, 34.0, 112.0),
+        ];
+        let opts = SearchOptions::default();
+        let matches = search_chars(&chars, "A.*A", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "AXA");
+    }
+
+    #[test]
+    fn single_char_match() {
+        let chars = vec![
+            make_char("X", 10.0, 100.0, 20.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "X", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].char_indices, vec![0]);
+    }
+
+    #[test]
+    fn search_for_space_character() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char(" ", 18.0, 100.0, 22.0, 112.0),
+            make_char("B", 22.0, 100.0, 30.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, " ", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].char_indices, vec![1]);
+    }
+
+    #[test]
+    fn multi_char_text_in_single_char_struct() {
+        // A Char with text "fi" (ligature) — searching for "fi" should match
+        let chars = vec![
+            make_char("fi", 10.0, 100.0, 22.0, 112.0),
+            make_char("n", 22.0, 100.0, 30.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "fi", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "fi");
+        assert_eq!(matches[0].char_indices, vec![0]);
+    }
+
+    #[test]
+    fn unicode_search() {
+        let chars = vec![
+            make_char("é", 10.0, 100.0, 18.0, 112.0),
+            make_char("t", 18.0, 100.0, 26.0, 112.0),
+            make_char("é", 26.0, 100.0, 34.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "été", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "été");
+    }
+
+    #[test]
+    fn bbox_union_across_different_heights() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("B", 20.0, 95.0, 30.0, 120.0), // taller
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "AB", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        // Union bbox: x0=10, top=min(100,95)=95, x1=30, bottom=max(112,120)=120
+        assert_eq!(matches[0].bbox, BBox::new(10.0, 95.0, 30.0, 120.0));
+    }
+
+    #[test]
+    fn regex_anchored_start() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char("B", 18.0, 100.0, 26.0, 112.0),
+        ];
+        let opts = SearchOptions::default();
+        let matches = search_chars(&chars, "^A", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "A");
+    }
+
+    #[test]
+    fn regex_anchored_end() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char("B", 18.0, 100.0, 26.0, 112.0),
+        ];
+        let opts = SearchOptions::default();
+        let matches = search_chars(&chars, "B$", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "B");
+    }
+
+    #[test]
+    fn case_insensitive_regex() {
+        let chars = vec![
+            make_char("H", 10.0, 100.0, 18.0, 112.0),
+            make_char("E", 18.0, 100.0, 26.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: true,
+            case_sensitive: false,
+        };
+        let matches = search_chars(&chars, "he", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "HE");
+    }
+
+    #[test]
+    fn literal_search_special_regex_chars() {
+        // Search for literal "A.B" (not regex dot)
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 18.0, 112.0),
+            make_char(".", 18.0, 100.0, 22.0, 112.0),
+            make_char("B", 22.0, 100.0, 30.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            case_sensitive: true,
+        };
+        let matches = search_chars(&chars, "A.B", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].text, "A.B");
+    }
+
+    #[test]
+    fn whole_string_match() {
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+        ];
+        let opts = SearchOptions {
+            regex: false,
+            ..Default::default()
+        };
+        let matches = search_chars(&chars, "A", &opts, 0);
+        assert_eq!(matches.len(), 1);
+        assert_eq!(matches[0].bbox, BBox::new(10.0, 100.0, 20.0, 112.0));
+    }
 }

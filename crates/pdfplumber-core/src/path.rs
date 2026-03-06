@@ -580,4 +580,118 @@ mod tests {
         let builder = PathBuilder::new(ctm);
         assert_eq!(*builder.ctm(), ctm);
     }
+
+    // =========================================================================
+    // Wave 4: additional path tests
+    // =========================================================================
+
+    #[test]
+    fn test_take_and_reset_empties_builder() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(10.0, 20.0);
+        builder.line_to(30.0, 40.0);
+        let path = builder.take_and_reset();
+        assert_eq!(path.segments.len(), 2);
+        assert!(builder.is_empty());
+        assert!(builder.current_point().is_none());
+    }
+
+    #[test]
+    fn test_take_and_reset_allows_reuse() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        let _ = builder.take_and_reset();
+        builder.move_to(50.0, 50.0);
+        builder.line_to(100.0, 100.0);
+        let path = builder.build();
+        assert_eq!(path.segments.len(), 2);
+    }
+
+    #[test]
+    fn test_rectangle_produces_5_segments() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(10.0, 20.0, 100.0, 50.0);
+        let path = builder.build();
+        // MoveTo + 3 LineTo + ClosePath = 5
+        assert_eq!(path.segments.len(), 5);
+        assert!(matches!(path.segments[0], PathSegment::MoveTo(_)));
+        assert!(matches!(path.segments[4], PathSegment::ClosePath));
+    }
+
+    #[test]
+    fn test_rectangle_corners() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(10.0, 20.0, 100.0, 50.0);
+        let path = builder.build();
+        assert_eq!(path.segments[0], PathSegment::MoveTo(Point::new(10.0, 20.0)));
+        assert_eq!(path.segments[1], PathSegment::LineTo(Point::new(110.0, 20.0)));
+        assert_eq!(path.segments[2], PathSegment::LineTo(Point::new(110.0, 70.0)));
+        assert_eq!(path.segments[3], PathSegment::LineTo(Point::new(10.0, 70.0)));
+    }
+
+    #[test]
+    fn test_curve_v_no_current_point_noop() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.curve_to_v(10.0, 20.0, 30.0, 40.0);
+        assert!(builder.is_empty());
+    }
+
+    #[test]
+    fn test_curve_y_no_current_point_still_adds_segment() {
+        // curve_to_y doesn't require current_point (unlike curve_to_v)
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.curve_to_y(10.0, 20.0, 30.0, 40.0);
+        assert!(!builder.is_empty());
+    }
+
+    #[test]
+    fn test_close_path_without_subpath_start() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.close_path();
+        let path = builder.build();
+        assert_eq!(path.segments.len(), 1);
+        assert_eq!(path.segments[0], PathSegment::ClosePath);
+    }
+
+    #[test]
+    fn test_path_clone_eq() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(10.0, 20.0);
+        let path = builder.build();
+        assert_eq!(path, path.clone());
+    }
+
+    #[test]
+    fn test_path_segment_clone_eq() {
+        let seg = PathSegment::CurveTo {
+            cp1: Point::new(1.0, 2.0),
+            cp2: Point::new(3.0, 4.0),
+            end: Point::new(5.0, 6.0),
+        };
+        assert_eq!(seg, seg.clone());
+    }
+
+    #[test]
+    fn test_two_subpaths_four_segments() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(10.0, 0.0);
+        builder.move_to(20.0, 20.0);
+        builder.line_to(30.0, 20.0);
+        let path = builder.build();
+        assert_eq!(path.segments.len(), 4);
+    }
+
+    #[test]
+    fn test_builder_clone() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(10.0, 20.0);
+        let cloned = builder.clone();
+        builder.line_to(30.0, 40.0);
+        let path1 = builder.build();
+        let path2 = cloned.build();
+        assert_eq!(path1.segments.len(), 2);
+        assert_eq!(path2.segments.len(), 1); // clone was before line_to
+    }
 }

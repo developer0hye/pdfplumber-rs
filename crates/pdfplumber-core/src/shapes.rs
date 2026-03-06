@@ -1096,4 +1096,218 @@ mod tests {
         assert_approx(curve.pts[2].0, 80.0);
         assert_approx(curve.pts[3].0, 100.0);
     }
+
+    // =========================================================================
+    // Wave 3: additional shapes tests
+    // =========================================================================
+
+    #[test]
+    fn test_classify_orientation_near_horizontal() {
+        // dy < AXIS_TOLERANCE → horizontal
+        assert_eq!(
+            classify_orientation(0.0, 100.0, 200.0, 100.0 + 1e-7),
+            Orientation::Horizontal
+        );
+    }
+
+    #[test]
+    fn test_classify_orientation_near_vertical() {
+        assert_eq!(
+            classify_orientation(100.0, 0.0, 100.0 + 1e-7, 200.0),
+            Orientation::Vertical
+        );
+    }
+
+    #[test]
+    fn test_classify_orientation_point() {
+        // Same point: dx=0, dy=0 → horizontal (dy < tolerance checked first)
+        assert_eq!(
+            classify_orientation(50.0, 50.0, 50.0, 50.0),
+            Orientation::Horizontal
+        );
+    }
+
+    #[test]
+    fn test_flip_y_zero() {
+        assert_approx(flip_y(0.0, 0.0), 0.0);
+    }
+
+    #[test]
+    fn test_flip_y_negative_page_height() {
+        // Unusual but should work mathematically
+        assert_approx(flip_y(10.0, -5.0), -15.0);
+    }
+
+    #[test]
+    fn test_rect_dimensions_100x50() {
+        let rect = Rect {
+            x0: 10.0,
+            top: 20.0,
+            x1: 110.0,
+            bottom: 70.0,
+            line_width: 1.0,
+            stroke: true,
+            fill: false,
+            stroke_color: Color::black(),
+            fill_color: Color::black(),
+        };
+        assert_approx(rect.width(), 100.0);
+        assert_approx(rect.height(), 50.0);
+    }
+
+    #[test]
+    fn test_rect_zero_size() {
+        let rect = Rect {
+            x0: 10.0,
+            top: 20.0,
+            x1: 10.0,
+            bottom: 20.0,
+            line_width: 1.0,
+            stroke: true,
+            fill: false,
+            stroke_color: Color::black(),
+            fill_color: Color::black(),
+        };
+        assert_approx(rect.width(), 0.0);
+        assert_approx(rect.height(), 0.0);
+    }
+
+    #[test]
+    fn test_filled_rect_not_stroked() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(10.0, 10.0, 100.0, 50.0);
+        let painted = builder.fill(&default_gs());
+
+        let (_, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(rects.len(), 1);
+        assert!(rects[0].fill);
+        assert!(!rects[0].stroke);
+    }
+
+    #[test]
+    fn test_non_stroked_path_produces_no_lines() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(100.0, 0.0);
+        let painted = builder.fill(&default_gs());
+
+        let (lines, _, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert!(lines.is_empty());
+    }
+
+    #[test]
+    fn test_single_move_to_no_shapes() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(50.0, 50.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert!(lines.is_empty());
+        assert!(rects.is_empty());
+        assert!(curves.is_empty());
+    }
+
+    #[test]
+    fn test_three_subpaths_line_each() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        for i in 0..3 {
+            let y = i as f64 * 100.0;
+            builder.move_to(0.0, y);
+            builder.line_to(100.0, y);
+        }
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(lines.len(), 3);
+        assert!(rects.is_empty());
+        for line in &lines {
+            assert_eq!(line.orientation, Orientation::Horizontal);
+        }
+    }
+
+    #[test]
+    fn test_rectangle_from_re_has_stroke_color() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(0.0, 0.0, 50.0, 50.0);
+        let painted = builder.stroke(&custom_gs());
+
+        let (_, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(rects.len(), 1);
+        assert_eq!(rects[0].stroke_color, Color::Rgb(1.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn test_line_clone_eq() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(100.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, _, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let cloned = lines[0].clone();
+        assert_eq!(lines[0], cloned);
+    }
+
+    #[test]
+    fn test_curve_clone_eq() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.curve_to(10.0, 50.0, 40.0, 50.0, 50.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        let cloned = curves[0].clone();
+        assert_eq!(curves[0], cloned);
+    }
+
+    #[test]
+    fn test_rect_clone_eq() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(10.0, 10.0, 50.0, 50.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let cloned = rects[0].clone();
+        assert_eq!(rects[0], cloned);
+    }
+
+    #[test]
+    fn test_two_rectangles_in_one_path() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.rectangle(0.0, 0.0, 50.0, 50.0);
+        builder.rectangle(100.0, 100.0, 50.0, 50.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (_, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(rects.len(), 2);
+    }
+
+    #[test]
+    fn test_diagonal_line_has_correct_bounds() {
+        let mut builder = PathBuilder::new(Ctm::identity());
+        builder.move_to(0.0, 0.0);
+        builder.line_to(100.0, 200.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, _, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(lines.len(), 1);
+        // x-range
+        assert_approx(lines[0].x0, 0.0);
+        assert_approx(lines[0].x1, 100.0);
+    }
+
+    #[test]
+    fn test_ctm_translation() {
+        let ctm = Ctm::new(1.0, 0.0, 0.0, 1.0, 50.0, 100.0);
+        let mut builder = PathBuilder::new(ctm);
+        builder.move_to(0.0, 0.0);
+        builder.line_to(100.0, 0.0);
+        let painted = builder.stroke(&default_gs());
+
+        let (lines, _, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert_eq!(lines.len(), 1);
+        // Translated by (50, 100)
+        assert_approx(lines[0].x0, 50.0);
+        assert_approx(lines[0].x1, 150.0);
+    }
 }

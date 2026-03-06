@@ -316,4 +316,175 @@ mod tests {
         assert!((opts.tolerance - 1.0).abs() < f64::EPSILON);
         assert_eq!(opts.extra_attrs, vec!["fontname", "size"]);
     }
+
+    // =========================================================================
+    // Wave 3: dedupe edge cases
+    // =========================================================================
+
+    #[test]
+    fn test_different_text_both_kept() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("B", 10.0, 20.0, 20.0, 32.0);
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_exact_position_duplicate() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].text, "A");
+    }
+
+    #[test]
+    fn test_within_tolerance_deduped() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.5, 20.5, 20.5, 32.5);
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_beyond_tolerance_not_deduped() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 12.0, 20.0, 22.0, 32.0); // dx=2, beyond default tolerance=1
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_tolerance_exact_boundary() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 11.0, 20.0, 21.0, 32.0); // dx=1.0 exactly
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        // At tolerance=1.0, dx=1.0 should be duplicate (<=)
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_zero_tolerance() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c3 = make_char("A", 10.001, 20.0, 20.001, 32.0);
+        let opts = DedupeOptions {
+            tolerance: 0.0,
+            extra_attrs: vec![],
+        };
+        let result = dedupe_chars(&[c1, c2, c3], &opts);
+        // c1 and c2 are exact duplicates; c3 is at 0.001 offset which exceeds 0.0 tolerance
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_large_tolerance() {
+        let c1 = make_char("A", 0.0, 0.0, 10.0, 12.0);
+        let c2 = make_char("A", 100.0, 100.0, 110.0, 112.0);
+        let opts = DedupeOptions {
+            tolerance: 200.0,
+            extra_attrs: vec![],
+        };
+        let result = dedupe_chars(&[c1, c2], &opts);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_different_font_blocks_dedup() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let mut c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        c2.fontname = "DifferentFont".to_string();
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_different_size_blocks_dedup() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let mut c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        c2.size = 24.0;
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_no_extra_attrs_only_position_and_text() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let mut c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        c2.fontname = "DifferentFont".to_string();
+        c2.size = 24.0;
+        let opts = DedupeOptions {
+            tolerance: 1.0,
+            extra_attrs: vec![], // no extra attrs checked
+        };
+        let result = dedupe_chars(&[c1, c2], &opts);
+        assert_eq!(result.len(), 1); // deduped because only text+position matter
+    }
+
+    #[test]
+    fn test_three_duplicates_keeps_first() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c3 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let result = dedupe_chars(&[c1, c2, c3], &DedupeOptions::default());
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_interleaved_duplicates() {
+        // A at pos1, B at pos2, A at pos1 again, B at pos2 again
+        let a1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let b1 = make_char("B", 30.0, 20.0, 40.0, 32.0);
+        let a2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let b2 = make_char("B", 30.0, 20.0, 40.0, 32.0);
+        let result = dedupe_chars(&[a1, b1, a2, b2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0].text, "A");
+        assert_eq!(result[1].text, "B");
+    }
+
+    #[test]
+    fn test_unknown_extra_attr_treated_as_matching() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let opts = DedupeOptions {
+            tolerance: 1.0,
+            extra_attrs: vec!["unknown_field".to_string()],
+        };
+        let result = dedupe_chars(&[c1, c2], &opts);
+        assert_eq!(result.len(), 1); // unknown attrs match by default
+    }
+
+    #[test]
+    fn test_upright_attr_check() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let mut c2 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        c2.upright = false;
+        let opts = DedupeOptions {
+            tolerance: 1.0,
+            extra_attrs: vec!["upright".to_string()],
+        };
+        let result = dedupe_chars(&[c1, c2], &opts);
+        assert_eq!(result.len(), 2); // different upright
+    }
+
+    #[test]
+    fn test_y_offset_only_beyond_tolerance() {
+        let c1 = make_char("A", 10.0, 20.0, 20.0, 32.0);
+        let c2 = make_char("A", 10.0, 22.0, 20.0, 34.0); // dy=2, beyond tolerance
+        let result = dedupe_chars(&[c1, c2], &DedupeOptions::default());
+        assert_eq!(result.len(), 2);
+    }
+
+    #[test]
+    fn test_output_order_preserved() {
+        let chars: Vec<Char> = (0..5)
+            .map(|i| make_char(&format!("{}", (b'A' + i) as char), i as f64 * 20.0, 0.0, (i as f64 + 1.0) * 20.0, 12.0))
+            .collect();
+        let result = dedupe_chars(&chars, &DedupeOptions::default());
+        assert_eq!(result.len(), 5);
+        for (i, ch) in result.iter().enumerate() {
+            assert_eq!(ch.text, format!("{}", (b'A' + i as u8) as char));
+        }
+    }
 }
