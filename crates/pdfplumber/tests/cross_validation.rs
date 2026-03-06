@@ -1501,3 +1501,69 @@ fn cross_validate_chelsea_pdta_chars_85() {
         result.total_char_rate() * 100.0,
     );
 }
+
+
+#[test]
+#[ignore = "diagnostic: dump hello_structure page chars"]
+fn diag_hello_structure_chars() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    if !path.exists() { panic!("fixture not found"); }
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    for (i, page_result) in pdf.pages_iter().enumerate() {
+        let page = page_result.unwrap();
+        let chars = page.chars();
+        eprintln!("page {i}: {} chars", chars.len());
+        for c in chars.iter().take(8) {
+            eprintln!("  {:?} font={:?} size={}", c.text, c.fontname, c.size);
+        }
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: compare hello_structure page 0 vs golden"]
+fn diag_hello_structure_vs_golden() {
+    use std::collections::HashMap;
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/golden/hello_structure.json");
+    let bytes = std::fs::read(&path).unwrap();
+    let golden_str = std::fs::read_to_string(&golden_path).unwrap();
+    let golden: serde_json::Value = serde_json::from_str(&golden_str).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    
+    // Page 0
+    let page = pdf.pages_iter().next().unwrap().unwrap();
+    let rust_chars = page.chars();
+    let golden_chars = &golden["pages"][0]["chars"];
+    eprintln!("=== page 0: rust={} golden={} ===", rust_chars.len(), golden_chars.as_array().map(|a| a.len()).unwrap_or(0));
+    for (i, c) in rust_chars.iter().enumerate().take(5) {
+        eprintln!("  rust[{i}]: {:?} x0={:.1} bot={:.1} top={:.1}", c.text, c.bbox.x0, c.bbox.bottom, c.bbox.top);
+    }
+    let gc = golden_chars.as_array().unwrap();
+    for (i, c) in gc.iter().enumerate().take(5) {
+        eprintln!("  gold[{i}]: {:?} x0={:.1} top={:.1} bot={:.1}", 
+            c["text"].as_str().unwrap_or("?"),
+            c["x0"].as_f64().unwrap_or(0.0),
+            c["top"].as_f64().unwrap_or(0.0),
+            c["bottom"].as_f64().unwrap_or(0.0),
+        );
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: hello_structure page geometry"]
+fn diag_hello_structure_geometry() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    let page = pdf.pages_iter().next().unwrap().unwrap();
+    eprintln!("page height={} width={}", page.height(), page.width());
+    let chars = page.chars();
+    for c in chars.iter().take(3) {
+        eprintln!("  {:?} x0={} top={} x1={} bot={}", c.text, c.bbox.x0, c.bbox.top, c.bbox.x1, c.bbox.bottom);
+    }
+}
