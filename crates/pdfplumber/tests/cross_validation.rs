@@ -5,7 +5,38 @@
 //! # Status
 //!
 //! All char/word/line/rect metrics at or above PRD targets (95%+).
-//! - **scotus-transcript**: 1 char gap (synthetic `\n` from Python layout analysis).
+//!
+//! ## Documented residual deltas (Issue #222)
+//!
+//! The following fixtures have small persistent gaps with known root causes.
+//! All pass their respective thresholds and are not regressions.
+//!
+//! ### scotus-transcript-p1.pdf — chars 99.9% (1 char gap)
+//! Python pdfplumber emits a synthetic `\n` character at line boundaries from its
+//! layout-analysis pass. This is a Python-only artifact; pdfplumber-rs does not
+//! generate synthetic chars. Acceptable and expected.
+//!
+//! ### issue-912.pdf — chars 99.1-99.2%, words 98.5-99.0% (4 chars/page)
+//! Each page has 4 Helvetica chars in the page header (top ≈ 15.9 pts) whose
+//! y-coordinate in pdfplumber-rs is shifted by +2.36 pts vs Python. The x-coordinates
+//! match exactly and glyph heights are identical (20 pts). Root cause: these chars
+//! appear to originate from a Form XObject or stamped layer whose CTM shifts the
+//! origin by ~2.36 pts; our CTM accumulation slightly differs from pdfminer's for
+//! nested content streams. The delta (2.36 pts < 3 pts) is sub-pixel in most renders
+//! and does not affect downstream text extraction or word grouping at normal tolerances.
+//!
+//! ### pr-136-example.pdf — words 95-98% on CJK pages (chars 100%)
+//! This is a Chinese-language document. Python pdfplumber uses font-level word
+//! boundaries and CJK-aware segmentation that splits compound CJK sequences
+//! differently than our x-gap heuristic. Chars extract at 100%; word-boundary
+//! differences for CJK text are an expected divergence between pdfminer-based
+//! and custom word grouping algorithms.
+//!
+//! ### issue-982-example.pdf — chars 99.6-99.9% on some pages, words 98.6-99.6%
+//! Small char count differences (2-19 chars per page) with matching text — likely
+//! the same CTM offset pattern seen in issue-912 for header/footer elements rendered
+//! via Form XObjects. All pages meet the 95% threshold with margin.
+//!
 //! - **nics-background-checks tables**: Table cell accuracy 100% after grid completion fix.
 
 #![allow(dead_code)]
@@ -1029,6 +1060,9 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
+// issue-912: ~99.1% chars / ~98.8% words — 4 header chars per page shifted +2.36 pts
+// in y due to CTM origin difference in nested Form XObject content streams.
+// See Issue #222 for full root-cause analysis.
 cross_validate!(
     cv_python_issue_912,
     "issue-912.pdf",
@@ -1153,6 +1187,9 @@ cross_validate!(
     CHAR_THRESHOLD
 );
 cross_validate!(cv_python_issue_842, "issue-842-example.pdf", 0.50, 0.05);
+// issue-982: 99.6-99.9% chars / 98.6-99.6% words on header/footer pages —
+// same CTM origin offset pattern as issue-912 for Form XObject-sourced elements.
+// See Issue #222 for root-cause documentation.
 cross_validate!(
     cv_python_issue_982,
     "issue-982-example.pdf",
@@ -1258,6 +1295,10 @@ cross_validate!(
 cross_validate_ignored!(cv_python_issue_1181, "issue-1181.pdf", "PDF parse error");
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
 cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+// pr-136: CJK (Chinese) document — chars 100%, words 95-98% on CJK pages.
+// Python pdfplumber uses CJK-aware word segmentation from pdfminer; our x-gap
+// heuristic groups differently. Threshold kept low (0.05) reflecting known gap.
+// See Issue #222 for root-cause documentation.
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
