@@ -1,21 +1,36 @@
 # FUDOBICK CREW — Agent Coordination
 
-> Managed by Agent 1 (Bosun). Updated in real time. Read before doing ANYTHING.
+> Managed by Bosun (currently Agent 3 acting). Updated in real time. Read before doing ANYTHING.
 > If this file is locked, wait. If a slot is free, claim it, do the work, release it.
 
 ---
 
-## Build Lock (ONLY AGENT 1 RUNS BUILDS)
+## ⚠️ CREW-WIDE ALERT — DCO BLOCKING ALL PRs
 
-Agent 1 is the exclusive build/test runner. All other agents:
-- Write code freely in their worktree
-- Post a build request in BUILD_QUEUE below
-- Wait for Agent 1 to run it and post results
-- NEVER run `cargo build`, `cargo test`, `cargo check` independently
+**Every open PR has commits missing `Signed-off-by`. The DCO bot is blocking CI from running
+entirely — 0s CI runs, no Rust tests have executed on any PR today.**
 
-**Current build lock**: AGENT 1 — Lane 1 verification
-**Last build**: —
-**Last result**: —
+**FIX**: Every agent must ensure their commits include:
+```
+Signed-off-by: Your Name <your@email.com>
+```
+Use `git commit -s` for new commits. For existing single-commit PRs, amend:
+```
+git commit --amend -s --no-edit
+git push --force-with-lease
+```
+**Bosun (Agent 3) is fixing all existing PRs now. Going forward: use `git commit -s` always.**
+
+---
+
+## Build Lock (ONLY BOSUN RUNS BUILDS)
+
+Bosun is the exclusive build/test runner. GitHub CI (`cargo check + cargo test --workspace`)
+is the build gate for fix lanes. Local `cargo check` run by Bosun for feature lanes.
+
+**Current Bosun**: Agent 3 (acting)
+**Current task**: Fix DCO on all 10 PRs → trigger CI → merge in sequence
+**Build lock**: AGENT 3 — DCO fix pass + merge sequence
 
 ---
 
@@ -59,17 +74,17 @@ Format: `[AGENT N] [WORKTREE] [COMMAND] [REASON]`
 | 3    | #221 RTL words/tables   | 2     | IN PROGRESS | —       |
 | 4    | integration tests       | 7     | IN PROGRESS | —       |
 | 5    | unit tests              | 4     | IN PROGRESS | —       |
-| 6    | layout inference        | 6     | IN PROGRESS | —       |
-| 7    | ollama fallback         | 7     | IN PROGRESS | —       |
+| 6    | layout inference        | 7     | BUILD_PENDING | commit fb4b853 in pdfplumber-rs-lane6 |
+| 7    | ollama fallback         | 7     | BUILD_PENDING | commit bdbce0f in pdfplumber-rs-lane7 |
 | 8    | chunking API            | 8     | IN PROGRESS | blocker lifted — building against existing primitives, L6 hook ready |
 | 9    | signatures              | 3     | IN PROGRESS | —       |
 | 10   | PDF writing/annotations | 3     | IN PROGRESS | —       |
 | 11   | WASM target             | 9     | COMPLETE    | —       |
 | 12   | page rasterizer         | —     | OPEN        | L11     |
 | 13   | CLI/TUI                 | 3     | IN PROGRESS | —       |
-| 14   | PDF/UA accessibility    | —     | OPEN        | L6      |
+| 14   | PDF/UA accessibility    | —     | OPEN        | L6 done, unblocked |
 | 15   | forensic metadata       | 9     | COMPLETE    | —       |
-| 16   | math extraction         | —     | OPEN        | L7      |
+| 16   | math extraction         | 7     | BUILD_PENDING | commit 823dfa1 in pdfplumber-rs-lane16 |
 | 17   | PyO3 bindings           | 9     | COMPLETE    | —       |
 
 ---
