@@ -152,6 +152,7 @@ impl Chunker {
     ///
     /// This is the core chunking algorithm. Exposed so callers can supply
     /// their own layout analysis results.
+    #[allow(unused_assignments)] // flush_prose! macro sets overlap_prefix/accum_bbox at every call site; final expansion has no reader
     pub fn chunk_from_layout(&self, page_idx: usize, blocks: &[LayoutBlock]) -> Vec<Chunk> {
         let mut chunks: Vec<Chunk> = Vec::new();
         let mut current_section: Option<String> = None;

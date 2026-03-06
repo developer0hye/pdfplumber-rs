@@ -24,7 +24,7 @@
 //! (case-insensitive) add [`BOLD_FONT_BOOST`] to the effective font-size ratio,
 //! allowing bold body-text to qualify as a heading at a lower size threshold.
 
-use pdfplumber_core::{BBox, TextBlock};
+use pdfplumber_core::TextBlock;
 
 /// A block must have a dominant font size at least this many times larger than the
 /// page median to qualify as a heading.

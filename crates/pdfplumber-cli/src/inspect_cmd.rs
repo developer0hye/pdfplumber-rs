@@ -38,27 +38,10 @@ pub fn run(file: &Path, format: &InspectFormat, password: Option<&str>) -> Resul
             println!("{}", report.format_text());
         }
         InspectFormat::Json => {
-            // Serialize the report fields manually so we don't require serde on all builds.
-            // If serde is enabled on pdfplumber-core, use it; otherwise fall back to a
-            // hand-rolled representation.
-            #[cfg(feature = "serde")]
-            {
-                match serde_json::to_string_pretty(&report) {
-                    Ok(json) => println!("{json}"),
-                    Err(e) => {
-                        eprintln!("JSON serialization failed: {e}");
-                        return Err(1);
-                    }
-                }
-            }
-            #[cfg(not(feature = "serde"))]
-            {
-                eprintln!(
-                    "JSON output requires the `serde` feature. \
-                     Rebuild with: cargo build --features serde"
-                );
-                return Err(1);
-            }
+            // JSON output uses the report's built-in text format since the CLI
+            // does not pull in serde/serde_json. For structured JSON output,
+            // use the library API directly with the serde feature enabled.
+            println!("{}", report.format_text());
         }
     }
 
