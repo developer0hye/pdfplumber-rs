@@ -133,7 +133,7 @@ pub fn show_string_cid(
 
     while i < string_bytes.len() {
         let char_code = if i + 1 < string_bytes.len() {
-            let code = u32::from(string_bytes[i]) << 8 | u32::from(string_bytes[i + 1]);
+            let code = (u32::from(string_bytes[i]) << 8) | u32::from(string_bytes[i + 1]);
             i += 2;
             code
         } else {

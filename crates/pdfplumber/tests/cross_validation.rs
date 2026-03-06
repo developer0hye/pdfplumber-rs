@@ -1211,6 +1211,14 @@ fn cross_validate_nics_rotated() {
         result.total_rect_rate() * 100.0,
         CHAR_THRESHOLD * 100.0,
     );
+    // Issue #223: rotated nics table was 5.6% before greedy edge extension fix.
+    // Acceptance criterion: ≥ 90% table cell accuracy on the 90° rotated page.
+    assert!(
+        result.total_table_rate() >= TABLE_THRESHOLD,
+        "table rate {:.1}% < {:.1}% — rotated nics table extraction regression (issue #223)",
+        result.total_table_rate() * 100.0,
+        TABLE_THRESHOLD * 100.0,
+    );
 }
 cross_validate!(
     cv_python_pdf_structure,
