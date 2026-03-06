@@ -9,7 +9,11 @@ use crate::BBox;
 ///
 /// Covers the most frequently used annotation types defined in PDF 1.7 (Table 169).
 /// Unknown or rare subtypes are represented as [`AnnotationType::Other`].
+///
+/// `#[non_exhaustive]` — the PDF spec defines dozens of subtypes; new variants
+/// will be added in minor releases as coverage expands.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AnnotationType {
     /// Text annotation (sticky note).

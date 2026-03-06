@@ -9,7 +9,11 @@ use crate::BBox;
 /// The type of a PDF form field.
 ///
 /// Corresponds to the `/FT` entry in a field dictionary (PDF 1.7 Table 220).
+///
+/// `#[non_exhaustive]` — future PDF revisions or XFA form support may
+/// introduce additional field types.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FieldType {
     /// Text field (`/FT /Tx`) — accepts text input.

@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Command-line tool to extract text, characters, words, and tables from PDF documents"
 keywords = ["pdf", "cli", "table", "text-extraction"]
 categories = ["command-line-utilities"]
+readme = "README.md"
 
 [[bin]]
 name = "pdfplumber"

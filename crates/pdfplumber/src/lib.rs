@@ -1,3 +1,6 @@
+#![warn(missing_docs)]
+#![forbid(unsafe_code)]
+
 //! Extract chars, words, lines, rects, and tables from PDF documents
 //! with precise coordinates.
 //!

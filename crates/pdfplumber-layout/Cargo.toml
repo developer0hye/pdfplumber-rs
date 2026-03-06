@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Semantic layout inference for pdfplumber-rs: sections, headings, paragraphs, tables, and figures"
 keywords = ["pdf", "layout", "semantic", "document-structure", "text-extraction"]
 categories = ["parser-implementations", "text-processing"]
+readme = "README.md"
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }

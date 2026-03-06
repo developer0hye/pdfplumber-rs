@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber", "document"]
 categories = ["parser-implementations", "text-processing"]
+readme = "README.md"
 
 [features]
 default = ["std"]

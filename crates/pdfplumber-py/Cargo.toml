@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Python bindings for pdfplumber-rs via PyO3"
+keywords = ["pdf", "python", "pyo3", "pdfplumber", "text-extraction"]
+categories = ["api-bindings", "parser-implementations"]
+readme = "README.md"
 publish = false
 
 [lib]

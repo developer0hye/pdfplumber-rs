@@ -1,0 +1,43 @@
+# cargo-deny configuration for pdfplumber-rs
+# Run: cargo deny check
+# Docs: https://embarkstudios.github.io/cargo-deny/
+
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "ISC",
+    "Unicode-DFL",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Zlib",
+    "BSL-1.0",
+    "MPL-2.0",       # lopdf uses MPL-2.0
+]
+deny = ["GPL-3.0", "AGPL-3.0"]
+# Unlicensed crates require explicit exception below
+unlicensed = "deny"
+# Allow ring's non-standard license (used by lopdf's crypto deps)
+exceptions = []
+
+[advisories]
+# Deny crates with security advisories unless explicitly ignored.
+# Add exceptions with a comment explaining the decision and expected resolution date.
+ignore = []
+unmaintained = "warn"
+yanked = "deny"
+
+[bans]
+# Warn on multiple versions of the same crate — prefer deduplication.
+multiple-versions = "warn"
+# Wildcards in dep versions are sloppy — warn.
+wildcards = "warn"
+# Known duplicates we accept:
+skip = []
+
+[sources]
+# Only allow crates from crates.io and our own workspace paths.
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-git = []

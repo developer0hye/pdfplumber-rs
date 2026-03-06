@@ -1,3 +1,6 @@
+#![warn(missing_docs)]
+#![forbid(unsafe_code)]
+
 //! Backend-independent data types and algorithms for pdfplumber-rs.
 //!
 //! This crate provides the foundational types ([`BBox`], [`Char`], [`Word`],

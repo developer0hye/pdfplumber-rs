@@ -84,7 +84,11 @@ pub use paragraphs::Paragraph;
 pub use sections::Section;
 
 /// Semantic block type — the union of all layout elements on a page.
+///
+/// `#[non_exhaustive]` — new block types (e.g., `Code`, `MathEquation`,
+/// `Footnote`) may be added in minor releases as layout inference expands.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LayoutBlock {
     /// A heading at a given level.

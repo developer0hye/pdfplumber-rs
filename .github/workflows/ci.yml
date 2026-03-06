@@ -48,3 +48,22 @@ jobs:
           key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check rustdoc (no warnings)
+        run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+
+  deny:
+    name: Licenses & Advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check licenses advisories
