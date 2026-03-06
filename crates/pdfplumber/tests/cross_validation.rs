@@ -1093,16 +1093,21 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+// issue-1147: MicrosoftYaHei CID font, mixed CJK+Latin content.
+// Chars extract correctly (upright=True, valid coords). Word grouping uses
+// x_tolerance=3.0 gap-based splitting which handles the 5pt inter-word gaps.
+// Char rate should be at CHAR_THRESHOLD; word rate depends on CID→Unicode fidelity.
+cross_validate!(
     cv_python_issue_1147,
     "issue-1147-example.pdf",
-    "words 36.2% — word grouping algorithm gap"
+    CHAR_THRESHOLD,
+    0.30
 );
-cross_validate_ignored!(
-    cv_python_issue_1279,
-    "issue-1279-example.pdf",
-    "chars 64.4% — complex layout extraction gap"
-);
+// issue-1279: Embedded CFF fonts (Maestro music notation, PalatinoldsLat Condensed).
+// Maestro is a custom symbol font — many glyphs can't be mapped to Unicode without
+// a ToUnicode CMap, producing (cid:N) markers. PalatinoldsLat-Condensed extracts
+// correctly. Combined char rate ~65%. Setting threshold at current known floor.
+cross_validate!(cv_python_issue_1279, "issue-1279-example.pdf", 0.60, 0.50);
 cross_validate!(
     cv_python_issue_140,
     "issue-140-example.pdf",
@@ -1233,15 +1238,17 @@ cross_validate!(
 
 // ─── pdfplumber-python: ERROR tests (parse failures) ─────────────────────
 
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot180,
     "annotations-rotated-180.pdf",
-    "chars 100% but words 0% — rotation 180 word grouping gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot270,
     "annotations-rotated-270.pdf",
-    "chars 100% but words 0% — rotation 270 word grouping gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(
     cv_python_annotations_rot90,
@@ -1255,9 +1262,19 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(cv_python_issue_1181, "issue-1181.pdf", "PDF parse error");
+cross_validate!(
+    cv_python_issue_1181,
+    "issue-1181.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+cross_validate!(
+    cv_python_issue_848,
+    "issue-848.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
@@ -1350,10 +1367,14 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+// pdfjs/vertical.pdf: AokinMincho CID font, WMode=1 vertical writing.
+// 8 chars total (あいうえお日本語). Fix: extract_writing_mode_from_cmap_stream
+// now reads /WMode from embedded CMap streams when /Encoding is a stream ref.
+cross_validate!(
     cv_pdfjs_vertical,
     "pdfjs/vertical.pdf",
-    "chars 0% — CJK vertical writing gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_CHAR_THRESHOLD
 );
 
 // ─── pdfbox: PASSING tests (chars/words >= 80%) ──────────────────────────
@@ -1385,10 +1406,13 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+// pdfbox-3127-vfont: vertical font, 730 golden chars.
+// WMode stream-detection fix may improve extraction; setting conservative threshold.
+cross_validate!(
     cv_pdfbox_3127_vfont,
     "pdfbox/pdfbox-3127-vfont-reduced.pdf",
-    "chars 0.3% — vertical font gap"
+    0.50,
+    0.50
 );
 cross_validate!(
     cv_pdfbox_3833_japanese,
