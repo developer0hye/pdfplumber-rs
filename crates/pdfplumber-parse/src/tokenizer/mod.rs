@@ -9,7 +9,7 @@
 //! | Module | Contents |
 //! |--------|----------|
 //! | (this) | Public types and `tokenize` / `tokenize_lenient` |
-//! | [`parse`] | Private byte-level parsing primitives |
+//! | `parse`   | Private byte-level parsing primitives |
 
 use crate::error::BackendError;
 

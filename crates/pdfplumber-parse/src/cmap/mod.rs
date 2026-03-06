@@ -78,7 +78,7 @@ impl CMap {
     ///
     /// Returns `None` if the code has no mapping in this CMap.
     /// For Identity CMaps, returns `None` (the caller should use
-    /// `char::from_u32` as fallback; see [`is_identity`]).
+    /// `char::from_u32` as fallback; see [`CMap::is_identity`]).
     pub fn lookup(&self, code: u32) -> Option<&str> {
         self.mappings.get(&code).map(|s| s.as_str())
     }

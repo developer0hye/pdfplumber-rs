@@ -1,18 +1,18 @@
-//! Heuristic heading detection from [`TextBlock`] geometry and font metrics.
+//! Heuristic heading detection from [`pdfplumber_core::TextBlock`] geometry and font metrics.
 //!
 //! ## The signal
 //!
 //! A block is classified as a heading when **all three** conditions hold:
 //!
 //! 1. **Font size ratio**: the block's dominant (median) font size is ≥
-//!    [`HEADING_FONT_SIZE_RATIO`] × the page's median font size.
+//!    `HEADING_FONT_SIZE_RATIO` × the page's median font size.
 //!
-//! 2. **Block length**: the block contains ≤ [`HEADING_MAX_WORDS`] words. Long
+//! 2. **Block length**: the block contains ≤ `HEADING_MAX_WORDS` words. Long
 //!    blocks are prose even if their font is slightly larger.
 //!
 //! 3. **Vertical position OR gap**: the block either starts in the top
-//!    [`HEADING_TOP_FRACTION`] of the page, OR follows a vertical gap ≥
-//!    [`HEADING_GAP_THRESHOLD`] points from the previous block.
+//!    `HEADING_TOP_FRACTION` of the page, OR follows a vertical gap ≥
+//!    `HEADING_GAP_THRESHOLD` points from the previous block.
 //!
 //! These three signals together catch section headings in annual reports, legal
 //! documents, academic papers, and government PDFs without false-positives on
@@ -21,7 +21,7 @@
 //! ## Bold detection
 //!
 //! As a secondary signal, font names containing "Bold", "Heavy", or "Black"
-//! (case-insensitive) add [`BOLD_FONT_BOOST`] to the effective font-size ratio,
+//! (case-insensitive) add `BOLD_FONT_BOOST` to the effective font-size ratio,
 //! allowing bold body-text to qualify as a heading at a lower size threshold.
 
 use pdfplumber_core::TextBlock;

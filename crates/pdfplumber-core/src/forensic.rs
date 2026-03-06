@@ -254,7 +254,7 @@ pub struct MetadataFinding {
 
 /// Comprehensive forensic analysis of a PDF document.
 ///
-/// Produced by [`Pdf::inspect()`]. Contains all findings from metadata
+/// Produced by `Pdf::inspect()`. Contains all findings from metadata
 /// analysis, structural analysis, and content analysis.
 ///
 /// # Interpretation

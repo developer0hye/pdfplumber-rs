@@ -56,7 +56,7 @@ pub struct Chunk {
     /// Estimated token count.
     ///
     /// Computed as `ceil(whitespace_word_count * 1.3)`. Within ±20% of GPT-4
-    /// BPE token counts for English prose. See [`crate::token`].
+    /// BPE token counts for English prose. See [`crate::token_estimate`].
     pub token_count: usize,
 }
 

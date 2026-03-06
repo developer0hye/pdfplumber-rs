@@ -352,7 +352,7 @@ impl A11yAnalyzer {
         }
     }
 
-    /// Analyze a [`Pdf`] for PDF/UA-1 compliance AND run [`TagInferrer`] on
+    /// Analyze a [`Pdf`] for PDF/UA-1 compliance AND run [`crate::TagInferrer`] on
     /// untagged documents to produce an inferred structure tree.
     ///
     /// For tagged documents this is identical to [`analyze`](Self::analyze).

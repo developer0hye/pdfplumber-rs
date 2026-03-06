@@ -12,7 +12,7 @@
 ///
 /// Date fields (`creation_date`, `mod_date`) are stored as raw PDF date
 /// strings in the format `D:YYYYMMDDHHmmSSOHH'mm'`. Use
-/// [`DocumentMetadata::parse_pdf_date`] to extract components.
+/// `DocumentMetadata::parse_pdf_date` to extract components.
 #[derive(Debug, Clone, Default, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DocumentMetadata {

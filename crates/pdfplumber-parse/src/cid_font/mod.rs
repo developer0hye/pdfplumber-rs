@@ -224,7 +224,7 @@ impl CidFontMetrics {
     }
 
     /// Get the vertical advance (w1y) for a CID in glyph space.
-    /// Falls back to DW2[1] (default -1000) if no W2 override exists.
+    /// Falls back to `DW2[1]` (default -1000) if no W2 override exists.
     pub fn get_vertical_w1(&self, cid: u32) -> f64 {
         self.vertical_widths
             .get(&cid)
@@ -236,7 +236,7 @@ impl CidFontMetrics {
     /// Returns (w1y, vx, vy) where:
     /// - w1y: vertical advance
     /// - vx: horizontal displacement of vertical origin (default: DW/2)
-    /// - vy: vertical displacement of vertical origin (default: DW2[0])
+    /// - vy: vertical displacement of vertical origin (default: `DW2[0]`)
     pub fn get_vertical_metric(&self, cid: u32) -> VerticalMetric {
         self.vertical_widths
             .get(&cid)

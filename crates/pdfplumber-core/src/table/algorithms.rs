@@ -511,7 +511,7 @@ pub fn duplicate_merged_content_in_table(table: &Table) -> Table {
 /// to all sub-cells. This matches Python pdfplumber's behavior where merged header
 /// cells have text in the first column position and empty strings in the rest.
 ///
-/// Should be called after [`extract_text_for_cells`] so merged cells already have
+/// Should be called after `extract_text_for_cells` so merged cells already have
 /// their text content populated.
 pub fn normalize_table_columns(table: &Table) -> Table {
     if table.cells.is_empty() {

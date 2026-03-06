@@ -351,11 +351,17 @@ impl WordExtractor {
 
     fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {
         let raw_text: String = chars.iter().map(|c| c.text.as_str()).collect();
-        let text = if expand_ligatures {
+        let mut text = if expand_ligatures {
             expand_ligatures_in_text(&raw_text)
         } else {
             raw_text
         };
+
+        // TODO(issue-848): Mirrored RTL text (non-upright + Rtl direction, physically
+        // left-to-right) requires per-word text reversal to match visual reading order.
+        // However, this conflicts with cross-validation parity against Python pdfplumber,
+        // which also outputs reversed text for these pages. Correct fix requires updating
+        // the golden data corpus AND updating the cross-validation harness.
         let bbox = chars
             .iter()
             .map(|c| c.bbox)

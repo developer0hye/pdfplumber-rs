@@ -1,4 +1,4 @@
-//! Render a [`Table`] to a pipe-delimited text string for inclusion in a chunk.
+//! Render a [`pdfplumber::Table`] to a pipe-delimited text string for inclusion in a chunk.
 //!
 //! Format: one row per line, cells separated by ` | `. Empty cells render as
 //! empty string between pipes. This format is LLM-friendly — most models trained

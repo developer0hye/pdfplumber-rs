@@ -299,8 +299,8 @@ impl Page {
     /// Export images with deterministic filenames.
     ///
     /// Produces [`ExportedImage`] entries for each image on this page that
-    /// has data populated (requires `extract_image_data: true` in
-    /// [`ExtractOptions`]). Images without data are skipped.
+    /// has data populated (requires `extract_image_data: true` in the
+    /// extraction options). Images without data are skipped.
     ///
     /// Page number in filenames is 1-indexed.
     pub fn export_images(&self, options: &ImageExportOptions) -> Vec<ExportedImage> {
@@ -481,7 +481,7 @@ impl Page {
 
     /// Extract text from the body region of this page, excluding header and footer.
     ///
-    /// Uses the provided [`PageRegions`] (from [`Pdf::detect_page_regions()`]) to
+    /// Uses the provided [`PageRegions`] (from `Pdf::detect_page_regions()`) to
     /// crop the page to the body area and extract text from it.
     pub fn extract_text_body(&self, regions: &PageRegions) -> String {
         let cropped = self.crop(regions.body);
@@ -629,7 +629,7 @@ impl Page {
     /// the page (characters, lines, rectangles, curves, images). Objects for
     /// which the predicate returns `true` are kept; all others are removed.
     ///
-    /// The original page is not modified. The returned [`FilteredPage`] (a
+    /// The original page is not modified. The returned [`crate::FilteredPage`] (a
     /// type alias for [`CroppedPage`]) supports the same query methods
     /// (`chars()`, `extract_text()`, `find_tables()`, etc.) and can be
     /// filtered again for composable filtering.

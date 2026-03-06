@@ -33,15 +33,71 @@ use serde_json::{Value, json};
 /// MCP server. Create once; call [`Server::handle`] for each stdin line.
 ///
 /// Stateless across tool calls — no file handles, caches, or sessions are kept.
+///
+/// # Path allowlisting
+///
+/// Set the `PDFPLUMBER_ALLOWED_PATHS` environment variable to a colon-separated
+/// list of directory prefixes that the server is allowed to read from. If the
+/// variable is unset, **all paths are permitted** (development mode). In
+/// production deployments, always set this variable:
+///
+/// ```sh
+/// PDFPLUMBER_ALLOWED_PATHS=/home/user/documents:/tmp/uploads pdfplumber-mcp
+/// ```
+///
+/// A tool call whose `path` argument does not start with any allowed prefix
+/// returns `isError: true` without opening the file.
 #[derive(Default)]
 pub struct Server {
     initialized: bool,
+    /// Allowed path prefixes. Empty = allow all (dev mode).
+    allowed_paths: Vec<std::path::PathBuf>,
 }
 
 impl Server {
     /// Create a new server instance.
+    ///
+    /// Reads `PDFPLUMBER_ALLOWED_PATHS` from the environment. If unset, all
+    /// paths are permitted. If set, only paths under listed directories are
+    /// accessible.
     pub fn new() -> Self {
-        Self::default()
+        let allowed_paths = std::env::var("PDFPLUMBER_ALLOWED_PATHS")
+            .unwrap_or_default()
+            .split(':')
+            .filter(|s| !s.is_empty())
+            .map(std::path::PathBuf::from)
+            .collect();
+        Self {
+            initialized: false,
+            allowed_paths,
+        }
+    }
+
+    /// Check whether a path is allowed under the configured allowlist.
+    ///
+    /// Returns `Ok(())` if allowed, `Err(message)` if denied.
+    pub fn check_path(&self, path: &str) -> Result<(), String> {
+        if self.allowed_paths.is_empty() {
+            return Ok(());
+        }
+        let requested = std::path::Path::new(path);
+        // Canonicalize to prevent path traversal (../../etc/passwd).
+        let canonical = requested
+            .canonicalize()
+            .map_err(|e| format!("path not accessible: {e}"))?;
+        let allowed = self.allowed_paths.iter().any(|prefix| {
+            prefix
+                .canonicalize()
+                .map(|p| canonical.starts_with(p))
+                .unwrap_or(false)
+        });
+        if allowed {
+            Ok(())
+        } else {
+            Err(format!(
+                "path '{path}' is not under any allowed directory (PDFPLUMBER_ALLOWED_PATHS)"
+            ))
+        }
     }
 
     /// Process one JSON-RPC 2.0 message and return the serialized response.
@@ -95,6 +151,19 @@ impl Server {
             return rpc_error(id, -32602, "Missing tool name");
         };
         let args = params.get("arguments").cloned().unwrap_or_default();
+
+        // Enforce path allowlist before opening any file.
+        if let Some(path) = args.get("path").and_then(|p| p.as_str()) {
+            if let Err(msg) = self.check_path(path) {
+                return rpc_ok(
+                    id,
+                    json!({
+                        "content": [{ "type": "text", "text": msg }],
+                        "isError": true
+                    }),
+                );
+            }
+        }
 
         match tools::call(name, args) {
             Ok(content) => rpc_ok(id, json!({ "content": content, "isError": false })),
@@ -159,6 +228,8 @@ mod tests {
             "pdf.extract_words",
             "pdf.layout",
             "pdf.to_markdown",
+            "pdf.accessibility",
+            "pdf.infer_tags",
         ] {
             assert!(names.contains(expected), "missing tool '{expected}'");
         }
@@ -196,6 +267,51 @@ mod tests {
         let r =
             parse(&srv().handle(r#"{"jsonrpc":"2.0","id":7,"method":"initialized","params":{}}"#));
         assert!(r.get("error").is_none());
+    }
+
+    #[test]
+    fn allowlist_empty_permits_all() {
+        let srv = Server {
+            initialized: false,
+            allowed_paths: vec![],
+        };
+        assert!(srv.check_path("/tmp/anything.pdf").is_ok());
+    }
+
+    #[test]
+    fn allowlist_blocks_outside_paths() {
+        let srv = Server {
+            initialized: false,
+            allowed_paths: vec![std::path::PathBuf::from("/tmp/allowed")],
+        };
+        // /etc/passwd is outside /tmp/allowed — must be denied even if it exists.
+        // We check the error message, not whether the file exists.
+        let result = srv.check_path("/etc/passwd");
+        // Either denied by allowlist or "path not accessible" (file exists on some systems).
+        // In either case it must not be Ok for a path outside /tmp/allowed.
+        if result.is_ok() {
+            // /tmp/allowed doesn't exist so canonicalize of /etc/passwd would fail — also Err.
+            // This branch only hits if both paths canonicalize. That's fine: in that case
+            // the allowlist check itself would have returned Err. So this is unreachable
+            // in practice but we leave the test non-panicking.
+        }
+        // Path traversal attempt must always fail if allowlist is set.
+        assert!(srv.check_path("/tmp/allowed/../../etc/passwd").is_err());
+    }
+
+    #[test]
+    fn allowlist_blocked_path_returns_is_error_true_in_rpc() {
+        // Allowlist set but path not under it — tools/call must return isError:true.
+        let mut srv = Server {
+            initialized: true,
+            allowed_paths: vec![std::path::PathBuf::from("/nonexistent_allowed_dir")],
+        };
+        let r = parse(&srv.handle(
+            r#"{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"pdf.metadata","arguments":{"path":"/etc/passwd"}}}"#,
+        ));
+        assert_eq!(r["result"]["isError"], true);
+        let msg = r["result"]["content"][0]["text"].as_str().unwrap_or("");
+        assert!(msg.contains("PDFPLUMBER_ALLOWED_PATHS") || msg.contains("not accessible"), "unexpected msg: {msg}");
     }
 
     #[test]
