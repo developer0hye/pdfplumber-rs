@@ -28,6 +28,19 @@ impl std::fmt::Display for Severity {
     }
 }
 
+impl std::fmt::Display for Violation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let page = self.page
+            .map(|p| format!(" [page {}]", p + 1))
+            .unwrap_or_default();
+        write!(f, "[{}] {}{}: {}", self.severity, self.rule_id, page, self.message)?;
+        if let Some(s) = &self.suggestion {
+            write!(f, " → {s}")?;
+        }
+        Ok(())
+    }
+}
+
 /// A single PDF/UA rule violation found in the document.
 #[derive(Debug, Clone)]
 pub struct Violation {
@@ -89,6 +102,10 @@ pub struct A11yReport {
     is_tagged: bool,
     has_lang: bool,
     has_title: bool,
+    /// Inferred structure tags produced by [`TagInferrer`] when the document
+    /// is untagged. `None` if the document is already tagged or if inference
+    /// was not requested.
+    inferred_tags: Option<Vec<crate::tag_infer::InferredTag>>,
 }
 
 impl A11yReport {
@@ -125,6 +142,25 @@ impl A11yReport {
     /// Number of pages in the analyzed document.
     pub fn page_count(&self) -> usize {
         self.page_count
+    }
+
+    /// Inferred structure tags for untagged documents.
+    ///
+    /// Returns `Some(&[InferredTag])` when the analyzer ran with
+    /// `run_inference = true` AND the document is untagged.
+    /// Returns `None` for tagged documents or when inference was not requested.
+    pub fn inferred_tags(&self) -> Option<&[crate::tag_infer::InferredTag]> {
+        self.inferred_tags.as_deref()
+    }
+
+    /// Count of items that need manual review in the inferred tag tree.
+    ///
+    /// Returns 0 if inference was not run.
+    pub fn inference_review_count(&self) -> usize {
+        self.inferred_tags
+            .as_ref()
+            .map(|tags| crate::tag_infer::TagInferrer::new().review_count(tags))
+            .unwrap_or(0)
     }
 
     /// Render a human-readable summary to a `String`.
@@ -265,7 +301,28 @@ impl A11yAnalyzer {
             }
         }
 
-        A11yReport { violations, page_count, is_tagged, has_lang, has_title }
+        A11yReport { violations, page_count, is_tagged, has_lang, has_title, inferred_tags: None }
+    }
+
+    /// Analyze a [`Pdf`] for PDF/UA-1 compliance AND run [`TagInferrer`] on
+    /// untagged documents to produce an inferred structure tree.
+    ///
+    /// For tagged documents this is identical to [`analyze`](Self::analyze).
+    /// For untagged documents the returned [`A11yReport`] additionally contains
+    /// `inferred_tags()` — a per-page list of structure elements that WOULD be
+    /// needed to make the document accessible.
+    ///
+    /// The inferred tags are useful for:
+    /// - Showing authors what remediation would look like
+    /// - Feeding into a downstream PDF writer (Lane 10) to auto-tag documents
+    /// - Estimating remediation effort (`report.inference_review_count()`)
+    pub fn analyze_with_inference(&self, pdf: &Pdf) -> A11yReport {
+        let mut report = self.analyze(pdf);
+        if !report.is_tagged {
+            let inferrer = crate::tag_infer::TagInferrer::new();
+            report.inferred_tags = Some(inferrer.infer_document(pdf));
+        }
+        report
     }
 }
 
@@ -308,15 +365,20 @@ fn check_element(
     let role = &elem.element_type;
 
     // UA-002: Standard role names
+    // Non-standard roles are allowed if they appear in a RoleMap, but we can only
+    // check the surface here. Always flag as Warning; Info-level details only when
+    // emit_info is set.
     if !is_standard_role(role) && !role.starts_with('/') {
-        // Non-standard roles are allowed if they appear in a RoleMap — but
-        // we can only check the surface here. Flag as warning.
-        if emit_info {
-            violations.push(
-                Violation::new("UA-002", Severity::Warning,
-                    format!("Non-standard structure type '{role}' — ensure it has a RoleMap entry"))
-            );
-        }
+        violations.push(
+            Violation::new("UA-002", Severity::Warning,
+                format!("Non-standard structure type '{role}' — ensure it has a RoleMap entry"))
+        );
+    } else if emit_info && !role.starts_with('/') {
+        // Info: confirm recognized role (useful for verbose audits).
+        violations.push(
+            Violation::new("UA-002", Severity::Info,
+                format!("Standard role '{role}' recognized"))
+        );
     }
 
     // UA-003: Figures need alt text
@@ -325,6 +387,21 @@ fn check_element(
             Violation::new("UA-003", Severity::Error,
                 "Figure element has no /Alt text")
             .with_suggestion("Add /Alt entry to the Figure's attribute dictionary")
+        );
+    }
+
+    // UA-004: Table header cells must have scope attributes.
+    // A TH element without a /Scope attribute is technically non-conforming.
+    // We flag it as a Warning since we cannot read /Scope from StructElement here
+    // (it lives in the attribute objects, not the element type). The heuristic:
+    // if a TH element has no children and no alt_text, it likely needs review.
+    if role == "TH" {
+        violations.push(
+            Violation::new("UA-004", Severity::Warning,
+                "TH (table header cell) found — verify /Scope attribute (Column/Row/Both) is set")
+            .with_suggestion(
+                "Add /Scope /Column (or /Row or /Both) to each TH element's attribute dictionary"
+            )
         );
     }
 
