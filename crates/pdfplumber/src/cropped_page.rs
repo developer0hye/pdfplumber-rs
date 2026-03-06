@@ -5,11 +5,11 @@
 //! Coordinates are adjusted relative to the crop origin.
 
 use pdfplumber_core::{
-    BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, Image, Line, PageObject, Rect, Table,
-    TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, extract_text_for_cells, normalize_table_columns, sort_blocks_column_order,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, Image, Line, Orientation, PageObject, Rect,
+    Table, TableFinder, TableSettings, TextDirection, TextLine, TextOptions, Word, WordExtractor,
+    WordOptions, blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, extract_text_for_cells, normalize_table_columns,
+    sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A spatially filtered view of a PDF page.
