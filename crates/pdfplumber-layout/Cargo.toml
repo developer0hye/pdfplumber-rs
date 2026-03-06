@@ -1,15 +1,25 @@
 [package]
 name = "pdfplumber-layout"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.85"
-license = "Apache-2.0"
-description = "Semantic document structure inference for pdfplumber-rs"
-repository = "https://github.com/developer0hye/pdfplumber-rs"
+version = "0.2.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Semantic layout inference for pdfplumber-rs: sections, headings, paragraphs, tables, and figures"
+keywords = ["pdf", "layout", "semantic", "document-structure", "text-extraction"]
+categories = ["parser-implementations", "text-processing"]
 
 [dependencies]
-pdfplumber-core = { path = "../pdfplumber-core" }
-pdfplumber = { path = "../pdfplumber" }
+pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
+pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
+
+[features]
+serde = ["dep:serde", "pdfplumber-core/serde", "pdfplumber/serde"]
+
+[dependencies.serde]
+version = "1.0"
+features = ["derive"]
+optional = true
 
 [dev-dependencies]
-lopdf = { version = "0.34", features = ["serde"] }
+# No additional dev deps required: pdfplumber is a regular dep and available to tests.
