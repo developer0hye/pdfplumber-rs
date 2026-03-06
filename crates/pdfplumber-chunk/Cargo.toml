@@ -1,0 +1,23 @@
+[package]
+name = "pdfplumber-chunk"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Semantically-aware PDF chunking for LLM/RAG pipelines — streaming extraction with full spatial metadata"
+keywords = ["pdf", "rag", "llm", "chunking", "text-extraction"]
+categories = ["parser-implementations", "text-processing"]
+
+[features]
+default = []
+serde = ["dep:serde", "pdfplumber-core/serde", "pdfplumber-layout/serde"]
+
+[dependencies]
+pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
+pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
+pdfplumber-layout = { version = "0.2.0", path = "../pdfplumber-layout" }
+serde = { version = "1.0", features = ["derive"], optional = true }
+
+[dev-dependencies]
+serde_json = "1.0"
