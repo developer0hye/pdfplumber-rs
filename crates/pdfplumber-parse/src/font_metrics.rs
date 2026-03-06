@@ -353,9 +353,21 @@ fn parse_font_descriptor(
         .and_then(|obj| obj.as_dict().ok());
 
     let Some(desc) = descriptor_dict else {
+        // No /FontDescriptor — for standard Type1 fonts use AFM ascender/descender
+        // so coordinates match pdfminer/pdfplumber-py which also uses AFM metrics.
+        // For unknown fonts fall back to the generic 750/-250 defaults.
+        let base_name = font_dict
+            .get(b"BaseFont")
+            .ok()
+            .and_then(|obj| obj.as_name().ok())
+            .and_then(|name| std::str::from_utf8(name).ok())
+            .map(crate::cid_font::strip_subset_prefix)
+            .unwrap_or("");
+        let (ascent, descent) = standard_fonts::afm_ascent_descent(base_name)
+            .unwrap_or((DEFAULT_ASCENT, DEFAULT_DESCENT));
         return Ok(FontDescriptorInfo {
-            ascent: DEFAULT_ASCENT,
-            descent: DEFAULT_DESCENT,
+            ascent,
+            descent,
             font_bbox: None,
             missing_width: DEFAULT_WIDTH,
         });
@@ -642,9 +654,9 @@ mod tests {
 
         assert_eq!(metrics.get_width(32), 500.0);
         assert_eq!(metrics.get_width(33), 600.0);
-        // Defaults for missing descriptor
-        assert_eq!(metrics.ascent(), DEFAULT_ASCENT);
-        assert_eq!(metrics.descent(), DEFAULT_DESCENT);
+        // No FontDescriptor but BaseFont=Helvetica → AFM values used (718/-207)
+        assert_eq!(metrics.ascent(), 718.0);
+        assert_eq!(metrics.descent(), -207.0);
         assert_eq!(metrics.missing_width(), DEFAULT_WIDTH);
     }
 

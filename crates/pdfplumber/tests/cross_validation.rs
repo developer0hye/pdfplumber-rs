@@ -1076,10 +1076,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_hello_structure,
     "hello_structure.pdf",
-    "chars 37% — tagged PDF TrueType font gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_1054,
