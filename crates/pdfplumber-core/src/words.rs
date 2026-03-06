@@ -1374,8 +1374,9 @@ mod tests {
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
         // Spatial top-to-bottom: o(512), l(520), l(526), e(532), H(540) → "olleH"
+        // Direction is Ttb — non-upright chars are processed via the Ttb path
         assert_eq!(words[0].text, "olleH");
-        assert_eq!(words[0].direction, TextDirection::Btt);
+        assert_eq!(words[0].direction, TextDirection::Ttb);
     }
 
     #[test]
@@ -1635,9 +1636,8 @@ mod tests {
     // Since each char is ~5-6pt wide, adjacent chars differ by ~5-6pt in x0 →
     // always > 3.0 → every char becomes its own word (or tiny groups at most).
 
-    /// Helper to create an upright=false char as seen on issue-848 odd pages:
-    /// direction=Ltr but physically laid out right-to-left with decreasing x0,
-    /// all on the same top value.
+    /// Helper to create an upright=false char as seen on issue-848 odd pages.
+    /// These chars go through the vertical (TTB) extraction path because upright=false.
     fn make_non_upright_char(text: &str, x0: f64, top: f64, x1: f64, bottom: f64) -> Char {
         Char {
             text: text.to_string(),
@@ -1658,9 +1658,10 @@ mod tests {
 
     #[test]
     fn test_non_upright_chars_each_become_own_word() {
-        // Matches issue-848 page 1 pattern: upright=false, direction=Ltr,
-        // decreasing x0, all same top. Python outputs 1 word per char.
-        // T@[534.03,540], h@[528.53,534.03], e@[523.23,528.53] → 3 words.
+        // Non-upright chars go through TTB path (x0-descending column sort, y_gap split).
+        // T@[534.03,540], h@[528.53,534.03], e@[523.23,528.53]: x0 diff=~5.5pt > x_tol=3.
+        // should_split_vertical: x_diff=5.5 > x_tolerance → each becomes its own word.
+        // TTB descending x0 sort: T(534) > h(528) > e(523) → words in that order.
         let chars = vec![
             make_non_upright_char("T", 534.03, 74.20, 540.00, 84.20),
             make_non_upright_char("h", 528.53, 74.20, 534.03, 84.20),
@@ -1670,14 +1671,12 @@ mod tests {
         assert_eq!(
             words.len(),
             3,
-            "upright=false chars should each be their own word (matching Python TTB split), got: {:?}",
+            "Non-upright TTB chars with x0 gap > x_tol split into single-char words, got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted top-to-bottom (all same top), then by x0 ascending within cluster:
-        // e(523.23), h(528.53), T(534.03) — each is its own word
-        assert_eq!(words[0].text, "e");
+        assert_eq!(words[0].text, "T");
         assert_eq!(words[1].text, "h");
-        assert_eq!(words[2].text, "T");
+        assert_eq!(words[2].text, "e");
     }
 
     #[test]
@@ -1692,8 +1691,8 @@ mod tests {
             make_non_upright_char("m", 512.00, 74.20, 520.76, 84.20),
         ];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
-        // T, h, e are on one side of space; m is on the other.
-        // Each non-space char becomes its own word due to x0 interline split.
+        // TTB path: x0 diff=5.5 > x_tol → T, h, e split; space also splits; m also split.
+        // Total: 4 single-char words (T, h, e, m).
         assert_eq!(
             words.len(),
             4,
@@ -1717,8 +1716,8 @@ mod tests {
             "Non-upright chars with x0 diff < x_tolerance should group (like Python 'vi'), got: {:?}",
             words.iter().map(|w| &w.text).collect::<Vec<_>>()
         );
-        // Sorted ascending x0: i(499.09), v(501.53) → "iv"
-        assert_eq!(words[0].text, "iv");
+        // TTB sort: x0 descending, v(501.53) > i(499.09) → "vi"
+        assert_eq!(words[0].text, "vi");
     }
 
     #[test]
@@ -1764,23 +1763,20 @@ mod tests {
 
     #[test]
     fn test_non_upright_word_direction_is_ttb() {
-        // Words produced from upright=false chars must carry direction=Ttb,
-        // not direction=Ltr (which is the char's own direction field).
-        // This ensures downstream consumers (cell text extraction, line grouping)
-        // know to use the x0 axis, not the top axis, when grouping words into lines.
+        // Words from upright=false chars carry direction=Ttb (force_direction from TTB path).
         let chars = vec![make_non_upright_char("T", 534.03, 74.20, 540.00, 84.20)];
         let words = WordExtractor::extract(&chars, &WordOptions::default());
         assert_eq!(words.len(), 1);
         assert_eq!(
             words[0].direction,
             TextDirection::Ttb,
-            "Word from upright=false char should have direction=Ttb, not Ltr"
+            "Word from upright=false char should have direction=Ttb"
         );
     }
 
     #[test]
     fn test_non_upright_tight_pair_direction_is_ttb() {
-        // Grouped non-upright chars: the word should have direction=Ttb.
+        // Grouped non-upright chars (within x_tol): word has direction=Ttb.
         let chars = vec![
             make_non_upright_char("v", 501.53, 74.20, 506.37, 84.20),
             make_non_upright_char("i", 499.09, 74.20, 501.53, 84.20),
