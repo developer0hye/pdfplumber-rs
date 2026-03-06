@@ -1,0 +1,27 @@
+{
+  "name": "pdfplumber-wasm",
+  "version": "0.2.0",
+  "description": "WebAssembly/JavaScript bindings for pdfplumber-rs — extract text, words, characters, and tables from PDFs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/developer0hye/pdfplumber-rs"
+  },
+  "files": [
+    "pdfplumber_wasm_bg.wasm",
+    "pdfplumber_wasm.js",
+    "pdfplumber_wasm.d.ts",
+    "package.json"
+  ],
+  "main": "pdfplumber_wasm.js",
+  "types": "pdfplumber_wasm.d.ts",
+  "keywords": [
+    "pdf",
+    "wasm",
+    "webassembly",
+    "pdfplumber",
+    "table-extraction",
+    "text-extraction"
+  ],
+  "sideEffects": false
+}
