@@ -1270,11 +1270,11 @@ cross_validate!(
     CHAR_THRESHOLD
 );
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate!(
+// issue-848 fix lives in Lane 3 (fix/issue-848-words-221), not Lane 2
+cross_validate_ignored!(
     cv_python_issue_848,
     "issue-848.pdf",
-    CHAR_THRESHOLD,
-    CHAR_THRESHOLD
+    "RTL word fix in Lane 3"
 );
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);

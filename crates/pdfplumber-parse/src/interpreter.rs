@@ -1963,7 +1963,7 @@ fn decode_stream(stream: &lopdf::Stream) -> Result<Vec<u8>, BackendError> {
 mod tests {
     use super::*;
     use crate::handler::{CharEvent, ContentHandler, ImageEvent};
-    use lopdf::Object;
+    use lopdf::{Object, dictionary};
 
     // --- Collecting handler ---
 
