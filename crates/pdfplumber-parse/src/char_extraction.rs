@@ -597,4 +597,110 @@ mod tests {
         assert_eq!(ch.mcid, None);
         assert_eq!(ch.tag, None);
     }
+
+    // ===== Vertical origin offset tests (WMode=1 / vertical writing) =====
+
+    /// When a glyph has a non-zero vertical_origin (vx, vy), the bbox must be
+    /// shifted by (-vx/1000, -vy/1000) in glyph-normalized space before applying
+    /// the text rendering matrix. This is required for CJK vertical fonts where the
+    /// vertical origin sits at (500, 880) in glyph units (a typical default).
+    #[test]
+    fn vertical_origin_x_offset_shifts_bbox_horizontally() {
+        // vx = 500 → ox = -500/1000 = -0.5 in glyph space
+        // With Trm = [12, 0, 0, 12, 72, 720] the x shift in page space = -0.5 * 12 = -6
+        // So bbox.x0 should be 72 + (-6) = 66, not 72.
+        let event = CharEvent {
+            vertical_origin: (500.0, 0.0),
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+
+        // ox = -0.5; Trm.a = 12; shift = -6.0
+        // x0 = 72 + 12*(-0.5) = 66, x1 = x0 + width
+        assert_approx(ch.bbox.x0, 66.0, "x0 shifted by vx=500");
+    }
+
+    #[test]
+    fn vertical_origin_y_offset_shifts_bbox_vertically() {
+        // vy = 880 → oy = -880/1000 = -0.88 in glyph space
+        // With Trm = [12, 0, 0, 12, 72, 720]:
+        // The descent corner y in page = 720 + 12*(-0.88 + descent_norm)
+        // descent_norm = -0.25, so lower_y = 720 + 12*(-0.88 - 0.25) = 720 + 12*(-1.13) = 720 - 13.56 = 706.44
+        // The ascent corner y in page = 720 + 12*(-0.88 + ascent_norm)
+        // ascent_norm = 0.75, so upper_y = 720 + 12*(-0.88 + 0.75) = 720 + 12*(-0.13) = 720 - 1.56 = 718.44
+        // Y-flip with page_height=792: top = 792 - 718.44 = 73.56, bottom = 792 - 706.44 = 85.56
+        let event = CharEvent {
+            vertical_origin: (0.0, 880.0),
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+
+        // height should still be 12 (unchanged by origin offset)
+        assert_approx(ch.bbox.height(), 12.0, "height unchanged with vy offset");
+        // top must be shifted down relative to no-offset case (top was 63.0)
+        assert!(
+            ch.bbox.top > 63.0,
+            "top should be shifted when vy=880: expected > 63, got {}",
+            ch.bbox.top
+        );
+    }
+
+    #[test]
+    fn vertical_origin_zero_is_identity() {
+        // When vertical_origin = (0, 0), bbox must be identical to the base case.
+        let event_zero = CharEvent {
+            vertical_origin: (0.0, 0.0),
+            ..default_event()
+        };
+        let event_base = default_event();
+
+        let ch_zero = char_from_event(&event_zero, PAGE_HEIGHT, None, None);
+        let ch_base = char_from_event(&event_base, PAGE_HEIGHT, None, None);
+
+        assert_approx(ch_zero.bbox.x0, ch_base.bbox.x0, "x0 equal when vorigin=0");
+        assert_approx(
+            ch_zero.bbox.top,
+            ch_base.bbox.top,
+            "top equal when vorigin=0",
+        );
+        assert_approx(ch_zero.bbox.x1, ch_base.bbox.x1, "x1 equal when vorigin=0");
+        assert_approx(
+            ch_zero.bbox.bottom,
+            ch_base.bbox.bottom,
+            "bottom equal when vorigin=0",
+        );
+    }
+
+    #[test]
+    fn vertical_origin_both_axes_combined() {
+        // vx=500, vy=880 combined — verify x0 shifts by the vx contribution
+        let event = CharEvent {
+            vertical_origin: (500.0, 880.0),
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+
+        // x0 = 72 + 12*(-500/1000) = 72 - 6 = 66
+        assert_approx(ch.bbox.x0, 66.0, "x0 with combined vx=500,vy=880");
+        // height is unchanged (ascent-descent span = 12 units always)
+        assert_approx(
+            ch.bbox.height(),
+            12.0,
+            "height unchanged with combined origin",
+        );
+    }
+
+    #[test]
+    fn vertical_origin_negative_vx_shifts_right() {
+        // Negative vx = -500 → ox = 500/1000 = 0.5 in glyph space → x shifts +6
+        let event = CharEvent {
+            vertical_origin: (-500.0, 0.0),
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+
+        // ox = -(-500)/1000 = 0.5; shift = 0.5 * 12 = 6.0
+        // x0 = 72 + 6 = 78
+        assert_approx(ch.bbox.x0, 78.0, "x0 shifted right with vx=-500");
+    }
 }
