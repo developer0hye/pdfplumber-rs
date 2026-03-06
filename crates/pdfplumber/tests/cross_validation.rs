@@ -1270,12 +1270,29 @@ cross_validate!(
     CHAR_THRESHOLD
 );
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate!(
-    cv_python_issue_848,
-    "issue-848.pdf",
-    CHAR_THRESHOLD,
-    CHAR_THRESHOLD
-);
+/// issue-848.pdf: Horizontally mirrored pages (matrix a=-1, upright=false in Python).
+/// Fix: upright requires a>0, matching Python. Routes mirrored chars through TTB
+/// column grouping → per-char words on mirrored pages. issue #221.
+#[test]
+fn cv_python_issue_848() {
+    let result = validate_pdf("issue-848.pdf");
+    assert!(
+        result.parse_error.is_none(),
+        "issue-848.pdf should parse without error"
+    );
+    assert!(
+        result.total_char_rate() >= CHAR_THRESHOLD,
+        "issue-848 char rate {:.1}% < {:.1}%",
+        result.total_char_rate() * 100.0,
+        CHAR_THRESHOLD * 100.0,
+    );
+    assert!(
+        result.total_word_rate() >= WORD_THRESHOLD,
+        "issue-848 word rate {:.1}% < {:.1}% — RTL mirror word grouping (issue #221)",
+        result.total_word_rate() * 100.0,
+        WORD_THRESHOLD * 100.0,
+    );
+}
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
