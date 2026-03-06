@@ -14,12 +14,20 @@ name = "pdfplumber"
 path = "src/main.rs"
 
 [features]
-write = ["pdfplumber/write"]
+# Enable the interactive TUI. Without this flag the binary is headless-only.
+tui = ["dep:ratatui", "dep:crossterm", "dep:arboard", "dep:dirs"]
 
 [dependencies]
-pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
+pdfplumber = { version = "0.2.0", path = "../pdfplumber", features = ["serde"] }
 clap = { version = "4", features = ["derive"] }
 serde_json = "1.0"
+
+# TUI — only compiled when the `tui` feature is enabled
+ratatui = { version = "0.29", optional = true }
+crossterm = { version = "0.28", features = ["event-stream"], optional = true }
+arboard = { version = "3", optional = true }
+# Platform-appropriate config dir ($HOME/.config on Linux/macOS, %APPDATA% on Windows)
+dirs = { version = "5", optional = true }
 
 [dev-dependencies]
 assert_cmd = "2"

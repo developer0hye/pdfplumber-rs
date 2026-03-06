@@ -364,29 +364,21 @@ pub enum Commands {
         password: Option<String>,
     },
 
-    /// Forensic inspection: producer fingerprinting, modification detection, risk scoring
-    Inspect {
-        /// Path to the PDF file
+    /// Launch the interactive TUI (requires `tui` feature + a TTY)
+    #[cfg(feature = "tui")]
+    Tui {
+        /// PDF file to pre-load in the Extract view
         #[arg(value_name = "FILE")]
-        file: PathBuf,
+        file: Option<PathBuf>,
 
-        /// Output format
-        #[arg(long, value_enum, default_value_t = InspectFormat::Text)]
-        format: InspectFormat,
+        /// Working directory for Grep and Process screens (default: CWD)
+        #[arg(long, value_name = "DIR")]
+        dir: Option<PathBuf>,
 
-        /// Password for encrypted PDFs
+        /// Disable TUI and exit (useful for testing the flag wire-up)
         #[arg(long)]
-        password: Option<String>,
+        no_tui: bool,
     },
-}
-
-/// Output format for the inspect subcommand.
-#[derive(Debug, Clone, ValueEnum)]
-pub enum InspectFormat {
-    /// Human-readable text report
-    Text,
-    /// JSON output (requires --features serde)
-    Json,
 }
 
 /// Table detection strategy.
