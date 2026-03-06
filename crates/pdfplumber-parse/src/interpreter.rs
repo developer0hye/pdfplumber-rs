@@ -1043,7 +1043,7 @@ fn show_string_cid_vertical(
 
     while i < string_bytes.len() {
         let char_code = if i + 1 < string_bytes.len() {
-            let code = u32::from(string_bytes[i]) << 8 | u32::from(string_bytes[i + 1]);
+            let code = (u32::from(string_bytes[i]) << 8) | u32::from(string_bytes[i + 1]);
             i += 2;
             code
         } else {
@@ -3259,6 +3259,485 @@ mod tests {
             handler.chars[0].unicode.as_deref(),
             Some("'"),
             "WinAnsiEncoding byte 0x27 should be quotesingle (U+0027), got {:?}",
+            handler.chars[0].unicode
+        );
+    }
+
+    // --- US-220: TrueType fonts with dict /Encoding (BaseEncoding + /Differences) ---
+    // These tests validate the exact code path that caused hello_structure.pdf page 0
+    // to return 0/11 chars: a TrueType font with /Encoding as a dict containing
+    // /BaseEncoding /WinAnsiEncoding and a /Differences array.
+
+    fn make_truetype_winansi_differences_resources(doc: &mut lopdf::Document) -> lopdf::Dictionary {
+        use lopdf::{Object, Stream, dictionary};
+
+        // Build /Encoding dict: BaseEncoding=WinAnsiEncoding, /Differences remaps
+        // byte 0x28 from "parenleft" → "eacute" (é, U+00E9)
+        let enc_dict = dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => Object::Array(vec![
+                Object::Integer(0x28),
+                Object::Name(b"eacute".to_vec()),
+            ]),
+        };
+        let enc_id = doc.add_object(Object::Dictionary(enc_dict));
+
+        // Minimal TrueType /Widths array: 256 entries, all 500 units
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => Object::Reference(enc_id),
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        }
+    }
+
+    #[test]
+    fn truetype_dict_encoding_winansi_base_extracts_ascii() {
+        // TrueType font with dict /Encoding + BaseEncoding=WinAnsiEncoding.
+        // Normal ASCII bytes (0x41 = 'A') must still decode correctly through
+        // the WinAnsi base even when /Differences is present.
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_truetype_winansi_differences_resources(&mut doc);
+
+        let stream = b"BT /F1 12 Tf (ABC) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        // Must extract all 3 characters — not 0
+        assert_eq!(
+            handler.chars.len(),
+            3,
+            "TrueType with dict Encoding should extract ASCII chars, got {} chars",
+            handler.chars.len()
+        );
+        assert_eq!(handler.chars[0].unicode.as_deref(), Some("A"));
+        assert_eq!(handler.chars[1].unicode.as_deref(), Some("B"));
+        assert_eq!(handler.chars[2].unicode.as_deref(), Some("C"));
+    }
+
+    // This test requires the Lane 2 (fix/tagged-truetype-220) fix for /Differences
+    // encoding. It will pass once that PR is merged into main.
+    #[test]
+    #[ignore = "requires Lane 2 TrueType /Differences fix (PR #240)"]
+    fn truetype_dict_encoding_differences_overrides_base() {
+        // Byte 0x28 is remapped by /Differences to "eacute" (U+00E9).
+        // This must override the WinAnsiEncoding value for that slot (which would
+        // be 'parenleft' = '(').
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_truetype_winansi_differences_resources(&mut doc);
+
+        // Render byte 0x28 — should decode to é, not (
+        let stream = b"BT /F1 12 Tf (\x28) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("\u{00E9}"),
+            "/Differences should override WinAnsiEncoding byte 0x28 → é, got {:?}",
+            handler.chars[0].unicode
+        );
+    }
+
+    #[test]
+    fn truetype_dict_encoding_non_remapped_byte_uses_base() {
+        // Byte 0x41 ('A') is NOT in /Differences, so it uses the WinAnsiEncoding
+        // value for that position. In WinAnsiEncoding 0x41 = 'A' (U+0041).
+        let mut doc = lopdf::Document::with_version("1.5");
+        let resources = make_truetype_winansi_differences_resources(&mut doc);
+
+        let stream = b"BT /F1 12 Tf (\x41) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("A"),
+            "Non-remapped byte 0x41 should be 'A' from WinAnsiEncoding base, got {:?}",
+            handler.chars[0].unicode
+        );
+    }
+
+    #[test]
+    #[ignore = "requires Lane 2 TrueType /Differences fix (PR #240)"]
+    fn truetype_dict_encoding_consecutive_differences_all_remapped() {
+        // /Differences with a run: [0x61, /agrave, /aacute, /acirc] remaps
+        // bytes 0x61, 0x62, 0x63 to à, á, â respectively.
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let enc_dict = dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => Object::Array(vec![
+                Object::Integer(0x61),
+                Object::Name(b"agrave".to_vec()),  // à  U+00E0
+                Object::Name(b"aacute".to_vec()),  // á  U+00E1
+                Object::Name(b"acirc".to_vec()),   // â  U+00E2
+            ]),
+        };
+        let enc_id = doc.add_object(Object::Dictionary(enc_dict));
+
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => Object::Reference(enc_id),
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        };
+
+        let stream = b"BT /F1 12 Tf (\x61\x62\x63) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 3);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("\u{00E0}"),
+            "0x61 → agrave"
+        );
+        assert_eq!(
+            handler.chars[1].unicode.as_deref(),
+            Some("\u{00E1}"),
+            "0x62 → aacute"
+        );
+        assert_eq!(
+            handler.chars[2].unicode.as_deref(),
+            Some("\u{00E2}"),
+            "0x63 → acirc"
+        );
+    }
+
+    #[test]
+    fn truetype_dict_encoding_no_base_encoding_defaults_to_standard() {
+        // When /Encoding dict has /Differences but NO /BaseEncoding, the spec
+        // says the base is StandardEncoding. Byte 0x41 in StandardEncoding = 'A'.
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let enc_dict = dictionary! {
+            "Type" => "Encoding",
+            // No /BaseEncoding — should default to StandardEncoding
+            "Differences" => Object::Array(vec![
+                Object::Integer(0x80),
+                Object::Name(b"euro".to_vec()), // U+20AC
+            ]),
+        };
+        let enc_id = doc.add_object(Object::Dictionary(enc_dict));
+
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => Object::Reference(enc_id),
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        };
+
+        // Byte 0x41 in StandardEncoding = 'A' (same as WinAnsi for ASCII range)
+        let stream = b"BT /F1 12 Tf (\x41) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("A"),
+            "No BaseEncoding should default to StandardEncoding; 0x41 → 'A', got {:?}",
+            handler.chars[0].unicode
+        );
+    }
+
+    #[test]
+    fn truetype_encoding_ref_resolved_through_indirect_object() {
+        // The /Encoding entry may be an indirect reference to a dict object.
+        // Verify the resolver follows the reference correctly.
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Create encoding dict as indirect object (referenced via Object::Reference)
+        let enc_dict = dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => Object::Array(vec![
+                Object::Integer(0x41),
+                Object::Name(b"Aacute".to_vec()), // Á U+00C1
+            ]),
+        };
+        let enc_id = doc.add_object(Object::Dictionary(enc_dict));
+
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => Object::Reference(enc_id), // indirect reference
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        };
+
+        let stream = b"BT /F1 12 Tf (\x41) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("\u{00C1}"),
+            "Indirect /Encoding ref: 0x41 → Á (Aacute), got {:?}",
+            handler.chars[0].unicode
+        );
+    }
+
+    #[test]
+    fn truetype_multiple_differences_runs_non_contiguous() {
+        // /Differences may have multiple integer+name runs. Verify both runs apply.
+        // Run 1: [0x41, /Aacute]  → byte 0x41 → Á
+        // Run 2: [0x61, /aacute]  → byte 0x61 → á
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let enc_dict = dictionary! {
+            "Type" => "Encoding",
+            "BaseEncoding" => "WinAnsiEncoding",
+            "Differences" => Object::Array(vec![
+                Object::Integer(0x41),
+                Object::Name(b"Aacute".to_vec()),
+                Object::Integer(0x61),
+                Object::Name(b"aacute".to_vec()),
+            ]),
+        };
+        let enc_id = doc.add_object(Object::Dictionary(enc_dict));
+
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => Object::Reference(enc_id),
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        };
+
+        let stream = b"BT /F1 12 Tf (\x41\x61) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 2);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("\u{00C1}"),
+            "First /Differences run: 0x41 → Á"
+        );
+        assert_eq!(
+            handler.chars[1].unicode.as_deref(),
+            Some("\u{00E1}"),
+            "Second /Differences run: 0x61 → á"
+        );
+    }
+
+    #[test]
+    fn truetype_winansi_high_bytes_no_differences() {
+        // TrueType with /Encoding: WinAnsiEncoding (name, not dict).
+        // High bytes like 0xE9 should decode to their WinAnsi value: 'é' (U+00E9).
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let widths: Vec<Object> = (0..256).map(|_| Object::Integer(500)).collect();
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => "ArialMT",
+            "FirstChar" => Object::Integer(0),
+            "LastChar" => Object::Integer(255),
+            "Widths" => Object::Array(widths),
+            "Encoding" => "WinAnsiEncoding",
+        };
+        let font_id = doc.add_object(Object::Dictionary(font_dict));
+
+        let resources = dictionary! {
+            "Font" => Object::Dictionary(dictionary! {
+                "F1" => Object::Reference(font_id),
+            }),
+        };
+
+        // 0xE9 in WinAnsiEncoding = 'é' (U+00E9)
+        let stream = b"BT /F1 12 Tf (\xE9) Tj ET";
+
+        let mut handler = CollectingHandler::new();
+        let mut gstate = InterpreterState::new();
+        let mut tstate = TextState::new();
+
+        interpret_content_stream(
+            &doc,
+            stream,
+            &resources,
+            &mut handler,
+            &default_options(),
+            0,
+            &mut gstate,
+            &mut tstate,
+        )
+        .unwrap();
+
+        assert_eq!(handler.chars.len(), 1);
+        assert_eq!(
+            handler.chars[0].unicode.as_deref(),
+            Some("\u{00E9}"),
+            "TrueType+WinAnsiEncoding: 0xE9 should decode to é, got {:?}",
             handler.chars[0].unicode
         );
     }
