@@ -87,8 +87,12 @@ pub fn char_from_event(
 
     let bbox = BBox::new(min_x, top, max_x, bottom);
 
-    // Upright: no rotation/shear in the text rendering matrix
-    let upright = trm.b.abs() < 1e-6 && trm.c.abs() < 1e-6;
+    // Upright: no rotation/shear AND positive x-scale.
+    // Matches Python pdfplumber: `upright = (trm[1] == 0 and trm[2] == 0 and trm[0] > 0)`.
+    // A negative x-scale (horizontal mirror, matrix a < 0) produces upright=False in Python
+    // and must produce upright=false here too, so that the word extractor routes these chars
+    // through TTB column-based grouping instead of LTR x-gap grouping (issue #221, issue-848).
+    let upright = trm.b.abs() < 1e-6 && trm.c.abs() < 1e-6 && trm.a > 0.0;
 
     // Text direction from the dominant axis of the text rendering matrix
     let direction = if trm.a.abs() >= trm.b.abs() {
@@ -355,6 +359,28 @@ mod tests {
         };
         let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
         assert!(!ch.upright);
+    }
+
+    #[test]
+    fn not_upright_for_horizontal_mirror_text() {
+        // Matrix (-1, 0, 0, 1): horizontal mirror (negative x-scale).
+        // Python pdfplumber: upright = trm[0] > 0 → False for a=-1.
+        // Rust must match — these chars route through TTB column grouping,
+        // not LTR x-gap grouping (issue #221, issue-848 word collapse fix).
+        let event = CharEvent {
+            text_matrix: [-1.0, 0.0, 0.0, 1.0, 300.0, 720.0],
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+        assert!(
+            !ch.upright,
+            "horizontally mirrored text must be non-upright"
+        );
+        assert_eq!(
+            ch.direction,
+            TextDirection::Rtl,
+            "horizontally mirrored text must have Rtl direction"
+        );
     }
 
     // ===== Test 9: Text direction detection =====

@@ -957,17 +957,57 @@ fn load_cid_font(
     doc: &lopdf::Document,
     type0_dict: &lopdf::Dictionary,
 ) -> (Option<CidFontMetrics>, u8) {
-    // Determine writing mode from encoding name
+    // Determine writing mode.
+    //
+    // Two cases for the /Encoding entry of a Type0 font:
+    //   1. A name (e.g. "UniJIS-UTF16-V") — parse it with parse_predefined_cmap_name.
+    //   2. An indirect reference to a CMap stream — the stream contains "/WMode N def".
+    //      get_type0_encoding() only handles case 1; for case 2 we parse the stream directly.
     let writing_mode = get_type0_encoding(type0_dict)
         .and_then(|enc| parse_predefined_cmap_name(&enc))
         .map(|info| info.writing_mode)
-        .unwrap_or(0);
+        .unwrap_or_else(|| {
+            // Fallback: try to extract writing mode from embedded CMap stream
+            extract_writing_mode_from_cmap_stream(doc, type0_dict)
+        });
 
     // Get descendant CIDFont dictionary
     let cid_metrics = get_descendant_font(doc, type0_dict)
         .and_then(|desc| extract_cid_font_metrics(doc, desc).ok());
 
     (cid_metrics, writing_mode)
+}
+
+/// Extract writing mode from an embedded CMap stream in a Type0 font's /Encoding entry.
+///
+/// When `/Encoding` is an indirect reference to a CMap stream (rather than a predefined
+/// CMap name), the stream may contain `/WMode 1 def` indicating vertical writing mode.
+/// This handles the case that `get_type0_encoding` + `parse_predefined_cmap_name` miss.
+fn extract_writing_mode_from_cmap_stream(
+    doc: &lopdf::Document,
+    type0_dict: &lopdf::Dictionary,
+) -> u8 {
+    let encoding_obj = match type0_dict.get(b"Encoding").ok() {
+        Some(obj) => obj,
+        None => return 0,
+    };
+    let encoding_obj = resolve_ref(doc, encoding_obj);
+    let stream = match encoding_obj.as_stream().ok() {
+        Some(s) => s,
+        None => return 0,
+    };
+    let data = if stream.dict.get(b"Filter").is_ok() {
+        match stream.decompressed_content() {
+            Ok(d) => d,
+            Err(_) => return 0,
+        }
+    } else {
+        stream.content.clone()
+    };
+    // cmap.rs already has parse_writing_mode() — re-use via CidCMap::parse() which calls it
+    crate::cmap::CidCMap::parse(&data)
+        .map(|cmap| cmap.writing_mode())
+        .unwrap_or(0)
 }
 
 // --- Text rendering ---
@@ -1043,7 +1083,7 @@ fn show_string_cid_vertical(
 
     while i < string_bytes.len() {
         let char_code = if i + 1 < string_bytes.len() {
-            let code = u32::from(string_bytes[i]) << 8 | u32::from(string_bytes[i + 1]);
+            let code = (u32::from(string_bytes[i]) << 8) | u32::from(string_bytes[i + 1]);
             i += 2;
             code
         } else {
@@ -3260,6 +3300,136 @@ mod tests {
             Some("'"),
             "WinAnsiEncoding byte 0x27 should be quotesingle (U+0027), got {:?}",
             handler.chars[0].unicode
+        );
+    }
+
+    // --- WMode detection from embedded CMap stream ---
+
+    #[test]
+    fn writing_mode_from_embedded_cmap_stream_wmode1() {
+        // When /Encoding is an indirect reference to a CMap stream containing
+        // /WMode 1, extract_writing_mode_from_cmap_stream should return 1.
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        // Minimal CMap stream with /WMode 1
+        let cmap_content = b"%!PS-Adobe-3.0 Resource-CMap
+%%DocumentNeededResources: ProcSet (CIDInit)
+%%IncludeResource: ProcSet (CIDInit)
+%%BeginResource: CMap (UniJIS-UTF16-V)
+%%Title: (UniJIS-UTF16-V Adobe Japan1 6)
+%%Version: 1.000
+%%EndComments
+/CIDInit /ProcSet findresource begin
+12 dict begin
+begincmap
+/CIDSystemInfo 3 dict dup begin
+  /Registry (Adobe) def
+  /Ordering (Japan1) def
+  /Supplement 6 def
+end def
+/CMapName /UniJIS-UTF16-V def
+/WMode 1 def
+endcmap
+CMapName currentdict /CMap defineresource pop
+end
+end
+%%EndResource
+%%EOF
+";
+        let cmap_stream = lopdf::Stream::new(lopdf::Dictionary::new(), cmap_content.to_vec());
+        let cmap_id = doc.add_object(lopdf::Object::Stream(cmap_stream));
+
+        // Type0 font dictionary with Encoding as indirect ref to the CMap stream
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "AokinMincho",
+            "Encoding" => cmap_id,
+            "DescendantFonts" => lopdf::Object::Array(vec![]),
+        };
+
+        let wm = extract_writing_mode_from_cmap_stream(&doc, &font_dict);
+        assert_eq!(
+            wm, 1,
+            "embedded CMap stream with /WMode 1 should yield writing_mode=1"
+        );
+    }
+
+    #[test]
+    fn writing_mode_from_embedded_cmap_stream_wmode0() {
+        // CMap stream with /WMode 0 should yield writing_mode=0
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let cmap_content = b"/WMode 0 def\n";
+        let cmap_stream = lopdf::Stream::new(lopdf::Dictionary::new(), cmap_content.to_vec());
+        let cmap_id = doc.add_object(lopdf::Object::Stream(cmap_stream));
+
+        let font_dict = dictionary! {
+            "Encoding" => cmap_id,
+        };
+
+        let wm = extract_writing_mode_from_cmap_stream(&doc, &font_dict);
+        assert_eq!(
+            wm, 0,
+            "embedded CMap stream with /WMode 0 should yield writing_mode=0"
+        );
+    }
+
+    #[test]
+    fn writing_mode_from_embedded_cmap_stream_no_wmode_defaults_to_0() {
+        // CMap stream with no /WMode should default to 0
+        let mut doc = lopdf::Document::with_version("1.5");
+
+        let cmap_content = b"begincmap\nendcmap\n";
+        let cmap_stream = lopdf::Stream::new(lopdf::Dictionary::new(), cmap_content.to_vec());
+        let cmap_id = doc.add_object(lopdf::Object::Stream(cmap_stream));
+
+        let font_dict = dictionary! {
+            "Encoding" => cmap_id,
+        };
+
+        let wm = extract_writing_mode_from_cmap_stream(&doc, &font_dict);
+        assert_eq!(
+            wm, 0,
+            "embedded CMap stream with no /WMode should default to 0"
+        );
+    }
+
+    #[test]
+    fn writing_mode_from_encoding_name_not_cmap_stream() {
+        // When /Encoding is a name (not a stream ref), returns 0 gracefully
+        let doc = lopdf::Document::with_version("1.5");
+
+        let font_dict = dictionary! {
+            "Encoding" => "UniJIS-UTF16-H",
+        };
+
+        let wm = extract_writing_mode_from_cmap_stream(&doc, &font_dict);
+        assert_eq!(
+            wm, 0,
+            "name-based encoding should return 0 from stream extractor (handled by parse_predefined_cmap_name)"
+        );
+    }
+
+    #[test]
+    fn load_cid_font_prefers_name_based_writing_mode() {
+        // When encoding IS a predefined name like "UniJIS-UTF16-V", writing_mode = 1
+        // This path goes through parse_predefined_cmap_name, not the stream path.
+        // Verify the overall load_cid_font path works for named vertical encodings.
+        let doc = lopdf::Document::with_version("1.5");
+
+        let font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type0",
+            "BaseFont" => "TestVertFont",
+            "Encoding" => "UniJIS-UTF16-V",
+            "DescendantFonts" => lopdf::Object::Array(vec![]),
+        };
+
+        let (_, wm) = load_cid_font(&doc, &font_dict);
+        assert_eq!(
+            wm, 1,
+            "UniJIS-UTF16-V named encoding should yield writing_mode=1"
         );
     }
 }
