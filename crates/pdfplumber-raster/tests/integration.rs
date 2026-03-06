@@ -116,7 +116,9 @@ const PDF_FIXTURE: &str = "tests/fixtures/sample.pdf";
 fn render_pdf_first_page_produces_valid_png() {
     let path = std::env::var("PDF_FIXTURE").unwrap_or_else(|_| PDF_FIXTURE.to_owned());
     let pdf = Pdf::open_file(&path, None).expect("fixture PDF must be openable");
-    let page = pdf.pages().next().expect("PDF must have at least one page");
+    let page = pdf.pages_iter().next()
+        .expect("PDF must have at least one page")
+        .expect("first page must parse successfully");
     let png = Rasterizer::new(RasterOptions::default())
         .render_page(&page)
         .expect("render must not fail");
@@ -132,7 +134,8 @@ fn render_all_pages_no_panic() {
     let path = std::env::var("PDF_FIXTURE").unwrap_or_else(|_| PDF_FIXTURE.to_owned());
     let pdf = Pdf::open_file(&path, None).expect("fixture PDF must be openable");
     let rasterizer = Rasterizer::new(RasterOptions::default());
-    for page in pdf.pages() {
+    for page_result in pdf.pages_iter() {
+        let Ok(page) = page_result else { continue };
         let _ = rasterizer.render_page(&page); // must not panic
     }
 }
