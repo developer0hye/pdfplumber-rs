@@ -237,6 +237,17 @@ pub fn snap_edges(edges: Vec<Edge>, snap_x_tolerance: f64, snap_y_tolerance: f64
 }
 
 /// Cluster edges along a single axis and snap each cluster to its mean.
+///
+/// Matches Python pdfplumber's `cluster_list` algorithm exactly: each element
+/// joins the current cluster when it is within `tolerance` of the **previous**
+/// element (not the cluster start). This creates a sliding-window chain that
+/// can merge a spread of values wider than `tolerance` as long as consecutive
+/// sorted values are each within `tolerance` of their predecessor.
+///
+/// Example (tolerance=3): values [72.3, 74.8, 77.4, 79.2, 79.8] all collapse
+/// into one cluster because each step is ≤ 3.0, even though the total spread
+/// is 7.5pt. Our old implementation compared to cluster_start and would have
+/// split this into multiple clusters.
 fn snap_group<F, G>(edges: &mut [Edge], tolerance: f64, key: F, mut set: G)
 where
     F: Fn(&Edge) -> f64,
@@ -249,13 +260,15 @@ where
     // Sort by the perpendicular coordinate
     edges.sort_by(|a, b| key(a).partial_cmp(&key(b)).unwrap());
 
-    // Build clusters of consecutive edges within tolerance
+    // Build clusters: each element joins the current cluster when within
+    // tolerance of the *previous* element (Python pdfplumber cluster_list
+    // uses `x <= last + tolerance` where last is updated each step).
     let mut cluster_start = 0;
     for i in 1..=edges.len() {
         let end_of_cluster =
-            i == edges.len() || (key(&edges[i]) - key(&edges[cluster_start])).abs() > tolerance;
+            i == edges.len() || (key(&edges[i]) - key(&edges[i - 1])).abs() > tolerance;
         if end_of_cluster {
-            // Compute mean of the cluster
+            // Compute mean of the cluster and snap all edges in it
             let sum: f64 = (cluster_start..i).map(|j| key(&edges[j])).sum();
             let mean = sum / (i - cluster_start) as f64;
             for edge in &mut edges[cluster_start..i] {
@@ -1029,16 +1042,17 @@ pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
 
 /// Like [`extract_text_for_cells`] but with explicit [`WordOptions`] so the
 /// caller can supply a rotation-adjusted text direction.
+///
+/// The text direction for line grouping is determined per-cell from the
+/// actual characters in that cell, matching how [`WordExtractor::extract`]
+/// dispatches on `char.upright`. This ensures cells on rotated/RTL pages
+/// use the correct axis for line assembly without requiring the caller to
+/// know the page orientation.
 pub fn extract_text_for_cells_with_options(
     cells: &mut [Cell],
     chars: &[Char],
     options: &WordOptions,
 ) {
-    let is_vertical = matches!(
-        options.text_direction,
-        TextDirection::Ttb | TextDirection::Btt
-    );
-
     for cell in cells.iter_mut() {
         // Find chars whose bbox center falls within this cell
         let cell_chars: Vec<Char> = chars
@@ -1059,18 +1073,27 @@ pub fn extract_text_for_cells_with_options(
             continue;
         }
 
-        // Group chars into words
+        // Group chars into words. WordExtractor::extract dispatches on char.upright,
+        // so the returned words will have the correct direction (Ttb for non-upright chars).
         let words = WordExtractor::extract(&cell_chars, options);
         if words.is_empty() {
             cell.text = None;
             continue;
         }
 
+        // Determine line grouping axis from the actual word directions, not the
+        // caller-supplied options.text_direction. This handles non-upright chars
+        // whose direction may differ from the page-level WordOptions.
+        let cell_is_vertical = words
+            .iter()
+            .any(|w| matches!(w.direction, TextDirection::Ttb | TextDirection::Btt))
+            || cell_chars.iter().any(|c| !c.upright);
+
         // Group words into lines:
         // - For horizontal text (LTR/RTL): group by y-coordinate (top)
-        // - For vertical text (TTB/BTT): group by x-coordinate (x0)
+        // - For vertical text (TTB/BTT/non-upright): group by x-coordinate (x0)
         let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
-        if is_vertical {
+        if cell_is_vertical {
             sorted_words.sort_by(|a, b| {
                 a.bbox
                     .x0
@@ -1088,7 +1111,7 @@ pub fn extract_text_for_cells_with_options(
             });
         }
 
-        let tolerance = if is_vertical {
+        let tolerance = if cell_is_vertical {
             options.x_tolerance
         } else {
             options.y_tolerance
@@ -1097,12 +1120,12 @@ pub fn extract_text_for_cells_with_options(
         let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
         for word in &sorted_words {
             let added = lines.last_mut().and_then(|line| {
-                let last_key = if is_vertical {
+                let last_key = if cell_is_vertical {
                     line[0].bbox.x0
                 } else {
                     line[0].bbox.top
                 };
-                let word_key = if is_vertical {
+                let word_key = if cell_is_vertical {
                     word.bbox.x0
                 } else {
                     word.bbox.top
@@ -1227,8 +1250,10 @@ where
     let mut cluster_start = 0;
 
     for i in 1..=indices.len() {
+        // Use sliding-window comparison (against previous element, not cluster start)
+        // to match Python pdfplumber's cluster_list algorithm exactly.
         let end_of_cluster = i == indices.len()
-            || (key(&words[indices[i]]) - key(&words[indices[cluster_start]])).abs() > tolerance;
+            || (key(&words[indices[i]]) - key(&words[indices[i - 1]])).abs() > tolerance;
 
         if end_of_cluster {
             let cluster_size = i - cluster_start;
@@ -4942,5 +4967,148 @@ mod tests {
         let result = duplicate_merged_content_in_table(&table);
         assert!(result.cells.is_empty());
         assert!(result.rows.is_empty());
+    }
+
+    // --- snap_group sliding-window fix tests (issue-848 / US-221) ---
+    //
+    // Python pdfplumber's cluster_list uses a sliding-window: each element joins
+    // the current cluster when abs(x - prev) <= tolerance (not abs(x - cluster_start)).
+    // This allows a spread wider than tolerance to collapse if consecutive steps are small.
+
+    #[test]
+    fn test_snap_group_sliding_window_issue848_exact() {
+        // Exact x0 values from issue-848 page 1 rect edges.
+        // Spread = 85.3 - 72.3 = 13pt, but consecutive gaps are all ≤ 3pt.
+        // Old (cluster_start) logic: would split into multiple clusters.
+        // New (sliding-window) logic: all collapse into one cluster.
+        let x_values = [
+            72.3, 74.8, 77.4, 79.2, 79.8, 79.9, 80.0, 80.5, 82.6, 84.6, 85.3,
+        ];
+        let mut edges: Vec<Edge> = x_values
+            .iter()
+            .map(|&x| Edge {
+                x0: x,
+                top: 72.0,
+                x1: x,
+                bottom: 720.0,
+                orientation: Orientation::Vertical,
+                source: crate::edges::EdgeSource::RectLeft,
+            })
+            .collect();
+
+        let mut snapped_xs: Vec<f64> = Vec::new();
+        snap_group(
+            &mut edges,
+            3.0,
+            |e| e.x0,
+            |e, v| {
+                e.x0 = v;
+                e.x1 = v;
+            },
+        );
+        for e in &edges {
+            if !snapped_xs.iter().any(|&x| (x - e.x0).abs() < 1e-9) {
+                snapped_xs.push(e.x0);
+            }
+        }
+
+        assert_eq!(
+            snapped_xs.len(),
+            1,
+            "All 11 issue-848 rect x0 values should collapse to 1 cluster via sliding-window, \
+             got {} distinct values: {:?}",
+            snapped_xs.len(),
+            snapped_xs
+        );
+        // Mean of all 11 values
+        let expected_mean: f64 = x_values.iter().sum::<f64>() / x_values.len() as f64;
+        let diff = (snapped_xs[0] - expected_mean).abs();
+        assert!(
+            diff < 1e-6,
+            "Cluster mean should be {:.4}, got {:.4}",
+            expected_mean,
+            snapped_xs[0]
+        );
+    }
+
+    #[test]
+    fn test_snap_group_wide_spread_splits_correctly() {
+        // Values with a genuine gap > tolerance should still split into 2 clusters.
+        // [72.3, 73.5, 80.0, 81.0] — gap between 73.5 and 80.0 = 6.5 > 3.0
+        let x_values = [72.3_f64, 73.5, 80.0, 81.0];
+        let mut edges: Vec<Edge> = x_values
+            .iter()
+            .map(|&x| Edge {
+                x0: x,
+                top: 0.0,
+                x1: x,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: crate::edges::EdgeSource::RectLeft,
+            })
+            .collect();
+
+        snap_group(
+            &mut edges,
+            3.0,
+            |e| e.x0,
+            |e, v| {
+                e.x0 = v;
+                e.x1 = v;
+            },
+        );
+
+        let mut snapped_xs: Vec<f64> = Vec::new();
+        for e in &edges {
+            if !snapped_xs.iter().any(|&x| (x - e.x0).abs() < 1e-9) {
+                snapped_xs.push(e.x0);
+            }
+        }
+        snapped_xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        assert_eq!(snapped_xs.len(), 2, "Should have 2 clusters (genuine gap)");
+        let diff0 = (snapped_xs[0] - 72.9).abs(); // mean(72.3, 73.5)
+        let diff1 = (snapped_xs[1] - 80.5).abs(); // mean(80.0, 81.0)
+        assert!(diff0 < 1e-6, "Cluster 0 mean wrong: {}", snapped_xs[0]);
+        assert!(diff1 < 1e-6, "Cluster 1 mean wrong: {}", snapped_xs[1]);
+    }
+
+    // --- cluster_words_to_edges sliding-window fix tests (Stream strategy) ---
+
+    #[test]
+    fn test_cluster_words_to_edges_sliding_window() {
+        // Stream strategy: words whose x0 values form a chain within tolerance
+        // should collapse to a single synthetic vertical edge.
+        // x0 values: [10.0, 11.5, 13.0, 14.4] — each step ≤ 3.0, spread = 4.4
+        // Old (cluster_start comparison): would split into multiple clusters.
+        // New (sliding-window, prev element): all → one cluster → one synthetic edge.
+        let words: Vec<Word> = [10.0_f64, 11.5, 13.0, 14.4]
+            .iter()
+            .map(|&x| make_word("w", x, 50.0, x + 8.0, 62.0))
+            .collect();
+
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 1, 1);
+        // All 4 words share approximately x0 ~ 10-14.4 (chain within 3pt steps).
+        // They should collapse to a single x0-aligned vertical edge.
+        let verticals: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .filter(|e| {
+                // Find the vertical edge at ~mean(10.0, 11.5, 13.0, 14.4) = 12.225
+                (e.x0 - 12.225).abs() < 0.5
+            })
+            .collect();
+
+        assert_eq!(
+            verticals.len(),
+            1,
+            "Chain of x0 values within sliding-window should produce 1 vertical edge, \
+             got edges: {:?}",
+            edges
+                .iter()
+                .filter(|e| e.orientation == Orientation::Vertical)
+                .map(|e| e.x0)
+                .collect::<Vec<_>>()
+        );
     }
 }
