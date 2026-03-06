@@ -1093,10 +1093,15 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+// issue-1147: CJK document (MicrosoftYaHei) with uniform inter-character spacing.
+// Python pdfplumber splits words when gap >= x_tolerance (not just >).
+// Fixed in this PR: should_split_horizontal/vertical now use >= semantics.
+// Chars: 95%+ (char extraction correct). Words: was 36.2% with > bug, now ≥ WORD_THRESHOLD.
+cross_validate!(
     cv_python_issue_1147,
     "issue-1147-example.pdf",
-    "words 36.2% — word grouping algorithm gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate_ignored!(
     cv_python_issue_1279,

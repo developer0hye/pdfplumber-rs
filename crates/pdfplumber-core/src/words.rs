@@ -334,7 +334,11 @@ impl WordExtractor {
         let x_gap =
             (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0);
         let y_diff = (current.bbox.top - last.bbox.top).abs();
-        x_gap > options.x_tolerance || y_diff > options.y_tolerance
+        // Python pdfplumber splits when gap >= tolerance (not just >).
+        // A gap of exactly x_tolerance points must produce a word break,
+        // matching the golden data produced by Python for CJK uniform grids
+        // where inter-character gaps are frequently exactly 3.0pt.
+        x_gap >= options.x_tolerance || y_diff >= options.y_tolerance
     }
 
     /// Check if two vertically-adjacent chars should be split into separate words.
@@ -346,7 +350,8 @@ impl WordExtractor {
             - last.bbox.bottom.min(current.bbox.bottom))
         .max(0.0);
         let x_diff = (current.bbox.x0 - last.bbox.x0).abs();
-        y_gap > options.y_tolerance || x_diff > options.x_tolerance
+        // Match Python's >= semantics — gap equal to tolerance is a split boundary.
+        y_gap >= options.y_tolerance || x_diff >= options.x_tolerance
     }
 
     fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {

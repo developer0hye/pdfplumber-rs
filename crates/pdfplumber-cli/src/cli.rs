@@ -363,6 +363,30 @@ pub enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+
+    /// Forensic inspection: producer fingerprinting, modification detection, risk scoring
+    Inspect {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = InspectFormat::Text)]
+        format: InspectFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+    },
+}
+
+/// Output format for the inspect subcommand.
+#[derive(Debug, Clone, ValueEnum)]
+pub enum InspectFormat {
+    /// Human-readable text report
+    Text,
+    /// JSON output (requires --features serde)
+    Json,
 }
 
 /// Table detection strategy.
