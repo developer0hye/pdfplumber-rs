@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
-    extract_shapes, image_from_ctm, normalize_chars,
+    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, RawSignature, Rect, RepairOptions,
+    RepairResult, SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection,
+    TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
+    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -28,7 +28,7 @@ pub struct PagesIter<'a> {
     count: usize,
 }
 
-impl<'a> Iterator for PagesIter<'a> {
+impl Iterator for PagesIter<'_> {
     type Item = Result<Page, PdfError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -790,6 +790,32 @@ impl Pdf {
     /// Returns [`PdfError`] if the AcroForm exists but is malformed.
     pub fn signatures(&self) -> Result<Vec<SignatureInfo>, PdfError> {
         LopdfBackend::document_signatures(&self.doc).map_err(PdfError::from)
+    }
+
+    /// Returns raw signature data for cryptographic verification.
+    ///
+    /// Each [`RawSignature`] contains the [`SignatureInfo`] metadata plus the
+    /// DER-encoded PKCS#7 `SignedData` blob needed for [`verify_signature`].
+    ///
+    /// Pass one element along with the raw file bytes to
+    /// [`pdfplumber::signatures::verify_signature`] (requires the `signatures`
+    /// feature):
+    ///
+    /// ```no_run
+    /// let file_bytes = std::fs::read("signed.pdf").unwrap();
+    /// let pdf = pdfplumber::Pdf::open_file("signed.pdf", None).unwrap();
+    /// let raws = pdf.raw_signatures().unwrap();
+    /// #[cfg(feature = "signatures")]
+    /// for raw in &raws {
+    ///     let v = pdfplumber::signatures::verify_signature(raw, &file_bytes);
+    ///     println!("{}: valid={}", raw.info.signer_name.as_deref().unwrap_or("?"), v.is_valid);
+    /// }
+    /// ```
+    ///
+    /// [`verify_signature`]: crate::signatures::verify_signature
+    pub fn raw_signatures(&self) -> Result<Vec<RawSignature>, PdfError> {
+        use pdfplumber_parse::extract_raw_document_signatures;
+        extract_raw_document_signatures(self.doc.inner()).map_err(PdfError::from)
     }
 
     /// Detect repeating headers and footers across all pages.

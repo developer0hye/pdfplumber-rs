@@ -14,11 +14,22 @@ default = ["std"]
 std = []
 serde = ["pdfplumber-core/serde"]
 parallel = ["dep:rayon"]
+# Cryptographic signature verification — pure Rust, no OpenSSL.
+signatures = ["dep:cms", "dep:x509-cert", "dep:sha2", "dep:sha1", "dep:rsa", "dep:p256", "dep:der", "dep:spki"]
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
 pdfplumber-parse = { version = "0.2.0", path = "../pdfplumber-parse" }
 rayon = { version = "1.10", optional = true }
+# signatures feature — only compiled when `signatures` feature is enabled
+cms = { version = "0.2", optional = true }
+x509-cert = { version = "0.2", optional = true }
+sha2 = { version = "0.10", optional = true }
+sha1 = { version = "0.10", optional = true }
+rsa = { version = "0.9", optional = true }
+p256 = { version = "0.13", optional = true }
+der = { version = "0.7", optional = true }
+spki = { version = "0.7", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

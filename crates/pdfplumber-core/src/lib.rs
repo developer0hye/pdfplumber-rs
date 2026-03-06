@@ -113,7 +113,7 @@ pub use path::{Path, PathBuilder, PathSegment};
 pub use repair::{RepairOptions, RepairResult};
 pub use search::{SearchMatch, SearchOptions, search_chars};
 pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
-pub use signature::SignatureInfo;
+pub use signature::{CertInfo, RawSignature, SignatureInfo, SignatureVerification};
 pub use struct_tree::StructElement;
 pub use svg::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer};
 pub use table::{

@@ -2278,25 +2278,277 @@ fn walk_signature_tree(
         .and_then(|obj| obj.as_dict().ok());
 
     let info = match sig_dict {
-        Some(v_dict) => SignatureInfo {
-            signer_name: extract_string_from_dict(doc, v_dict, b"Name"),
-            sign_date: extract_string_from_dict(doc, v_dict, b"M"),
-            reason: extract_string_from_dict(doc, v_dict, b"Reason"),
-            location: extract_string_from_dict(doc, v_dict, b"Location"),
-            contact_info: extract_string_from_dict(doc, v_dict, b"ContactInfo"),
-            is_signed: true,
-        },
+        Some(v_dict) => {
+            // Extract /ByteRange — array of 4 integers: [o1, l1, o2, l2]
+            let byte_range = extract_byte_range(doc, v_dict);
+
+            // Extract /Filter and /SubFilter names
+            let filter = v_dict.get(b"Filter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
+            let sub_filter = v_dict.get(b"SubFilter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
+
+            SignatureInfo {
+                signer_name: extract_string_from_dict(doc, v_dict, b"Name"),
+                sign_date: extract_string_from_dict(doc, v_dict, b"M"),
+                reason: extract_string_from_dict(doc, v_dict, b"Reason"),
+                location: extract_string_from_dict(doc, v_dict, b"Location"),
+                contact_info: extract_string_from_dict(doc, v_dict, b"ContactInfo"),
+                filter,
+                sub_filter,
+                byte_range,
+                is_signed: true,
+            }
+        }
         None => SignatureInfo {
             signer_name: None,
             sign_date: None,
             reason: None,
             location: None,
             contact_info: None,
+            filter: None,
+            sub_filter: None,
+            byte_range: None,
             is_signed: false,
         },
     };
 
     signatures.push(info);
+}
+
+/// Extract the `/ByteRange` array from a signature value dictionary.
+///
+/// The PDF spec requires `/ByteRange` to be an array of 4 non-negative integers:
+/// `[offset1, length1, offset2, length2]`. Returns `None` if the entry is absent
+/// or malformed.
+fn extract_byte_range(doc: &lopdf::Document, v_dict: &lopdf::Dictionary) -> Option<[u64; 4]> {
+    let obj = v_dict.get(b"ByteRange").ok()?;
+    // Resolve indirect reference
+    let obj = match obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+    let arr = obj.as_array().ok()?;
+    if arr.len() != 4 {
+        return None;
+    }
+    let mut out = [0u64; 4];
+    for (i, item) in arr.iter().enumerate() {
+        out[i] = match item {
+            lopdf::Object::Integer(n) => *n as u64,
+            lopdf::Object::Real(f) => *f as u64,
+            _ => return None,
+        };
+    }
+    Some(out)
+}
+
+/// Extract raw signatures (including `/Contents` DER bytes) for cryptographic
+/// verification. Returns a parallel structure to `extract_document_signatures`
+/// but adds the raw PKCS#7 blob.
+pub fn extract_raw_document_signatures(
+    doc: &lopdf::Document,
+) -> Result<Vec<pdfplumber_core::RawSignature>, BackendError> {
+    use pdfplumber_core::RawSignature;
+
+    // Re-use the same AcroForm walking logic but capture /Contents too.
+    let catalog_ref = match doc.trailer.get(b"Root") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let catalog = match catalog_ref {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => match obj.as_dict() {
+                Ok(dict) => dict,
+                Err(_) => return Ok(Vec::new()),
+            },
+            Err(_) => return Ok(Vec::new()),
+        },
+        lopdf::Object::Dictionary(dict) => dict,
+        _ => return Ok(Vec::new()),
+    };
+    let acroform_obj = match catalog.get(b"AcroForm") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let acroform_obj = match acroform_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+    let acroform_dict = match acroform_obj.as_dict() {
+        Ok(dict) => dict,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let fields_obj = match acroform_dict.get(b"Fields") {
+        Ok(obj) => obj,
+        Err(_) => return Ok(Vec::new()),
+    };
+    let fields_obj = match fields_obj {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(obj) => obj,
+            Err(_) => return Ok(Vec::new()),
+        },
+        other => other,
+    };
+    let fields_array = match fields_obj.as_array() {
+        Ok(arr) => arr,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    let mut raw_sigs: Vec<RawSignature> = Vec::new();
+    let max_depth = 64usize;
+
+    for field_entry in fields_array {
+        let field_ref = match field_entry {
+            lopdf::Object::Reference(id) => *id,
+            _ => continue,
+        };
+        walk_raw_signature_tree(doc, field_ref, None, 0, max_depth, &mut raw_sigs);
+    }
+    Ok(raw_sigs)
+}
+
+fn walk_raw_signature_tree(
+    doc: &lopdf::Document,
+    field_id: lopdf::ObjectId,
+    inherited_ft: Option<&[u8]>,
+    depth: usize,
+    max_depth: usize,
+    out: &mut Vec<pdfplumber_core::RawSignature>,
+) {
+    if depth >= max_depth {
+        return;
+    }
+    let field_obj = match doc.get_object(field_id) {
+        Ok(obj) => obj,
+        Err(_) => return,
+    };
+    let field_dict = match field_obj.as_dict() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    let field_type = match field_dict.get(b"FT") {
+        Ok(lopdf::Object::Name(n)) => Some(n.as_slice()),
+        _ => inherited_ft,
+    };
+
+    // Recurse into /Kids
+    if let Ok(kids_obj) = field_dict.get(b"Kids") {
+        let kids_obj = match kids_obj {
+            lopdf::Object::Reference(id) => match doc.get_object(*id) {
+                Ok(obj) => obj,
+                Err(_) => return,
+            },
+            other => other,
+        };
+        if let Ok(kids_array) = kids_obj.as_array() {
+            let has_child_fields = kids_array.iter().any(|kid| {
+                let kid_obj = match kid {
+                    lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+                    _ => Some(kid),
+                };
+                kid_obj
+                    .and_then(|o| o.as_dict().ok())
+                    .is_some_and(|d| d.get(b"T").is_ok())
+            });
+            if has_child_fields {
+                for kid in kids_array {
+                    if let lopdf::Object::Reference(kid_id) = kid {
+                        walk_raw_signature_tree(
+                            doc,
+                            *kid_id,
+                            field_type,
+                            depth + 1,
+                            max_depth,
+                            out,
+                        );
+                    }
+                }
+                return;
+            }
+        }
+    }
+
+    let is_sig = field_type.is_some_and(|ft| ft == b"Sig");
+    if !is_sig {
+        return;
+    }
+
+    // Get /V dict
+    let v_result = field_dict
+        .get(b"V")
+        .ok()
+        .and_then(|obj| match obj {
+            lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+            other => Some(other),
+        })
+        .and_then(|obj| obj.as_dict().ok());
+
+    let (info, pkcs7_der) = match v_result {
+        Some(v_dict) => {
+            let byte_range = extract_byte_range(doc, v_dict);
+            let filter = v_dict.get(b"Filter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
+            let sub_filter = v_dict.get(b"SubFilter").ok().and_then(|o| match o {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).into_owned()),
+                _ => None,
+            });
+
+            // Extract /Contents — the raw PKCS#7 DER.
+            // In PDF, /Contents is a hex string (odd-length hex with leading < and >)
+            // lopdf parses it as Object::String(bytes, StringFormat::Hexadecimal).
+            let pkcs7_der = v_dict
+                .get(b"Contents")
+                .ok()
+                .and_then(|o| match o {
+                    lopdf::Object::Reference(id) => doc.get_object(*id).ok(),
+                    other => Some(other),
+                })
+                .map(|o| match o {
+                    lopdf::Object::String(bytes, _) => bytes.clone(),
+                    _ => Vec::new(),
+                })
+                .unwrap_or_default();
+
+            let info = pdfplumber_core::SignatureInfo {
+                signer_name: extract_string_from_dict(doc, v_dict, b"Name"),
+                sign_date: extract_string_from_dict(doc, v_dict, b"M"),
+                reason: extract_string_from_dict(doc, v_dict, b"Reason"),
+                location: extract_string_from_dict(doc, v_dict, b"Location"),
+                contact_info: extract_string_from_dict(doc, v_dict, b"ContactInfo"),
+                filter,
+                sub_filter,
+                byte_range,
+                is_signed: true,
+            };
+            (info, pkcs7_der)
+        }
+        None => {
+            let info = pdfplumber_core::SignatureInfo {
+                signer_name: None,
+                sign_date: None,
+                reason: None,
+                location: None,
+                contact_info: None,
+                filter: None,
+                sub_filter: None,
+                byte_range: None,
+                is_signed: false,
+            };
+            (info, Vec::new())
+        }
+    };
+
+    out.push(pdfplumber_core::RawSignature { info, pkcs7_der });
 }
 
 /// Extract the document structure tree from `/StructTreeRoot`.

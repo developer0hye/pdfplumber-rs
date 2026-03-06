@@ -14,3 +14,15 @@ edition = "2024"
 rust-version = "1.85"
 license = "Apache-2.0"
 repository = "https://github.com/developer0hye/pdfplumber-rs"
+
+[workspace.dependencies]
+# Signature verification (optional, pulled in by pdfplumber `signatures` feature)
+cms = "0.2"
+x509-cert = "0.2"
+sha2 = "0.10"
+sha1 = { version = "0.10", features = ["oid"] }
+rsa = "0.9"
+p256 = "0.13"
+signature = "2"
+der = "0.7"
+spki = "0.7"

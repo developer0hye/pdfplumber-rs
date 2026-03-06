@@ -104,28 +104,51 @@ pub use pdf::{PagesIter, Pdf};
 /// and can be filtered again for composable filtering chains.
 pub type FilteredPage = CroppedPage;
 pub use pdfplumber_core::{
-    Annotation, AnnotationType, BBox, Bookmark, Cell, Char, Color, ColumnMode, Ctm, Curve,
-    DashPattern, DedupeOptions, DocumentMetadata, DrawStyle, Edge, EdgeSource, EncodingResolver,
-    ExplicitLines, ExportedImage, ExtGState, ExtractOptions, ExtractResult, ExtractWarning,
-    FieldType, FillRule, FontEncoding, FormField, GraphicsState, HtmlOptions, HtmlRenderer,
-    Hyperlink, Image, ImageContent, ImageExportOptions, ImageFilter, ImageFormat, ImageMetadata,
-    Intersection, Line, LineOrientation, Orientation, PageObject, PageRegionOptions, PageRegions,
-    PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, Rect, RepairOptions,
-    RepairResult, SearchMatch, SearchOptions, Severity, SignatureInfo, StandardEncoding, Strategy,
-    StructElement, SvgDebugOptions, SvgOptions, SvgRenderer, Table, TableFinder, TableFinderDebug,
-    TableQuality, TableSettings, TextBlock, TextDirection, TextLine, TextOptions, UnicodeNorm,
-    ValidationIssue, Word, WordExtractor, WordOptions, blocks_to_text, cells_to_tables,
-    cluster_lines_into_blocks, cluster_words_into_lines, derive_edges, detect_columns,
-    edge_from_curve, edge_from_line, edges_from_rect, edges_to_cells, edges_to_intersections,
-    explicit_lines_to_edges, export_image_set, extract_shapes, extract_text_for_cells,
-    extract_text_for_cells_with_options, image_from_ctm, intersections_to_cells, is_cjk,
-    is_cjk_text, join_edge_group, normalize_table_columns, snap_edges, sort_blocks_column_order,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_edges_stream, words_to_text,
+    Annotation, AnnotationType, BBox, Bookmark, Cell, CertInfo, Char, Color, ColumnMode, Ctm,
+    Curve, DashPattern, DedupeOptions, DocumentMetadata, DrawStyle, Edge, EdgeSource,
+    EncodingResolver, ExplicitLines, ExportedImage, ExtGState, ExtractOptions, ExtractResult,
+    ExtractWarning, FieldType, FillRule, FontEncoding, FormField, GraphicsState, HtmlOptions,
+    HtmlRenderer, Hyperlink, Image, ImageContent, ImageExportOptions, ImageFilter, ImageFormat,
+    ImageMetadata, Intersection, Line, LineOrientation, Orientation, PageObject, PageRegionOptions,
+    PageRegions, PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, RawSignature, Rect,
+    RepairOptions, RepairResult, SearchMatch, SearchOptions, Severity, SignatureInfo,
+    SignatureVerification, StandardEncoding, Strategy, StructElement, SvgDebugOptions, SvgOptions,
+    SvgRenderer, Table, TableFinder, TableFinderDebug, TableQuality, TableSettings, TextBlock,
+    TextDirection, TextLine, TextOptions, UnicodeNorm, ValidationIssue, Word, WordExtractor,
+    WordOptions, blocks_to_text, cells_to_tables, cluster_lines_into_blocks,
+    cluster_words_into_lines, derive_edges, detect_columns, edge_from_curve, edge_from_line,
+    edges_from_rect, edges_to_cells, edges_to_intersections, explicit_lines_to_edges,
+    export_image_set, extract_shapes, extract_text_for_cells, extract_text_for_cells_with_options,
+    image_from_ctm, intersections_to_cells, is_cjk, is_cjk_text, join_edge_group,
+    normalize_table_columns, snap_edges, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_edges_stream, words_to_text,
 };
 pub use pdfplumber_parse::{
     self, CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, LopdfPage,
     PageGeometry, PaintOp, PathEvent, PdfBackend,
 };
+
+/// Cryptographic signature verification (requires `signatures` feature).
+///
+/// This module exposes [`verify_signature`] and is only compiled when the
+/// `signatures` feature is enabled. Import it directly:
+///
+/// ```no_run
+/// #[cfg(feature = "signatures")]
+/// use pdfplumber::signatures;
+///
+/// let pdf = pdfplumber::Pdf::open_file("signed.pdf", None).unwrap();
+/// let file_bytes = std::fs::read("signed.pdf").unwrap();
+/// for (i, raw) in pdf.raw_signatures().unwrap().iter().enumerate() {
+///     #[cfg(feature = "signatures")]
+///     {
+///         let v = signatures::verify_signature(raw, &file_bytes);
+///         println!("sig {i}: valid={} signer={:?}", v.is_valid, v.signer_cn);
+///     }
+/// }
+/// ```
+#[cfg(feature = "signatures")]
+pub mod signatures;
 
 #[cfg(test)]
 mod tests {

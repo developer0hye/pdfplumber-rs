@@ -363,6 +363,35 @@ pub enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+
+    /// List digital signatures and optionally verify them cryptographically
+    Signatures {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Perform cryptographic verification of each signature.
+        /// Requires the `signatures` feature to be enabled at compile time.
+        #[arg(long)]
+        verify: bool,
+
+        /// Output format
+        #[arg(long, value_enum, default_value_t = SignaturesFormat::Text)]
+        format: SignaturesFormat,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+    },
+}
+
+/// Output format for the signatures subcommand.
+#[derive(Debug, Clone, ValueEnum)]
+pub enum SignaturesFormat {
+    /// Human-readable text output
+    Text,
+    /// JSON output (includes all fields)
+    Json,
 }
 
 /// Table detection strategy.

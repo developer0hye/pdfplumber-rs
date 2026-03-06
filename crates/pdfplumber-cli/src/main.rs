@@ -10,6 +10,7 @@ mod links_cmd;
 mod page_range;
 mod search_cmd;
 mod shared;
+mod signatures_cmd;
 mod tables_cmd;
 mod text_cmd;
 mod validate_cmd;
@@ -184,6 +185,12 @@ fn main() {
             ref format,
             ref password,
         } => validate_cmd::run(file, format, password.as_deref()),
+        cli::Commands::Signatures {
+            ref file,
+            verify,
+            ref format,
+            ref password,
+        } => signatures_cmd::run(file, verify, format, password.as_deref()),
     };
 
     if let Err(code) = result {
