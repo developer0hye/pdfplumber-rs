@@ -1076,10 +1076,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_hello_structure,
     "hello_structure.pdf",
-    "chars 37% — tagged PDF TrueType font gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_1054,
@@ -1093,15 +1094,22 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+// issue-1147: MicrosoftYaHei CID font, mixed CJK+Latin content.
+// AFM + WMode fixes bring this to 100%/100%.
+cross_validate!(
     cv_python_issue_1147,
     "issue-1147-example.pdf",
-    "words 36.2% — word grouping algorithm gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
-cross_validate_ignored!(
+// issue-1279: Embedded CFF fonts (Maestro music notation, PalatinoldsLat Condensed).
+// After AFM ascent fix, PalatinoldsLat-Condensed chars now match at 100%.
+// Maestro glyphs use standard glyph names that map correctly. Words ~98%.
+cross_validate!(
     cv_python_issue_1279,
     "issue-1279-example.pdf",
-    "chars 64.4% — complex layout extraction gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_140,
@@ -1233,15 +1241,17 @@ cross_validate!(
 
 // ─── pdfplumber-python: ERROR tests (parse failures) ─────────────────────
 
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot180,
     "annotations-rotated-180.pdf",
-    "chars 100% but words 0% — rotation 180 word grouping gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot270,
     "annotations-rotated-270.pdf",
-    "chars 100% but words 0% — rotation 270 word grouping gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(
     cv_python_annotations_rot90,
@@ -1255,9 +1265,19 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(cv_python_issue_1181, "issue-1181.pdf", "PDF parse error");
+cross_validate!(
+    cv_python_issue_1181,
+    "issue-1181.pdf",
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
+);
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+cross_validate!(
+    cv_python_issue_848,
+    "issue-848.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
@@ -1350,10 +1370,14 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+// pdfjs/vertical.pdf: AokinMincho CID font, WMode=1 vertical writing.
+// 8 chars total (あいうえお日本語). Fix: extract_writing_mode_from_cmap_stream
+// now reads /WMode from embedded CMap streams when /Encoding is a stream ref.
+cross_validate!(
     cv_pdfjs_vertical,
     "pdfjs/vertical.pdf",
-    "chars 0% — CJK vertical writing gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_CHAR_THRESHOLD
 );
 
 // ─── pdfbox: PASSING tests (chars/words >= 80%) ──────────────────────────
@@ -1385,10 +1409,13 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+// pdfbox-3127-vfont: vertical font, 730 golden chars.
+// WMode stream-detection fix may improve extraction; setting conservative threshold.
+cross_validate!(
     cv_pdfbox_3127_vfont,
     "pdfbox/pdfbox-3127-vfont-reduced.pdf",
-    "chars 0.3% — vertical font gap"
+    0.50,
+    0.50
 );
 cross_validate!(
     cv_pdfbox_3833_japanese,
@@ -1500,4 +1527,128 @@ fn cross_validate_chelsea_pdta_chars_85() {
         "chelsea_pdta char rate {:.1}% < 85%",
         result.total_char_rate() * 100.0,
     );
+}
+
+#[test]
+#[ignore = "diagnostic: dump hello_structure page chars"]
+fn diag_hello_structure_chars() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    if !path.exists() {
+        panic!("fixture not found");
+    }
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    for (i, page_result) in pdf.pages_iter().enumerate() {
+        let page = page_result.unwrap();
+        let chars = page.chars();
+        eprintln!("page {i}: {} chars", chars.len());
+        for c in chars.iter().take(8) {
+            eprintln!("  {:?} font={:?} size={}", c.text, c.fontname, c.size);
+        }
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: compare hello_structure page 0 vs golden"]
+fn diag_hello_structure_vs_golden() {
+    use std::collections::HashMap;
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    let golden_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/golden/hello_structure.json");
+    let bytes = std::fs::read(&path).unwrap();
+    let golden_str = std::fs::read_to_string(&golden_path).unwrap();
+    let golden: serde_json::Value = serde_json::from_str(&golden_str).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+
+    // Page 0
+    let page = pdf.pages_iter().next().unwrap().unwrap();
+    let rust_chars = page.chars();
+    let golden_chars = &golden["pages"][0]["chars"];
+    eprintln!(
+        "=== page 0: rust={} golden={} ===",
+        rust_chars.len(),
+        golden_chars.as_array().map(|a| a.len()).unwrap_or(0)
+    );
+    for (i, c) in rust_chars.iter().enumerate().take(5) {
+        eprintln!(
+            "  rust[{i}]: {:?} x0={:.1} bot={:.1} top={:.1}",
+            c.text, c.bbox.x0, c.bbox.bottom, c.bbox.top
+        );
+    }
+    let gc = golden_chars.as_array().unwrap();
+    for (i, c) in gc.iter().enumerate().take(5) {
+        eprintln!(
+            "  gold[{i}]: {:?} x0={:.1} top={:.1} bot={:.1}",
+            c["text"].as_str().unwrap_or("?"),
+            c["x0"].as_f64().unwrap_or(0.0),
+            c["top"].as_f64().unwrap_or(0.0),
+            c["bottom"].as_f64().unwrap_or(0.0),
+        );
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: hello_structure page geometry"]
+fn diag_hello_structure_geometry() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/hello_structure.pdf");
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    let page = pdf.pages_iter().next().unwrap().unwrap();
+    eprintln!("page height={} width={}", page.height(), page.width());
+    let chars = page.chars();
+    for c in chars.iter().take(3) {
+        eprintln!(
+            "  {:?} x0={} top={} x1={} bot={}",
+            c.text, c.bbox.x0, c.bbox.top, c.bbox.x1, c.bbox.bottom
+        );
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: issue-848 page 2/3 words"]
+fn diag_issue_848_pages_2_3() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/issue-848.pdf");
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+    for i in [2usize, 3usize] {
+        let page = &pages[i];
+        let chars = page.chars();
+        let words = page.extract_words(&Default::default());
+        eprintln!("page {i}: {} chars, {} words", chars.len(), words.len());
+        eprintln!("  first 3 chars:");
+        for c in chars.iter().take(3) {
+            eprintln!(
+                "    {:?} upright={} dir={:?}",
+                c.text, c.upright, c.direction
+            );
+        }
+        eprintln!("  first 3 words:");
+        for w in words.iter().take(3) {
+            eprintln!("    {:?}", w.text);
+        }
+    }
+}
+
+#[test]
+#[ignore = "diagnostic: issue-848 page 3 char CTMs"]
+fn diag_issue_848_page3_ctms() {
+    let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/pdfs/issue-848.pdf");
+    let bytes = std::fs::read(&path).unwrap();
+    let pdf = pdfplumber::Pdf::open(&bytes, None).unwrap();
+    let pages: Vec<_> = pdf.pages_iter().collect::<Result<Vec<_>, _>>().unwrap();
+    let page = &pages[3];
+    let chars = page.chars();
+    eprintln!("page 3: {} chars, first 5:", chars.len());
+    for c in chars.iter().take(5) {
+        eprintln!(
+            "  {:?} upright={} dir={:?} ctm={:?}",
+            c.text, c.upright, c.direction, c.ctm
+        );
+    }
 }
