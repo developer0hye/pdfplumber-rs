@@ -1,0 +1,21 @@
+[package]
+name = "pdfplumber-forensic"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Watermark detection and forensic metadata inspection for pdfplumber-rs."
+keywords = ["pdf", "forensic", "watermark", "metadata", "security"]
+categories = ["parser-implementations"]
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+pdfplumber = { path = "../pdfplumber", default-features = false }
+pdfplumber-core = { path = "../pdfplumber-core" }
+
+[dev-dependencies]
+lopdf = "0.36"
