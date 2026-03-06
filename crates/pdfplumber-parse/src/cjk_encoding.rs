@@ -79,7 +79,7 @@ pub fn decode_cjk_string(bytes: &[u8], encoding: &'static Encoding) -> Vec<Decod
         // Determine if this is a single-byte or double-byte character
         let (char_code, byte_len) = if is_lead_byte(byte, encoding) && i + 1 < bytes.len() {
             // Two-byte character
-            let code = u32::from(byte) << 8 | u32::from(bytes[i + 1]);
+            let code = (u32::from(byte) << 8) | u32::from(bytes[i + 1]);
             (code, 2)
         } else {
             // Single-byte character

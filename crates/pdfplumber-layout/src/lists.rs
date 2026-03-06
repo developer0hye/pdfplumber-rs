@@ -191,7 +191,7 @@ pub fn extract_lists_from_section(section: &crate::sections::Section) -> Vec<Lis
                     if let Some(ck) = current_kind {
                         if ck != kind {
                             flush_list_run(&mut current_items, current_kind, &mut result);
-                            current_kind = None;
+                            // current_kind will be set below to `Some(kind)`
                             base_x0 = para.bbox.x0;
                         }
                     } else {
@@ -224,8 +224,16 @@ pub fn extract_lists_from_section(section: &crate::sections::Section) -> Vec<Lis
 
 /// Flush a pending list run into `result`.
 fn flush_list_run(items: &mut Vec<ListItem>, kind: Option<ListKind>, result: &mut Vec<List>) {
-    if items.is_empty() { return; }
-    let kind = match kind { Some(k) => k, None => { items.clear(); return; } };
+    if items.is_empty() {
+        return;
+    }
+    let kind = match kind {
+        Some(k) => k,
+        None => {
+            items.clear();
+            return;
+        }
+    };
     let x0 = items.iter().map(|i| i.bbox.x0).fold(f64::MAX, f64::min);
     let x1 = items.iter().map(|i| i.bbox.x1).fold(f64::MIN, f64::max);
     let top = items.iter().map(|i| i.bbox.top).fold(f64::MAX, f64::min);
@@ -235,7 +243,7 @@ fn flush_list_run(items: &mut Vec<ListItem>, kind: Option<ListKind>, result: &mu
         kind,
         bbox: BBox::new(x0, top, x1, bottom),
         page_number: page,
-        items: items.drain(..).collect(),
+        items: std::mem::take(items),
     });
 }
 
@@ -321,9 +329,9 @@ mod tests {
 
     #[test]
     fn extract_lists_from_bullet_paragraphs() {
-        use crate::sections::Section;
-        use crate::paragraphs::Paragraph;
         use crate::LayoutBlock;
+        use crate::paragraphs::Paragraph;
+        use crate::sections::Section;
         use pdfplumber_core::BBox;
 
         fn list_para(text: &str, x0: f64) -> LayoutBlock {
@@ -357,9 +365,9 @@ mod tests {
 
     #[test]
     fn extract_lists_splits_on_kind_change() {
-        use crate::sections::Section;
-        use crate::paragraphs::Paragraph;
         use crate::LayoutBlock;
+        use crate::paragraphs::Paragraph;
+        use crate::sections::Section;
         use pdfplumber_core::BBox;
 
         fn list_para(text: &str) -> LayoutBlock {
@@ -377,10 +385,7 @@ mod tests {
 
         let section = Section {
             heading: None,
-            blocks: vec![
-                list_para("• Bullet one"),
-                list_para("1. Number one"),
-            ],
+            blocks: vec![list_para("• Bullet one"), list_para("1. Number one")],
             bbox: None,
             start_page: 0,
         };

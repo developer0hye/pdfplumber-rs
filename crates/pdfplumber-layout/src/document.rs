@@ -22,12 +22,12 @@
 use pdfplumber::Pdf;
 use pdfplumber_core::{PageRegionOptions, detect_page_regions};
 
+use crate::LayoutTable;
 use crate::extractor::{LayoutOptions, PageLayout, extract_page_layout};
+use crate::figures::Figure;
 use crate::markdown::sections_to_markdown;
 use crate::sections::{Section, partition_into_sections};
 use crate::{Heading, LayoutBlock, Paragraph};
-use crate::figures::Figure;
-use crate::LayoutTable;
 
 /// Document-wide layout statistics.
 #[derive(Debug, Clone, Default)]
@@ -148,10 +148,22 @@ impl Document {
         let sections = partition_into_sections(all_blocks.clone());
 
         // ── Stats ────────────────────────────────────────────────────────────
-        let heading_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Heading(_))).count();
-        let paragraph_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Paragraph(_))).count();
-        let table_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Table(_))).count();
-        let figure_count = all_blocks.iter().filter(|b| matches!(b, LayoutBlock::Figure(_))).count();
+        let heading_count = all_blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Heading(_)))
+            .count();
+        let paragraph_count = all_blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Paragraph(_)))
+            .count();
+        let table_count = all_blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Table(_)))
+            .count();
+        let figure_count = all_blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Figure(_)))
+            .count();
 
         body_sizes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let body_font_size = if body_sizes.is_empty() {
@@ -172,7 +184,11 @@ impl Document {
             pages_with_footer,
         };
 
-        Document { pages, sections, stats }
+        Document {
+            pages,
+            sections,
+            stats,
+        }
     }
 
     /// Per-page layouts, in page order.
@@ -252,7 +268,11 @@ impl Document {
                                         .join("\t")
                                 })
                                 .collect();
-                            if rows.is_empty() { None } else { Some(rows.join("\n")) }
+                            if rows.is_empty() {
+                                None
+                            } else {
+                                Some(rows.join("\n"))
+                            }
                         }
                         LayoutBlock::Figure(_) => None,
                     })
@@ -291,7 +311,11 @@ impl Document {
                                 .join("\t")
                         })
                         .collect();
-                    if rows.is_empty() { None } else { Some(rows.join("\n")) }
+                    if rows.is_empty() {
+                        None
+                    } else {
+                        Some(rows.join("\n"))
+                    }
                 }
                 LayoutBlock::Figure(_) => None,
             })
@@ -348,10 +372,22 @@ mod tests {
             blocks: blocks.clone(),
         }];
         let sections = crate::sections::partition_into_sections(blocks.clone());
-        let heading_count = blocks.iter().filter(|b| matches!(b, LayoutBlock::Heading(_))).count();
-        let paragraph_count = blocks.iter().filter(|b| matches!(b, LayoutBlock::Paragraph(_))).count();
-        let table_count = blocks.iter().filter(|b| matches!(b, LayoutBlock::Table(_))).count();
-        let figure_count = blocks.iter().filter(|b| matches!(b, LayoutBlock::Figure(_))).count();
+        let heading_count = blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Heading(_)))
+            .count();
+        let paragraph_count = blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Paragraph(_)))
+            .count();
+        let table_count = blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Table(_)))
+            .count();
+        let figure_count = blocks
+            .iter()
+            .filter(|b| matches!(b, LayoutBlock::Figure(_)))
+            .count();
         let stats = DocumentStats {
             page_count: 1,
             heading_count,
@@ -363,7 +399,11 @@ mod tests {
             pages_with_header: 0,
             pages_with_footer: 0,
         };
-        Document { pages, sections, stats }
+        Document {
+            pages,
+            sections,
+            stats,
+        }
     }
 
     fn make_heading(text: &str) -> LayoutBlock {
@@ -429,7 +469,10 @@ mod tests {
         ]);
         let text = doc.text();
         assert!(text.contains("Introduction"), "text must contain heading");
-        assert!(text.contains("First paragraph."), "text must contain paragraph");
+        assert!(
+            text.contains("First paragraph."),
+            "text must contain paragraph"
+        );
     }
 
     #[test]
@@ -447,9 +490,7 @@ mod tests {
 
     #[test]
     fn word_count_is_approximate() {
-        let doc = make_doc_with_blocks(vec![
-            make_para("one two three four five"),
-        ]);
+        let doc = make_doc_with_blocks(vec![make_para("one two three four five")]);
         // Should count 5 words from paragraph.
         assert_eq!(doc.word_count(), 5);
     }
@@ -471,15 +512,15 @@ mod tests {
     fn from_document_for_string_produces_markdown() {
         let doc = make_doc_with_blocks(vec![make_heading("Title"), make_para("Body.")]);
         let md = String::from(doc);
-        assert!(md.contains("# Title"), "From<Document> should produce ATX heading");
+        assert!(
+            md.contains("# Title"),
+            "From<Document> should produce ATX heading"
+        );
     }
 
     #[test]
     fn all_blocks_iterator_covers_all_pages() {
-        let doc = make_doc_with_blocks(vec![
-            make_heading("H"),
-            make_para("P"),
-        ]);
+        let doc = make_doc_with_blocks(vec![make_heading("H"), make_para("P")]);
         assert_eq!(doc.all_blocks().count(), 2);
     }
 }

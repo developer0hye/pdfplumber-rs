@@ -1030,6 +1030,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfplumber-layout"
+version = "0.2.0"
+dependencies = [
+ "pdfplumber",
+ "pdfplumber-core",
+ "serde",
+]
+
+[[package]]
 name = "pdfplumber-parse"
 version = "0.2.0"
 dependencies = [
