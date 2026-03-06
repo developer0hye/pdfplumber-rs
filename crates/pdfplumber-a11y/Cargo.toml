@@ -1,0 +1,21 @@
+[package]
+name = "pdfplumber-a11y"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "PDF/UA accessibility analysis and auto-tagging for pdfplumber-rs."
+keywords = ["pdf", "accessibility", "pdf-ua", "wcag", "a11y"]
+categories = ["parser-implementations"]
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+pdfplumber = { path = "../pdfplumber", default-features = false }
+pdfplumber-core = { path = "../pdfplumber-core" }
+
+[dev-dependencies]
+lopdf = "0.36"
