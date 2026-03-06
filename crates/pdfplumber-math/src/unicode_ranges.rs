@@ -23,6 +23,8 @@ pub fn is_math_char(c: char) -> bool {
         || is_letterlike(cp)
         || is_number_form(cp)
         || is_math_arrow(cp)
+        || is_supplemental_arrows_a(cp)
+        || is_supplemental_arrows_b(cp)
         || is_greek(cp)
         || is_misc_math_a(cp)
         || is_misc_math_b(cp)
@@ -59,6 +61,16 @@ fn is_math_arrow(cp: u32) -> bool {
     (0x2190..=0x21FF).contains(&cp)
 }
 
+/// U+27F0–U+27FF: Supplemental Arrows-A (long arrows, etc.)
+fn is_supplemental_arrows_a(cp: u32) -> bool {
+    (0x27F0..=0x27FF).contains(&cp)
+}
+
+/// U+2900–U+297F: Supplemental Arrows-B
+fn is_supplemental_arrows_b(cp: u32) -> bool {
+    (0x2900..=0x297F).contains(&cp)
+}
+
 /// U+0370–U+03FF: Greek and Coptic
 pub fn is_greek(cp: u32) -> bool {
     (0x0370..=0x03FF).contains(&cp)
@@ -78,7 +90,10 @@ fn is_misc_math_b(cp: u32) -> bool {
 ///
 /// We don't flag every ASCII digit/letter, only the operator-like ones.
 fn is_common_math_ascii(c: char) -> bool {
-    matches!(c, '+' | '-' | '=' | '<' | '>' | '/' | '|' | '^' | '_' | '~' | '±')
+    matches!(
+        c,
+        '+' | '-' | '=' | '<' | '>' | '/' | '|' | '^' | '_' | '~' | '±'
+    )
 }
 
 /// True if the given string contains ≥ 1 math character.
@@ -126,31 +141,31 @@ mod tests {
 
     #[test]
     fn math_operators() {
-        assert!(is_math_char('∀'));  // U+2200 FOR ALL
-        assert!(is_math_char('∃'));  // U+2203 THERE EXISTS
-        assert!(is_math_char('∈'));  // U+2208 ELEMENT OF
-        assert!(is_math_char('∑'));  // U+2211 N-ARY SUMMATION
-        assert!(is_math_char('∫'));  // U+222B INTEGRAL
-        assert!(is_math_char('∞'));  // U+221E INFINITY
-        assert!(is_math_char('≤'));  // U+2264 LESS-THAN OR EQUAL TO
-        assert!(is_math_char('≥'));  // U+2265 GREATER-THAN OR EQUAL TO
-        assert!(is_math_char('≠'));  // U+2260 NOT EQUAL TO
-        assert!(is_math_char('≈'));  // U+2248 ALMOST EQUAL TO
+        assert!(is_math_char('∀')); // U+2200 FOR ALL
+        assert!(is_math_char('∃')); // U+2203 THERE EXISTS
+        assert!(is_math_char('∈')); // U+2208 ELEMENT OF
+        assert!(is_math_char('∑')); // U+2211 N-ARY SUMMATION
+        assert!(is_math_char('∫')); // U+222B INTEGRAL
+        assert!(is_math_char('∞')); // U+221E INFINITY
+        assert!(is_math_char('≤')); // U+2264 LESS-THAN OR EQUAL TO
+        assert!(is_math_char('≥')); // U+2265 GREATER-THAN OR EQUAL TO
+        assert!(is_math_char('≠')); // U+2260 NOT EQUAL TO
+        assert!(is_math_char('≈')); // U+2248 ALMOST EQUAL TO
     }
 
     #[test]
     fn arrows() {
-        assert!(is_math_char('→'));  // U+2192
-        assert!(is_math_char('←'));  // U+2190
-        assert!(is_math_char('⟹'));  // U+27F9
+        assert!(is_math_char('→')); // U+2192
+        assert!(is_math_char('←')); // U+2190
+        assert!(is_math_char('⟹')); // U+27F9
     }
 
     #[test]
     fn letterlike() {
-        assert!(is_math_char('ℝ'));  // U+211D DOUBLE-STRUCK CAPITAL R
-        assert!(is_math_char('ℤ'));  // U+2124 DOUBLE-STRUCK CAPITAL Z
-        assert!(is_math_char('ℕ'));  // U+2115 DOUBLE-STRUCK CAPITAL N
-        assert!(is_math_char('∂'));  // U+2202 PARTIAL DIFFERENTIAL
+        assert!(is_math_char('ℝ')); // U+211D DOUBLE-STRUCK CAPITAL R
+        assert!(is_math_char('ℤ')); // U+2124 DOUBLE-STRUCK CAPITAL Z
+        assert!(is_math_char('ℕ')); // U+2115 DOUBLE-STRUCK CAPITAL N
+        assert!(is_math_char('∂')); // U+2202 PARTIAL DIFFERENTIAL
     }
 
     #[test]

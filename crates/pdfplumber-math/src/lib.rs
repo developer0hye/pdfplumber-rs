@@ -38,7 +38,7 @@
 //! let page = pdf.page(0).unwrap();
 //!
 //! let extractor = MathExtractor::new(MathOptions::default());
-//! let regions = extractor.extract_page(&page);
+//! let regions = extractor.extract_page(&page, 0);
 //!
 //! for region in &regions {
 //!     println!("Math at {:?}: ${}", region.bbox, region.latex);
@@ -54,4 +54,4 @@ pub mod symbols;
 /// Unicode range classification for mathematical characters.
 pub mod unicode_ranges;
 
-pub use detector::{MathExtractor, MathOptions, MathRegion, MathKind};
+pub use detector::{MathExtractor, MathKind, MathOptions, MathRegion};

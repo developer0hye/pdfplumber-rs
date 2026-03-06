@@ -252,8 +252,8 @@ impl MathExtractor {
                 // New cluster — but check: maybe it's a new row in a matrix
                 // (same x range, just one line lower)
                 let last_cluster_bbox = cluster_bbox(&current);
-                let x_overlap = curr.bbox.x0 < last_cluster_bbox.x1
-                    && curr.bbox.x1 > last_cluster_bbox.x0;
+                let x_overlap =
+                    curr.bbox.x0 < last_cluster_bbox.x1 && curr.bbox.x1 > last_cluster_bbox.x0;
 
                 if v_gap <= self.options.v_gap_threshold * 5.0 && x_overlap {
                     // Probably a multi-row expression — merge into current cluster
@@ -282,7 +282,11 @@ impl MathExtractor {
             return None;
         }
 
-        let text: String = cluster.iter().map(|c| c.text.as_str()).collect::<Vec<_>>().join("");
+        let text: String = cluster
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join("");
         let density = math_density(&text);
 
         if density < self.options.min_math_density {
@@ -318,7 +322,10 @@ fn classify_region_kind(chars: &[&Char], bbox: &BBox) -> MathKind {
     let width = bbox.width();
 
     // Count distinct y-levels (rows) in the cluster
-    let mut y_levels: Vec<f64> = chars.iter().map(|c| (c.bbox.top * 2.0).round() / 2.0).collect();
+    let mut y_levels: Vec<f64> = chars
+        .iter()
+        .map(|c| (c.bbox.top * 2.0).round() / 2.0)
+        .collect();
     y_levels.sort_by(|a, b| a.partial_cmp(b).unwrap());
     y_levels.dedup();
     let row_count = y_levels.len();
@@ -430,7 +437,12 @@ mod tests {
             make_char("x", 215.0, 100.0, 12.0),
         ];
         let clusters = extractor.cluster_chars(&chars.iter().collect::<Vec<_>>());
-        assert_eq!(clusters.len(), 2, "Expected 2 clusters, got {}", clusters.len());
+        assert_eq!(
+            clusters.len(),
+            2,
+            "Expected 2 clusters, got {}",
+            clusters.len()
+        );
     }
 
     #[test]
@@ -455,7 +467,10 @@ mod tests {
             make_char("o", 72.0, 100.0, 12.0),
         ];
         let candidates = extractor.collect_candidate_chars(&chars);
-        assert!(candidates.is_empty(), "Plain text should not be math candidates");
+        assert!(
+            candidates.is_empty(),
+            "Plain text should not be math candidates"
+        );
     }
 
     #[test]
@@ -520,6 +535,9 @@ mod tests {
         ];
         let clusters = extractor.cluster_chars(&chars.iter().collect::<Vec<_>>());
         let region = extractor.cluster_to_region(clusters.into_iter().next().unwrap(), 0);
-        assert!(region.is_none(), "Should be filtered by high density threshold");
+        assert!(
+            region.is_none(),
+            "Should be filtered by high density threshold"
+        );
     }
 }

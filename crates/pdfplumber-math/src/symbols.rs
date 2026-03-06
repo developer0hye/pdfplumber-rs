@@ -27,7 +27,10 @@ pub fn latex_for(c: char) -> Option<&'static str> {
         return None;
     }
 
-    SYMBOL_TABLE.iter().find(|(ch, _)| *ch == c).map(|(_, s)| *s)
+    SYMBOL_TABLE
+        .iter()
+        .find(|(ch, _)| *ch == c)
+        .map(|(_, s)| *s)
 }
 
 /// True if we have a LaTeX mapping for this character.
