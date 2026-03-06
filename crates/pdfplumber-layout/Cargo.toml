@@ -1,0 +1,15 @@
+[package]
+name = "pdfplumber-layout"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "Apache-2.0"
+description = "Semantic document structure inference for pdfplumber-rs"
+repository = "https://github.com/developer0hye/pdfplumber-rs"
+
+[dependencies]
+pdfplumber-core = { path = "../pdfplumber-core" }
+pdfplumber = { path = "../pdfplumber" }
+
+[dev-dependencies]
+lopdf = { version = "0.34", features = ["serde"] }
