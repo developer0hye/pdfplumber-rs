@@ -5,7 +5,7 @@
 
 use crate::edges::{Edge, EdgeSource};
 use crate::geometry::{BBox, Orientation};
-use crate::text::Char;
+use crate::text::{Char, TextDirection};
 use crate::words::{Word, WordExtractor, WordOptions};
 
 /// Strategy for table detection.
@@ -237,6 +237,17 @@ pub fn snap_edges(edges: Vec<Edge>, snap_x_tolerance: f64, snap_y_tolerance: f64
 }
 
 /// Cluster edges along a single axis and snap each cluster to its mean.
+///
+/// Matches Python pdfplumber's `cluster_list` algorithm exactly: each element
+/// joins the current cluster when it is within `tolerance` of the **previous**
+/// element (not the cluster start). This creates a sliding-window chain that
+/// can merge a spread of values wider than `tolerance` as long as consecutive
+/// sorted values are each within `tolerance` of their predecessor.
+///
+/// Example (tolerance=3): values [72.3, 74.8, 77.4, 79.2, 79.8] all collapse
+/// into one cluster because each step is ≤ 3.0, even though the total spread
+/// is 7.5pt. Our old implementation compared to cluster_start and would have
+/// split this into multiple clusters.
 fn snap_group<F, G>(edges: &mut [Edge], tolerance: f64, key: F, mut set: G)
 where
     F: Fn(&Edge) -> f64,
@@ -249,13 +260,15 @@ where
     // Sort by the perpendicular coordinate
     edges.sort_by(|a, b| key(a).partial_cmp(&key(b)).unwrap());
 
-    // Build clusters of consecutive edges within tolerance
+    // Build clusters: each element joins the current cluster when within
+    // tolerance of the *previous* element (Python pdfplumber cluster_list
+    // uses `x <= last + tolerance` where last is updated each step).
     let mut cluster_start = 0;
     for i in 1..=edges.len() {
         let end_of_cluster =
-            i == edges.len() || (key(&edges[i]) - key(&edges[cluster_start])).abs() > tolerance;
+            i == edges.len() || (key(&edges[i]) - key(&edges[i - 1])).abs() > tolerance;
         if end_of_cluster {
-            // Compute mean of the cluster
+            // Compute mean of the cluster and snap all edges in it
             let sum: f64 = (cluster_start..i).map(|j| key(&edges[j])).sum();
             let mean = sum / (i - cluster_start) as f64;
             for edge in &mut edges[cluster_start..i] {
@@ -264,170 +277,6 @@ where
             cluster_start = i;
         }
     }
-}
-
-/// Extend horizontal edges to the nearest vertical edges that form the table skeleton.
-///
-/// Fixes the PDF pattern where inner body H-edges span only interior columns while
-/// outer border V-edges define a wider table. Without this step the outer columns
-/// produce no H×V intersections and are silently dropped from the cell grid.
-///
-/// **Algorithm (H-edge extension)**:
-/// For each H edge, find:
-///   - The nearest V edge to the LEFT of edge.x0 whose y-span covers the H edge's y.
-///     Extend edge.x0 to that V's x regardless of gap size.
-///   - The nearest V edge to the RIGHT of edge.x1 whose y-span covers the H edge's y.
-///     Extend edge.x1 to that V's x regardless of gap size.
-///
-/// "Nearest" means the V edge closest to the H edge's current endpoint, not the
-/// global boundary. This correctly handles tables with multiple outer narrow columns
-/// (like NICS) where a single extension per H edge reaches one column boundary
-/// at a time.
-///
-/// **V-edge extension**: V edges are also extended up/down by `join_y_tolerance`
-/// to bridge the small gaps that arise when row-section V edges were drawn as
-/// separate segments per row region.
-///
-/// This function is called after `join_edge_group` and before `edges_to_intersections`.
-pub fn extend_edges_to_bbox(
-    edges: Vec<Edge>,
-    join_x_tolerance: f64,
-    join_y_tolerance: f64,
-) -> Vec<Edge> {
-    if edges.is_empty() {
-        return edges;
-    }
-
-    // Pre-compute (x, top, bottom) for every vertical edge — must be done before
-    // consuming the vec so the closure doesn't conflict with the into_iter().
-    let v_spans: Vec<(f64, f64, f64)> = edges
-        .iter()
-        .filter(|e| e.orientation == Orientation::Vertical)
-        .map(|e| (e.x0, e.top, e.bottom))
-        .collect();
-
-    if v_spans.is_empty() {
-        return edges;
-    }
-
-    // Deduplicated sorted V x-positions.
-    let mut v_xs: Vec<f64> = v_spans.iter().map(|&(x, _, _)| x).collect();
-    v_xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    v_xs.dedup_by(|a, b| (*a - *b).abs() < join_x_tolerance);
-
-    // Union y-span of all V edges at a given x (using join_x_tolerance for matching).
-    let v_span_at = |target_x: f64| -> Option<(f64, f64)> {
-        let mut top = f64::INFINITY;
-        let mut bottom = f64::NEG_INFINITY;
-        let mut found = false;
-        for &(vx, vt, vb) in &v_spans {
-            if (vx - target_x).abs() <= join_x_tolerance {
-                top = top.min(vt);
-                bottom = bottom.max(vb);
-                found = true;
-            }
-        }
-        if found { Some((top, bottom)) } else { None }
-    };
-
-    // Does the V at `vx` cover `h_y` within y-tolerance?
-    let v_covers_y = |vx: f64, h_y: f64| -> bool {
-        v_span_at(vx)
-            .is_some_and(|(vt, vb)| h_y >= vt - join_y_tolerance && h_y <= vb + join_y_tolerance)
-    };
-
-    // Phase 1: Extend H edges to outermost covering V on each side.
-    // We use outermost (not nearest) so that body rows are extended to the full
-    // table boundary even when there are no inner V-separators in that region
-    // (i.e. merged-cell columns).  Python pdfplumber fills those with empty cells.
-    let mut result: Vec<Edge> = edges
-        .into_iter()
-        .map(|mut edge| {
-            if edge.orientation != Orientation::Horizontal {
-                return edge;
-            }
-
-            let h_y = edge.top;
-
-            // Extend x0 leftward: outermost (smallest x) V to the left of current x0
-            // that covers h_y.  v_xs is sorted ascending so .next() gives smallest.
-            if let Some(&target) = v_xs
-                .iter()
-                .find(|&&vx| vx < edge.x0 - join_x_tolerance && v_covers_y(vx, h_y))
-            // smallest vx < edge.x0 (outermost left)
-            {
-                edge.x0 = target;
-            }
-
-            // Extend x1 rightward: outermost (largest x) V to the right of current x1
-            // that covers h_y.  v_xs is sorted ascending so .last() gives largest.
-            if let Some(&target) = v_xs
-                .iter()
-                .filter(|&&vx| vx > edge.x1 + join_x_tolerance && v_covers_y(vx, h_y))
-                .last()
-            // largest vx > edge.x1 (outermost right)
-            {
-                edge.x1 = target;
-            }
-
-            edge
-        })
-        .collect();
-
-    // Phase 2: Extend V edges up/down to reach H edges within join_y_tolerance.
-    // This bridges the small row-section gaps that arise from per-row border rendering.
-    let h_spans: Vec<(f64, f64, f64)> = result
-        .iter()
-        .filter(|e| e.orientation == Orientation::Horizontal)
-        .map(|e| (e.top, e.x0, e.x1))
-        .collect();
-
-    let mut h_ys: Vec<f64> = h_spans.iter().map(|&(y, _, _)| y).collect();
-    h_ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    h_ys.dedup_by(|a, b| (*a - *b).abs() < join_y_tolerance);
-
-    // Does H at `hy` cover V at `v_x`?
-    let h_covers_x = |hy: f64, v_x: f64| -> bool {
-        h_spans.iter().any(|&(y, hx0, hx1)| {
-            (y - hy).abs() <= join_y_tolerance
-                && hx0 <= v_x + join_x_tolerance
-                && hx1 >= v_x - join_x_tolerance
-        })
-    };
-
-    for edge in result.iter_mut() {
-        if edge.orientation != Orientation::Vertical {
-            continue;
-        }
-        let v_x = edge.x0;
-
-        // Extend top upward to nearest H above — but only within a small bridging
-        // distance (2 × join_y_tolerance).  Larger gaps mean the V is not meant to
-        // connect to that H (e.g. header-only V-edges near a body H-edge).
-        let max_bridge = join_y_tolerance * 2.0;
-        if let Some(&target) = h_ys
-            .iter()
-            .filter(|&&hy| {
-                hy < edge.top - join_y_tolerance
-                    && edge.top - hy <= max_bridge
-                    && h_covers_x(hy, v_x)
-            })
-            .last()
-        {
-            edge.top = target;
-        }
-
-        // Extend bottom downward — same small-gap limit.
-        if let Some(&target) = h_ys.iter().find(|&&hy| {
-            hy > edge.bottom + join_y_tolerance
-                && hy - edge.bottom <= max_bridge
-                && h_covers_x(hy, v_x)
-        }) {
-            edge.bottom = target;
-        }
-    }
-
-    result
 }
 
 /// Merge overlapping or adjacent collinear edge segments.
@@ -715,7 +564,7 @@ pub fn edges_to_cells(
     // edge coverage at the current y-range. This produces wider cells for merged header/
     // footer rows (matching Python pdfplumber behavior) instead of narrow cells that
     // fragment text.
-    let _is_established_x =
+    let is_established_x =
         |x: f64| -> bool { established_xs.contains(&((x * 1000.0).round() as i64)) };
 
     for yi in 0..ys.len().saturating_sub(1) {
@@ -732,14 +581,10 @@ pub fn edges_to_cells(
             continue;
         }
 
-        // Find x-positions with vertical edge coverage at this y-range.
-        // Include ALL intersection x-positions that have V coverage — not just
-        // Phase-1-established ones. This is required for outer-border columns
-        // where no interior H-edges exist (the outer border H-edges span the
-        // full table width but there are no per-row H stubs in those columns).
+        // Find x-positions with vertical edge coverage at this y-range
         let v_xs: Vec<f64> = xs
             .iter()
-            .filter(|&&x| has_v_coverage(x, top, bottom))
+            .filter(|&&x| is_established_x(x) && has_v_coverage(x, top, bottom))
             .copied()
             .collect();
 
@@ -1197,31 +1042,17 @@ pub fn extract_text_for_cells(cells: &mut [Cell], chars: &[Char]) {
 
 /// Like [`extract_text_for_cells`] but with explicit [`WordOptions`] so the
 /// caller can supply a rotation-adjusted text direction.
+///
+/// The text direction for line grouping is determined per-cell from the
+/// actual characters in that cell, matching how [`WordExtractor::extract`]
+/// dispatches on `char.upright`. This ensures cells on rotated/RTL pages
+/// use the correct axis for line assembly without requiring the caller to
+/// know the page orientation.
 pub fn extract_text_for_cells_with_options(
     cells: &mut [Cell],
     chars: &[Char],
     options: &WordOptions,
 ) {
-    if cells.is_empty() || chars.is_empty() {
-        return;
-    }
-
-    // Detect TTB layout: if the majority of chars are not upright, the page is
-    // physically rotated 90°.  In that case Python pdfplumber treats each
-    // visually-continuous text block as a single unit and places the ENTIRE
-    // block in the topmost cell whose top ≤ the block's starting position.
-    // Individual sub-cells that are merely traversed by the block receive "".
-    // We replicate this behaviour when TTB mode is active.
-    let ttb_chars = chars.iter().filter(|c| !c.upright).count();
-    let is_ttb_page = ttb_chars > chars.len() / 2;
-
-    if is_ttb_page {
-        extract_text_for_cells_ttb(cells, chars, options);
-        return;
-    }
-
-    // ── Normal (LTR) path ────────────────────────────────────────────────────
-
     for cell in cells.iter_mut() {
         // Find chars whose bbox center falls within this cell
         let cell_chars: Vec<Char> = chars
@@ -1242,35 +1073,63 @@ pub fn extract_text_for_cells_with_options(
             continue;
         }
 
-        // Group chars into words
+        // Group chars into words. WordExtractor::extract dispatches on char.upright,
+        // so the returned words will have the correct direction (Ttb for non-upright chars).
         let words = WordExtractor::extract(&cell_chars, options);
         if words.is_empty() {
             cell.text = None;
             continue;
         }
 
-        // Group words into lines.
-        // Python pdfplumber sorts by (top, x0) ascending.  When two words' tops are
-        // within y_tolerance of each other, treat them as co-linear and sort only by
-        // x0 — this matches Python's cluster-then-sort behaviour where tiny float
-        // differences (< 1pt) don't create false newlines.
-        let tolerance = options.y_tolerance;
+        // Determine line grouping axis from the actual word directions, not the
+        // caller-supplied options.text_direction. This handles non-upright chars
+        // whose direction may differ from the page-level WordOptions.
+        let cell_is_vertical = words
+            .iter()
+            .any(|w| matches!(w.direction, TextDirection::Ttb | TextDirection::Btt))
+            || cell_chars.iter().any(|c| !c.upright);
+
+        // Group words into lines:
+        // - For horizontal text (LTR/RTL): group by y-coordinate (top)
+        // - For vertical text (TTB/BTT/non-upright): group by x-coordinate (x0)
         let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
-        sorted_words.sort_by(|a, b| {
-            let top_diff = a.bbox.top - b.bbox.top;
-            if top_diff.abs() <= tolerance {
-                // Same line: sort by x0 ascending (left column first)
-                a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap()
-            } else {
-                top_diff.partial_cmp(&0.0_f64).unwrap()
-            }
-        });
+        if cell_is_vertical {
+            sorted_words.sort_by(|a, b| {
+                a.bbox
+                    .x0
+                    .partial_cmp(&b.bbox.x0)
+                    .unwrap()
+                    .then_with(|| a.bbox.top.partial_cmp(&b.bbox.top).unwrap())
+            });
+        } else {
+            sorted_words.sort_by(|a, b| {
+                a.bbox
+                    .top
+                    .partial_cmp(&b.bbox.top)
+                    .unwrap()
+                    .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
+            });
+        }
+
+        let tolerance = if cell_is_vertical {
+            options.x_tolerance
+        } else {
+            options.y_tolerance
+        };
 
         let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
         for word in &sorted_words {
             let added = lines.last_mut().and_then(|line| {
-                let last_key = line[0].bbox.top;
-                let word_key = word.bbox.top;
+                let last_key = if cell_is_vertical {
+                    line[0].bbox.x0
+                } else {
+                    line[0].bbox.top
+                };
+                let word_key = if cell_is_vertical {
+                    word.bbox.x0
+                } else {
+                    word.bbox.top
+                };
                 if (word_key - last_key).abs() <= tolerance {
                     line.push(word);
                     Some(())
@@ -1296,200 +1155,6 @@ pub fn extract_text_for_cells_with_options(
             .join("\n");
 
         cell.text = Some(text);
-    }
-}
-
-/// TTB (top-to-bottom, i.e. rotated-page) text assignment.
-///
-/// On a 90°-rotated page the visual "columns" are X-bands in PDF coordinates.
-/// A long disclaimer or multi-row text block spans multiple table rows in the
-/// same X-band.  Python pdfplumber groups the block and places ALL of it in the
-/// first (topmost) cell whose bounding box contains the block's first character.
-/// Subsequent cells in the same X-band that are only traversed by the block
-/// receive empty text.
-///
-/// Algorithm:
-/// 1. Collect ALL chars that fall in any cell (using center-in-cell test).
-/// 2. Group those chars by X-band (cells sharing the same column x-range).
-/// 3. Within each X-band sort chars by their `top` coordinate ascending.
-/// 4. Split into contiguous blocks: a new block starts when the gap between
-///    consecutive chars' `top` values exceeds `block_gap_threshold`.
-/// 5. For each block, find the topmost cell in that X-band whose top ≤ the
-///    block's first char's top and whose bottom ≥ the block's first char's top.
-///    Place the full block's text in that cell; all other cells in the band
-///    receive empty string (Some("")) or None if they received no block at all.
-fn extract_text_for_cells_ttb(cells: &mut [Cell], chars: &[Char], options: &WordOptions) {
-    let x_tol = options.x_tolerance;
-    let y_tol = options.y_tolerance;
-
-    // Collect cells with their indices
-    let n = cells.len();
-
-    // Build per-cell char lists using center-in-cell test (same as LTR path)
-    let mut cell_chars: Vec<Vec<Char>> = (0..n).map(|_| Vec::new()).collect();
-    for ch in chars {
-        let cx = (ch.bbox.x0 + ch.bbox.x1) / 2.0;
-        let cy = (ch.bbox.top + ch.bbox.bottom) / 2.0;
-        for (i, cell) in cells.iter().enumerate() {
-            if cx >= cell.bbox.x0
-                && cx <= cell.bbox.x1
-                && cy >= cell.bbox.top
-                && cy <= cell.bbox.bottom
-            {
-                cell_chars[i].push(ch.clone());
-            }
-        }
-    }
-
-    // Group cell indices by their X-band (x0, x1 within x_tol).
-    // Cells in the same column share nearly identical x0/x1.
-    // We represent each band by the x0 of its first member.
-    let mut band_groups: Vec<Vec<usize>> = Vec::new();
-    let mut assigned = vec![false; n];
-    for i in 0..n {
-        if assigned[i] {
-            continue;
-        }
-        let xi0 = cells[i].bbox.x0;
-        let xi1 = cells[i].bbox.x1;
-        let mut group = vec![i];
-        assigned[i] = true;
-        for j in (i + 1)..n {
-            if assigned[j] {
-                continue;
-            }
-            let xj0 = cells[j].bbox.x0;
-            let xj1 = cells[j].bbox.x1;
-            if (xi0 - xj0).abs() <= x_tol && (xi1 - xj1).abs() <= x_tol {
-                group.push(j);
-                assigned[j] = true;
-            }
-        }
-        band_groups.push(group);
-    }
-
-    // Process each band independently
-    for band in &band_groups {
-        // Sort band cells by top ascending
-        let mut sorted_band = band.clone();
-        sorted_band.sort_by(|&a, &b| cells[a].bbox.top.partial_cmp(&cells[b].bbox.top).unwrap());
-
-        // Gather all chars that landed in ANY cell of this band, deduplicated
-        let mut all_band_chars: Vec<Char> = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-        for &ci in &sorted_band {
-            for ch in &cell_chars[ci] {
-                // Use a stable key: top rounded to 3 decimal places + text
-                let key = format!("{:.3}:{:.3}:{}", ch.bbox.top, ch.bbox.x0, ch.text);
-                if seen.insert(key) {
-                    all_band_chars.push(ch.clone());
-                }
-            }
-        }
-
-        if all_band_chars.is_empty() {
-            // No chars in this band — all cells get None
-            for &ci in &sorted_band {
-                cells[ci].text = None;
-            }
-            continue;
-        }
-
-        // Sort band chars by top ascending (reading order for TTB)
-        all_band_chars.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
-
-        // Split into continuous text blocks.
-        // A new block starts when the gap between consecutive char tops
-        // exceeds block_gap_threshold.  We use a generous threshold — the
-        // maximum observed inter-character gap within a word is ~font-size,
-        // while inter-block gaps are typically many points.
-        // Use 3× y_tolerance as the split threshold.
-        let block_gap = y_tol * 3.0;
-        let mut blocks: Vec<Vec<Char>> = Vec::new();
-        let mut current_block: Vec<Char> = vec![all_band_chars[0].clone()];
-        for i in 1..all_band_chars.len() {
-            let gap = all_band_chars[i].bbox.top - all_band_chars[i - 1].bbox.bottom;
-            if gap > block_gap {
-                blocks.push(current_block);
-                current_block = Vec::new();
-            }
-            current_block.push(all_band_chars[i].clone());
-        }
-        blocks.push(current_block);
-
-        // For each cell in this band, track which block (if any) starts in it
-        // Key: sorted_band index → Option<block_index>
-        let mut cell_to_block: Vec<Option<usize>> = vec![None; sorted_band.len()];
-
-        for (bi, block) in blocks.iter().enumerate() {
-            let block_start_top = block[0].bbox.top;
-            // Find topmost cell whose range contains the block's start char
-            // (cell.top ≤ block_start_top ≤ cell.bottom)
-            let target_ci = sorted_band.iter().enumerate().find(|&(_, &ci)| {
-                cells[ci].bbox.top <= block_start_top + y_tol
-                    && cells[ci].bbox.bottom >= block_start_top - y_tol
-            });
-            if let Some((si, _)) = target_ci {
-                cell_to_block[si] = Some(bi);
-            }
-        }
-
-        // Now assign text to cells
-        for (si, &ci) in sorted_band.iter().enumerate() {
-            if let Some(bi) = cell_to_block[si] {
-                // This cell owns block bi — extract words from the block's chars
-                let block_chars = &blocks[bi];
-                let words = WordExtractor::extract(block_chars, options);
-                if words.is_empty() {
-                    cells[ci].text = None;
-                } else {
-                    // Sort words by top (TTB reading order)
-                    let tolerance = y_tol;
-                    let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
-                    sorted_words.sort_by(|a, b| {
-                        let top_diff = a.bbox.top - b.bbox.top;
-                        if top_diff.abs() <= tolerance {
-                            a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap()
-                        } else {
-                            top_diff.partial_cmp(&0.0_f64).unwrap()
-                        }
-                    });
-                    // Group into lines and join
-                    let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
-                    for word in &sorted_words {
-                        let added = lines.last_mut().and_then(|line| {
-                            if (word.bbox.top - line[0].bbox.top).abs() <= tolerance {
-                                line.push(word);
-                                Some(())
-                            } else {
-                                None
-                            }
-                        });
-                        if added.is_none() {
-                            lines.push(vec![word]);
-                        }
-                    }
-                    let text: String = lines
-                        .iter()
-                        .map(|line| {
-                            line.iter()
-                                .map(|w| w.text.as_str())
-                                .collect::<Vec<_>>()
-                                .join(" ")
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    cells[ci].text = Some(text);
-                }
-            } else if cell_chars[ci].is_empty() {
-                // Truly empty cell — no chars at all
-                cells[ci].text = None;
-            } else {
-                // Cell has chars but they belong to a block owned by another cell
-                // (the block started earlier).  Replicate Python behavior: empty string.
-                cells[ci].text = Some(String::new());
-            }
-        }
     }
 }
 
@@ -1585,8 +1250,10 @@ where
     let mut cluster_start = 0;
 
     for i in 1..=indices.len() {
+        // Use sliding-window comparison (against previous element, not cluster start)
+        // to match Python pdfplumber's cluster_list algorithm exactly.
         let end_of_cluster = i == indices.len()
-            || (key(&words[indices[i]]) - key(&words[indices[cluster_start]])).abs() > tolerance;
+            || (key(&words[indices[i]]) - key(&words[indices[i - 1]])).abs() > tolerance;
 
         if end_of_cluster {
             let cluster_size = i - cluster_start;
@@ -1877,16 +1544,6 @@ impl TableFinder {
             self.settings.join_y_tolerance,
         );
 
-        // Step 4.5: Extend horizontal edges to reach outer vertical edges.
-        // Fixes the common pattern where an outer border H-edge spans the full
-        // table width but inner body H-edges span only interior columns — the
-        // outer columns produce no intersections and are silently dropped.
-        let edges = extend_edges_to_bbox(
-            edges,
-            self.settings.join_x_tolerance,
-            self.settings.join_y_tolerance,
-        );
-
         // Step 5: Find intersections
         let intersections = edges_to_intersections(
             &edges,
@@ -2001,14 +1658,6 @@ impl TableFinder {
 
         // Step 4: Join
         let edges = join_edge_group(
-            edges,
-            self.settings.join_x_tolerance,
-            self.settings.join_y_tolerance,
-        );
-
-        // Step 4.5: Extend horizontal edges to reach outer vertical edges.
-        // Same fix as find_tables — without this the outer columns are dropped.
-        let edges = extend_edges_to_bbox(
             edges,
             self.settings.join_x_tolerance,
             self.settings.join_y_tolerance,
@@ -2347,150 +1996,6 @@ mod tests {
             (a - b).abs()
         );
     }
-
-    // --- extend_edges_to_bbox tests ---
-
-    #[test]
-    fn test_extend_edges_to_bbox_empty() {
-        let result = extend_edges_to_bbox(Vec::new(), 3.0, 3.0);
-        assert!(result.is_empty());
-    }
-
-    #[test]
-    fn test_extend_no_verticals_unchanged() {
-        let edges = vec![make_h_edge(10.0, 50.0, 90.0)];
-        let result = extend_edges_to_bbox(edges, 3.0, 3.0);
-        assert_eq!(result.len(), 1);
-        assert_approx(result[0].x0, 10.0);
-        assert_approx(result[0].x1, 90.0);
-    }
-
-    #[test]
-    fn test_extend_to_global_bbox_within_tolerance() {
-        // H at y=50, x=[30..70]. V at x=10 and x=90 (gap=20 each). Tolerance=25.
-        let edges = vec![
-            make_h_edge(30.0, 50.0, 70.0),
-            make_v_edge(10.0, 0.0, 100.0),
-            make_v_edge(90.0, 0.0, 100.0),
-        ];
-        let result = extend_edges_to_bbox(edges, 25.0, 5.0);
-        let h: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Horizontal)
-            .collect();
-        assert_approx(h[0].x0, 10.0);
-        assert_approx(h[0].x1, 90.0);
-    }
-
-    #[test]
-    fn test_extend_no_extension_when_out_of_tolerance() {
-        // Gap=20, tolerance=3 → no extension.
-        let edges = vec![
-            make_h_edge(30.0, 50.0, 70.0),
-            make_v_edge(10.0, 0.0, 100.0),
-            make_v_edge(90.0, 0.0, 100.0),
-        ];
-        let result = extend_edges_to_bbox(edges, 3.0, 3.0);
-        let h: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Horizontal)
-            .collect();
-        assert_approx(h[0].x0, 30.0);
-        assert_approx(h[0].x1, 70.0);
-    }
-
-    #[test]
-    fn test_extend_no_extension_when_v_doesnt_cover_y() {
-        // Vertical at x=10 only spans y=60..100, H at y=50 — not covered.
-        let edges = vec![
-            make_h_edge(30.0, 50.0, 70.0),
-            make_v_edge(10.0, 60.0, 100.0),
-        ];
-        let result = extend_edges_to_bbox(edges, 25.0, 3.0);
-        let h: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Horizontal)
-            .collect();
-        assert_approx(h[0].x0, 30.0); // not extended
-    }
-
-    #[test]
-    fn test_extend_multi_outer_columns_greedy() {
-        // Simulates NICS pattern: body H lines cover inner columns only.
-        // V at x=42,100,200,300,400,500,560 all spanning y=0..500.
-        // Body H spans x=[100..500]. Outer H spans x=[42..560].
-        // With tolerance=60: gaps are 58 (100-42) and 60 (560-500). Should fully extend.
-        let v_xs = [42.0_f64, 100.0, 200.0, 300.0, 400.0, 500.0, 560.0];
-        let mut edges: Vec<Edge> = v_xs.iter().map(|&x| make_v_edge(x, 0.0, 500.0)).collect();
-        edges.push(make_h_edge(42.0, 0.0, 560.0)); // outer border (full width)
-        edges.push(make_h_edge(100.0, 50.0, 500.0)); // inner body row 1
-        edges.push(make_h_edge(100.0, 100.0, 500.0)); // inner body row 2
-
-        let result = extend_edges_to_bbox(edges, 60.0, 5.0);
-        let body_hs: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Horizontal && e.top > 0.0)
-            .collect();
-        for h in &body_hs {
-            assert_approx(h.x0, 42.0);
-            assert_approx(h.x1, 560.0);
-        }
-    }
-
-    #[test]
-    fn test_extend_vertical_reaches_nearby_horizontals() {
-        // V at x=50, y=[20..80]. H at y=15 (gap=5) and y=85 (gap=5), both covering x=50.
-        // Tolerance=6 → should extend top to 15, bottom to 85.
-        let edges = vec![
-            make_v_edge(50.0, 20.0, 80.0),
-            make_h_edge(40.0, 15.0, 60.0),
-            make_h_edge(40.0, 85.0, 60.0),
-        ];
-        let result = extend_edges_to_bbox(edges, 3.0, 6.0);
-        let v: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Vertical)
-            .collect();
-        assert_approx(v[0].top, 15.0);
-        assert_approx(v[0].bottom, 85.0);
-    }
-
-    #[test]
-    fn test_extend_vertical_no_extension_h_doesnt_cover_x() {
-        // H at y=15 spans x=[60..90] — does NOT cover V at x=50.
-        let edges = vec![make_v_edge(50.0, 20.0, 80.0), make_h_edge(60.0, 15.0, 90.0)];
-        let result = extend_edges_to_bbox(edges, 3.0, 6.0);
-        let v: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Vertical)
-            .collect();
-        assert_approx(v[0].top, 20.0); // unchanged
-        assert_approx(v[0].bottom, 80.0);
-    }
-
-    #[test]
-    fn test_extend_full_grid_unchanged() {
-        // Complete 2×2 grid — already fully connected, nothing should move.
-        let edges = vec![
-            make_h_edge(0.0, 0.0, 100.0),
-            make_h_edge(0.0, 50.0, 100.0),
-            make_h_edge(0.0, 100.0, 100.0),
-            make_v_edge(0.0, 0.0, 100.0),
-            make_v_edge(50.0, 0.0, 100.0),
-            make_v_edge(100.0, 0.0, 100.0),
-        ];
-        let result = extend_edges_to_bbox(edges, 3.0, 3.0);
-        let hs: Vec<_> = result
-            .iter()
-            .filter(|e| e.orientation == Orientation::Horizontal)
-            .collect();
-        for h in &hs {
-            assert_approx(h.x0, 0.0);
-            assert_approx(h.x1, 100.0);
-        }
-    }
-
-    // --- snap_edges tests ---
 
     #[test]
     fn test_snap_edges_empty() {
@@ -5464,104 +4969,146 @@ mod tests {
         assert!(result.rows.is_empty());
     }
 
-    // ===== cells_share_edge boundary conditions =====
-    // Note: uses make_cell() defined above in this test module
+    // --- snap_group sliding-window fix tests (issue-848 / US-221) ---
+    //
+    // Python pdfplumber's cluster_list uses a sliding-window: each element joins
+    // the current cluster when abs(x - prev) <= tolerance (not abs(x - cluster_start)).
+    // This allows a spread wider than tolerance to collapse if consecutive steps are small.
 
     #[test]
-    fn cells_share_right_left_vertical_edge() {
-        // A=[0,0,10,10], B=[10,0,20,10]: A.x1 == B.x0, full y-overlap → shared edge
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(10.0, 0.0, 20.0, 10.0);
-        assert!(cells_share_edge(&a, &b));
-        assert!(cells_share_edge(&b, &a)); // symmetric
-    }
+    fn test_snap_group_sliding_window_issue848_exact() {
+        // Exact x0 values from issue-848 page 1 rect edges.
+        // Spread = 85.3 - 72.3 = 13pt, but consecutive gaps are all ≤ 3pt.
+        // Old (cluster_start) logic: would split into multiple clusters.
+        // New (sliding-window) logic: all collapse into one cluster.
+        let x_values = [
+            72.3, 74.8, 77.4, 79.2, 79.8, 79.9, 80.0, 80.5, 82.6, 84.6, 85.3,
+        ];
+        let mut edges: Vec<Edge> = x_values
+            .iter()
+            .map(|&x| Edge {
+                x0: x,
+                top: 72.0,
+                x1: x,
+                bottom: 720.0,
+                orientation: Orientation::Vertical,
+                source: crate::edges::EdgeSource::RectLeft,
+            })
+            .collect();
 
-    #[test]
-    fn cells_share_bottom_top_horizontal_edge() {
-        // A=[0,0,10,10], B=[0,10,10,20]: A.bottom == B.top → shared edge
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(0.0, 10.0, 10.0, 20.0);
-        assert!(cells_share_edge(&a, &b));
-        assert!(cells_share_edge(&b, &a));
-    }
+        let mut snapped_xs: Vec<f64> = Vec::new();
+        snap_group(
+            &mut edges,
+            3.0,
+            |e| e.x0,
+            |e, v| {
+                e.x0 = v;
+                e.x1 = v;
+            },
+        );
+        for e in &edges {
+            if !snapped_xs.iter().any(|&x| (x - e.x0).abs() < 1e-9) {
+                snapped_xs.push(e.x0);
+            }
+        }
 
-    #[test]
-    fn cells_no_shared_edge_separated_horizontally() {
-        // A=[0,0,10,10], B=[11,0,20,10]: gap of 1 between x1=10 and x0=11 → no shared edge
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(11.0, 0.0, 20.0, 10.0);
-        assert!(!cells_share_edge(&a, &b));
-    }
-
-    #[test]
-    fn cells_no_shared_edge_separated_vertically() {
-        // A=[0,0,10,10], B=[0,11,10,20]: gap between bottom=10 and top=11 → no shared edge
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(0.0, 11.0, 10.0, 20.0);
-        assert!(!cells_share_edge(&a, &b));
-    }
-
-    #[test]
-    fn cells_corner_touch_only_does_not_share_edge() {
-        // A=[0,0,10,10], B=[10,10,20,20]: they touch only at a single corner point.
-        // Shared vertical: x1==x0 ✓ but y-ranges: A.top=0,A.bottom=10; B.top=10,B.bottom=20
-        //   condition: A.top(0) < B.bottom(20)+eps ✓ AND B.top(10) < A.bottom(10)+eps
-        //   → B.top(10) < A.bottom(10)+eps → 10 < 10+eps → true (they barely overlap)
-        // This is a degenerate case: the eps allows corner-touching cells to pass as sharing.
-        // Document the actual behavior rather than asserting either way.
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(10.0, 10.0, 20.0, 20.0);
-        // Corner-touching cells with eps=1e-6: vertical check passes because
-        // B.top(10) < A.bottom(10)+1e-6. This is an epsilon-boundary artifact.
-        // The test documents that corner touch IS accepted as shared-edge at eps=1e-6.
-        let result = cells_share_edge(&a, &b);
-        // Both shared_vertical and shared_horizontal evaluate to true at the corner:
-        // shared_vertical: x1==x0 AND y ranges touch at exactly 10 (within eps)
+        assert_eq!(
+            snapped_xs.len(),
+            1,
+            "All 11 issue-848 rect x0 values should collapse to 1 cluster via sliding-window, \
+             got {} distinct values: {:?}",
+            snapped_xs.len(),
+            snapped_xs
+        );
+        // Mean of all 11 values
+        let expected_mean: f64 = x_values.iter().sum::<f64>() / x_values.len() as f64;
+        let diff = (snapped_xs[0] - expected_mean).abs();
         assert!(
-            result,
-            "corner-touch cells share edge at eps=1e-6 (documented boundary behavior)"
+            diff < 1e-6,
+            "Cluster mean should be {:.4}, got {:.4}",
+            expected_mean,
+            snapped_xs[0]
         );
     }
 
     #[test]
-    fn cells_vertical_edge_partial_y_overlap() {
-        // A=[0,0,10,10], B=[10,5,20,15]: vertical edge at x=10, y-ranges [0..10] and [5..15] overlap
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(10.0, 5.0, 20.0, 15.0);
-        assert!(cells_share_edge(&a, &b));
+    fn test_snap_group_wide_spread_splits_correctly() {
+        // Values with a genuine gap > tolerance should still split into 2 clusters.
+        // [72.3, 73.5, 80.0, 81.0] — gap between 73.5 and 80.0 = 6.5 > 3.0
+        let x_values = [72.3_f64, 73.5, 80.0, 81.0];
+        let mut edges: Vec<Edge> = x_values
+            .iter()
+            .map(|&x| Edge {
+                x0: x,
+                top: 0.0,
+                x1: x,
+                bottom: 100.0,
+                orientation: Orientation::Vertical,
+                source: crate::edges::EdgeSource::RectLeft,
+            })
+            .collect();
+
+        snap_group(
+            &mut edges,
+            3.0,
+            |e| e.x0,
+            |e, v| {
+                e.x0 = v;
+                e.x1 = v;
+            },
+        );
+
+        let mut snapped_xs: Vec<f64> = Vec::new();
+        for e in &edges {
+            if !snapped_xs.iter().any(|&x| (x - e.x0).abs() < 1e-9) {
+                snapped_xs.push(e.x0);
+            }
+        }
+        snapped_xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+        assert_eq!(snapped_xs.len(), 2, "Should have 2 clusters (genuine gap)");
+        let diff0 = (snapped_xs[0] - 72.9).abs(); // mean(72.3, 73.5)
+        let diff1 = (snapped_xs[1] - 80.5).abs(); // mean(80.0, 81.0)
+        assert!(diff0 < 1e-6, "Cluster 0 mean wrong: {}", snapped_xs[0]);
+        assert!(diff1 < 1e-6, "Cluster 1 mean wrong: {}", snapped_xs[1]);
     }
 
-    #[test]
-    fn cells_vertical_edge_no_y_overlap() {
-        // A=[0,0,10,10], B=[10,15,20,25]: vertical edge at x=10, but y-ranges don't overlap
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(10.0, 15.0, 20.0, 25.0);
-        assert!(!cells_share_edge(&a, &b));
-    }
+    // --- cluster_words_to_edges sliding-window fix tests (Stream strategy) ---
 
     #[test]
-    fn cells_horizontal_edge_partial_x_overlap() {
-        // A=[0,0,10,10], B=[5,10,15,20]: horizontal edge at y=10, x-ranges [0..10] and [5..15] overlap
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(5.0, 10.0, 15.0, 20.0);
-        assert!(cells_share_edge(&a, &b));
-    }
+    fn test_cluster_words_to_edges_sliding_window() {
+        // Stream strategy: words whose x0 values form a chain within tolerance
+        // should collapse to a single synthetic vertical edge.
+        // x0 values: [10.0, 11.5, 13.0, 14.4] — each step ≤ 3.0, spread = 4.4
+        // Old (cluster_start comparison): would split into multiple clusters.
+        // New (sliding-window, prev element): all → one cluster → one synthetic edge.
+        let words: Vec<Word> = [10.0_f64, 11.5, 13.0, 14.4]
+            .iter()
+            .map(|&x| make_word("w", x, 50.0, x + 8.0, 62.0))
+            .collect();
 
-    #[test]
-    fn cells_horizontal_edge_no_x_overlap() {
-        // A=[0,0,10,10], B=[15,10,25,20]: horizontal edge at y=10 but x-ranges don't overlap
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        let b = make_cell(15.0, 10.0, 25.0, 20.0);
-        assert!(!cells_share_edge(&a, &b));
-    }
+        let edges = words_to_edges_stream(&words, 3.0, 3.0, 1, 1);
+        // All 4 words share approximately x0 ~ 10-14.4 (chain within 3pt steps).
+        // They should collapse to a single x0-aligned vertical edge.
+        let verticals: Vec<&Edge> = edges
+            .iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .filter(|e| {
+                // Find the vertical edge at ~mean(10.0, 11.5, 13.0, 14.4) = 12.225
+                (e.x0 - 12.225).abs() < 0.5
+            })
+            .collect();
 
-    #[test]
-    fn cells_share_edge_not_same_cell() {
-        // A cell shares its edges with itself (degenerate but should be consistent)
-        let a = make_cell(0.0, 0.0, 10.0, 10.0);
-        // Same cell: x1==x0 would be 10==0 → false. bottom==top → 10==0 → false.
-        // But shared_vertical: (a.x1-a.x0).abs()=10, not < eps. So NO shared edge with itself.
-        // Actually a cell does NOT share edges with itself by this logic.
-        assert!(!cells_share_edge(&a, &a));
+        assert_eq!(
+            verticals.len(),
+            1,
+            "Chain of x0 values within sliding-window should produce 1 vertical edge, \
+             got edges: {:?}",
+            edges
+                .iter()
+                .filter(|e| e.orientation == Orientation::Vertical)
+                .map(|e| e.x0)
+                .collect::<Vec<_>>()
+        );
     }
 }
