@@ -14,6 +14,25 @@ pub struct StandardFontData {
     pub widths: [u16; 256],
     /// Font bounding box [llx, lly, urx, ury] in 1/1000 em-square units.
     pub font_bbox: [i16; 4],
+    /// AFM Ascender value in 1/1000 em-square units (positive, above baseline).
+    /// 0 means not specified (Symbol, ZapfDingbats).
+    pub ascender: i16,
+    /// AFM Descender value in 1/1000 em-square units (negative, below baseline).
+    /// 0 means not specified (Symbol, ZapfDingbats).
+    pub descender: i16,
+}
+
+/// Look up AFM ascender/descender for a standard Type1 font by name.
+///
+/// Returns `Some((ascender, descender))` in glyph-space units (1/1000 em).
+/// Ascender is positive; descender is negative.
+/// Returns `None` for unknown fonts or fonts without standard AFM metrics (Symbol, ZapfDingbats).
+pub fn afm_ascent_descent(name: &str) -> Option<(f64, f64)> {
+    let data = lookup(name)?;
+    if data.ascender == 0 && data.descender == 0 {
+        return None;
+    }
+    Some((f64::from(data.ascender), f64::from(data.descender)))
 }
 
 /// Look up standard font data by font name.
@@ -44,6 +63,8 @@ pub fn lookup(name: &str) -> Option<&'static StandardFontData> {
 static COURIER: StandardFontData = StandardFontData {
     widths: [600; 256],
     font_bbox: [-23, -250, 715, 805],
+    ascender: 629,
+    descender: -157,
 };
 
 // =============================================================================
@@ -95,6 +116,8 @@ static HELVETICA: StandardFontData = StandardFontData {
         556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500,
     ],
     font_bbox: [-166, -225, 1000, 931],
+    ascender: 718,
+    descender: -207,
 };
 
 // =============================================================================
@@ -135,6 +158,8 @@ static HELVETICA_BOLD: StandardFontData = StandardFontData {
         611, 611, 611, 611, 611, 611, 611, 584, 611, 611, 611, 611, 611, 556, 611, 556,
     ],
     font_bbox: [-170, -228, 1003, 962],
+    ascender: 718,
+    descender: -207,
 };
 
 // =============================================================================
@@ -175,6 +200,8 @@ static TIMES_ROMAN: StandardFontData = StandardFontData {
         500, 500, 500, 500, 500, 500, 500, 564, 500, 500, 500, 500, 500, 500, 500, 500,
     ],
     font_bbox: [-168, -218, 1000, 898],
+    ascender: 683,
+    descender: -217,
 };
 
 // =============================================================================
@@ -215,6 +242,8 @@ static TIMES_BOLD: StandardFontData = StandardFontData {
         500, 556, 500, 500, 500, 500, 500, 570, 500, 556, 556, 556, 556, 500, 556, 500,
     ],
     font_bbox: [-168, -218, 1000, 935],
+    ascender: 683,
+    descender: -217,
 };
 
 // =============================================================================
@@ -255,6 +284,8 @@ static TIMES_ITALIC: StandardFontData = StandardFontData {
         500, 500, 500, 500, 500, 500, 500, 675, 500, 500, 500, 500, 500, 444, 500, 444,
     ],
     font_bbox: [-169, -217, 1010, 883],
+    ascender: 683,
+    descender: -217,
 };
 
 // =============================================================================
@@ -295,6 +326,8 @@ static TIMES_BOLD_ITALIC: StandardFontData = StandardFontData {
         500, 556, 500, 500, 500, 500, 500, 570, 500, 556, 556, 556, 556, 444, 500, 444,
     ],
     font_bbox: [-200, -218, 996, 921],
+    ascender: 683,
+    descender: -217,
 };
 
 // =============================================================================
@@ -334,6 +367,8 @@ static SYMBOL: StandardFontData = StandardFontData {
         0, 329, 274, 686, 686, 686, 384, 384, 384, 384, 384, 384, 494, 494, 494, 0,
     ],
     font_bbox: [-180, -293, 1090, 1010],
+    ascender: 0,
+    descender: 0,
 };
 
 // =============================================================================
@@ -373,6 +408,8 @@ static ZAPF_DINGBATS: StandardFontData = StandardFontData {
         0, 874, 760, 946, 771, 865, 771, 888, 967, 888, 831, 873, 927, 970, 918, 0,
     ],
     font_bbox: [-1, -143, 981, 820],
+    ascender: 0,
+    descender: 0,
 };
 
 /// Build a 256-element width vector for a standard font, remapped for a target encoding.
@@ -610,6 +647,113 @@ mod tests {
             pdfplumber_core::StandardEncoding::Standard.decode(code)
         });
         assert!(result.is_none());
+    }
+
+    // --- AFM ascender/descender tests ---
+
+    #[test]
+    fn afm_ascent_descent_helvetica() {
+        let result = afm_ascent_descent("Helvetica");
+        assert_eq!(result, Some((718.0, -207.0)), "Helvetica AFM values");
+    }
+
+    #[test]
+    fn afm_ascent_descent_helvetica_bold() {
+        assert_eq!(afm_ascent_descent("Helvetica-Bold"), Some((718.0, -207.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_helvetica_oblique() {
+        assert_eq!(
+            afm_ascent_descent("Helvetica-Oblique"),
+            Some((718.0, -207.0))
+        );
+    }
+
+    #[test]
+    fn afm_ascent_descent_helvetica_boldoblique() {
+        assert_eq!(
+            afm_ascent_descent("Helvetica-BoldOblique"),
+            Some((718.0, -207.0))
+        );
+    }
+
+    #[test]
+    fn afm_ascent_descent_times_roman() {
+        assert_eq!(afm_ascent_descent("Times-Roman"), Some((683.0, -217.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_times_bold() {
+        assert_eq!(afm_ascent_descent("Times-Bold"), Some((683.0, -217.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_times_italic() {
+        assert_eq!(afm_ascent_descent("Times-Italic"), Some((683.0, -217.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_times_bolditalic() {
+        assert_eq!(
+            afm_ascent_descent("Times-BoldItalic"),
+            Some((683.0, -217.0))
+        );
+    }
+
+    #[test]
+    fn afm_ascent_descent_courier() {
+        assert_eq!(afm_ascent_descent("Courier"), Some((629.0, -157.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_courier_bold() {
+        assert_eq!(afm_ascent_descent("Courier-Bold"), Some((629.0, -157.0)));
+    }
+
+    #[test]
+    fn afm_ascent_descent_symbol_returns_none() {
+        // Symbol/ZapfDingbats have no meaningful AFM ascender — returns None
+        assert_eq!(afm_ascent_descent("Symbol"), None);
+    }
+
+    #[test]
+    fn afm_ascent_descent_zapf_returns_none() {
+        assert_eq!(afm_ascent_descent("ZapfDingbats"), None);
+    }
+
+    #[test]
+    fn afm_ascent_descent_unknown_font_returns_none() {
+        assert_eq!(afm_ascent_descent("UnknownFont"), None);
+        assert_eq!(afm_ascent_descent(""), None);
+        assert_eq!(afm_ascent_descent("Arial"), None);
+    }
+
+    #[test]
+    fn afm_ascent_descent_helvetica_coordinate_math() {
+        // Regression test: for hello_structure.pdf page 0
+        // 'H' in Helvetica at font_size=24, y_pos=700 (bottom of glyph box in PDF space),
+        // page_height=792.
+        //
+        // top = page_height - (y_pos + ascent * font_size / 1000)
+        //      = 792 - (700 + 718 * 24 / 1000)
+        //      = 792 - (700 + 17.232)
+        //      = 792 - 717.232 = 74.768   (approximately — exact depends on text matrix)
+        //
+        // The key invariant: AFM ascent 718 not generic 750, so top != 792-(700+18) = 74.
+        let (ascent, descent) = afm_ascent_descent("Helvetica").unwrap();
+        let page_height = 792.0_f64;
+        let y_pos = 700.0_f64;
+        let font_size = 24.0_f64;
+        let top = page_height - (y_pos + ascent * font_size / 1000.0);
+        let bottom = page_height - (y_pos + descent.abs() * font_size / 1000.0 + y_pos);
+        // AFM top is less than generic top (750 → 74.0 vs 718 → 74.768)
+        let generic_top = page_height - (y_pos + 750.0 * font_size / 1000.0);
+        assert!(
+            top > generic_top,
+            "AFM top ({top}) should be higher than generic top ({generic_top})"
+        );
+        let _ = bottom; // used to prevent dead-code warning
     }
 
     #[test]
