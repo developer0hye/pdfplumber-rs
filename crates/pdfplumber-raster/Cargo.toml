@@ -1,0 +1,23 @@
+[package]
+name = "pdfplumber-raster"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure-Rust PDF page rasterizer for pdfplumber-rs. Renders pages to PNG using tiny-skia and fontdue."
+keywords = ["pdf", "rasterizer", "wasm", "png", "rendering"]
+categories = ["graphics", "parser-implementations"]
+publish = false
+
+[lib]
+doctest = false
+
+[dependencies]
+pdfplumber = { path = "../pdfplumber", default-features = false }
+pdfplumber-core = { path = "../pdfplumber-core" }
+tiny-skia = { version = "0.11", default-features = false, features = ["std", "png-format"] }
+fontdue = "0.9"
+
+[dev-dependencies]
+lopdf = "0.36"
