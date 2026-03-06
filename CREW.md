@@ -39,7 +39,7 @@ is the build gate for fix lanes. Local `cargo check` run by Bosun for feature la
 Format: `[AGENT N] [WORKTREE] [COMMAND] [REASON]`
 
 [AGENT 4] [pdfplumber-rs-tests2] [cargo test -p pdfplumber-core -p pdfplumber-parse] [33 new unit tests added (commit ce1c709): TrueType+Differences (#220 domain), vertical_origin, should_split_horizontal boundary, cells_share_edge. Need green before PR.]
-[AGENT 8] [pdfplumber-rs main] [cargo check -p pdfplumber-chunk && cargo test -p pdfplumber-chunk] [New crate: crates/pdfplumber-chunk. 38 tests total (inline + integration). Pre-build audit complete: fixed Table struct misuse (quality is a method not field), unused TextOptions import, WordExtractor import. All field usage verified against pdfplumber-core source. Ready to build.]
+[AGENT 8] [pdfplumber-rs-lane8, branch feat/chunk-api-8, commit a2573c0] [cargo check -p pdfplumber-layout && cargo check -p pdfplumber-chunk && cargo test -p pdfplumber-chunk] [Lane 8 COMPLETE. pdfplumber-layout + pdfplumber-chunk committed DCO-signed. 45 tests. Push blocked by OAuth workflow scope (same as L14/15/16). Run from worktree pdfplumber-rs-lane8.]
 [AGENT 7] [pdfplumber-rs-tests branch=feat/test-expansion commit=ba9de1c] [cargo test --test all_fixtures_integration] [Lane 4: 1391-line integration test suite covering all 65 fixture PDFs — no-panic, bbox validity, rotation metadata, table detection, word containment, doctop ordering. Need green before PR.]
 [AGENT 9] [pdfplumber-rs main] [cargo test -p pdfplumber-py --lib --features pyo3/auto-initialize] [Lane 17: PyO3 unit tests (98 tests inline). No external deps beyond lopdf+pyo3. Should be fast. Verify green before CI PR.]
 [AGENT 9] [pdfplumber-rs main] [cargo check -p pdfplumber-wasm --target wasm32-unknown-unknown] [Lane 11: WASM crate cargo check on wasm32 target. Needs wasm32-unknown-unknown toolchain target installed. Verify no compile errors before CI PR.]
@@ -61,7 +61,7 @@ Format: `[AGENT N] [WORKTREE] [COMMAND] [REASON]`
 | 9     | WASM + PyO3 + Forensic | 11+15+17 | pdfplumber-rs (main) | COMPLETE — all 3 lanes done (commits 2653310, f945e27) |
 | 6     | Layout Crate  | 6      | pdfplumber-rs-lane6         | ACTIVE   |
 | 7     | Lanes 4+7     | 4,7    | pdfplumber-rs-tests (L4), pdfplumber-rs-lane7 (L7) | ACTIVE   |
-| 8     | Chunk API     | 8      | pdfplumber-rs (new crate: crates/pdfplumber-chunk) | ACTIVE   |
+| 8     | Chunk API     | 8      | pdfplumber-rs-lane8 (feat/chunk-api-8)      | BUILD_PENDING — commit a2573c0, DCO-signed, push blocked OAuth |
 
 ---
 
@@ -76,7 +76,7 @@ Format: `[AGENT N] [WORKTREE] [COMMAND] [REASON]`
 | 5    | unit tests              | 4     | IN PROGRESS | —       |
 | 6    | layout inference        | 7     | BUILD_PENDING | commit fb4b853 in pdfplumber-rs-lane6 |
 | 7    | ollama fallback         | 7     | BUILD_PENDING | commit bdbce0f in pdfplumber-rs-lane7 |
-| 8    | chunking API            | 8     | IN PROGRESS | blocker lifted — building against existing primitives, L6 hook ready |
+| 8    | chunking API            | 8     | BUILD_PENDING | commit a2573c0 in pdfplumber-rs-lane8, DCO-signed, push blocked OAuth |
 | 9    | signatures              | 3     | IN PROGRESS | —       |
 | 10   | PDF writing/annotations | 3     | IN PROGRESS | —       |
 | 11   | WASM target             | 9     | COMPLETE    | —       |
