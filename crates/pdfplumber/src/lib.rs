@@ -127,6 +127,26 @@ pub use pdfplumber_parse::{
     PageGeometry, PaintOp, PathEvent, PdfBackend,
 };
 
+/// PDF writing and incremental update API (requires `write` feature).
+///
+/// See [`write::PdfWriter`] for the main entry point.
+///
+/// # Example
+///
+/// ```no_run
+/// use pdfplumber::write::{PdfWriter, AnnotationColor};
+/// use pdfplumber::{Pdf, BBox};
+///
+/// let bytes = std::fs::read("doc.pdf").unwrap();
+/// let pdf = Pdf::open(bytes.clone().into(), None).unwrap();
+/// let mut writer = PdfWriter::new(&pdf, &bytes);
+/// writer.add_highlight(0, BBox { x0: 72.0, y0: 700.0, x1: 300.0, y1: 720.0 }, AnnotationColor::Yellow).unwrap();
+/// let updated = writer.write_incremental().unwrap();
+/// std::fs::write("annotated.pdf", updated).unwrap();
+/// ```
+#[cfg(feature = "write")]
+pub mod write;
+
 #[cfg(test)]
 mod tests {
     #[test]

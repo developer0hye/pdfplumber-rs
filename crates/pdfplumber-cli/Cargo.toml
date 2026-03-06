@@ -13,6 +13,9 @@ categories = ["command-line-utilities"]
 name = "pdfplumber"
 path = "src/main.rs"
 
+[features]
+write = ["pdfplumber/write"]
+
 [dependencies]
 pdfplumber = { version = "0.2.0", path = "../pdfplumber" }
 clap = { version = "4", features = ["derive"] }

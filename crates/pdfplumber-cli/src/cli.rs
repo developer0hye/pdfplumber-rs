@@ -363,6 +363,64 @@ pub enum Commands {
         #[arg(long)]
         password: Option<String>,
     },
+
+    /// Add annotations to a PDF (requires `write` feature)
+    ///
+    /// Produces an incremental-update PDF: original bytes are untouched,
+    /// changes are appended. Existing digital signatures remain valid.
+    Annotate {
+        /// Input PDF file
+        #[arg(value_name = "INPUT")]
+        input: PathBuf,
+
+        /// Output PDF file (must differ from input)
+        #[arg(value_name = "OUTPUT")]
+        output: PathBuf,
+
+        /// Page number (1-based) to annotate
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+
+        /// Left x coordinate of the annotation rectangle (in PDF points)
+        #[arg(long)]
+        x0: f64,
+
+        /// Bottom y coordinate (in PDF points, origin = bottom-left)
+        #[arg(long)]
+        y0: f64,
+
+        /// Right x coordinate
+        #[arg(long)]
+        x1: f64,
+
+        /// Top y coordinate
+        #[arg(long)]
+        y1: f64,
+
+        /// Add a highlight annotation
+        #[arg(long, conflicts_with_all = ["text_note", "link_uri"])]
+        highlight: bool,
+
+        /// Add a text (sticky note) annotation with the given text
+        #[arg(long, value_name = "TEXT", conflicts_with_all = ["highlight", "link_uri"])]
+        text_note: Option<String>,
+
+        /// Add a link annotation pointing to the given URI
+        #[arg(long, value_name = "URI", conflicts_with_all = ["highlight", "text_note"])]
+        link_uri: Option<String>,
+
+        /// Highlight color: yellow, cyan, green, pink (default: yellow)
+        #[arg(long, default_value = "yellow")]
+        color: String,
+
+        /// Optional note text for highlight annotations
+        #[arg(long, value_name = "TEXT")]
+        note: Option<String>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+    },
 }
 
 /// Table detection strategy.

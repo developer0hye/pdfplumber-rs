@@ -28,7 +28,7 @@ pub struct PagesIter<'a> {
     count: usize,
 }
 
-impl<'a> Iterator for PagesIter<'a> {
+impl Iterator for PagesIter<'_> {
     type Item = Result<Page, PdfError>;
 
     fn next(&mut self) -> Option<Self::Item> {

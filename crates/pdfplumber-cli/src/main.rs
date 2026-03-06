@@ -1,3 +1,4 @@
+mod annotate_cmd;
 mod annots_cmd;
 mod bookmarks_cmd;
 mod chars_cmd;
@@ -184,6 +185,35 @@ fn main() {
             ref format,
             ref password,
         } => validate_cmd::run(file, format, password.as_deref()),
+        cli::Commands::Annotate {
+            ref input,
+            ref output,
+            page,
+            x0,
+            y0,
+            x1,
+            y1,
+            highlight,
+            ref text_note,
+            ref link_uri,
+            ref color,
+            ref note,
+            ref password,
+        } => annotate_cmd::run(&annotate_cmd::AnnotateArgs {
+            input,
+            output,
+            page,
+            x0,
+            y0,
+            x1,
+            y1,
+            highlight,
+            text_note: text_note.as_deref(),
+            link_uri: link_uri.as_deref(),
+            color,
+            note_contents: note.as_deref(),
+            password: password.as_deref(),
+        }),
     };
 
     if let Err(code) = result {
