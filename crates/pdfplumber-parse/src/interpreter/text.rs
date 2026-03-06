@@ -3,18 +3,18 @@
 //! Supplements the core `text_renderer` module with show_string variants for
 //! CJK encodings, vertical writing modes, and TJ array positioning.
 
-use std::collections::HashMap;
+use super::events::emit_char_events;
+use super::font::get_width_fn;
+use super::{CachedFont, MarkedContentEntry, operand_to_string_bytes};
 use crate::cjk_encoding;
-use crate::error::BackendError;
-use crate::handler::{CharEvent, ContentHandler};
+use crate::handler::ContentHandler;
 use crate::interpreter_state::InterpreterState;
-use crate::text_renderer::{TjElement, show_string, show_string_cid, show_string_with_positioning_mode, RawChar};
+use crate::text_renderer::{
+    TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
+};
 use crate::text_state::TextState;
 use crate::tokenizer::Operand;
-use pdfplumber_core::{ExtractOptions, ExtractWarning, ExtractWarningCode, FontEncoding};
-use super::{CachedFont, MarkedContentEntry, get_f64, get_i64, operand_to_name, operand_to_string_bytes, operand_to_f32};
-use super::font::get_width_fn;
-use super::events::emit_char_events;
+use std::collections::HashMap;
 
 pub(super) fn show_string_cjk(
     text_state: &mut TextState,
@@ -264,4 +264,3 @@ pub(super) fn handle_tj_array(
         marked_content_stack,
     );
 }
-

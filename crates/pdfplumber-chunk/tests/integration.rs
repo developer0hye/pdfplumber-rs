@@ -285,7 +285,7 @@ fn headings_precede_section_assignment() {
             last_heading_text = Some(chunk.text.clone());
             last_heading_page = Some(chunk.page);
         } else if chunk.chunk_type == ChunkType::Paragraph {
-            if let (Some(ref heading), Some(hpage)) = (&last_heading_text, last_heading_page) {
+            if let (Some(heading), Some(hpage)) = (&last_heading_text, last_heading_page) {
                 if chunk.page == hpage {
                     assert_eq!(
                         chunk.section.as_deref(),

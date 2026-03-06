@@ -466,6 +466,5 @@ fn extract_curves_from_subpath(
     }
 }
 
-
 #[cfg(test)]
 mod tests;

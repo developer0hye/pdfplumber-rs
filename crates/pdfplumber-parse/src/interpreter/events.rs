@@ -3,16 +3,13 @@
 //! Converts raw character and path data into typed events dispatched to
 //! [`ContentHandler`]. Also handles graphics state extension (`gs` operator).
 
+use super::{CachedFont, MarkedContentEntry};
 use crate::cjk_encoding;
-use crate::error::BackendError;
 use crate::handler::{CharEvent, ContentHandler, PaintOp, PathEvent};
 use crate::interpreter_state::InterpreterState;
 use crate::lopdf_backend::{object_to_f64, resolve_ref};
-use crate::text_renderer::RawChar;
 use crate::text_state::TextState;
-use crate::tokenizer::Operand;
-use pdfplumber_core::{ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule};
-use super::{CachedFont, MarkedContentEntry, get_f64};
+use pdfplumber_core::FillRule;
 
 pub(super) fn emit_char_events(
     raw_chars: Vec<crate::text_renderer::RawChar>,
@@ -327,4 +324,3 @@ pub(super) fn apply_ext_gstate(
 
     gstate.graphics_state_mut().apply_ext_gstate(&ext);
 }
-

@@ -3,6 +3,7 @@
 //! Processes `Do` operator references to Form XObjects and Image XObjects,
 //! plus inline image (`BI`/`ID`/`EI`) parsing and inline image key expansion.
 
+use super::interpret_content_stream;
 use crate::error::BackendError;
 use crate::handler::{ContentHandler, ImageEvent};
 use crate::interpreter_state::InterpreterState;
@@ -10,8 +11,8 @@ use crate::lopdf_backend::object_to_f64;
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, Operator};
 use pdfplumber_core::ExtractOptions;
-use super::{CachedFont, get_f64, interpret_content_stream};
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn handle_do(
     doc: &lopdf::Document,
     resources: &lopdf::Dictionary,
@@ -369,4 +370,3 @@ pub(super) fn decode_stream(stream: &lopdf::Stream) -> Result<Vec<u8>, BackendEr
         Ok(stream.content.clone())
     }
 }
-

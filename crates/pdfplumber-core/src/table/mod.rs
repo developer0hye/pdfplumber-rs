@@ -3,9 +3,13 @@
 //! This module provides the configuration types, data structures, and orchestration
 //! for detecting tables in PDF pages using Lattice, Stream, or Explicit strategies.
 
+// These imports are used by test modules via `use super::*`.
+#[allow(unused_imports)]
 use crate::edges::{Edge, EdgeSource};
 use crate::geometry::{BBox, Orientation};
+#[allow(unused_imports)]
 use crate::text::{Char, TextDirection};
+#[allow(unused_imports)]
 use crate::words::{Word, WordExtractor, WordOptions};
 
 /// Strategy for table detection.
@@ -398,7 +402,6 @@ pub struct Intersection {
     /// Y coordinate of the intersection point.
     pub y: f64,
 }
-
 
 /// Convert a float to an integer key for grouping (multiply by 1000 to preserve 3 decimal places).
 pub(super) fn float_key(v: f64) -> i64 {

@@ -319,9 +319,8 @@ impl Chunker {
                     }
                 }
 
-                LayoutBlock::Figure(_) => {
-                    // Figures have no text content — no chunk emitted.
-                    // Future: emit a ChunkType::Figure with alt-text if available.
+                _ => {
+                    // Figures and any future block types: no text content, no chunk emitted.
                 }
             }
         }

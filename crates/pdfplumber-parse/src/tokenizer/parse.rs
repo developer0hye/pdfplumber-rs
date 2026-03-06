@@ -2,8 +2,8 @@
 //!
 //! All functions here are `pub(super)` — used only by the tokenizer.
 
-use crate::error::BackendError;
 use super::{InlineImageDict, Operand};
+use crate::error::BackendError;
 
 /// Returns `true` if `b` is a PDF whitespace character.
 pub(super) fn is_whitespace(b: u8) -> bool {
@@ -235,7 +235,10 @@ pub(super) fn parse_array(input: &[u8], pos: &mut usize) -> Result<Vec<Operand>,
 }
 
 /// Parse a dictionary `<< /Key value ... >>`. Assumes current bytes are `<<`.
-pub(super) fn parse_dictionary(input: &[u8], pos: &mut usize) -> Result<Vec<(String, Operand)>, BackendError> {
+pub(super) fn parse_dictionary(
+    input: &[u8],
+    pos: &mut usize,
+) -> Result<Vec<(String, Operand)>, BackendError> {
     // Skip '<<'
     *pos += 2;
 
@@ -277,7 +280,10 @@ pub(super) fn parse_dictionary(input: &[u8], pos: &mut usize) -> Result<Vec<(Str
 }
 
 /// Parse a single value inside a dictionary.
-pub(super) fn parse_dictionary_value(input: &[u8], pos: &mut usize) -> Result<Operand, BackendError> {
+pub(super) fn parse_dictionary_value(
+    input: &[u8],
+    pos: &mut usize,
+) -> Result<Operand, BackendError> {
     let b = input[*pos];
     match b {
         b'/' => Ok(Operand::Name(parse_name(input, pos))),
@@ -498,7 +504,10 @@ pub(super) fn parse_inline_image(
 }
 
 /// Parse a single value in an inline image dictionary.
-pub(super) fn parse_inline_image_value(input: &[u8], pos: &mut usize) -> Result<Operand, BackendError> {
+pub(super) fn parse_inline_image_value(
+    input: &[u8],
+    pos: &mut usize,
+) -> Result<Operand, BackendError> {
     let b = input[*pos];
     match b {
         b'/' => Ok(Operand::Name(parse_name(input, pos))),

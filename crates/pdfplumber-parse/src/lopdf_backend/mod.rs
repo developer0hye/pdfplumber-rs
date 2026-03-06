@@ -7,11 +7,9 @@ use crate::backend::PdfBackend;
 use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
-    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions,
-    FormField, Hyperlink, ImageContent, RepairOptions, RepairResult, SignatureInfo, StructElement,
-    ValidationIssue,
+    Annotation, BBox, Bookmark, DocumentMetadata, ExtractOptions, FormField, Hyperlink,
+    ImageContent, RepairOptions, RepairResult, SignatureInfo, StructElement, ValidationIssue,
 };
-
 
 mod annots;
 mod forms;
@@ -707,7 +705,10 @@ pub(super) fn decode_pdf_string(bytes: &[u8]) -> String {
 ///
 /// If `obj` is a [`lopdf::Object::Reference`], follows the reference in `doc`
 /// and returns the resolved object. Otherwise returns `obj` unchanged.
-pub(super) fn resolve_ref<'a>(doc: &'a lopdf::Document, obj: &'a lopdf::Object) -> &'a lopdf::Object {
+pub(super) fn resolve_ref<'a>(
+    doc: &'a lopdf::Document,
+    obj: &'a lopdf::Object,
+) -> &'a lopdf::Object {
     match obj {
         lopdf::Object::Reference(id) => doc.get_object(*id).unwrap_or(obj),
         _ => obj,

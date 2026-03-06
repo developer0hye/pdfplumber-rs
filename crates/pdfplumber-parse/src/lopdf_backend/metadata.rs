@@ -3,11 +3,13 @@
 //! Extracts document-level information from the PDF /Info dictionary
 //! and /Outlines bookmark tree. Called from the main backend module.
 
+use super::extract_string_from_dict;
 use crate::error::BackendError;
 use pdfplumber_core::{Bookmark, DocumentMetadata};
-use super::extract_string_from_dict;
 
-pub(super) fn extract_document_metadata(doc: &lopdf::Document) -> Result<DocumentMetadata, BackendError> {
+pub(super) fn extract_document_metadata(
+    doc: &lopdf::Document,
+) -> Result<DocumentMetadata, BackendError> {
     // The /Info dictionary is referenced from the trailer
     let info_ref = match doc.trailer.get(b"Info") {
         Ok(obj) => obj,
@@ -42,7 +44,9 @@ pub(super) fn extract_document_metadata(doc: &lopdf::Document) -> Result<Documen
 ///
 /// Walks the `/Outlines` tree using `/First`, `/Next` sibling links,
 /// resolving destinations to page numbers and y-coordinates.
-pub(super) fn extract_document_bookmarks(doc: &lopdf::Document) -> Result<Vec<Bookmark>, BackendError> {
+pub(super) fn extract_document_bookmarks(
+    doc: &lopdf::Document,
+) -> Result<Vec<Bookmark>, BackendError> {
     // Get the catalog dictionary
     let catalog_ref = match doc.trailer.get(b"Root") {
         Ok(obj) => obj,

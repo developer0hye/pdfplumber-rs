@@ -199,7 +199,6 @@ impl EncodingResolver {
     }
 }
 
-
 mod glyph_names;
 pub use glyph_names::glyph_name_to_char;
 use glyph_names::{MAC_EXPERT_TABLE, MAC_ROMAN_TABLE, STANDARD_TABLE, WIN_ANSI_TABLE};

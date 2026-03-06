@@ -16,24 +16,26 @@ use pdfplumber_core::BBox;
 fn main() {
     // ── Construction ──────────────────────────────────────────────────────
     // BBox::new(x0, top, x1, bottom)
-    let title   = BBox::new(50.0, 50.0,  550.0, 80.0);
-    let body    = BBox::new(50.0, 90.0,  550.0, 200.0);
+    let title = BBox::new(50.0, 50.0, 550.0, 80.0);
+    let body = BBox::new(50.0, 90.0, 550.0, 200.0);
     let sidebar = BBox::new(420.0, 90.0, 550.0, 400.0);
 
     println!("=== BBox dimensions ===");
     for (name, b) in [("title", &title), ("body", &body), ("sidebar", &sidebar)] {
         let w = b.x1 - b.x0;
         let h = b.bottom - b.top;
-        println!("  {name:8} x0={:.0} top={:.0} x1={:.0} bottom={:.0}  ({w:.0}×{h:.0} pt)",
-                 b.x0, b.top, b.x1, b.bottom);
+        println!(
+            "  {name:8} x0={:.0} top={:.0} x1={:.0} bottom={:.0}  ({w:.0}×{h:.0} pt)",
+            b.x0, b.top, b.x1, b.bottom
+        );
     }
 
     // ── Overlap ───────────────────────────────────────────────────────────
     println!("\n=== Overlap detection ===");
     let pairs = [
-        ("title",   &title,   "sidebar", &sidebar),
-        ("body",    &body,    "sidebar", &sidebar),
-        ("title",   &title,   "body",    &body),
+        ("title", &title, "sidebar", &sidebar),
+        ("body", &body, "sidebar", &sidebar),
+        ("title", &title, "body", &body),
     ];
     for (an, a, bn, b) in pairs {
         let overlaps = a.x0 < b.x1 && a.x1 > b.x0 && a.top < b.bottom && a.bottom > b.top;
@@ -48,7 +50,10 @@ fn main() {
         title.bottom.max(body.bottom),
     );
     println!("\n=== Union(title, body) ===");
-    println!("  x0={:.0} top={:.0} x1={:.0} bottom={:.0}", union.x0, union.top, union.x1, union.bottom);
+    println!(
+        "  x0={:.0} top={:.0} x1={:.0} bottom={:.0}",
+        union.x0, union.top, union.x1, union.bottom
+    );
 
     // ── Point containment ─────────────────────────────────────────────────
     let pt = (300.0f64, 150.0f64);
@@ -57,13 +62,10 @@ fn main() {
     println!("  ({:.0}, {:.0}) ∈ body: {inside}", pt.0, pt.1);
 
     // ── Reading-order sort (top-to-bottom, left-to-right) ─────────────────
-    let mut blocks = vec![
-        ("sidebar", sidebar),
-        ("body",    body),
-        ("title",   title),
-    ];
+    let mut blocks = vec![("sidebar", sidebar), ("body", body), ("title", title)];
     blocks.sort_by(|(_, a), (_, b)| {
-        a.top.partial_cmp(&b.top)
+        a.top
+            .partial_cmp(&b.top)
             .unwrap_or(std::cmp::Ordering::Equal)
             .then(a.x0.partial_cmp(&b.x0).unwrap_or(std::cmp::Ordering::Equal))
     });

@@ -17,12 +17,14 @@ use pdfplumber_layout::Document;
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args().skip(1);
-    let path = args.next().ok_or("usage: to_markdown <file.pdf> [output.md]")?;
-    let out  = args.next();
+    let path = args
+        .next()
+        .ok_or("usage: to_markdown <file.pdf> [output.md]")?;
+    let out = args.next();
 
-    let pdf  = Pdf::open_file(&path, None)?;
-    let doc  = Document::from_pdf(&pdf);
-    let md   = doc.to_markdown();
+    let pdf = Pdf::open_file(&path, None)?;
+    let doc = Document::from_pdf(&pdf);
+    let md = doc.to_markdown();
 
     match out.as_deref() {
         Some(p) => {
@@ -38,6 +40,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 fn main() -> ExitCode {
     match run() {
         Ok(()) => ExitCode::SUCCESS,
-        Err(e) => { eprintln!("error: {e}"); ExitCode::FAILURE }
+        Err(e) => {
+            eprintln!("error: {e}");
+            ExitCode::FAILURE
+        }
     }
 }

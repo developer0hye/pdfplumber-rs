@@ -1,9 +1,8 @@
 //! Table detection algorithms — edge snapping, intersection finding, cell extraction.
 
-use std::collections::HashMap;
-use crate::edges::{Edge, EdgeSource};
+use super::{Cell, Intersection, Table, float_key};
+use crate::edges::Edge;
 use crate::geometry::{BBox, Orientation};
-use super::{Cell, ExplicitLines, Intersection, Table, TableSettings, float_key};
 
 /// Find all intersection points between horizontal and vertical edges.
 ///
@@ -608,5 +607,3 @@ pub fn normalize_table_columns(table: &Table) -> Table {
         columns,
     }
 }
-
-

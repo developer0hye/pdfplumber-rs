@@ -12,6 +12,7 @@ members = [
     "crates/pdfplumber-forensic",
     "crates/pdfplumber-math",
     "crates/pdfplumber-raster",
+    "crates/pdfplumber-mcp",
 ]
 resolver = "3"
 

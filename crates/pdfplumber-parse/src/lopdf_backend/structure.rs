@@ -3,9 +3,9 @@
 //! Parses the PDF logical structure tree (Tagged PDF) into [`StructElement`]
 //! trees. Called from the main backend module.
 
+use super::decode_pdf_string;
 use crate::error::BackendError;
 use pdfplumber_core::StructElement;
-use super::decode_pdf_string;
 
 pub(super) fn extract_document_structure_tree(
     doc: &lopdf::Document,

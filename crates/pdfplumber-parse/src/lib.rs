@@ -54,7 +54,7 @@ pub use error::BackendError;
 pub use font_metrics::{FontMetrics, extract_font_metrics};
 pub use handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
 pub use interpreter_state::InterpreterState;
-pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage, extract_raw_document_signatures};
+pub use lopdf_backend::{LopdfBackend, LopdfDocument, LopdfPage};
 pub use page_geometry::PageGeometry;
 pub use pdfplumber_core;
 pub use text_renderer::{

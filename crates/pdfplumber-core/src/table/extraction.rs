@@ -1,14 +1,13 @@
 //! Table text extraction, edge stream analysis, and TableFinder orchestration.
 
-use std::collections::HashMap;
+use super::algorithms::{cells_to_tables, edges_to_cells, edges_to_intersections};
+use super::{Cell, ExplicitLines, Intersection, Table, TableSettings};
+use super::{join_edge_group, snap_edges};
 use crate::edges::{Edge, EdgeSource};
-use crate::geometry::{BBox, Orientation};
+use crate::geometry::Orientation;
+use crate::table::Strategy;
 use crate::text::{Char, TextDirection};
 use crate::words::{Word, WordExtractor, WordOptions};
-use super::{Cell, ExplicitLines, Intersection, Table, TableSettings};
-use super::algorithms::{cells_to_tables, edges_to_cells, edges_to_intersections, intersections_to_cells};
-use super::{float_key, join_edge_group, snap_edges};
-use crate::table::Strategy;
 
 /// Compute the length of an edge along its primary axis.
 fn edge_length(edge: &Edge) -> f64 {
@@ -666,4 +665,3 @@ impl TableFinder {
         }
     }
 }
-

@@ -451,6 +451,5 @@ fn render_elements(elements: &[HtmlElement]) -> String {
     parts.join("\n")
 }
 
-
 #[cfg(test)]
 mod tests;

@@ -672,6 +672,5 @@ fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests;

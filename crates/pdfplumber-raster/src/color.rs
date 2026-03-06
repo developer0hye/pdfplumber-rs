@@ -35,7 +35,7 @@ pub fn to_skia_color(c: &Color) -> ColorU8 {
                 255,
             )
         }
-        Color::Other(_) => ColorU8::from_rgba(0, 0, 0, 255),
+        _ => ColorU8::from_rgba(0, 0, 0, 255),
     }
 }
 

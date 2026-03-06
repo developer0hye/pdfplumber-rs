@@ -233,6 +233,5 @@ pub fn double_quote_show_string(
     quote_show_string(text_state, string_bytes, get_width) // string '
 }
 
-
 #[cfg(test)]
 mod tests;

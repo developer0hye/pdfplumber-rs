@@ -554,6 +554,5 @@ fn next_hex_token(text: &str) -> Option<(&str, &str)> {
     Some((hex, remaining))
 }
 
-
 #[cfg(test)]
 mod tests;

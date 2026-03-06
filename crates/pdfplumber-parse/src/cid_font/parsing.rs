@@ -1,13 +1,11 @@
 //! CID font parsing helpers — internal functions for extracting metrics from lopdf.
 
-use std::collections::HashMap;
-use crate::error::BackendError;
-use crate::truetype;
 use super::{
-    CidFontType, CidToGidMap, CidSystemInfo, CidFontMetrics, VerticalMetric,
-    DEFAULT_CID_ASCENT, DEFAULT_CID_DESCENT, DEFAULT_DW2_VY, DEFAULT_DW2_W1,
-    parse_w_array, parse_w2_array,
+    CidFontMetrics, CidSystemInfo, CidToGidMap, DEFAULT_CID_ASCENT, DEFAULT_CID_DESCENT,
+    DEFAULT_DW2_VY, VerticalMetric,
 };
+use crate::truetype;
+use std::collections::HashMap;
 
 /// Parse the /CIDToGIDMap entry from a CIDFont dictionary.
 pub(super) fn parse_cid_to_gid_map(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> CidToGidMap {
@@ -34,7 +32,10 @@ pub(super) fn parse_cid_to_gid_map(doc: &lopdf::Document, dict: &lopdf::Dictiona
 }
 
 /// Parse /CIDSystemInfo from a CIDFont dictionary.
-pub(super) fn parse_cid_system_info(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> Option<CidSystemInfo> {
+pub(super) fn parse_cid_system_info(
+    doc: &lopdf::Document,
+    dict: &lopdf::Dictionary,
+) -> Option<CidSystemInfo> {
     let info_obj = dict.get(b"CIDSystemInfo").ok()?;
     let info_obj = resolve_object(doc, info_obj);
     let info_dict = info_obj.as_dict().ok()?;
@@ -186,7 +187,10 @@ pub(super) fn try_extract_vmtx_vertical_metrics(
 }
 
 /// Resolve an indirect reference to the actual object.
-pub(super) fn resolve_object<'a>(doc: &'a lopdf::Document, obj: &'a lopdf::Object) -> &'a lopdf::Object {
+pub(super) fn resolve_object<'a>(
+    doc: &'a lopdf::Document,
+    obj: &'a lopdf::Object,
+) -> &'a lopdf::Object {
     match obj {
         lopdf::Object::Reference(id) => doc.get_object(*id).unwrap_or(obj),
         _ => obj,
@@ -420,4 +424,3 @@ pub fn strip_subset_prefix(font_name: &str) -> &str {
         font_name
     }
 }
-

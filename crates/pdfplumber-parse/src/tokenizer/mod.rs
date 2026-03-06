@@ -16,8 +16,8 @@ use crate::error::BackendError;
 mod parse;
 
 use parse::{
-    parse_array, parse_dictionary, parse_hex_string, parse_inline_image,
-    parse_keyword, parse_literal_string, parse_name, parse_number, skip_whitespace_and_comments,
+    parse_array, parse_dictionary, parse_hex_string, parse_inline_image, parse_keyword,
+    parse_literal_string, parse_name, parse_number, skip_whitespace_and_comments,
 };
 
 // Type alias used by parse.rs helpers — must be visible to that submodule.
@@ -771,6 +771,10 @@ mod tests {
         let (ops, warnings) = tokenize_lenient(stream);
         let names: Vec<&str> = ops.iter().map(|o| o.name.as_str()).collect();
         assert!(names.contains(&"BT") && names.contains(&"Tf") && names.contains(&"ET"));
-        assert!(warnings.len() >= 2, "expected ≥2 warnings, got {}", warnings.len());
+        assert!(
+            warnings.len() >= 2,
+            "expected ≥2 warnings, got {}",
+            warnings.len()
+        );
     }
 }

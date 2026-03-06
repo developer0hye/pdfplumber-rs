@@ -307,6 +307,5 @@ impl PathBuilder {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

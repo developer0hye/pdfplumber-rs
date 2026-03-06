@@ -3,9 +3,9 @@
 //! Extracts annotation metadata and hyperlinks from PDF page /Annots arrays.
 //! Called from the main backend module.
 
+use super::{extract_bbox_from_array, extract_string_from_dict};
 use crate::error::BackendError;
 use pdfplumber_core::{Annotation, AnnotationType, Hyperlink};
-use super::{extract_bbox_from_array, extract_string_from_dict};
 
 pub(super) fn extract_page_annotations(
     doc: &lopdf::Document,

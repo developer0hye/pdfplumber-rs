@@ -4,16 +4,16 @@ use std::collections::HashMap;
 
 use pdfplumber_core::{
     Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
-    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, PageObject,
-    PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
-    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, duplicate_merged_content_in_table, export_image_set,
+    FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, Orientation,
+    PageObject, PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
+    TableSettings, TextDirection, TextLine, TextOptions, Word, WordExtractor, WordOptions,
+    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
     extract_text_for_cells_with_options, normalize_table_columns, search_chars,
     sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
-use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
+use crate::cropped_page::{CroppedPage, FilterMode, filter_and_build, from_page_data};
 
 mod helpers;
 use helpers::{collect_chars_by_structure_order, collect_elements};
@@ -781,5 +781,140 @@ impl Page {
                     .map(|row| row.into_iter().map(|cell| cell.text).collect())
                     .collect()
             })
+    }
+
+    /// Return only horizontal edges (lines with `Orientation::Horizontal`).
+    ///
+    /// Equivalent to Python pdfplumber's `page.horizontal_edges`.
+    pub fn horizontal_edges(&self) -> Vec<Edge> {
+        self.edges()
+            .into_iter()
+            .filter(|e| e.orientation == Orientation::Horizontal)
+            .collect()
+    }
+
+    /// Return only vertical edges (lines with `Orientation::Vertical`).
+    ///
+    /// Equivalent to Python pdfplumber's `page.vertical_edges`.
+    pub fn vertical_edges(&self) -> Vec<Edge> {
+        self.edges()
+            .into_iter()
+            .filter(|e| e.orientation == Orientation::Vertical)
+            .collect()
+    }
+
+    /// Return text lines whose dominant direction is horizontal (LTR or RTL).
+    ///
+    /// Equivalent to Python pdfplumber's `page.textlinehorizontals`.
+    pub fn text_lines_horizontal(&self, word_options: &WordOptions) -> Vec<TextLine> {
+        let words = self.extract_words(word_options);
+        let lines = cluster_words_into_lines(&words, word_options.y_tolerance);
+        lines
+            .into_iter()
+            .filter(|line| {
+                line.words
+                    .iter()
+                    .all(|w| w.direction == TextDirection::Ltr || w.direction == TextDirection::Rtl)
+            })
+            .collect()
+    }
+
+    /// Return text lines whose dominant direction is vertical (TTB or BTT).
+    ///
+    /// Equivalent to Python pdfplumber's `page.textlineverticals`.
+    pub fn text_lines_vertical(&self, word_options: &WordOptions) -> Vec<TextLine> {
+        let words = self.extract_words(word_options);
+        let lines = cluster_words_into_lines(&words, word_options.y_tolerance);
+        lines
+            .into_iter()
+            .filter(|line| {
+                line.words
+                    .iter()
+                    .all(|w| w.direction == TextDirection::Ttb || w.direction == TextDirection::Btt)
+            })
+            .collect()
+    }
+
+    /// Return all page objects as a map of type name → object list.
+    ///
+    /// Keys: `"char"`, `"line"`, `"rect"`, `"curve"`, `"image"`.
+    ///
+    /// Equivalent to Python pdfplumber's `page.objects`.
+    pub fn objects(&self) -> HashMap<&'static str, Vec<PageObject<'_>>> {
+        let mut map: HashMap<&'static str, Vec<PageObject<'_>>> = HashMap::new();
+        map.insert("char", self.chars.iter().map(PageObject::Char).collect());
+        map.insert("line", self.lines.iter().map(PageObject::Line).collect());
+        map.insert("rect", self.rects.iter().map(PageObject::Rect).collect());
+        map.insert("curve", self.curves.iter().map(PageObject::Curve).collect());
+        map.insert("image", self.images.iter().map(PageObject::Image).collect());
+        map
+    }
+
+    /// Serialize this page's objects to a JSON string.
+    ///
+    /// Requires the `serde` feature. Includes page metadata and all object
+    /// arrays (chars, lines, rects, curves, images, annotations, hyperlinks).
+    ///
+    /// Equivalent to Python pdfplumber's `page.to_json()`.
+    #[cfg(feature = "serde")]
+    pub fn to_json(&self, pretty: bool) -> Result<String, serde_json::Error> {
+        let value = self.to_json_value();
+        if pretty {
+            serde_json::to_string_pretty(&value)
+        } else {
+            serde_json::to_string(&value)
+        }
+    }
+
+    /// Serialize this page's objects to a [`serde_json::Value`].
+    ///
+    /// Requires the `serde` feature. Returns a JSON object with page metadata
+    /// and all extracted object arrays.
+    ///
+    /// Equivalent to Python pdfplumber's `page.to_dict()`.
+    #[cfg(feature = "serde")]
+    pub fn to_json_value(&self) -> serde_json::Value {
+        serde_json::json!({
+            "page_number": self.page_number,
+            "width": self.width,
+            "height": self.height,
+            "rotation": self.rotation,
+            "mediabox": [self.media_box.x0, self.media_box.top, self.media_box.x1, self.media_box.bottom],
+            "chars": self.chars,
+            "lines": self.lines,
+            "rects": self.rects,
+            "curves": self.curves,
+            "images": self.images,
+            "annots": self.annotations,
+            "hyperlinks": self.hyperlinks,
+        })
+    }
+
+    /// Serialize this page's characters to a CSV string.
+    ///
+    /// Each row represents one character with columns:
+    /// `text`, `x0`, `top`, `x1`, `bottom`, `fontname`, `size`.
+    ///
+    /// Equivalent to Python pdfplumber's `page.to_csv()`.
+    pub fn to_csv(&self) -> String {
+        let mut out = String::from("text,x0,top,x1,bottom,fontname,size\n");
+        for ch in &self.chars {
+            let text = csv_escape(&ch.text);
+            let fontname = csv_escape(&ch.fontname);
+            out.push_str(&format!(
+                "{},{:.4},{:.4},{:.4},{:.4},{},{:.4}\n",
+                text, ch.bbox.x0, ch.bbox.top, ch.bbox.x1, ch.bbox.bottom, fontname, ch.size,
+            ));
+        }
+        out
+    }
+}
+
+/// Escape a string value for CSV output.
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
     }
 }

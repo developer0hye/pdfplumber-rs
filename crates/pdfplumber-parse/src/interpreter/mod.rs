@@ -6,26 +6,17 @@
 
 use std::collections::HashMap;
 
-use crate::cid_font::{
-    CidFontMetrics, extract_cid_font_metrics, get_descendant_font, get_type0_encoding,
-    is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
-};
-use crate::cjk_encoding;
+use crate::cid_font::CidFontMetrics;
 use crate::cmap::CMap;
 use crate::color_space::resolve_color_space_name;
 use crate::error::BackendError;
-use crate::font_metrics::{FontMetrics, extract_font_metrics};
-use crate::handler::{CharEvent, ContentHandler, ImageEvent, PaintOp, PathEvent};
+use crate::font_metrics::FontMetrics;
+use crate::handler::{ContentHandler, PaintOp};
 use crate::interpreter_state::InterpreterState;
-use crate::lopdf_backend::object_to_f64;
-use crate::text_renderer::{
-    TjElement, show_string, show_string_cid, show_string_with_positioning_mode,
-};
 use crate::text_state::TextState;
 use crate::tokenizer::{Operand, Operator, tokenize_lenient};
 use pdfplumber_core::{
     ExtractOptions, ExtractWarning, ExtractWarningCode, FillRule, FontEncoding, PathBuilder,
-    StandardEncoding, glyph_name_to_char,
 };
 
 /// Cached font information for the interpreter.
@@ -633,6 +624,7 @@ fn operand_to_string_bytes(o: &Operand) -> Option<&[u8]> {
     }
 }
 
+#[allow(dead_code)]
 pub(super) fn operand_to_u32(op: &Operand) -> Option<u32> {
     match op {
         Operand::Integer(i) => Some(*i as u32),
@@ -643,16 +635,15 @@ pub(super) fn operand_to_u32(op: &Operand) -> Option<u32> {
 
 // --- Font loading ---
 
-
 mod events;
 mod font;
 mod text;
 mod xobjects;
 
-use events::{apply_ext_gstate, emit_char_events, emit_path_event};
-use font::{get_width_fn, load_font_if_needed};
-use text::{handle_tj, handle_tj_array, show_string_cjk, show_string_cid_vertical, show_string_with_positioning_cjk, show_string_with_positioning_vertical};
-use xobjects::{handle_do, handle_form_xobject, handle_image_xobject, handle_inline_image};
+use events::{apply_ext_gstate, emit_path_event};
+use font::load_font_if_needed;
+use text::{handle_tj, handle_tj_array};
+use xobjects::{handle_do, handle_inline_image};
 
 #[cfg(test)]
 mod tests;

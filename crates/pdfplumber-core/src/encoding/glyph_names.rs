@@ -1154,4 +1154,3 @@ pub(super) static STANDARD_TABLE: [Option<char>; 256] = {
     // 0xFC–0xFF undefined
     t
 };
-

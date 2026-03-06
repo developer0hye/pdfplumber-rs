@@ -3,17 +3,13 @@
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pdfplumber_core::{
-    BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
-    extract_shapes, image_from_ctm, normalize_chars,
+    BBox, Bookmark, Char, Ctm, Curve, DocumentMetadata, ExtractOptions, ForensicReport, FormField,
+    Image, ImageContent, ImageFilter, ImageMetadata, Line, PageRegionOptions, PageRegions,
+    PdfError, Rect, RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo,
+    StructElement, TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
+    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
-use pdfplumber_parse::{
-    CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
-    PathEvent, PdfBackend, char_from_event,
-};
+use pdfplumber_parse::{LopdfBackend, LopdfDocument, PageGeometry, PdfBackend, char_from_event};
 
 use crate::Page;
 
@@ -783,13 +779,68 @@ impl Pdf {
 
         Ok(detect_page_regions(&page_data, options))
     }
+
+    /// Run a forensic inspection on this PDF, returning a [`ForensicReport`].
+    ///
+    /// Analyzes document structure, metadata, signatures, and page geometry
+    /// for anomalies. The `raw_bytes` argument must be the original PDF bytes.
+    pub fn inspect(&self, raw_bytes: &[u8]) -> ForensicReport {
+        let pdf_version = pdf_version_from_bytes(raw_bytes);
+        let page_count = self.page_count();
+        let mut page_rotations: Vec<i32> = Vec::with_capacity(page_count);
+        let mut page_dims: Vec<(f64, f64)> = Vec::with_capacity(page_count);
+
+        for i in 0..page_count {
+            match LopdfBackend::get_page(&self.doc, i) {
+                Ok(lopdf_page) => {
+                    let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page).unwrap_or(0);
+                    page_rotations.push(rotation);
+                    match LopdfBackend::page_media_box(&self.doc, &lopdf_page) {
+                        Ok(mb) => page_dims.push((mb.width().abs(), mb.height().abs())),
+                        Err(_) => page_dims.push((612.0, 792.0)),
+                    }
+                }
+                Err(_) => {
+                    page_rotations.push(0);
+                    page_dims.push((612.0, 792.0));
+                }
+            }
+        }
+
+        let signatures = self.signatures().unwrap_or_default();
+
+        ForensicReport::build(
+            &self.metadata,
+            pdf_version,
+            raw_bytes,
+            signatures,
+            page_count,
+            &page_rotations,
+            &page_dims,
+        )
+    }
+}
+
+/// Extract the PDF version string from the file header bytes (`%PDF-X.Y`).
+fn pdf_version_from_bytes(bytes: &[u8]) -> String {
+    let header = &bytes[..bytes.len().min(1024)];
+    let needle = b"%PDF-";
+    if let Some(pos) = header.windows(needle.len()).position(|w| w == needle) {
+        let after = &header[pos + needle.len()..];
+        let end = after
+            .iter()
+            .position(|&b| b == b'\n' || b == b'\r' || b == b' ')
+            .unwrap_or(after.len().min(8));
+        return String::from_utf8_lossy(&after[..end]).trim().to_string();
+    }
+    "unknown".to_string()
 }
 
 mod helpers;
 
 use helpers::{
-    classify_orientation, filter_struct_elements_for_page, path_event_to_painted_path,
-    rotate_bbox, rotate_direction, CollectingHandler,
+    CollectingHandler, classify_orientation, filter_struct_elements_for_page,
+    path_event_to_painted_path, rotate_bbox, rotate_direction,
 };
 
 #[cfg(test)]

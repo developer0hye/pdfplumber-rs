@@ -7,7 +7,6 @@
 use std::collections::HashMap;
 
 use crate::error::BackendError;
-use crate::truetype;
 
 /// Default CID font width when /DW is not specified (1000/1000 of text space = full em width).
 const DEFAULT_CID_WIDTH: f64 = 1000.0;
@@ -479,8 +478,8 @@ pub fn extract_cid_font_metrics(
 
 mod parsing;
 pub use parsing::{
-    PredefinedCMapInfo, get_descendant_font, get_type0_encoding, is_subset_font,
-    is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
+    PredefinedCMapInfo, get_descendant_font, get_type0_encoding, is_subset_font, is_type0_font,
+    parse_predefined_cmap_name, strip_subset_prefix,
 };
 use parsing::{
     object_to_f64, object_to_u32, parse_cid_font_descriptor, parse_cid_system_info,

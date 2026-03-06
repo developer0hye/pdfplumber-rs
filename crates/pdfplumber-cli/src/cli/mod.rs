@@ -430,6 +430,5 @@ impl UnicodeNormArg {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

@@ -332,6 +332,5 @@ impl TextState {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

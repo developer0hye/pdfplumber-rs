@@ -3,9 +3,9 @@
 //! Validates structural integrity of PDF documents and attempts repairs
 //! for common malformations. Called from the main backend module.
 
+use super::{LopdfDocument, resolve_inherited, resolve_ref};
 use crate::error::BackendError;
 use pdfplumber_core::{RepairOptions, RepairResult, ValidationIssue};
-use super::{LopdfDocument, resolve_inherited, resolve_ref};
 
 pub(super) fn validate_document(doc: &LopdfDocument) -> Result<Vec<ValidationIssue>, BackendError> {
     use pdfplumber_core::{Severity, ValidationIssue};
@@ -341,11 +341,6 @@ fn check_broken_references(
     }
 }
 
-/// Resolve an indirect reference, returning the referenced object.
-///
-/// If the object is a `Reference`, resolves it via the document.
-// resolve_ref is provided by super::resolve_ref
-
 /// Attempt best-effort repair of common PDF issues.
 pub(super) fn repair_document(
     bytes: &[u8],
@@ -499,7 +494,10 @@ pub(super) fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
     } else {
         let search_limit = bytes.len().min(1024);
         match bytes[..search_limit].windows(5).position(|w| w == b"%PDF-") {
-            Some(offset) => { cleaned = true; offset }
+            Some(offset) => {
+                cleaned = true;
+                offset
+            }
             None => return None,
         }
     };
@@ -519,7 +517,8 @@ pub(super) fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
                         check_pos -= 1;
                     }
                     let has_digits = check_pos < digit_end;
-                    if has_digits && check_pos >= 5 && &result[check_pos - 5..check_pos] == b"Page " {
+                    if has_digits && check_pos >= 5 && &result[check_pos - 5..check_pos] == b"Page "
+                    {
                         result.truncate(check_pos - 5);
                         cleaned = true;
                     }
@@ -535,19 +534,39 @@ pub(super) fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
 /// Attempt to fix a broken `startxref` offset in raw PDF bytes.
 pub(super) fn try_fix_startxref(bytes: &[u8]) -> Option<Vec<u8>> {
     let startxref_marker = b"startxref";
-    let startxref_pos = bytes.windows(startxref_marker.len()).rposition(|w| w == startxref_marker)?;
+    let startxref_pos = bytes
+        .windows(startxref_marker.len())
+        .rposition(|w| w == startxref_marker)?;
     let xref_marker = b"xref";
     let actual_xref_pos = bytes.windows(xref_marker.len()).rposition(|w| {
-        if w != xref_marker { return false; }
+        if w != xref_marker {
+            return false;
+        }
         let pos = w.as_ptr() as usize - bytes.as_ptr() as usize;
-        if pos >= 5 { let before = &bytes[pos - 5..pos]; if before == b"start" { return false; } }
+        if pos >= 5 {
+            let before = &bytes[pos - 5..pos];
+            if before == b"start" {
+                return false;
+            }
+        }
         true
     })?;
     let after_startxref = startxref_pos + startxref_marker.len();
-    let offset_start = bytes[after_startxref..].iter().position(|&b| b.is_ascii_digit())? + after_startxref;
-    let offset_end = bytes[offset_start..].iter().position(|&b| !b.is_ascii_digit())? + offset_start;
-    let current_offset: usize = std::str::from_utf8(&bytes[offset_start..offset_end]).ok()?.parse().ok()?;
-    if current_offset == actual_xref_pos { return None; }
+    let offset_start = bytes[after_startxref..]
+        .iter()
+        .position(|&b| b.is_ascii_digit())?
+        + after_startxref;
+    let offset_end = bytes[offset_start..]
+        .iter()
+        .position(|&b| !b.is_ascii_digit())?
+        + offset_start;
+    let current_offset: usize = std::str::from_utf8(&bytes[offset_start..offset_end])
+        .ok()?
+        .parse()
+        .ok()?;
+    if current_offset == actual_xref_pos {
+        return None;
+    }
     let new_offset_str = actual_xref_pos.to_string();
     let mut repaired = Vec::with_capacity(bytes.len());
     repaired.extend_from_slice(&bytes[..offset_start]);

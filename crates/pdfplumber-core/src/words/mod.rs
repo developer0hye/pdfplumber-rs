@@ -391,6 +391,5 @@ fn expand_ligatures_in_text(text: &str) -> String {
     result
 }
 
-
 #[cfg(test)]
 mod tests;

@@ -4,12 +4,10 @@
 //! `impl Pdf`. Nothing here is part of the public API.
 
 use pdfplumber_core::{
-    BBox, Color, DashPattern, ExtractWarning, FillRule, Line, Orientation, PaintedPath, Path,
-    StructElement, TextDirection,
+    BBox, Color, DashPattern, ExtractWarning, Line, Orientation, PaintedPath, Path, StructElement,
+    TextDirection,
 };
-use pdfplumber_parse::{
-    CharEvent, ContentHandler, ImageEvent, PageGeometry, PaintOp, PathEvent,
-};
+use pdfplumber_parse::{CharEvent, ContentHandler, ImageEvent, PageGeometry, PaintOp, PathEvent};
 
 /// Internal handler that collects content stream events during page interpretation.
 pub(super) struct CollectingHandler {

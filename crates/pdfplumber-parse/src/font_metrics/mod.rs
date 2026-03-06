@@ -432,6 +432,5 @@ fn object_to_f64_opt(obj: &lopdf::Object) -> Option<f64> {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

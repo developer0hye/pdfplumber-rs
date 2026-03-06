@@ -3,19 +3,21 @@
 //! Handles Type1, TrueType, Type0/CID, and standard fonts. Resolves ToUnicode
 //! CMaps and Differences arrays for accurate character mapping.
 
-use std::collections::HashMap;
+use super::CachedFont;
 use crate::cid_font::{
     CidFontMetrics, extract_cid_font_metrics, get_descendant_font, get_type0_encoding,
     is_type0_font, parse_predefined_cmap_name, strip_subset_prefix,
 };
 use crate::cjk_encoding;
 use crate::cmap::CMap;
-use crate::error::BackendError;
 use crate::font_metrics::{FontMetrics, extract_font_metrics};
 use crate::handler::ContentHandler;
-use crate::lopdf_backend::{object_to_f64, resolve_ref};
-use pdfplumber_core::{ExtractOptions, ExtractWarning, ExtractWarningCode, FontEncoding, StandardEncoding, glyph_name_to_char};
-use super::{CachedFont, get_f64};
+use crate::lopdf_backend::resolve_ref;
+use pdfplumber_core::{
+    ExtractOptions, ExtractWarning, ExtractWarningCode, FontEncoding, StandardEncoding,
+    glyph_name_to_char,
+};
+use std::collections::HashMap;
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn load_font_if_needed(
@@ -373,8 +375,8 @@ pub(super) fn get_width_fn(cached: Option<&CachedFont>) -> Box<dyn Fn(u32) -> f6
     }
 }
 
-
 /// Build a vertical advance lookup function for a cached CID font.
+#[allow(dead_code)]
 pub(super) fn get_vertical_advance_fn(cached: Option<&CachedFont>) -> Box<dyn Fn(u32) -> f64 + '_> {
     match cached {
         Some(cf) if cf.is_cid_font => {

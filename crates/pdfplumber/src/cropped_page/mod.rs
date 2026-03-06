@@ -245,13 +245,13 @@ impl CroppedPage {
     /// Return text lines whose dominant direction is horizontal (LTR or RTL).
     pub fn text_lines_horizontal(&self, word_options: &WordOptions) -> Vec<TextLine> {
         let words = self.extract_words(word_options);
-        let lines = cluster_words_into_lines(words, word_options.y_tolerance);
+        let lines = cluster_words_into_lines(&words, word_options.y_tolerance);
         lines
             .into_iter()
             .filter(|line| {
-                line.words.iter().all(|w| {
-                    w.direction == TextDirection::Ltr || w.direction == TextDirection::Rtl
-                })
+                line.words
+                    .iter()
+                    .all(|w| w.direction == TextDirection::Ltr || w.direction == TextDirection::Rtl)
             })
             .collect()
     }
@@ -259,13 +259,13 @@ impl CroppedPage {
     /// Return text lines whose dominant direction is vertical (TTB or BTT).
     pub fn text_lines_vertical(&self, word_options: &WordOptions) -> Vec<TextLine> {
         let words = self.extract_words(word_options);
-        let lines = cluster_words_into_lines(words, word_options.y_tolerance);
+        let lines = cluster_words_into_lines(&words, word_options.y_tolerance);
         lines
             .into_iter()
             .filter(|line| {
-                line.words.iter().all(|w| {
-                    w.direction == TextDirection::Ttb || w.direction == TextDirection::Btt
-                })
+                line.words
+                    .iter()
+                    .all(|w| w.direction == TextDirection::Ttb || w.direction == TextDirection::Btt)
             })
             .collect()
     }
@@ -463,7 +463,6 @@ pub(crate) fn filter_and_build(source: &dyn PageData, bbox: BBox, mode: FilterMo
         images,
     }
 }
-
 
 #[cfg(test)]
 mod tests;

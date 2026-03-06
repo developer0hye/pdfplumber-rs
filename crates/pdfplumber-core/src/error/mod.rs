@@ -371,6 +371,5 @@ impl ExtractOptions {
     }
 }
 
-
 #[cfg(test)]
 mod tests;

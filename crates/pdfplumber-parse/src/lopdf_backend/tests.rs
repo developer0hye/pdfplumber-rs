@@ -2332,3 +2332,4 @@ mod tests {
             "issue-297-example.pdf should have 0 pages (matching Python pdfplumber)"
         );
     }
+}

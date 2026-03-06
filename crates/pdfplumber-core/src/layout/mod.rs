@@ -542,6 +542,5 @@ pub fn words_to_text(words: &[Word], y_tolerance: f64) -> String {
         .join("\n")
 }
 
-
 #[cfg(test)]
 mod tests;

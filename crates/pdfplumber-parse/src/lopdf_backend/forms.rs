@@ -3,11 +3,13 @@
 //! Extracts AcroForm field trees and digital signature metadata.
 //! Called from the main backend module.
 
+use super::{decode_pdf_string, extract_bbox_from_array, extract_string_from_dict};
 use crate::error::BackendError;
 use pdfplumber_core::{BBox, FieldType, FormField, SignatureInfo};
-use super::{decode_pdf_string, extract_bbox_from_array, extract_string_from_dict};
 
-pub(super) fn extract_document_form_fields(doc: &lopdf::Document) -> Result<Vec<FormField>, BackendError> {
+pub(super) fn extract_document_form_fields(
+    doc: &lopdf::Document,
+) -> Result<Vec<FormField>, BackendError> {
     // Get the catalog dictionary
     let catalog_ref = match doc.trailer.get(b"Root") {
         Ok(obj) => obj,
@@ -344,7 +346,9 @@ fn resolve_field_page(
 /// Walks the field tree and collects signature fields (`/FT /Sig`).
 /// For signed fields (those with `/V`), extracts signer name, date,
 /// reason, location, and contact info from the signature value dictionary.
-pub(super) fn extract_document_signatures(doc: &lopdf::Document) -> Result<Vec<SignatureInfo>, BackendError> {
+pub(super) fn extract_document_signatures(
+    doc: &lopdf::Document,
+) -> Result<Vec<SignatureInfo>, BackendError> {
     // Get the catalog dictionary
     let catalog_ref = match doc.trailer.get(b"Root") {
         Ok(obj) => obj,
@@ -510,6 +514,27 @@ fn walk_signature_tree(
             reason: extract_string_from_dict(doc, v_dict, b"Reason"),
             location: extract_string_from_dict(doc, v_dict, b"Location"),
             contact_info: extract_string_from_dict(doc, v_dict, b"ContactInfo"),
+            filter: extract_string_from_dict(doc, v_dict, b"Filter"),
+            sub_filter: extract_string_from_dict(doc, v_dict, b"SubFilter"),
+            byte_range: v_dict
+                .get(b"ByteRange")
+                .ok()
+                .and_then(|obj| obj.as_array().ok())
+                .and_then(|arr| {
+                    if arr.len() == 4 {
+                        let vals: Vec<u64> = arr
+                            .iter()
+                            .filter_map(|v| v.as_i64().ok().map(|n| n as u64))
+                            .collect();
+                        if vals.len() == 4 {
+                            Some([vals[0], vals[1], vals[2], vals[3]])
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
+                }),
             is_signed: true,
         },
         None => SignatureInfo {
@@ -518,6 +543,9 @@ fn walk_signature_tree(
             reason: None,
             location: None,
             contact_info: None,
+            filter: None,
+            sub_filter: None,
+            byte_range: None,
             is_signed: false,
         },
     };
