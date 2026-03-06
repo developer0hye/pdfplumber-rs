@@ -270,6 +270,12 @@ impl Page {
         &self.chars
     }
 
+    /// Replace the page's chars with the provided vec (used by ollama fallback injection).
+    #[cfg(feature = "ollama-fallback")]
+    pub(crate) fn inject_chars(&mut self, chars: Vec<Char>) {
+        self.chars = chars;
+    }
+
     /// Returns the lines extracted from this page.
     pub fn lines(&self) -> &[Line] {
         &self.lines

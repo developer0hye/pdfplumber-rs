@@ -28,7 +28,7 @@ pub struct PagesIter<'a> {
     count: usize,
 }
 
-impl<'a> Iterator for PagesIter<'a> {
+impl Iterator for PagesIter<'_> {
     type Item = Result<Page, PdfError>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -958,6 +958,225 @@ fn classify_orientation(line: &Line) -> Orientation {
         Orientation::Vertical
     } else {
         Orientation::Diagonal
+    }
+}
+
+// ─── Ollama fallback API ──────────────────────────────────────────────────────
+
+#[cfg(feature = "ollama-fallback")]
+impl Pdf {
+    /// Open a PDF with an automatic Ollama OCR fallback for scanned/image-only pages.
+    ///
+    /// Opens the PDF normally. For each page that has zero native text chars **and**
+    /// at least `fallback.min_visual_elements` images/rects (indicating a scanned
+    /// page), the page is rendered to a PNG via `pdftoppm` (must be installed and on
+    /// `$PATH`) and OCR'd by the configured Ollama vision model.
+    ///
+    /// The resulting [`PdfWithFallback`] wraps the parsed `Pdf` and injects the OCR
+    /// chars transparently when you call `page()`.
+    ///
+    /// # Requirements
+    ///
+    /// * `pdftoppm` must be installed (`poppler-utils` on Debian/Ubuntu, `poppler` on macOS).
+    /// * An Ollama server with a vision model must be running (see [`OllamaFallback`]).
+    ///
+    /// # Errors
+    ///
+    /// Returns `PdfError` if the PDF cannot be opened or if Ollama is unreachable
+    /// and at least one page required fallback.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use pdfplumber::{Pdf, PdfWithFallback};
+    /// use pdfplumber::ollama::OllamaFallback;
+    ///
+    /// let bytes = std::fs::read("scanned.pdf").unwrap();
+    /// let fallback = OllamaFallback::builder().model("llava").build();
+    /// let pdf = Pdf::open_with_fallback(&bytes, None, fallback).unwrap();
+    /// let text = pdf.page(0).unwrap().extract_text(&Default::default());
+    /// ```
+    pub fn open_with_fallback(
+        bytes: &[u8],
+        options: Option<ExtractOptions>,
+        fallback: crate::ollama::OllamaFallback,
+    ) -> Result<PdfWithFallback, PdfError> {
+        // Keep a copy of the raw bytes for pdftoppm rendering
+        let raw_bytes = bytes.to_vec();
+        let pdf = Self::open(bytes, options)?;
+        let page_count = pdf.page_count();
+
+        // Pre-scan all pages and collect OCR char overrides for scanned pages
+        let mut char_overrides: Vec<Option<Vec<pdfplumber_core::Char>>> = vec![None; page_count];
+
+        for i in 0..page_count {
+            // Quick look: extract just char/image/rect counts without fully
+            // constructing the Page (avoid double-work on non-scanned pages)
+            let page = pdf.page(i)?;
+            let char_count = page.chars().len();
+            let image_count = page.images().len();
+            let rect_count = page.rects().len();
+            let page_w = page.width();
+            let page_h = page.height();
+
+            if crate::ollama::is_scanned_page(
+                char_count,
+                image_count,
+                rect_count,
+                fallback.min_visual_elements,
+            ) {
+                // Rasterize this page to PNG via pdftoppm
+                match render_page_to_png(&raw_bytes, i) {
+                    Ok(png_bytes) => {
+                        match fallback.ocr_page(&png_bytes, page_w, page_h) {
+                            Ok(ocr_chars) => {
+                                char_overrides[i] = Some(ocr_chars);
+                            }
+                            Err(e) => {
+                                // Log but don't fail — leave page with zero chars
+                                eprintln!("[pdfplumber] ollama OCR failed for page {i}: {e}");
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("[pdfplumber] pdftoppm rasterization failed for page {i}: {e}");
+                    }
+                }
+            }
+        }
+
+        Ok(PdfWithFallback {
+            pdf,
+            char_overrides,
+        })
+    }
+}
+
+/// Render page `page_idx` (0-based) of a PDF to PNG bytes via `pdftoppm`.
+///
+/// Uses a temporary directory so multiple calls don't collide.
+/// `pdftoppm` numbers output files from 1, so the output file is `page-<N+1>.png`.
+#[cfg(feature = "ollama-fallback")]
+fn render_page_to_png(pdf_bytes: &[u8], page_idx: usize) -> Result<Vec<u8>, PdfError> {
+    use std::io::Write;
+
+    let tmp_dir = std::env::temp_dir().join(format!(
+        "pdfplumber_ocr_{}_{page_idx}",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&tmp_dir).map_err(|e| PdfError::IoError(format!("tmp dir: {e}")))?;
+
+    // Write the PDF bytes to a temp file
+    let pdf_path = tmp_dir.join("input.pdf");
+    {
+        let mut f = std::fs::File::create(&pdf_path)
+            .map_err(|e| PdfError::IoError(format!("write tmp pdf: {e}")))?;
+        f.write_all(pdf_bytes)
+            .map_err(|e| PdfError::IoError(format!("write tmp pdf: {e}")))?;
+    }
+
+    // pdftoppm uses 1-based page numbers; -f and -l select a single page
+    let page_num = page_idx + 1;
+    let output_prefix = tmp_dir.join("page");
+
+    let status = std::process::Command::new("pdftoppm")
+        .args([
+            "-png",
+            "-r",
+            "150", // 150 DPI — good enough for OCR, not huge
+            "-f",
+            &page_num.to_string(),
+            "-l",
+            &page_num.to_string(),
+            pdf_path.to_str().unwrap_or(""),
+            output_prefix.to_str().unwrap_or(""),
+        ])
+        .status()
+        .map_err(|e| PdfError::IoError(format!("pdftoppm not found: {e}")))?;
+
+    if !status.success() {
+        let _ = std::fs::remove_dir_all(&tmp_dir);
+        return Err(PdfError::IoError(format!(
+            "pdftoppm exited with status {status}"
+        )));
+    }
+
+    // pdftoppm writes e.g. "page-01.png" (zero-padded to the total page count width)
+    // Find the output PNG — glob for any .png in tmp_dir
+    let png_path = std::fs::read_dir(&tmp_dir)
+        .map_err(|e| PdfError::IoError(format!("read tmp dir: {e}")))?
+        .filter_map(|e| e.ok())
+        .find(|e| {
+            e.path()
+                .extension()
+                .and_then(|x| x.to_str())
+                .map(|x| x == "png")
+                .unwrap_or(false)
+        })
+        .map(|e| e.path())
+        .ok_or_else(|| {
+            PdfError::IoError(format!("pdftoppm produced no PNG for page {page_idx}"))
+        })?;
+
+    let png_bytes =
+        std::fs::read(&png_path).map_err(|e| PdfError::IoError(format!("read PNG: {e}")))?;
+
+    // Clean up tmp dir (best effort)
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+
+    Ok(png_bytes)
+}
+
+/// A PDF document opened with optional Ollama OCR fallback for scanned pages.
+///
+/// Produced by [`Pdf::open_with_fallback`]. Has the same `page()` interface as
+/// [`Pdf`] — if a page was scanned and OCR succeeded, the OCR-derived chars are
+/// transparently injected.
+///
+/// For pages that are NOT scanned (have native text), `page()` returns the normal
+/// extraction result with no overhead.
+#[cfg(feature = "ollama-fallback")]
+pub struct PdfWithFallback {
+    pdf: Pdf,
+    /// Per-page OCR char injection. `None` = no override (use native extraction).
+    char_overrides: Vec<Option<Vec<pdfplumber_core::Char>>>,
+}
+
+#[cfg(feature = "ollama-fallback")]
+impl PdfWithFallback {
+    /// Number of pages in the document.
+    pub fn page_count(&self) -> usize {
+        self.pdf.page_count()
+    }
+
+    /// Extract a single page, injecting OCR chars if this is a scanned page.
+    ///
+    /// For scanned pages that had successful OCR, the returned `Page` will have
+    /// OCR-derived chars instead of empty chars. All other page data (rects, images,
+    /// annotations) comes from native extraction.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the page cannot be extracted.
+    pub fn page(&self, index: usize) -> Result<Page, PdfError> {
+        let mut page = self.pdf.page(index)?;
+        if let Some(Some(ocr_chars)) = self.char_overrides.get(index) {
+            page.inject_chars(ocr_chars.clone());
+        }
+        Ok(page)
+    }
+
+    /// Return the document metadata.
+    pub fn metadata(&self) -> &pdfplumber_core::DocumentMetadata {
+        self.pdf.metadata()
+    }
+
+    /// Iterate over all pages.
+    pub fn pages_iter(&self) -> impl Iterator<Item = Result<Page, PdfError>> + '_ {
+        (0..self.page_count()).map(|i| self.page(i))
     }
 }
 

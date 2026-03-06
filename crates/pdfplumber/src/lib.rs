@@ -90,11 +90,15 @@
 #![deny(missing_docs)]
 
 mod cropped_page;
+#[cfg(feature = "ollama-fallback")]
+pub mod ollama;
 mod page;
 mod pdf;
 
 pub use cropped_page::CroppedPage;
 pub use page::Page;
+#[cfg(feature = "ollama-fallback")]
+pub use pdf::PdfWithFallback;
 pub use pdf::{PagesIter, Pdf};
 
 /// A page view produced by [`Page::filter`] or [`CroppedPage::filter`].
