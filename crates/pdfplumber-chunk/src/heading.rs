@@ -210,20 +210,6 @@ mod tests {
         }
     }
 
-    #[test]
-    fn large_font_at_top_is_heading() {
-        let block = make_block(vec![make_char(24.0, "Arial")], 10.0, 34.0);
-        // page_height=800, median=12, top=10 -> in top 40% (10/800=0.0125)
-        assert!(is_heading(&block, 800.0, 12.0, None));
-    }
-
-    #[test]
-    fn body_font_is_not_heading() {
-        let block = make_block(vec![make_char(11.0, "Arial")], 100.0, 120.0);
-        // 11 < 12 * 1.15 = 13.8
-        assert!(!is_heading(&block, 800.0, 12.0, Some(80.0)));
-    }
-
     /// Build a block with `n` separate single-char words — exercises word count gate.
     fn make_multi_word_block(
         n: usize,
@@ -250,6 +236,20 @@ mod tests {
             lines: vec![line],
             bbox,
         }
+    }
+
+    #[test]
+    fn large_font_at_top_is_heading() {
+        let block = make_block(vec![make_char(24.0, "Arial")], 10.0, 34.0);
+        // page_height=800, median=12, top=10 -> in top 40% (10/800=0.0125)
+        assert!(is_heading(&block, 800.0, 12.0, None));
+    }
+
+    #[test]
+    fn body_font_is_not_heading() {
+        let block = make_block(vec![make_char(11.0, "Arial")], 100.0, 120.0);
+        // 11 < 12 * 1.15 = 13.8
+        assert!(!is_heading(&block, 800.0, 12.0, Some(80.0)));
     }
 
     #[test]

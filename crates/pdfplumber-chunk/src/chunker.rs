@@ -108,7 +108,14 @@ pub struct Chunker {
 
 impl Chunker {
     /// Create a new chunker with the given settings.
-    pub fn new(settings: ChunkSettings) -> Self {
+    ///
+    /// If `overlap_tokens >= max_tokens`, overlap is silently clamped to 0 to
+    /// prevent infinite splitting loops (overlap would exceed the budget on
+    /// every split, causing unbounded memory growth).
+    pub fn new(mut settings: ChunkSettings) -> Self {
+        if settings.overlap_tokens >= settings.max_tokens {
+            settings.overlap_tokens = 0;
+        }
         Self { settings }
     }
 
@@ -145,7 +152,7 @@ impl Chunker {
     ///
     /// This is the core chunking algorithm. Exposed so callers can supply
     /// their own layout analysis results.
-    #[allow(unused_assignments)] // macro expansion writes overlap_prefix/accum_bbox at final flush
+    #[allow(unused_assignments)] // flush_prose! macro sets overlap_prefix/accum_bbox at every call site; final expansion has no reader
     pub fn chunk_from_layout(&self, page_idx: usize, blocks: &[LayoutBlock]) -> Vec<Chunk> {
         let mut chunks: Vec<Chunk> = Vec::new();
         let mut current_section: Option<String> = None;
@@ -221,7 +228,14 @@ impl Chunker {
                     };
 
                     // Split loop: keep emitting until remainder fits in budget.
+                    //
+                    // Overlap is tracked separately and prepended to the NEXT
+                    // chunk's text at emission time — it is NOT re-injected into
+                    // the splitting remainder. Re-injecting overlap into the
+                    // remainder causes it to grow (or not shrink) each iteration,
+                    // leading to infinite loops and OOM when overlap ≈ max_tokens.
                     let mut remainder = incoming;
+                    let mut pending_overlap = String::new();
                     loop {
                         if token::estimate(&remainder) <= self.settings.max_tokens {
                             break;
@@ -231,11 +245,14 @@ impl Chunker {
                         if head.is_empty() {
                             break; // safety: no progress possible
                         }
-                        let seg_overlap = if self.settings.overlap_tokens > 0 {
-                            token::extract_overlap(head, self.settings.overlap_tokens).to_string()
+
+                        // Emit: prepend any pending overlap from the previous split.
+                        let emit_text = if pending_overlap.is_empty() {
+                            head.to_string()
                         } else {
-                            String::new()
+                            format!("{} {}", pending_overlap, head)
                         };
+
                         let bbox = accum_bbox
                             .take()
                             .map(|b| {
@@ -251,17 +268,29 @@ impl Chunker {
                                 BBox::new(0.0, 0.0, 0.0, 0.0)
                             });
                         chunks.push(Chunk::new(
-                            head.to_string(),
+                            emit_text,
                             page_idx,
                             bbox,
                             current_section.clone(),
                             ChunkType::Paragraph,
                         ));
-                        remainder = if seg_overlap.is_empty() {
-                            tail.to_string()
+
+                        // Compute overlap for the next chunk from the raw head
+                        // (not the emit_text which includes previous overlap).
+                        pending_overlap = if self.settings.overlap_tokens > 0 {
+                            token::extract_overlap(head, self.settings.overlap_tokens).to_string()
                         } else {
-                            format!("{} {}", seg_overlap, tail.trim())
+                            String::new()
                         };
+
+                        // Remainder is purely the unconsumed tail — no overlap injected.
+                        remainder = tail.to_string();
+                    }
+
+                    // If there's pending overlap from the last split, prepend it
+                    // to the remainder so the final accumulated chunk has continuity.
+                    if !pending_overlap.is_empty() && !remainder.trim().is_empty() {
+                        remainder = format!("{} {}", pending_overlap, remainder.trim());
                     }
 
                     // Update accumulator.
@@ -555,5 +584,29 @@ mod tests {
         assert_eq!(s.overlap_tokens, 64);
         assert!(s.preserve_tables);
         assert!(s.include_bbox);
+    }
+
+    #[test]
+    fn overlap_clamped_when_exceeds_max_tokens() {
+        // overlap >= max_tokens would cause infinite splitting → OOM.
+        // Chunker::new must clamp to 0.
+        let settings = ChunkSettings {
+            max_tokens: 10,
+            overlap_tokens: 64,
+            ..Default::default()
+        };
+        let chunker = Chunker::new(settings);
+        assert_eq!(chunker.settings.overlap_tokens, 0);
+    }
+
+    #[test]
+    fn overlap_equal_to_max_tokens_clamped() {
+        let settings = ChunkSettings {
+            max_tokens: 50,
+            overlap_tokens: 50,
+            ..Default::default()
+        };
+        let chunker = Chunker::new(settings);
+        assert_eq!(chunker.settings.overlap_tokens, 0);
     }
 }

@@ -38,9 +38,9 @@ pub fn run(file: &Path, format: &InspectFormat, password: Option<&str>) -> Resul
             println!("{}", report.format_text());
         }
         InspectFormat::Json => {
-            // CLI does not pull in serde_json; use the text format as a
-            // human-readable fallback.  For structured JSON, use the library
-            // API directly with the serde feature enabled.
+            // JSON output uses the report's built-in text format since the CLI
+            // does not pull in serde/serde_json. For structured JSON output,
+            // use the library API directly with the serde feature enabled.
             println!("{}", report.format_text());
         }
     }

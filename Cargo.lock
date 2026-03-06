@@ -1006,6 +1006,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfplumber-chunk"
+version = "0.1.0"
+dependencies = [
+ "pdfplumber",
+ "pdfplumber-core",
+ "pdfplumber-layout",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "pdfplumber-cli"
 version = "0.2.0"
 dependencies = [

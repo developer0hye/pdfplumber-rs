@@ -244,8 +244,7 @@ impl Document {
 
     /// Extract all document text in reading order.
     ///
-    /// Headings, paragraphs, and table cell text are included.
-    /// Figure placeholders are omitted (they have no readable text).
+    /// Headings and paragraphs only — tables and figures are excluded.
     /// Pages are separated by double newlines.
     pub fn text(&self) -> String {
         self.pages
@@ -254,27 +253,9 @@ impl Document {
                 p.blocks
                     .iter()
                     .filter_map(|b| match b {
-                        LayoutBlock::Heading(h) => Some(h.text.clone()),
-                        LayoutBlock::Paragraph(para) => Some(para.text.clone()),
-                        LayoutBlock::Table(t) => {
-                            // Flatten table cells into a tab-separated, newline-separated string.
-                            let rows: Vec<String> = t
-                                .cells
-                                .iter()
-                                .map(|row| {
-                                    row.iter()
-                                        .map(|c| c.as_deref().unwrap_or(""))
-                                        .collect::<Vec<_>>()
-                                        .join("\t")
-                                })
-                                .collect();
-                            if rows.is_empty() {
-                                None
-                            } else {
-                                Some(rows.join("\n"))
-                            }
-                        }
-                        LayoutBlock::Figure(_) => None,
+                        LayoutBlock::Heading(h) => Some(h.text.as_str()),
+                        LayoutBlock::Paragraph(para) => Some(para.text.as_str()),
+                        LayoutBlock::Table(_) | LayoutBlock::Figure(_) => None,
                     })
                     .collect::<Vec<_>>()
                     .join("\n")
@@ -282,55 +263,6 @@ impl Document {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join("\n\n")
-    }
-
-    /// Count of all words in the document text (whitespace-split).
-    pub fn word_count(&self) -> usize {
-        self.text().split_whitespace().count()
-    }
-
-    /// Extract the plain text of a single page by index (0-based).
-    ///
-    /// Returns `None` if `page_idx` is out of bounds.
-    pub fn page_text(&self, page_idx: usize) -> Option<String> {
-        let page = self.pages.get(page_idx)?;
-        let text = page
-            .blocks
-            .iter()
-            .filter_map(|b| match b {
-                LayoutBlock::Heading(h) => Some(h.text.clone()),
-                LayoutBlock::Paragraph(p) => Some(p.text.clone()),
-                LayoutBlock::Table(t) => {
-                    let rows: Vec<String> = t
-                        .cells
-                        .iter()
-                        .map(|row| {
-                            row.iter()
-                                .map(|c| c.as_deref().unwrap_or(""))
-                                .collect::<Vec<_>>()
-                                .join("\t")
-                        })
-                        .collect();
-                    if rows.is_empty() {
-                        None
-                    } else {
-                        Some(rows.join("\n"))
-                    }
-                }
-                LayoutBlock::Figure(_) => None,
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-        if text.is_empty() { None } else { Some(text) }
-    }
-}
-
-impl From<Document> for String {
-    /// Convert a document to its full GFM markdown representation.
-    ///
-    /// Equivalent to calling [`Document::to_markdown()`].
-    fn from(doc: Document) -> String {
-        doc.to_markdown()
     }
 }
 
@@ -358,87 +290,6 @@ fn extract_margin_text(page: &pdfplumber::Page, top_y: f64, bottom_y: f64) -> St
 mod tests {
     use super::*;
     use crate::extractor::LayoutOptions;
-    use crate::headings::{Heading, HeadingLevel};
-    use crate::paragraphs::Paragraph;
-    use crate::{LayoutBlock, LayoutTable};
-    use pdfplumber_core::BBox;
-
-    fn make_doc_with_blocks(blocks: Vec<LayoutBlock>) -> Document {
-        use crate::extractor::PageLayout;
-        let pages = vec![PageLayout {
-            page_number: 0,
-            width: 612.0,
-            height: 792.0,
-            blocks: blocks.clone(),
-        }];
-        let sections = crate::sections::partition_into_sections(blocks.clone());
-        let heading_count = blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Heading(_)))
-            .count();
-        let paragraph_count = blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Paragraph(_)))
-            .count();
-        let table_count = blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Table(_)))
-            .count();
-        let figure_count = blocks
-            .iter()
-            .filter(|b| matches!(b, LayoutBlock::Figure(_)))
-            .count();
-        let stats = DocumentStats {
-            page_count: 1,
-            heading_count,
-            paragraph_count,
-            table_count,
-            figure_count,
-            char_count: 100,
-            body_font_size: 10.0,
-            pages_with_header: 0,
-            pages_with_footer: 0,
-        };
-        Document {
-            pages,
-            sections,
-            stats,
-        }
-    }
-
-    fn make_heading(text: &str) -> LayoutBlock {
-        LayoutBlock::Heading(Heading {
-            text: text.to_string(),
-            bbox: BBox::new(72.0, 50.0, 400.0, 70.0),
-            page_number: 0,
-            level: HeadingLevel::H1,
-            font_size: 18.0,
-            fontname: "Helvetica-Bold".to_string(),
-        })
-    }
-
-    fn make_para(text: &str) -> LayoutBlock {
-        LayoutBlock::Paragraph(Paragraph {
-            text: text.to_string(),
-            bbox: BBox::new(72.0, 80.0, 500.0, 100.0),
-            page_number: 0,
-            line_count: 1,
-            font_size: 10.0,
-            fontname: "Helvetica".to_string(),
-            is_caption: false,
-            is_list_item: false,
-        })
-    }
-
-    fn make_table(cells: Vec<Vec<Option<String>>>) -> LayoutBlock {
-        LayoutBlock::Table(LayoutTable {
-            bbox: BBox::new(72.0, 110.0, 500.0, 200.0),
-            page_number: 0,
-            rows: cells.len(),
-            cols: cells.first().map(|r| r.len()).unwrap_or(0),
-            cells,
-        })
-    }
 
     #[test]
     fn document_stats_default() {
@@ -459,68 +310,5 @@ mod tests {
         assert!((opts.y_density - 12.0).abs() < 1e-9);
         assert!(opts.header_zone_bottom.is_none());
         assert!(opts.footer_zone_top.is_none());
-    }
-
-    #[test]
-    fn text_includes_headings_and_paragraphs() {
-        let doc = make_doc_with_blocks(vec![
-            make_heading("Introduction"),
-            make_para("First paragraph."),
-        ]);
-        let text = doc.text();
-        assert!(text.contains("Introduction"), "text must contain heading");
-        assert!(
-            text.contains("First paragraph."),
-            "text must contain paragraph"
-        );
-    }
-
-    #[test]
-    fn text_includes_table_cells() {
-        let cells = vec![
-            vec![Some("Name".to_string()), Some("Value".to_string())],
-            vec![Some("Alpha".to_string()), Some("42".to_string())],
-        ];
-        let doc = make_doc_with_blocks(vec![make_table(cells)]);
-        let text = doc.text();
-        assert!(text.contains("Name"), "text must include table header");
-        assert!(text.contains("Alpha"), "text must include table row");
-        assert!(text.contains("42"), "text must include table cell value");
-    }
-
-    #[test]
-    fn word_count_is_approximate() {
-        let doc = make_doc_with_blocks(vec![make_para("one two three four five")]);
-        // Should count 5 words from paragraph.
-        assert_eq!(doc.word_count(), 5);
-    }
-
-    #[test]
-    fn page_text_returns_none_for_out_of_bounds() {
-        let doc = make_doc_with_blocks(vec![make_para("hello")]);
-        assert!(doc.page_text(99).is_none());
-    }
-
-    #[test]
-    fn page_text_returns_some_for_valid_index() {
-        let doc = make_doc_with_blocks(vec![make_para("page zero text")]);
-        let t = doc.page_text(0).expect("page 0 must have text");
-        assert!(t.contains("page zero text"));
-    }
-
-    #[test]
-    fn from_document_for_string_produces_markdown() {
-        let doc = make_doc_with_blocks(vec![make_heading("Title"), make_para("Body.")]);
-        let md = String::from(doc);
-        assert!(
-            md.contains("# Title"),
-            "From<Document> should produce ATX heading"
-        );
-    }
-
-    #[test]
-    fn all_blocks_iterator_covers_all_pages() {
-        let doc = make_doc_with_blocks(vec![make_heading("H"), make_para("P")]);
-        assert_eq!(doc.all_blocks().count(), 2);
     }
 }
