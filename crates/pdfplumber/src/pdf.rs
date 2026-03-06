@@ -4,11 +4,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
-    ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
-    extract_shapes, image_from_ctm, normalize_chars,
+    ExtractWarning, ForensicReport, FormField, Image, ImageContent, ImageFilter, ImageMetadata,
+    Line, Orientation, PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect,
+    RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo, StructElement,
+    TextDirection, TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
+    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -830,6 +830,89 @@ impl Pdf {
 
         Ok(detect_page_regions(&page_data, options))
     }
+
+    /// Perform forensic inspection of this PDF document.
+    ///
+    /// Returns a [`ForensicReport`] covering:
+    /// - Producer fingerprinting (identifies the originating software and flags online converters)
+    /// - Incremental update detection (flags post-creation modifications via xref section count)
+    /// - Watermark detection (low-opacity text, invisible layers, repeated text blocks)
+    /// - Metadata consistency checks (Creator/Producer mismatches, scrubbed fields)
+    /// - Signature field inventory (signed vs unsigned)
+    /// - Page geometry anomalies (unusual rotation, non-standard dimensions)
+    ///
+    /// The `raw_bytes` argument must be the original PDF bytes that were used
+    /// to open this document — needed for byte-level xref section scanning.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use pdfplumber::Pdf;
+    ///
+    /// let bytes = std::fs::read("document.pdf").unwrap();
+    /// let pdf = Pdf::open(&bytes, None).unwrap();
+    /// let report = pdf.inspect(&bytes);
+    /// println!("{}", report.format_text());
+    /// if !report.is_clean() {
+    ///     eprintln!("Risk score: {}", report.risk_score);
+    /// }
+    /// ```
+    pub fn inspect(&self, raw_bytes: &[u8]) -> ForensicReport {
+        // Extract PDF version from the %PDF-X.Y header
+        let pdf_version = pdf_version_from_bytes(raw_bytes);
+
+        let page_count = self.page_count();
+        let mut page_rotations: Vec<i32> = Vec::with_capacity(page_count);
+        let mut page_dims: Vec<(f64, f64)> = Vec::with_capacity(page_count);
+
+        for i in 0..page_count {
+            match LopdfBackend::get_page(&self.doc, i) {
+                Ok(lopdf_page) => {
+                    let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page).unwrap_or(0);
+                    page_rotations.push(rotation);
+                    match LopdfBackend::page_media_box(&self.doc, &lopdf_page) {
+                        Ok(mb) => page_dims.push((mb.width().abs(), mb.height().abs())),
+                        Err(_) => page_dims.push((612.0, 792.0)),
+                    }
+                }
+                Err(_) => {
+                    page_rotations.push(0);
+                    page_dims.push((612.0, 792.0));
+                }
+            }
+        }
+
+        // Best-effort: ignore errors — forensic inspection should never fail
+        let signatures = self.signatures().unwrap_or_default();
+
+        ForensicReport::build(
+            &self.metadata,
+            pdf_version,
+            raw_bytes,
+            signatures,
+            page_count,
+            &page_rotations,
+            &page_dims,
+        )
+    }
+}
+
+/// Extract the PDF version string from the file header bytes (`%PDF-X.Y`).
+///
+/// Scans the first 1 KiB for the `%PDF-` marker and reads the version digits
+/// that follow. Returns `"unknown"` if the marker is not found.
+fn pdf_version_from_bytes(bytes: &[u8]) -> String {
+    let header = &bytes[..bytes.len().min(1024)];
+    let needle = b"%PDF-";
+    if let Some(pos) = header.windows(needle.len()).position(|w| w == needle) {
+        let after = &header[pos + needle.len()..];
+        let end = after
+            .iter()
+            .position(|&b| b == b'\n' || b == b'\r' || b == b' ')
+            .unwrap_or(after.len().min(8));
+        return String::from_utf8_lossy(&after[..end]).trim().to_string();
+    }
+    "unknown".to_string()
 }
 
 /// Filter structure tree elements to only include those belonging to a specific page.
