@@ -28,129 +28,269 @@
     </style>
 </head>
 <body>
-    <h1>pdfplumber-wasm Demo</h1>
-    <p class="subtitle">Extract text, words, and tables from PDFs in the browser using WebAssembly.</p>
+    <h1>pdfplumber-wasm</h1>
+    <p class="subtitle">Pure Rust PDF extraction compiled to WebAssembly. Zero server roundtrip. Zero data residency risk. Drop a PDF to extract text, words, tables, geometry, and annotations — entirely client-side.</p>
 
     <div class="drop-zone" id="dropZone">
-        <p>Drop a PDF file here or click to select</p>
+        <p>Drop a PDF here or click to select</p>
+        <small style="color:#999">Processed entirely in your browser. No upload. No server. No API key.</small>
         <input type="file" id="fileInput" accept=".pdf">
     </div>
 
     <div id="results">
+        <!-- Document info bar -->
         <div class="info" id="info"></div>
 
+        <!-- Page selector -->
+        <div class="section" id="pageNav" style="display:none">
+            <label for="pageSelect" style="font-weight:600">Page: </label>
+            <select id="pageSelect"></select>
+        </div>
+
+        <!-- Metadata -->
+        <div class="section" id="metadataSection" style="display:none">
+            <h2>Metadata</h2>
+            <pre id="metadataOutput"></pre>
+        </div>
+
+        <!-- Bookmarks -->
+        <div class="section" id="bookmarksSection" style="display:none">
+            <h2>Bookmarks / Table of Contents</h2>
+            <pre id="bookmarksOutput"></pre>
+        </div>
+
+        <!-- Crop demo -->
+        <div class="section" id="cropSection" style="display:none">
+            <h2>Spatial Extraction (crop demo)</h2>
+            <p style="font-size:0.85rem;color:#666;margin-bottom:0.5rem">
+                Demonstrates <code>page.crop()</code> — extract content from a specific page region.
+                Header = top 15% of page height. Body = remaining content.
+            </p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+                <div>
+                    <strong style="font-size:0.85rem">Header region</strong>
+                    <pre id="cropHeaderOutput" style="min-height:60px"></pre>
+                </div>
+                <div>
+                    <strong style="font-size:0.85rem">Body region (first 200 chars)</strong>
+                    <pre id="cropBodyOutput" style="min-height:60px"></pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Extracted text -->
         <div class="section">
             <h2>Extracted Text</h2>
             <pre id="textOutput"></pre>
         </div>
 
+        <!-- Words -->
         <div class="section">
-            <h2>Words</h2>
+            <h2>Words <small style="font-weight:normal;color:#666" id="wordCount"></small></h2>
             <pre id="wordsOutput"></pre>
         </div>
 
+        <!-- Tables -->
         <div class="section" id="tablesSection" style="display:none">
             <h2>Tables</h2>
             <div id="tablesOutput"></div>
+        </div>
+
+        <!-- Geometry -->
+        <div class="section" id="geometrySection" style="display:none">
+            <h2>Geometry <small style="font-weight:normal;color:#666" id="geometryCount"></small></h2>
+            <pre id="geometryOutput"></pre>
+        </div>
+
+        <!-- Hyperlinks -->
+        <div class="section" id="hyperlinksSection" style="display:none">
+            <h2>Hyperlinks</h2>
+            <pre id="hyperlinksOutput"></pre>
         </div>
     </div>
 
     <!--
       Build the WASM package first:
-        wasm-pack build - -target web crates/pdfplumber-wasm
-      Then serve this directory and load the page.
+        wasm-pack build --target web --out-dir pkg crates/pdfplumber-wasm
+      Then serve this file (any static server works):
+        npx serve crates/pdfplumber-wasm
     -->
     <script type="module">
         import init, { WasmPdf } from '../pkg/pdfplumber_wasm.js';
 
         let wasmReady = false;
+        let currentPdf = null;
 
         async function initialize() {
             try {
                 await init();
                 wasmReady = true;
+                document.querySelector('.subtitle').innerHTML +=
+                    ' <span style="color:#090;font-size:0.8rem">✓ WASM loaded</span>';
             } catch (e) {
                 document.getElementById('dropZone').innerHTML =
                     `<p class="error">Failed to load WASM module: ${e.message}<br>
-                    Make sure you built with: <code>wasm-pack build --target web crates/pdfplumber-wasm</code></p>`;
+                    Build with: <code>wasm-pack build --target web --out-dir pkg crates/pdfplumber-wasm</code></p>`;
             }
+        }
+
+        function renderPage(pdf, pageIndex) {
+            const page = pdf.page(pageIndex);
+
+            // Info bar
+            const info = document.getElementById('info');
+            const rot = page.rotation;
+            info.innerHTML = `
+                <div class="info-card"><div class="label">Page</div><div class="value">${pageIndex + 1} / ${pdf.pageCount}</div></div>
+                <div class="info-card"><div class="label">Size (pts)</div><div class="value">${Math.round(page.width)} × ${Math.round(page.height)}</div></div>
+                <div class="info-card"><div class="label">Rotation</div><div class="value">${rot}°</div></div>
+                <div class="info-card"><div class="label">Chars</div><div class="value">${page.chars().length}</div></div>
+            `;
+
+            // Text
+            const text = page.extractText();
+            document.getElementById('textOutput').textContent = text || '(no text found)';
+
+            // Words
+            const words = page.extractWords();
+            document.getElementById('wordCount').textContent = `(${words.length} total)`;
+            const wordSummary = words.slice(0, 80).map(w =>
+                `"${w.text}" @ (${w.x0.toFixed(0)}, ${w.top.toFixed(0)})`
+            ).join('\n');
+            document.getElementById('wordsOutput').textContent =
+                `${words.length > 80 ? `(first 80 of ${words.length})\n\n` : ''}${wordSummary}`;
+
+            // Tables
+            const tables = page.extractTables();
+            const tablesSection = document.getElementById('tablesSection');
+            if (tables.length > 0) {
+                tablesSection.style.display = 'block';
+                const tablesOutput = document.getElementById('tablesOutput');
+                tablesOutput.innerHTML = '';
+                tables.forEach((table, i) => {
+                    const wrap = document.createElement('div');
+                    wrap.style.marginBottom = '1rem';
+                    const title = document.createElement('p');
+                    title.style.fontWeight = '600';
+                    title.style.marginBottom = '0.25rem';
+                    title.textContent = `Table ${i + 1} — ${table.length} rows × ${(table[0]||[]).length} cols`;
+                    wrap.appendChild(title);
+                    const tableEl = document.createElement('table');
+                    table.forEach((row, ri) => {
+                        const tr = document.createElement('tr');
+                        row.forEach(cell => {
+                            const td = document.createElement(ri === 0 ? 'th' : 'td');
+                            td.textContent = cell ?? '';
+                            tr.appendChild(td);
+                        });
+                        tableEl.appendChild(tr);
+                    });
+                    wrap.appendChild(tableEl);
+                    tablesOutput.appendChild(wrap);
+                });
+            } else {
+                tablesSection.style.display = 'none';
+            }
+
+            // Crop demo — split page into header (top 15%) and body
+            document.getElementById('cropSection').style.display = 'block';
+            const headerH = page.height * 0.15;
+            const header = page.crop(0, 0, page.width, headerH);
+            const body = page.crop(0, headerH, page.width, page.height);
+            const headerText = header.extractText() || '(empty)';
+            const bodyText = body.extractText() || '(empty)';
+            document.getElementById('cropHeaderOutput').textContent = headerText;
+            document.getElementById('cropBodyOutput').textContent =
+                bodyText.length > 200 ? bodyText.slice(0, 200) + '…' : bodyText;
+            header.free();
+            body.free();
+
+            // Geometry
+            const lines = page.lines();
+            const rects = page.rects();
+            const curves = page.curves();
+            const images = page.images();
+            const geomSection = document.getElementById('geometrySection');
+            if (lines.length + rects.length + curves.length + images.length > 0) {
+                geomSection.style.display = 'block';
+                document.getElementById('geometryCount').textContent =
+                    `(${lines.length} lines, ${rects.length} rects, ${curves.length} curves, ${images.length} images)`;
+                const geomLines = [
+                    ...lines.slice(0, 5).map(l => `line: (${l.x0.toFixed(1)},${l.top.toFixed(1)}) → (${l.x1.toFixed(1)},${l.bottom.toFixed(1)}) ${l.orientation}`),
+                    ...rects.slice(0, 5).map(r => `rect: (${r.x0.toFixed(1)},${r.top.toFixed(1)}) ${(r.x1-r.x0).toFixed(1)}×${(r.bottom-r.top).toFixed(1)} fill=${r.fill} stroke=${r.stroke}`),
+                    ...images.slice(0, 3).map(img => `image: "${img.name}" ${img.width}×${img.height} @ (${img.x0.toFixed(1)},${img.top.toFixed(1)})`),
+                ];
+                document.getElementById('geometryOutput').textContent =
+                    geomLines.join('\n') || '(none in first 5 of each type)';
+            } else {
+                geomSection.style.display = 'none';
+            }
+
+            // Hyperlinks
+            const links = page.hyperlinks();
+            const linksSection = document.getElementById('hyperlinksSection');
+            if (links.length > 0) {
+                linksSection.style.display = 'block';
+                document.getElementById('hyperlinksOutput').textContent =
+                    links.map(l => `${l.uri ?? '(no uri)'} @ (${l.x0.toFixed(0)},${l.top.toFixed(0)})`).join('\n');
+            } else {
+                linksSection.style.display = 'none';
+            }
+
+            page.free();
         }
 
         async function processPdf(bytes) {
             if (!wasmReady) return;
+            if (currentPdf) { currentPdf.free(); currentPdf = null; }
 
-            const results = document.getElementById('results');
-            results.style.display = 'block';
-            document.getElementById('textOutput').textContent = 'Processing...';
-            document.getElementById('wordsOutput').textContent = '';
-            document.getElementById('tablesSection').style.display = 'none';
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('textOutput').textContent = 'Extracting…';
 
             try {
                 const pdf = WasmPdf.open(new Uint8Array(bytes));
+                currentPdf = pdf;
 
-                // Show document info
-                const info = document.getElementById('info');
-                info.innerHTML = `
-                    <div class="info-card"><div class="label">Pages</div><div class="value">${pdf.pageCount}</div></div>
-                `;
-
-                // Process first page
-                const page = pdf.page(0);
-                info.innerHTML += `
-                    <div class="info-card"><div class="label">Page Size</div><div class="value">${Math.round(page.width)} x ${Math.round(page.height)}</div></div>
-                `;
-
-                // Extract text
-                const text = page.extractText();
-                document.getElementById('textOutput').textContent = text || '(no text found)';
-
-                // Extract words
-                const words = page.extractWords();
-                const wordSummary = words.slice(0, 50).map(w =>
-                    `"${w.text}" at (${w.x0.toFixed(1)}, ${w.top.toFixed(1)})`
-                ).join('\n');
-                document.getElementById('wordsOutput').textContent =
-                    `${words.length} words found${words.length > 50 ? ' (showing first 50)' : ''}:\n\n${wordSummary}`;
-
-                // Extract tables
-                const tables = page.extractTables();
-                if (tables.length > 0) {
-                    const tablesSection = document.getElementById('tablesSection');
-                    tablesSection.style.display = 'block';
-                    const tablesOutput = document.getElementById('tablesOutput');
-                    tablesOutput.innerHTML = '';
-
-                    tables.forEach((table, i) => {
-                        const tableEl = document.createElement('table');
-                        const caption = document.createElement('caption');
-                        caption.textContent = `Table ${i + 1}`;
-                        caption.style.cssText = 'text-align:left;font-weight:600;margin-bottom:0.25rem;';
-                        tableEl.appendChild(caption);
-
-                        table.forEach((row, ri) => {
-                            const tr = document.createElement('tr');
-                            row.forEach(cell => {
-                                const td = document.createElement(ri === 0 ? 'th' : 'td');
-                                td.textContent = cell ?? '';
-                                tr.appendChild(td);
-                            });
-                            tableEl.appendChild(tr);
-                        });
-
-                        tablesOutput.appendChild(tableEl);
-                    });
+                // Metadata
+                const meta = pdf.metadata;
+                const metaKeys = Object.entries(meta).filter(([,v]) => v != null);
+                if (metaKeys.length > 0) {
+                    document.getElementById('metadataSection').style.display = 'block';
+                    document.getElementById('metadataOutput').textContent =
+                        metaKeys.map(([k,v]) => `${k}: ${v}`).join('\n');
                 }
 
-                // Clean up
-                page.free();
-                pdf.free();
+                // Bookmarks
+                const bookmarks = pdf.bookmarks();
+                if (bookmarks.length > 0) {
+                    document.getElementById('bookmarksSection').style.display = 'block';
+                    document.getElementById('bookmarksOutput').textContent =
+                        bookmarks.map(b => `${'  '.repeat(b.level)}${b.title} → page ${(b.page_number ?? 0) + 1}`).join('\n');
+                }
+
+                // Page nav
+                const nav = document.getElementById('pageNav');
+                const sel = document.getElementById('pageSelect');
+                sel.innerHTML = '';
+                for (let i = 0; i < pdf.pageCount; i++) {
+                    const opt = document.createElement('option');
+                    opt.value = i;
+                    opt.textContent = `Page ${i + 1}`;
+                    sel.appendChild(opt);
+                }
+                if (pdf.pageCount > 1) {
+                    nav.style.display = 'block';
+                    sel.addEventListener('change', () => renderPage(pdf, parseInt(sel.value)));
+                }
+
+                renderPage(pdf, 0);
             } catch (e) {
                 document.getElementById('textOutput').innerHTML =
                     `<span class="error">Error: ${e.message}</span>`;
             }
         }
 
-        // File input handling
+        // Drag and drop + file input
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
 
@@ -161,9 +301,7 @@
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const file = e.dataTransfer.files[0];
-            if (file && file.type === 'application/pdf') {
-                file.arrayBuffer().then(processPdf);
-            }
+            if (file) file.arrayBuffer().then(processPdf);
         });
         fileInput.addEventListener('change', e => {
             const file = e.target.files[0];

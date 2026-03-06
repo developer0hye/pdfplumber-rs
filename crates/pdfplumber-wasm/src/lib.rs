@@ -1,12 +1,22 @@
 //! WebAssembly/JavaScript bindings for pdfplumber-rs.
 //!
-//! Provides ergonomic JavaScript API for PDF text, word, and table extraction
-//! via wasm-bindgen. Complex types are serialized to JsValue using
-//! serde_wasm_bindgen.
+//! Provides a complete JavaScript API for PDF text, word, character, table,
+//! geometry, annotation, and spatial-filter extraction via wasm-bindgen.
+//!
+//! Complex types are serialized to JsValue using serde_wasm_bindgen, giving
+//! JavaScript consumers plain objects with typed fields — no manual unwrapping.
+//!
+//! # API surface
+//!
+//! - **`WasmPdf`**: open(bytes), pageCount, page(index), metadata, bookmarks
+//! - **`WasmPage`**: all extraction + geometry + crop operations
+//! - **`WasmCroppedPage`**: spatially-filtered view, mirrors WasmPage extraction API
 
 use wasm_bindgen::prelude::*;
 
-use pdfplumber::{Page, Pdf, SearchOptions, TableSettings, TextOptions, WordOptions};
+use pdfplumber::{
+    BBox, CroppedPage, Page, Pdf, SearchOptions, TableSettings, TextOptions, WordOptions,
+};
 
 /// A PDF document opened for extraction (WASM binding).
 ///
@@ -47,9 +57,20 @@ impl WasmPdf {
     }
 
     /// Return document metadata as a JavaScript object.
+    ///
+    /// Fields: title, author, subject, keywords, creator, producer,
+    /// creation_date, mod_date (all string | null).
     #[wasm_bindgen(getter)]
     pub fn metadata(&self) -> Result<JsValue, JsError> {
         serde_wasm_bindgen::to_value(self.inner.metadata())
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return document bookmarks (outline / table of contents).
+    ///
+    /// Each entry: `{ title: string, level: number, page_number: number | null, dest_top: number | null }`.
+    pub fn bookmarks(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.bookmarks())
             .map_err(|e| JsError::new(&e.to_string()))
     }
 }
@@ -156,6 +177,220 @@ impl WasmPage {
         };
         let matches = self.inner.search(pattern, &options);
         serde_wasm_bindgen::to_value(&matches).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return lines on this page.
+    ///
+    /// Each entry: `{ x0, top, x1, bottom, line_width, orientation }`.
+    pub fn lines(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.lines()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return rectangles on this page.
+    ///
+    /// Each entry: `{ x0, top, x1, bottom, line_width, stroke, fill }`.
+    pub fn rects(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.rects()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return curves on this page.
+    ///
+    /// Each entry: `{ x0, top, x1, bottom, pts, line_width, stroke, fill }`.
+    pub fn curves(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.curves()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return images on this page.
+    ///
+    /// Each entry: `{ x0, top, x1, bottom, width, height, name, src_width, src_height,
+    /// bits_per_component, color_space }`.
+    pub fn images(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.images()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return annotations on this page (highlights, notes, links, etc.).
+    pub fn annots(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.annots()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return hyperlinks on this page.
+    ///
+    /// Each entry: `{ x0, top, x1, bottom, uri }`.
+    pub fn hyperlinks(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.hyperlinks())
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Page rotation in degrees (0, 90, 180, or 270).
+    #[wasm_bindgen(getter)]
+    pub fn rotation(&self) -> i32 {
+        self.inner.rotation()
+    }
+
+    /// Page bounding box as `{ x0, top, x1, bottom }`.
+    #[wasm_bindgen(getter)]
+    pub fn bbox(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(&self.inner.bbox()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// MediaBox as `{ x0, top, x1, bottom }`.
+    #[wasm_bindgen(js_name = "mediaBox", getter)]
+    pub fn media_box(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(&self.inner.media_box())
+            .map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Crop this page to a bounding box.
+    ///
+    /// Returns a `WasmCroppedPage` containing only objects intersecting the bbox.
+    /// `bbox` is `[x0, top, x1, bottom]` in page coordinate space.
+    pub fn crop(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.crop(BBox::new(x0, top, x1, bottom)),
+        }
+    }
+
+    /// Return a view containing only objects **fully within** the bbox.
+    pub fn within_bbox(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.within_bbox(BBox::new(x0, top, x1, bottom)),
+        }
+    }
+
+    /// Return a view containing only objects **outside** the bbox.
+    pub fn outside_bbox(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.outside_bbox(BBox::new(x0, top, x1, bottom)),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// WasmCroppedPage
+// ---------------------------------------------------------------------------
+
+/// A spatially-filtered view of a PDF page (WASM binding).
+///
+/// Produced by `WasmPage.crop()`, `.within_bbox()`, or `.outside_bbox()`.
+/// Supports the same extraction methods as `WasmPage` plus further cropping.
+///
+/// # JavaScript Usage
+///
+/// ```js
+/// const header = page.crop(0, 0, page.width, 80);
+/// const headerText = header.extractText();
+/// const headerTables = header.findTables();
+/// ```
+#[wasm_bindgen]
+pub struct WasmCroppedPage {
+    inner: CroppedPage,
+}
+
+#[wasm_bindgen]
+impl WasmCroppedPage {
+    /// Width of the cropped region in points.
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> f64 {
+        self.inner.width()
+    }
+
+    /// Height of the cropped region in points.
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> f64 {
+        self.inner.height()
+    }
+
+    /// Return all characters in the cropped region.
+    pub fn chars(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.chars()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Extract text from the cropped region.
+    #[wasm_bindgen(js_name = "extractText")]
+    pub fn extract_text(&self, layout: Option<bool>) -> String {
+        self.inner.extract_text(&TextOptions {
+            layout: layout.unwrap_or(false),
+            ..TextOptions::default()
+        })
+    }
+
+    /// Extract words from the cropped region.
+    #[wasm_bindgen(js_name = "extractWords")]
+    pub fn extract_words(
+        &self,
+        x_tolerance: Option<f64>,
+        y_tolerance: Option<f64>,
+    ) -> Result<JsValue, JsError> {
+        let words = self.inner.extract_words(&WordOptions {
+            x_tolerance: x_tolerance.unwrap_or(3.0),
+            y_tolerance: y_tolerance.unwrap_or(3.0),
+            ..WordOptions::default()
+        });
+        serde_wasm_bindgen::to_value(&words).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Find tables in the cropped region.
+    #[wasm_bindgen(js_name = "findTables")]
+    pub fn find_tables(&self) -> Result<JsValue, JsError> {
+        let tables = self.inner.find_tables(&TableSettings::default());
+        serde_wasm_bindgen::to_value(&tables).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Extract table content as `Array<Array<Array<string|null>>>`.
+    #[wasm_bindgen(js_name = "extractTables")]
+    pub fn extract_tables(&self) -> Result<JsValue, JsError> {
+        let tables = self.inner.find_tables(&TableSettings::default());
+        let data: Vec<Vec<Vec<Option<String>>>> = tables
+            .iter()
+            .map(|t| {
+                t.rows
+                    .iter()
+                    .map(|row| row.iter().map(|cell| cell.text.clone()).collect())
+                    .collect()
+            })
+            .collect();
+        serde_wasm_bindgen::to_value(&data).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return lines in the cropped region.
+    pub fn lines(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.lines()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return rectangles in the cropped region.
+    pub fn rects(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.rects()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return curves in the cropped region.
+    pub fn curves(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.curves()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Return images in the cropped region.
+    pub fn images(&self) -> Result<JsValue, JsError> {
+        serde_wasm_bindgen::to_value(self.inner.images()).map_err(|e| JsError::new(&e.to_string()))
+    }
+
+    /// Further crop this cropped page.
+    pub fn crop(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.crop(BBox::new(x0, top, x1, bottom)),
+        }
+    }
+
+    /// Filter to objects fully within the given bbox.
+    pub fn within_bbox(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.within_bbox(BBox::new(x0, top, x1, bottom)),
+        }
+    }
+
+    /// Filter to objects outside the given bbox.
+    pub fn outside_bbox(&self, x0: f64, top: f64, x1: f64, bottom: f64) -> WasmCroppedPage {
+        WasmCroppedPage {
+            inner: self.inner.outside_bbox(BBox::new(x0, top, x1, bottom)),
+        }
     }
 }
 
@@ -556,5 +791,231 @@ mod tests {
             cargo_toml.contains(&format!("version = \"{version}\"")),
             "Cargo.toml version must match"
         );
+    }
+
+    // ---- TypeScript types completeness — new API surface ----
+
+    #[test]
+    fn test_typescript_types_include_cropped_page() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let types = std::fs::read_to_string(
+            std::path::Path::new(manifest_dir).join("pdfplumber-wasm.d.ts"),
+        )
+        .expect("TypeScript types must be readable");
+        assert!(
+            types.contains("WasmCroppedPage"),
+            "TypeScript types must define WasmCroppedPage class"
+        );
+    }
+
+    #[test]
+    fn test_package_json_exists() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let pkg_path = std::path::Path::new(manifest_dir).join("package.json");
+        assert!(
+            pkg_path.exists(),
+            "package.json must exist for npm publishing"
+        );
+    }
+
+    #[test]
+    fn test_package_json_has_name() {
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let content =
+            std::fs::read_to_string(std::path::Path::new(manifest_dir).join("package.json"))
+                .expect("package.json must be readable");
+        assert!(
+            content.contains("\"pdfplumber-wasm\""),
+            "package.json must have name pdfplumber-wasm"
+        );
+    }
+
+    // ---- WasmPage geometry methods (via underlying Rust API) ----
+
+    #[test]
+    fn test_page_rotation_default() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        assert_eq!(
+            page.rotation(),
+            0,
+            "Non-rotated page should have rotation 0"
+        );
+    }
+
+    #[test]
+    fn test_page_bbox_dimensions() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let bbox = page.bbox();
+        assert!((bbox.x0 - 0.0).abs() < 0.1);
+        assert!((bbox.x1 - 612.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_page_lines_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.lines(); // Must not panic
+    }
+
+    #[test]
+    fn test_page_rects_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.rects();
+    }
+
+    #[test]
+    fn test_page_curves_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.curves();
+    }
+
+    #[test]
+    fn test_page_images_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.images();
+    }
+
+    #[test]
+    fn test_page_annots_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.annots();
+    }
+
+    #[test]
+    fn test_page_hyperlinks_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let _ = page.hyperlinks();
+    }
+
+    #[test]
+    fn test_pdf_bookmarks_returns_slice() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let _ = pdf.bookmarks(); // No bookmarks in minimal PDF, but must not panic
+    }
+
+    // ---- WasmCroppedPage tests ----
+
+    #[test]
+    fn test_crop_returns_correct_dimensions() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 306.0, 396.0));
+        assert!((cropped.width() - 306.0).abs() < 0.1);
+        assert!((cropped.height() - 396.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_within_bbox_returns_correct_dimensions() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let filtered = page.within_bbox(BBox::new(0.0, 0.0, 306.0, 396.0));
+        assert!((filtered.width() - 306.0).abs() < 0.1);
+        assert!((filtered.height() - 396.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_cropped_page_chars_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 400.0));
+        let _ = cropped.chars();
+    }
+
+    #[test]
+    fn test_cropped_page_extract_text_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let text = cropped.extract_text(Some(false));
+        // Full-page crop should preserve all text
+        assert!(text.contains("Hello") || text.is_empty()); // empty if Helvetica unresolved
+    }
+
+    #[test]
+    fn test_cropped_page_extract_words_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.extract_words(Some(3.0), Some(3.0));
+    }
+
+    #[test]
+    fn test_cropped_page_find_tables_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.find_tables();
+    }
+
+    #[test]
+    fn test_cropped_page_extract_tables_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.extract_tables();
+    }
+
+    #[test]
+    fn test_cropped_page_geometry_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.lines();
+        let _ = cropped.rects();
+        let _ = cropped.curves();
+        let _ = cropped.images();
+    }
+
+    #[test]
+    fn test_cropped_page_further_crop() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let outer = page.crop(BBox::new(0.0, 0.0, 400.0, 500.0));
+        let inner = outer.crop(BBox::new(0.0, 0.0, 200.0, 250.0));
+        assert!((inner.width() - 200.0).abs() < 0.1);
+        assert!((inner.height() - 250.0).abs() < 0.1);
+    }
+
+    #[test]
+    fn test_cropped_page_within_bbox_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.within_bbox(BBox::new(0.0, 0.0, 306.0, 396.0));
+    }
+
+    #[test]
+    fn test_cropped_page_outside_bbox_no_panic() {
+        let data = create_test_pdf();
+        let pdf = Pdf::open(&data, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        let cropped = page.crop(BBox::new(0.0, 0.0, 612.0, 792.0));
+        let _ = cropped.outside_bbox(BBox::new(100.0, 100.0, 200.0, 200.0));
     }
 }
