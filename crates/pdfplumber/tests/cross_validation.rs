@@ -1076,10 +1076,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_hello_structure,
     "hello_structure.pdf",
-    "chars 37% — tagged PDF TrueType font gap"
+    CHAR_THRESHOLD,
+    CHAR_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_1054,
@@ -1271,13 +1272,11 @@ cross_validate!(
     CHAR_THRESHOLD
 );
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-// issue-848.pdf: chars 100% but words 64% — page-rotation-aware upright
-// calculation needed for rotated pages 2+3. Root cause in page rotation
-// coordinate transform, not just CTM. Owned by Lanes 1+2+3 (fix-221/fix-220).
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_848,
     "issue-848.pdf",
-    "words 64% on rotated pages 2+3 — page-rotation upright fix needed (Lanes 1/2/3)"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
