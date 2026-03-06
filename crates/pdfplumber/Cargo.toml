@@ -14,18 +14,24 @@ default = ["std"]
 std = []
 serde = ["pdfplumber-core/serde"]
 parallel = ["dep:rayon"]
-# PDF writing: incremental updates, annotations, highlights.
-write = ["dep:lopdf"]
+# Feature-gated Ollama vision-model fallback for scanned/image-only pages.
+# Adds reqwest (blocking HTTP), base64, and serde_json deps.
+# Does NOT appear in the default dependency tree.
+# Usage: cargo add pdfplumber --features ollama-fallback
+ollama-fallback = ["dep:reqwest", "dep:base64", "dep:serde_json"]
 
 [dependencies]
 pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
 pdfplumber-parse = { version = "0.2.0", path = "../pdfplumber-parse" }
 rayon = { version = "1.10", optional = true }
-lopdf = { version = "0.39", default-features = false, optional = true }
+# Ollama fallback deps — only compiled when ollama-fallback feature is active
+reqwest = { version = "0.12", features = ["blocking", "json"], optional = true }
+base64 = { version = "0.22", optional = true }
+serde_json = { version = "1.0", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
-lopdf = "0.39"
+lopdf = "0.34"
 md5 = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
