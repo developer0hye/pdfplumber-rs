@@ -52,6 +52,7 @@ impl Char {
 /// Text flow direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[non_exhaustive]
 pub enum TextDirection {
     /// Left-to-right (default for Latin, CJK horizontal).
     #[default]
@@ -282,5 +283,196 @@ mod tests {
         let ch = make_char(Some(Color::Other(vec![0.1])));
         let resolved = ch.resolved_color();
         assert_eq!(resolved, None);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CJK RANGE BOUNDARY TESTS — exact first/last char of each Unicode block
+    //
+    // These matter because off-by-one in range bounds means entire scripts
+    // get misclassified, breaking word splitting for millions of documents.
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_is_cjk_unified_ideographs_boundaries() {
+        assert!(is_cjk('\u{4E00}'), "first CJK Unified Ideograph");
+        assert!(is_cjk('\u{9FFF}'), "last CJK Unified Ideograph");
+        assert!(!is_cjk('\u{4DFF}'), "char before CJK Unified block");
+        assert!(!is_cjk('\u{A000}'), "char after CJK Unified block");
+    }
+
+    #[test]
+    fn test_is_cjk_extension_a_boundaries() {
+        assert!(is_cjk('\u{3400}'), "first CJK Extension A");
+        assert!(is_cjk('\u{4DBF}'), "last CJK Extension A");
+        assert!(!is_cjk('\u{33FF}'), "char before Extension A");
+    }
+
+    #[test]
+    fn test_is_cjk_compatibility_boundaries() {
+        assert!(is_cjk('\u{F900}'), "first CJK Compatibility");
+        assert!(is_cjk('\u{FAFF}'), "last CJK Compatibility");
+        assert!(
+            !is_cjk('\u{F8FF}'),
+            "char before CJK Compatibility (private use)"
+        );
+        assert!(
+            !is_cjk('\u{FB00}'),
+            "char after CJK Compatibility (ligatures)"
+        );
+    }
+
+    #[test]
+    fn test_is_cjk_hiragana_boundaries() {
+        assert!(is_cjk('\u{3040}'), "first Hiragana");
+        assert!(is_cjk('\u{309F}'), "last Hiragana");
+        assert!(!is_cjk('\u{303F}'), "char before Hiragana (CJK symbols)");
+    }
+
+    #[test]
+    fn test_is_cjk_katakana_boundaries() {
+        assert!(is_cjk('\u{30A0}'), "first Katakana");
+        assert!(is_cjk('\u{30FF}'), "last Katakana");
+    }
+
+    #[test]
+    fn test_is_cjk_hangul_syllables_boundaries() {
+        assert!(is_cjk('\u{AC00}'), "first Hangul syllable (가)");
+        assert!(is_cjk('\u{D7AF}'), "last Hangul syllable");
+        assert!(!is_cjk('\u{ABFF}'), "char before Hangul Syllables");
+        assert!(!is_cjk('\u{D7B0}'), "char after Hangul Syllables");
+    }
+
+    #[test]
+    fn test_is_cjk_hangul_jamo_boundaries() {
+        assert!(is_cjk('\u{1100}'), "first Hangul Jamo");
+        assert!(is_cjk('\u{11FF}'), "last Hangul Jamo");
+    }
+
+    #[test]
+    fn test_is_cjk_bopomofo_boundaries() {
+        assert!(is_cjk('\u{3100}'), "first Bopomofo");
+        assert!(is_cjk('\u{312F}'), "last Bopomofo");
+    }
+
+    #[test]
+    fn test_is_cjk_radicals_supplement_boundaries() {
+        assert!(is_cjk('\u{2E80}'), "first CJK Radicals Supplement");
+        assert!(is_cjk('\u{2EFF}'), "last CJK Radicals Supplement");
+    }
+
+    #[test]
+    fn test_is_cjk_kangxi_radicals_boundaries() {
+        assert!(is_cjk('\u{2F00}'), "first Kangxi Radical");
+        assert!(is_cjk('\u{2FDF}'), "last Kangxi Radical");
+    }
+
+    #[test]
+    fn test_is_cjk_extension_b_boundaries() {
+        assert!(is_cjk('\u{20000}'), "first CJK Extension B");
+        assert!(is_cjk('\u{2A6DF}'), "last CJK Extension B");
+        assert!(!is_cjk('\u{1FFFF}'), "char before Extension B");
+    }
+
+    // Non-CJK scripts that must NOT match
+    #[test]
+    fn test_is_cjk_rejects_arabic() {
+        assert!(!is_cjk('\u{0627}')); // Arabic Alef
+        assert!(!is_cjk('\u{0628}')); // Arabic Ba
+    }
+
+    #[test]
+    fn test_is_cjk_rejects_devanagari() {
+        assert!(!is_cjk('\u{0905}')); // Devanagari A
+    }
+
+    #[test]
+    fn test_is_cjk_rejects_emoji() {
+        assert!(!is_cjk('\u{1F600}')); // Grinning face
+        assert!(!is_cjk('\u{2764}')); // Heart
+    }
+
+    #[test]
+    fn test_is_cjk_rejects_punctuation() {
+        assert!(!is_cjk('.'));
+        assert!(!is_cjk(','));
+        assert!(!is_cjk('!'));
+        assert!(!is_cjk('\u{3001}')); // Ideographic comma (NOT in CJK Ideograph block)
+        assert!(!is_cjk('\u{3002}')); // Ideographic period
+    }
+
+    #[test]
+    fn test_is_cjk_text_empty_string() {
+        assert!(!is_cjk_text(""));
+    }
+
+    #[test]
+    fn test_is_cjk_text_mixed_start() {
+        // CJK char followed by Latin — first char wins
+        assert!(is_cjk_text("你hello"));
+        assert!(!is_cjk_text("hello你"));
+    }
+
+    #[test]
+    fn test_is_cjk_text_single_chars() {
+        assert!(is_cjk_text("漢"));
+        assert!(is_cjk_text("あ"));
+        assert!(is_cjk_text("가"));
+        assert!(!is_cjk_text("A"));
+        assert!(!is_cjk_text("1"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TEXT DIRECTION TESTS
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_text_direction_all_variants_distinct() {
+        let dirs = [
+            TextDirection::Ltr,
+            TextDirection::Rtl,
+            TextDirection::Ttb,
+            TextDirection::Btt,
+        ];
+        for i in 0..dirs.len() {
+            for j in (i + 1)..dirs.len() {
+                assert_ne!(dirs[i], dirs[j], "{:?} should != {:?}", dirs[i], dirs[j]);
+            }
+        }
+    }
+
+    #[test]
+    fn test_text_direction_clone_eq() {
+        let d = TextDirection::Rtl;
+        let d2 = d;
+        assert_eq!(d, d2);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CHAR RESOLVED COLOR EDGE CASES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    #[test]
+    fn test_resolved_color_black_gray() {
+        let ch = make_char(Some(Color::Gray(0.0)));
+        assert_eq!(ch.resolved_color(), Some(Color::Rgb(0.0, 0.0, 0.0)));
+    }
+
+    #[test]
+    fn test_resolved_color_white_gray() {
+        let ch = make_char(Some(Color::Gray(1.0)));
+        assert_eq!(ch.resolved_color(), Some(Color::Rgb(1.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn test_resolved_color_cmyk_pure_cyan() {
+        let ch = make_char(Some(Color::Cmyk(1.0, 0.0, 0.0, 0.0)));
+        let resolved = ch.resolved_color();
+        assert_eq!(resolved, Some(Color::Rgb(0.0, 1.0, 1.0)));
+    }
+
+    #[test]
+    fn test_resolved_color_cmyk_pure_black() {
+        let ch = make_char(Some(Color::Cmyk(0.0, 0.0, 0.0, 1.0)));
+        assert_eq!(ch.resolved_color(), Some(Color::Rgb(0.0, 0.0, 0.0)));
     }
 }

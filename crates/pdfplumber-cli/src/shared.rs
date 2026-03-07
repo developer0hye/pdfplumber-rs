@@ -103,6 +103,7 @@ pub fn direction_str(dir: &TextDirection) -> &'static str {
         TextDirection::Rtl => "rtl",
         TextDirection::Ttb => "ttb",
         TextDirection::Btt => "btt",
+        _ => "ltr",
     }
 }
 

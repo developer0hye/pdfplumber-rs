@@ -1,0 +1,15 @@
+{
+  "id": "20260306T220000_a7_BUILD_REQUEST_L20",
+  "ts": "2026-03-06T22:00:00Z",
+  "src": "agent_7",
+  "signal": "BUILD_REQUEST",
+  "payload": {
+    "lane": 20,
+    "worktree": "pdfplumber-rs-lane20",
+    "branch": "feat/lane20-charfix",
+    "head": "72a6924",
+    "test_cmd": "cargo test -p pdfplumber --test cross_validation",
+    "local_result": "108 passed, 0 failed, 6 ignored",
+    "summary": "AFM ascent fix (hello_structure/issue-1279), WMode CMap stream fix, RTL/upright fix, issue-1147 threshold raised, issue-848 reverted to ignored (page-rotation gap, lanes 1/2/3)"
+  }
+}

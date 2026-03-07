@@ -8,6 +8,7 @@ repository.workspace = true
 description = "Core data types and algorithms for pdfplumber-rs (backend-independent)"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber"]
 categories = ["parser-implementations", "text-processing"]
+readme = "README.md"
 
 [features]
 serde = ["dep:serde"]

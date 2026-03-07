@@ -11,6 +11,7 @@ use std::fmt;
 /// extraction failures or is merely a non-conformance that still allows
 /// best-effort extraction.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Severity {
     /// Specification violation likely to cause extraction failure.
     Error,

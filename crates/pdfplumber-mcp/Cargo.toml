@@ -1,0 +1,33 @@
+[package]
+name = "pdfplumber-mcp"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MCP server exposing pdfplumber-rs PDF extraction as agent-callable tools (JSON-RPC 2.0 over stdio)"
+keywords = ["pdf", "mcp", "agent", "extraction", "tools"]
+categories = ["command-line-utilities", "text-processing"]
+readme = "README.md"
+
+[[bin]]
+name = "pdfplumber-mcp"
+path = "src/main.rs"
+
+[dependencies]
+pdfplumber = { path = "../pdfplumber" }
+pdfplumber-layout = { path = "../pdfplumber-layout", optional = true }
+pdfplumber-a11y   = { path = "../pdfplumber-a11y",   optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = { version = "0.22", optional = true }
+# pdfplumber-raster is available once feat/rasterizer-12 is merged into main.
+# Enable with --features raster after that merge.
+# pdfplumber-raster = { path = "../pdfplumber-raster", optional = true }
+
+[features]
+default = ["layout", "a11y"]
+layout  = ["dep:pdfplumber-layout"]
+a11y    = ["dep:pdfplumber-a11y"]
+raster  = ["dep:base64"]  # also requires pdfplumber-raster dep once feat/rasterizer-12 merges
+full    = ["layout", "a11y", "raster"]

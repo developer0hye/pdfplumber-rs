@@ -25,6 +25,7 @@ pub fn run(file: &Path, format: &ValidateFormat, password: Option<&str>) -> Resu
                     let severity = match issue.severity {
                         Severity::Error => "ERROR",
                         Severity::Warning => "WARNING",
+                        _ => "UNKNOWN",
                     };
                     print!("[{severity}] {}: {}", issue.code, issue.message);
                     if let Some(ref loc) = issue.location {

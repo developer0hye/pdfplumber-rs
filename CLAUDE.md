@@ -1,5 +1,15 @@
 # Project Rules
 
+## ⚠️ CRITICAL: BUILD AND TEST RULES
+
+- **ALL builds and tests run LOCALLY.** This is a fork of `developer0hye/pdfplumber-rs`. The upstream owner does not know about this work. We are building a surprise contribution. Do NOT contact or reference the upstream owner.
+- **Never run `cargo test` without `-- --test-threads=2`** (or `--test-threads=1`). Unbounded parallelism on integration tests that load real PDFs will OOM the machine (60GB+ observed). Unit tests (`--lib`) are fine with default parallelism.
+- **Never use `run_in_background` for cargo test/build.** Background builds become zombies that eat all RAM if they hit a bug. Always run in foreground with a timeout.
+- **Build lock**: Only the Bosun agent runs builds. Other agents post BUILD_REQUEST marbles. Exception: Agent 8 (this lane) has local build permission for pdfplumber-chunk only.
+- **Winterstraten coordination**: `POST http://localhost:8080/api/emit {"text": "..."}` for all cross-agent signals.
+
+---
+
 - Always communicate and work in English.
 - Before starting development, check if `PRD.md` exists in the project root. If it does, read and follow the requirements defined in it throughout the development process.
 - **IMPORTANT: Follow Test-Driven Development (TDD).** See the **Testing (TDD)** section below for detailed rules.
@@ -16,8 +26,9 @@
 - **Never overfit to tests.** Implementation must solve the general problem, not just the specific test cases. No hardcoded returns, no input-matching conditionals, no logic that only handles test values. Use triangulation — when a fake/hardcoded implementation passes, add tests with different inputs to force generalization.
 - Test behavior, not implementation. Assert on observable outcomes, not internal details — tests must survive refactoring.
 - Every new feature or bug fix must have corresponding tests.
-- **Optimize test execution speed.** Run independent tests in parallel (multi-process/multi-thread, async, or parallel runner). Use the framework's built-in parallel execution (e.g., `pytest-xdist`, `jest --workers`, `go test -parallel`). Keep each test isolated — no shared mutable state — so parallel execution is safe.
-- For I/O-bound tests (network, file, DB), prefer async or use mocks to avoid blocking. For CPU-bound tests, use multi-process/multi-thread parallelism.
+- **NEVER run integration tests with unbounded parallelism.** Always use `-- --test-threads=2` max. Integration tests load real PDFs through the layout engine which allocates heavily. Four parallel instances will eat 60GB+ and SIGKILL the machine.
+- Unit tests (`cargo test -p <crate> --lib`) are fine with default parallelism.
+- For I/O-bound tests (network, file, DB), prefer async or use mocks to avoid blocking.
 - If full test suite exceeds 30 seconds, investigate: split slow integration tests from fast unit tests, run unit tests first for quick feedback.
 - **Skip tests when no runtime impact.** In CI/CD, use path filters to trigger tests only when source code, test files, or runtime config files (YAML, JSON, etc. read by code) are modified. Non-runtime changes (docs, README, `.md`, CI pipeline config) should not trigger test runs. Locally, verify whether a change affects runtime behavior before running tests.
 

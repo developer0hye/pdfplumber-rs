@@ -8,6 +8,7 @@ repository.workspace = true
 description = "PDF parsing and content stream interpreter for pdfplumber-rs"
 keywords = ["pdf", "parser", "content-stream", "pdfplumber"]
 categories = ["parser-implementations"]
+readme = "README.md"
 
 [features]
 tracing = ["dep:tracing"]

@@ -1,3 +1,6 @@
+#![warn(missing_docs)]
+#![forbid(unsafe_code)]
+
 //! PDF parsing backend and content stream interpreter for pdfplumber-rs.
 //!
 //! This crate implements Layer 1 (PDF parsing via pluggable backends) and

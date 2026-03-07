@@ -11,6 +11,7 @@ use thiserror::Error;
 /// Wraps backend-specific errors and provides conversion to [`PdfError`]
 /// for unified error handling across the library.
 #[derive(Debug, Error)]
+#[non_exhaustive]
 pub enum BackendError {
     /// Error from PDF parsing (structure, syntax, object resolution).
     #[error("PDF parse error: {0}")]
