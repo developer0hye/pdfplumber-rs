@@ -13,7 +13,7 @@ Extract chars, words, lines, rects, and tables from PDF documents with precise c
 ## Features
 
 - **Text extraction** with spatial grouping into words, lines, and text blocks
-- **Table detection** using lattice (line-based), stream (text-alignment), and explicit strategies
+- **Table detection** using lattice (line-based), stream (text-alignment), and explicit strategies, choosable per axis
 - **Spatial filtering** via `crop`, `within_bbox`, and `outside_bbox`
 - **CJK support** including CID fonts, Identity-H/V CMaps, and CJK-aware word grouping
 - **Page-level streaming** for memory-efficient processing of large documents
@@ -55,6 +55,24 @@ fn main() {
 }
 ```
 
+### Extract Text Lines
+
+Each line carries its bounding box and the characters behind it. Grouping is
+vertical, so columns printed side by side share a line — crop the page to read
+them separately.
+
+```rust,no_run
+use pdfplumber::{Pdf, TextOptions};
+
+fn main() {
+    let pdf = Pdf::open_file("document.pdf", None).unwrap();
+    let page = pdf.page(0).unwrap();
+    for line in page.extract_text_lines(&TextOptions::default()) {
+        println!("{} at top={:.1}", line.text(), line.bbox.top);
+    }
+}
+```
+
 ### Extract Tables
 
 ```rust,no_run
@@ -73,6 +91,22 @@ fn main() {
         }
     }
 }
+```
+
+A cell's text is `None` only where another cell spans that position; a cell left
+blank reads as an empty string.
+
+For a table ruled between rows but not between columns, give each axis its own
+strategy:
+
+```rust,no_run
+use pdfplumber::{Strategy, TableSettings};
+
+let settings = TableSettings {
+    vertical_strategy: Some(Strategy::Stream),    // columns from text alignment
+    horizontal_strategy: Some(Strategy::Lattice), // rows from ruled lines
+    ..TableSettings::default()
+};
 ```
 
 ### Extract Characters
