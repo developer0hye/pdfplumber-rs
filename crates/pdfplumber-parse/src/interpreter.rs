@@ -759,6 +759,10 @@ fn load_font_if_needed(
                 };
             let base_name = strip_subset_prefix(raw_base_name).to_string();
 
+            // A font with no /Encoding of its own may still carry one inside its
+            // font program, which is how TeX ships Computer Modern.
+            let encoding = encoding.or_else(|| extract_builtin_type1_encoding(doc, fd));
+
             // US-182-1: When a standard Type1 font has no explicit /Encoding,
             // apply StandardEncoding as the implicit base encoding per PDF spec.
             // Symbol and ZapfDingbats have their own built-in encodings.
@@ -901,6 +905,45 @@ fn extract_font_encoding(doc: &lopdf::Document, fd: &lopdf::Dictionary) -> Optio
     }
 
     None
+}
+
+/// Read the encoding a Type 1 font program declares for itself.
+///
+/// Applies only to a font whose descriptor embeds a `/FontFile`. The program's
+/// header names a glyph per character code, and each name is resolved to the
+/// character it draws; a name outside the Adobe glyph list is left unmapped
+/// rather than guessed at.
+///
+/// Returns `None` when there is no embedded Type 1 program or it declares no
+/// encoding, leaving the caller's own fallbacks to apply.
+fn extract_builtin_type1_encoding(
+    doc: &lopdf::Document,
+    fd: &lopdf::Dictionary,
+) -> Option<FontEncoding> {
+    let descriptor = resolve_ref(doc, fd.get(b"FontDescriptor").ok()?)
+        .as_dict()
+        .ok()?;
+    let stream = resolve_ref(doc, descriptor.get(b"FontFile").ok()?)
+        .as_stream()
+        .ok()?;
+
+    let program = if stream.dict.get(b"Filter").is_ok() {
+        stream.decompressed_content().unwrap_or_default()
+    } else {
+        stream.content.clone()
+    };
+
+    let glyph_names = crate::type1::parse_builtin_encoding(&program);
+    if glyph_names.is_empty() {
+        return None;
+    }
+
+    let mut table: [Option<char>; 256] = [None; 256];
+    for (code, name) in glyph_names {
+        table[code as usize] = pdfplumber_core::glyph_name_to_char(&name);
+    }
+
+    Some(FontEncoding::from_table(table))
 }
 
 /// Check if a font name is one of the standard 14 Latin fonts (all except

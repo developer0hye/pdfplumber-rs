@@ -42,6 +42,7 @@ pub mod error;
 pub mod form_field;
 /// Geometric primitives: Point, BBox, CTM, Orientation.
 pub mod geometry;
+pub mod glyph_list;
 /// HTML rendering for PDF page content.
 pub mod html;
 /// PDF hyperlink types.
