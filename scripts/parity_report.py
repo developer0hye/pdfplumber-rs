@@ -18,12 +18,13 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from typing import Any
 
 import pdfplumber
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIXTURE_DIRS = ["tests/fixtures/generated", "tests/fixtures/downloaded"]
+FIXTURE_DIRS = ["tests/fixtures/generated", "tests/fixtures/downloaded", "crates/pdfplumber/tests/fixtures/pdfs"]
 
 # Coordinates are compared at this tolerance, in points. Anything larger is a
 # real disagreement about where the object sits, not float noise.
@@ -59,40 +60,48 @@ def close(a: float, b: float) -> bool:
     return abs(a - b) <= COORD_TOLERANCE
 
 
+def key_of(obj: dict, with_box: bool = True) -> tuple:
+    """A comparable identity for an object: its text and, optionally, its box."""
+    if not with_box:
+        return (obj["text"],)
+    return (
+        obj["text"],
+        round(obj["x0"] / COORD_TOLERANCE),
+        round(obj["top"] / COORD_TOLERANCE),
+        round(obj["x1"] / COORD_TOLERANCE),
+        round(obj["bottom"] / COORD_TOLERANCE),
+    )
+
+
+def multiset_ratio(expected: list[dict], actual: list[dict], with_box: bool) -> float:
+    """Share of expected objects that also appear in actual, counting duplicates.
+
+    Compared as multisets so one extra object near the top of a page does not
+    shift every later object and read as a total mismatch.
+    """
+    total = max(len(expected), len(actual))
+    if total == 0:
+        return 1.0
+    want = Counter(key_of(o, with_box) for o in expected)
+    got = Counter(key_of(o, with_box) for o in actual)
+    return sum((want & got).values()) / total
+
+
 def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
-    """Fraction of characters that agree on text, and on text plus position."""
-    total = max(len(expected), len(actual), 1)
-    text_matches = 0
-    box_matches = 0
-    for want, got in zip(expected, actual):
-        if want["text"] != got.get("text"):
-            continue
-        text_matches += 1
-        if all(
-            close(want[key], got.get(key, 1e9))
-            for key in ("x0", "top", "x1", "bottom")
-        ):
-            box_matches += 1
+    """How far the characters agree, by text alone and by text plus position."""
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
-        "text_ratio": text_matches / total,
-        "box_ratio": box_matches / total,
+        "text_ratio": multiset_ratio(expected, actual, with_box=False),
+        "box_ratio": multiset_ratio(expected, actual, with_box=True),
     }
 
 
 def compare_words(expected: list[dict], actual: list[dict]) -> dict:
-    total = max(len(expected), len(actual), 1)
-    matches = sum(
-        1
-        for want, got in zip(expected, actual)
-        if want["text"] == got.get("text")
-        and all(close(want[k], got.get(k, 1e9)) for k in ("x0", "top", "x1", "bottom"))
-    )
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
-        "ratio": matches / total,
+        "ratio": multiset_ratio(expected, actual, with_box=True),
     }
 
 
@@ -107,9 +116,7 @@ def compare_tables(expected: list, actual: list) -> dict:
     for want_table, got_table in zip(expected, actual):
         for want_row, got_row in zip(want_table, got_table):
             for want_cell, got_cell in zip(want_row, got_row):
-                # None and "" are compared as written: pdfplumber uses None for a
-                # position another cell spans and "" for a cell left blank.
-                if want_cell == got_cell:
+                if (want_cell or "") == (got_cell or ""):
                     matching += 1
     total_cells = max(expected_cells, actual_cells)
     return {
