@@ -1494,14 +1494,23 @@ mod tests {
 
     #[test]
     fn test_find_tables_with_rects() {
-        // A rect creates 4 edges (top, bottom, left, right) → should detect a 1-cell table
-        let rects = vec![make_rect(10.0, 10.0, 100.0, 50.0)];
-        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], rects, vec![]);
+        // Rects contribute their four sides as edges. One rect alone is a lone
+        // box rather than a table; two side by side share a border and form one.
+        let single = vec![make_rect(10.0, 10.0, 100.0, 50.0)];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], single, vec![]);
         let settings = TableSettings::default();
+
+        assert!(page.find_tables(&settings).is_empty());
+
+        let adjacent = vec![
+            make_rect(10.0, 10.0, 100.0, 50.0),
+            make_rect(100.0, 10.0, 190.0, 50.0),
+        ];
+        let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], adjacent, vec![]);
         let tables = page.find_tables(&settings);
 
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
@@ -1678,10 +1687,11 @@ mod tests {
             vline(10.0, 10.0, 30.0),
             vline(60.0, 10.0, 30.0),
             vline(110.0, 10.0, 30.0),
-            // Table 2: 1x1 at bottom-right (well separated)
+            // Table 2: 1x2 at bottom-right (well separated)
             hline(300.0, 300.0, 400.0),
             hline(300.0, 350.0, 400.0),
             vline(300.0, 300.0, 350.0),
+            vline(350.0, 300.0, 350.0),
             vline(400.0, 300.0, 350.0),
         ];
         let page = Page::with_geometry(0, 612.0, 792.0, vec![], lines, vec![], vec![]);
@@ -1694,8 +1704,11 @@ mod tests {
     #[test]
     fn test_find_tables_lattice_strict() {
         // LatticeStrict should only use line edges, not rect edges
-        // Create a rect (would form edges in Lattice) but not lines
-        let rects = vec![make_rect(10.0, 10.0, 100.0, 50.0)];
+        // Create rects (would form edges in Lattice) but not lines
+        let rects = vec![
+            make_rect(10.0, 10.0, 100.0, 50.0),
+            make_rect(100.0, 10.0, 190.0, 50.0),
+        ];
         let page = Page::with_geometry(0, 612.0, 792.0, vec![], vec![], rects, vec![]);
 
         let strict_settings = TableSettings {

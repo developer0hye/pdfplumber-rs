@@ -775,6 +775,11 @@ pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
             .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
     });
 
+    // A group of one cell is a standalone box — a button outline, a page
+    // border, a call-out — not a table. Python pdfplumber drops these, and
+    // without the rule any bordered rectangle on a page is reported as a table.
+    tables.retain(|table| table.cells.len() > 1);
+
     tables
 }
 
@@ -3146,19 +3151,29 @@ mod tests {
 
     #[test]
     fn test_cells_to_tables_single_cell() {
-        // A single cell forms a single table
+        // A lone cell is a standalone box, not a table.
         let cells = vec![make_cell(0.0, 0.0, 50.0, 30.0)];
+        assert!(cells_to_tables(cells).is_empty());
+    }
+
+    #[test]
+    fn test_cells_to_tables_two_adjacent_cells() {
+        // Two cells sharing a border are the smallest real table.
+        let cells = vec![
+            make_cell(0.0, 0.0, 50.0, 30.0),
+            make_cell(50.0, 0.0, 100.0, 30.0),
+        ];
         let tables = cells_to_tables(cells);
+
         assert_eq!(tables.len(), 1);
         assert_approx(tables[0].bbox.x0, 0.0);
         assert_approx(tables[0].bbox.top, 0.0);
-        assert_approx(tables[0].bbox.x1, 50.0);
+        assert_approx(tables[0].bbox.x1, 100.0);
         assert_approx(tables[0].bbox.bottom, 30.0);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
         assert_eq!(tables[0].rows.len(), 1);
-        assert_eq!(tables[0].rows[0].len(), 1);
-        assert_eq!(tables[0].columns.len(), 1);
-        assert_eq!(tables[0].columns[0].len(), 1);
+        assert_eq!(tables[0].rows[0].len(), 2);
+        assert_eq!(tables[0].columns.len(), 2);
     }
 
     #[test]
@@ -3380,11 +3395,12 @@ mod tests {
     #[test]
     fn test_lattice_with_rect_edges() {
         // Lattice strategy includes rect-sourced edges.
-        // Build edges from rect sources that form a 1-cell table.
+        // Build edges from rect sources that form a two-cell table.
         let edges = vec![
             make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::RectTop),
             make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::RectBottom),
             make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
+            make_v_edge_src(50.0, 0.0, 50.0, crate::edges::EdgeSource::RectRight),
             make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::RectRight),
         ];
         let settings = TableSettings {
@@ -3394,9 +3410,9 @@ mod tests {
         let finder = TableFinder::new(edges, settings);
         let tables = finder.find_tables();
 
-        // Lattice includes rect edges → should find 1 table with 1 cell
+        // Lattice includes rect edges → should find 1 table with 2 cells
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
@@ -3428,6 +3444,7 @@ mod tests {
             make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::Line),
             make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::Line),
             make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+            make_v_edge_src(50.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
             make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
         ];
         let settings = TableSettings {
@@ -3438,7 +3455,7 @@ mod tests {
         let tables = finder.find_tables();
 
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
@@ -3450,6 +3467,7 @@ mod tests {
             make_h_edge(0.0, 0.0, 100.0),  // length 100, kept
             make_h_edge(0.0, 50.0, 100.0), // length 100, kept
             make_v_edge(0.0, 0.0, 50.0),   // length 50, kept
+            make_v_edge(50.0, 0.0, 50.0),  // length 50, kept
             make_v_edge(100.0, 0.0, 50.0), // length 50, kept
             // Short edges that should be filtered
             make_h_edge(200.0, 0.0, 201.0), // length 1, filtered
@@ -3464,7 +3482,7 @@ mod tests {
 
         // Only the main grid edges remain → 1 table
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
@@ -3505,6 +3523,7 @@ mod tests {
             make_h_edge(55.0, -0.3, 100.0),
             make_h_edge(0.0, 50.0, 100.0),
             make_v_edge(0.0, 0.0, 50.0),
+            make_v_edge(50.0, 0.0, 50.0),
             make_v_edge(100.2, 0.0, 25.0),
             make_v_edge(99.8, 23.0, 50.0),
         ];
@@ -3512,9 +3531,9 @@ mod tests {
         let finder = TableFinder::new(edges, settings);
         let tables = finder.find_tables();
 
-        // After snap+join, should form 1 table with 1 cell
+        // After snap+join, should form 1 table with 2 cells
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
@@ -3546,11 +3565,12 @@ mod tests {
             // Line edges forming top/bottom
             make_h_edge_src(0.0, 0.0, 100.0, crate::edges::EdgeSource::Line),
             make_h_edge_src(0.0, 50.0, 100.0, crate::edges::EdgeSource::Line),
-            // Line edges forming left/right
+            // Line edges forming left/right plus one divider
             make_v_edge_src(0.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
+            make_v_edge_src(50.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
             make_v_edge_src(100.0, 0.0, 50.0, crate::edges::EdgeSource::Line),
-            // Rect edge adding a middle vertical line (should be ignored in strict mode)
-            make_v_edge_src(50.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
+            // Rect edge adding a third column divider (ignored in strict mode)
+            make_v_edge_src(75.0, 0.0, 50.0, crate::edges::EdgeSource::RectLeft),
         ];
         let settings = TableSettings {
             strategy: Strategy::LatticeStrict,
@@ -3559,9 +3579,9 @@ mod tests {
         let finder = TableFinder::new(edges, settings);
         let tables = finder.find_tables();
 
-        // Only line edges used → 1 table with 1 cell (not 2 cells)
+        // Only line edges used → 2 cells, not the 3 the rect edge would add
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     // --- extract_text_for_cells tests (US-036) ---
@@ -4162,10 +4182,10 @@ mod tests {
 
     #[test]
     fn test_explicit_2x2_grid() {
-        // A 2x2 grid (2 horizontal + 2 vertical) → 1 cell
+        // 2 horizontal + 3 vertical lines → 2 cells side by side
         let explicit = ExplicitLines {
             horizontal_lines: vec![10.0, 50.0],
-            vertical_lines: vec![100.0, 300.0],
+            vertical_lines: vec![100.0, 200.0, 300.0],
         };
         let settings = TableSettings {
             strategy: Strategy::Explicit,
@@ -4176,11 +4196,11 @@ mod tests {
         let tables = finder.find_tables();
 
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
         let cell = &tables[0].cells[0];
         assert_eq!(cell.bbox.x0, 100.0);
         assert_eq!(cell.bbox.top, 10.0);
-        assert_eq!(cell.bbox.x1, 300.0);
+        assert_eq!(cell.bbox.x1, 200.0);
         assert_eq!(cell.bbox.bottom, 50.0);
     }
 
@@ -4201,7 +4221,11 @@ mod tests {
     fn test_explicit_mixing_with_detected_edges() {
         // Detected edges form partial grid; explicit lines complete it
         // Detected: two vertical edges at x=0 and x=100
-        let detected_edges = vec![make_v_edge(0.0, 0.0, 40.0), make_v_edge(100.0, 0.0, 40.0)];
+        let detected_edges = vec![
+            make_v_edge(0.0, 0.0, 40.0),
+            make_v_edge(50.0, 0.0, 40.0),
+            make_v_edge(100.0, 0.0, 40.0),
+        ];
         // Explicit: add horizontal lines at y=0 and y=40
         let explicit = ExplicitLines {
             horizontal_lines: vec![0.0, 40.0],
@@ -4215,9 +4239,9 @@ mod tests {
         let finder = TableFinder::new(detected_edges, settings);
         let tables = finder.find_tables();
 
-        // The explicit horizontal lines + detected vertical edges form a complete grid → 1 cell
+        // The explicit horizontal lines + detected vertical edges form a complete grid
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0].cells.len(), 1);
+        assert_eq!(tables[0].cells.len(), 2);
     }
 
     #[test]
