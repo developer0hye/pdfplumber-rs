@@ -17,7 +17,20 @@ pub struct WordOptions {
     pub text_direction: TextDirection,
     /// If true, expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
     pub expand_ligatures: bool,
+    /// When set, the horizontal tolerance becomes this fraction of the preceding
+    /// character's font size instead of the fixed `x_tolerance`.
+    pub x_tolerance_ratio: Option<f64>,
+    /// When set, the vertical tolerance becomes this fraction of the preceding
+    /// character's font size instead of the fixed `y_tolerance`.
+    pub y_tolerance_ratio: Option<f64>,
+    /// Characters that stand alone as their own word, splitting whatever
+    /// surrounds them. Pass [`DEFAULT_SPLIT_PUNCTUATION`] for the usual set.
+    pub split_at_punctuation: Option<String>,
 }
+
+/// The punctuation characters pdfplumber splits on when asked to split at
+/// punctuation, i.e. Python's `string.punctuation`.
+pub const DEFAULT_SPLIT_PUNCTUATION: &str = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
 
 impl Default for WordOptions {
     fn default() -> Self {
@@ -28,6 +41,9 @@ impl Default for WordOptions {
             use_text_flow: false,
             text_direction: TextDirection::default(),
             expand_ligatures: true,
+            x_tolerance_ratio: None,
+            y_tolerance_ratio: None,
+            split_at_punctuation: None,
         }
     }
 }
@@ -157,6 +173,20 @@ impl WordExtractor {
                     words.push(Self::make_word(&current_chars, options.expand_ligatures));
                     current_chars.clear();
                 }
+                continue;
+            }
+
+            // A punctuation character stands alone: it closes the word before it
+            // and forms a word of its own, whatever its spacing.
+            if Self::is_split_punctuation(&ch.text, options) {
+                if !current_chars.is_empty() {
+                    words.push(Self::make_word(&current_chars, options.expand_ligatures));
+                    current_chars.clear();
+                }
+                words.push(Self::make_word(
+                    std::slice::from_ref(ch),
+                    options.expand_ligatures,
+                ));
                 continue;
             }
 
@@ -334,7 +364,32 @@ impl WordExtractor {
         let x_gap =
             (last.bbox.x0.max(current.bbox.x0) - last.bbox.x1.min(current.bbox.x1)).max(0.0);
         let y_diff = (current.bbox.top - last.bbox.top).abs();
-        x_gap > options.x_tolerance || y_diff > options.y_tolerance
+        x_gap > Self::x_tolerance_for(last, options)
+            || y_diff > Self::y_tolerance_for(last, options)
+    }
+
+    /// Horizontal tolerance to apply after `last`, honouring `x_tolerance_ratio`.
+    fn x_tolerance_for(last: &Char, options: &WordOptions) -> f64 {
+        match options.x_tolerance_ratio {
+            Some(ratio) => ratio * last.size,
+            None => options.x_tolerance,
+        }
+    }
+
+    /// Vertical tolerance to apply after `last`, honouring `y_tolerance_ratio`.
+    fn y_tolerance_for(last: &Char, options: &WordOptions) -> f64 {
+        match options.y_tolerance_ratio {
+            Some(ratio) => ratio * last.size,
+            None => options.y_tolerance,
+        }
+    }
+
+    /// Whether this character's text is one of the configured split characters.
+    fn is_split_punctuation(text: &str, options: &WordOptions) -> bool {
+        match &options.split_at_punctuation {
+            Some(punctuation) => !text.is_empty() && text.chars().all(|c| punctuation.contains(c)),
+            None => false,
+        }
     }
 
     /// Check if two vertically-adjacent chars should be split into separate words.
@@ -346,7 +401,8 @@ impl WordExtractor {
             - last.bbox.bottom.min(current.bbox.bottom))
         .max(0.0);
         let x_diff = (current.bbox.x0 - last.bbox.x0).abs();
-        y_gap > options.y_tolerance || x_diff > options.x_tolerance
+        y_gap > Self::y_tolerance_for(last, options)
+            || x_diff > Self::x_tolerance_for(last, options)
     }
 
     fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {
