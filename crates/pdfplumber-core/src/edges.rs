@@ -136,6 +136,31 @@ pub fn edge_from_curve(curve: &Curve) -> Edge {
     }
 }
 
+/// Derive one edge per straight run of a path.
+///
+/// A path that outlines a table contributes a rule for every segment between
+/// consecutive points, so each pair is its own edge. Segments that are neither
+/// vertical nor horizontal come back as [`Orientation::Diagonal`] and are
+/// ignored by table detection, which only pairs axis-aligned edges.
+pub fn edges_from_curve(curve: &Curve) -> Vec<Edge> {
+    curve
+        .pts
+        .windows(2)
+        .map(|pair| {
+            let (start_x, start_y) = pair[0];
+            let (end_x, end_y) = pair[1];
+            Edge {
+                x0: start_x.min(end_x),
+                top: start_y.min(end_y),
+                x1: start_x.max(end_x),
+                bottom: start_y.max(end_y),
+                orientation: classify_edge_orientation(start_x, start_y, end_x, end_y),
+                source: EdgeSource::Curve,
+            }
+        })
+        .collect()
+}
+
 /// Derive all edges from collections of lines, rects, and curves.
 pub fn derive_edges(lines: &[Line], rects: &[Rect], curves: &[Curve]) -> Vec<Edge> {
     let mut edges = Vec::new();
@@ -149,7 +174,7 @@ pub fn derive_edges(lines: &[Line], rects: &[Rect], curves: &[Curve]) -> Vec<Edg
     }
 
     for curve in curves {
-        edges.push(edge_from_curve(curve));
+        edges.extend(edges_from_curve(curve));
     }
 
     edges
@@ -438,8 +463,9 @@ mod tests {
             (100.0, 100.0),
         ])];
         let edges = derive_edges(&[], &[], &curves);
-        assert_eq!(edges.len(), 1);
-        assert_eq!(edges[0].source, EdgeSource::Curve);
+        // One edge per segment of the four-point path.
+        assert_eq!(edges.len(), 3);
+        assert!(edges.iter().all(|e| e.source == EdgeSource::Curve));
     }
 
     #[test]
@@ -453,8 +479,8 @@ mod tests {
             (100.0, 100.0),
         ])];
         let edges = derive_edges(&lines, &rects, &curves);
-        // 1 from line + 4 from rect + 1 from curve = 6
-        assert_eq!(edges.len(), 6);
+        // 1 from the line, 4 from the rect, 3 from the four-point curve
+        assert_eq!(edges.len(), 8);
         assert_eq!(edges[0].source, EdgeSource::Line);
         assert_eq!(edges[1].source, EdgeSource::RectTop);
         assert_eq!(edges[4].source, EdgeSource::RectRight);

@@ -195,9 +195,10 @@ fn test_page_with_all_object_types() {
     // Curves
     assert_eq!(page.curves().len(), 1);
 
-    // Edges: 6 from lines + 8 from rects (4 per rect) + 1 from curve = 15
+    // Edges: 6 from lines, 8 from rects (4 per rect), and one per segment of
+    // the four-point curve = 17
     let edges = page.edges();
-    assert_eq!(edges.len(), 15);
+    assert_eq!(edges.len(), 17);
 
     // Images
     assert_eq!(page.images().len(), 1);

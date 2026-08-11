@@ -176,78 +176,22 @@ fn extract_subpaths(segments: &[PathSegment]) -> Vec<&[PathSegment]> {
     subpaths
 }
 
-/// Collect vertices from a subpath's segments.
-///
-/// Returns the list of unique vertices (endpoints of line segments).
-/// ClosePath adds the first vertex as the closing point.
-fn collect_vertices(subpath: &[PathSegment]) -> Vec<Point> {
-    let mut vertices = Vec::new();
-    let mut has_curves = false;
-
-    for seg in subpath {
-        match seg {
-            PathSegment::MoveTo(p) => {
-                vertices.push(*p);
-            }
-            PathSegment::LineTo(p) => {
-                vertices.push(*p);
-            }
-            PathSegment::CurveTo { .. } => {
-                has_curves = true;
-            }
-            PathSegment::ClosePath => {
-                // ClosePath implicitly draws a line back to the start.
-                // We don't need to add the start vertex again for detection.
-            }
-        }
-    }
-
-    // If there are curves, this can't be a simple rectangle or line set
-    if has_curves {
-        return Vec::new();
-    }
-
-    vertices
-}
-
-/// Check if a subpath is closed (has a ClosePath segment or start == end).
-fn is_closed(subpath: &[PathSegment], vertices: &[Point]) -> bool {
-    if subpath.iter().any(|s| matches!(s, PathSegment::ClosePath)) {
-        return true;
-    }
-    // Also check if start and end points coincide
-    if vertices.len() >= 2 {
-        let first = vertices[0];
-        let last = vertices[vertices.len() - 1];
-        return (first.x - last.x).abs() < AXIS_TOLERANCE
-            && (first.y - last.y).abs() < AXIS_TOLERANCE;
-    }
-    false
-}
-
-/// Check if a subpath contains any curve segments.
-fn has_curves(subpath: &[PathSegment]) -> bool {
-    subpath
-        .iter()
-        .any(|s| matches!(s, PathSegment::CurveTo { .. }))
-}
-
 /// Extract Line, Rect, and Curve objects from a painted path.
 ///
 /// Coordinates are converted from PDF's bottom-left origin to pdfplumber's
 /// top-left origin using the provided `page_height`.
 ///
-/// Rectangle detection:
-/// - Axis-aligned closed paths with exactly 4 vertices (no curves)
-/// - Both from `re` operator and manual 4-line constructions
+/// Each subpath becomes exactly one object, classified by its shape the way
+/// pdfminer does:
 ///
-/// Line extraction:
-/// - Each LineTo segment in a non-rectangle, non-curve subpath becomes a Line
-/// - Stroked paths produce lines; non-stroked paths do not produce lines
+/// * a single straight segment is a [`Line`],
+/// * a closed, axis-aligned four-corner loop is a [`Rect`],
+/// * anything else — a polyline, a Bézier, an open triangle — is a [`Curve`].
 ///
-/// Curve extraction:
-/// - Each CurveTo segment becomes a Curve object with control points
-/// - LineTo segments in curve-containing subpaths also become Lines (if stroked)
+/// Whether the path was stroked or filled does not affect the classification:
+/// a filled shape is as much on the page as a stroked one. A curve keeps the
+/// endpoint of each segment in `pts`; Bézier control points are not endpoints
+/// and are left out.
 pub fn extract_shapes(
     painted: &PaintedPath,
     page_height: f64,
@@ -256,49 +200,19 @@ pub fn extract_shapes(
     let mut rects = Vec::new();
     let mut curves = Vec::new();
 
-    let subpaths = extract_subpaths(&painted.path.segments);
-
-    for subpath in subpaths {
-        // If the subpath has curves, extract curve objects
-        if has_curves(subpath) {
-            extract_curves_from_subpath(subpath, painted, page_height, &mut curves, &mut lines);
+    for subpath in extract_subpaths(&painted.path.segments) {
+        let Some((shape, points)) = shape_of(subpath) else {
             continue;
-        }
+        };
 
-        let vertices = collect_vertices(subpath);
-        if vertices.is_empty() {
-            continue;
-        }
-
-        let closed = is_closed(subpath, &vertices);
-
-        // Try to detect rectangle from closed 4-vertex subpath
-        if closed && vertices.len() == 4 {
-            if let Some((x0, top, x1, bottom)) = try_detect_rect(&vertices, page_height) {
-                rects.push(Rect {
-                    x0,
-                    top,
-                    x1,
-                    bottom,
-                    line_width: painted.line_width,
-                    stroke: painted.stroke,
-                    fill: painted.fill,
-                    stroke_color: painted.stroke_color.clone(),
-                    fill_color: painted.fill_color.clone(),
-                });
-                continue;
+        match shape.as_str() {
+            "ml" | "mlh" => {
+                push_line(points[0], points[1], painted, page_height, &mut lines);
             }
-        }
-
-        // Also check 5 vertices where the last == first (rectangle without ClosePath segment)
-        if closed && vertices.len() == 5 {
-            let first = vertices[0];
-            let last = vertices[4];
-            if (first.x - last.x).abs() < AXIS_TOLERANCE
-                && (first.y - last.y).abs() < AXIS_TOLERANCE
-            {
-                if let Some((x0, top, x1, bottom)) = try_detect_rect(&vertices[..4], page_height) {
-                    rects.push(Rect {
+            "mlllh" | "mllll" => {
+                let closed_loop = points_coincide(points[0], points[4]);
+                match try_detect_rect(&points[..4], page_height).filter(|_| closed_loop) {
+                    Some((x0, top, x1, bottom)) => rects.push(Rect {
                         x0,
                         top,
                         x1,
@@ -308,55 +222,100 @@ pub fn extract_shapes(
                         fill: painted.fill,
                         stroke_color: painted.stroke_color.clone(),
                         fill_color: painted.fill_color.clone(),
-                    });
-                    continue;
+                    }),
+                    None => curves.push(curve_from_points(&points, painted, page_height)),
                 }
             }
+            _ => curves.push(curve_from_points(&points, painted, page_height)),
         }
-
-        // Extract individual lines from stroked paths
-        if !painted.stroke {
-            continue;
-        }
-
-        extract_lines_from_subpath(subpath, &vertices, painted, page_height, &mut lines);
     }
 
     (lines, rects, curves)
 }
 
-/// Extract lines from a non-curve subpath.
-fn extract_lines_from_subpath(
-    subpath: &[PathSegment],
-    vertices: &[Point],
-    painted: &PaintedPath,
-    page_height: f64,
-    lines: &mut Vec<Line>,
-) {
-    let mut prev_point: Option<Point> = None;
-    for seg in subpath {
-        match seg {
+/// Describe a subpath as pdfminer does: a shape string and one point per
+/// segment.
+///
+/// The shape string uses the PDF operator letters — `m` move, `l` line, `c`
+/// curve, `h` close — and each segment contributes its endpoint, with `h`
+/// contributing the point the subpath started from. A trailing line back to
+/// the start before a close is redundant and dropped, so a rectangle drawn
+/// either way describes the same shape.
+///
+/// Returns `None` for a subpath that does not start with a move or is too
+/// short to describe anything.
+fn shape_of(subpath: &[PathSegment]) -> Option<(String, Vec<Point>)> {
+    let start = match subpath.first()? {
+        PathSegment::MoveTo(p) => *p,
+        _ => return None,
+    };
+
+    let mut shape = String::with_capacity(subpath.len());
+    let mut points = Vec::with_capacity(subpath.len());
+
+    for segment in subpath {
+        match segment {
             PathSegment::MoveTo(p) => {
-                prev_point = Some(*p);
+                shape.push('m');
+                points.push(*p);
             }
             PathSegment::LineTo(p) => {
-                if let Some(start) = prev_point {
-                    push_line(start, *p, painted, page_height, lines);
-                }
-                prev_point = Some(*p);
+                shape.push('l');
+                points.push(*p);
+            }
+            PathSegment::CurveTo { end, .. } => {
+                shape.push('c');
+                points.push(*end);
             }
             PathSegment::ClosePath => {
-                if let (Some(current), Some(start_pt)) = (prev_point, vertices.first().copied()) {
-                    if (current.x - start_pt.x).abs() > AXIS_TOLERANCE
-                        || (current.y - start_pt.y).abs() > AXIS_TOLERANCE
-                    {
-                        push_line(current, start_pt, painted, page_height, lines);
-                    }
-                }
-                prev_point = vertices.first().copied();
+                shape.push('h');
+                points.push(start);
             }
-            PathSegment::CurveTo { .. } => {}
         }
+    }
+
+    if shape.len() > 3 && shape.ends_with("lh") && points_coincide(points[points.len() - 2], start)
+    {
+        shape.truncate(shape.len() - 2);
+        shape.push('h');
+        points.remove(points.len() - 2);
+    }
+
+    if points.len() < 2 {
+        return None;
+    }
+
+    Some((shape, points))
+}
+
+/// Whether two points are the same, allowing for float noise.
+fn points_coincide(a: Point, b: Point) -> bool {
+    (a.x - b.x).abs() < AXIS_TOLERANCE && (a.y - b.y).abs() < AXIS_TOLERANCE
+}
+
+/// Build a curve spanning the given segment endpoints.
+fn curve_from_points(points: &[Point], painted: &PaintedPath, page_height: f64) -> Curve {
+    let pts: Vec<(f64, f64)> = points
+        .iter()
+        .map(|p| (p.x, flip_y(p.y, page_height)))
+        .collect();
+
+    let x0 = pts.iter().map(|p| p.0).fold(f64::INFINITY, f64::min);
+    let x1 = pts.iter().map(|p| p.0).fold(f64::NEG_INFINITY, f64::max);
+    let top = pts.iter().map(|p| p.1).fold(f64::INFINITY, f64::min);
+    let bottom = pts.iter().map(|p| p.1).fold(f64::NEG_INFINITY, f64::max);
+
+    Curve {
+        x0,
+        top,
+        x1,
+        bottom,
+        pts,
+        line_width: painted.line_width,
+        stroke: painted.stroke,
+        fill: painted.fill,
+        stroke_color: painted.stroke_color.clone(),
+        fill_color: painted.fill_color.clone(),
     }
 }
 
@@ -371,99 +330,15 @@ fn push_line(
     let fy0 = flip_y(start.y, page_height);
     let fy1 = flip_y(end.y, page_height);
 
-    let x0 = start.x.min(end.x);
-    let x1 = start.x.max(end.x);
-    let top = fy0.min(fy1);
-    let bottom = fy0.max(fy1);
-    let orientation = classify_orientation(start.x, fy0, end.x, fy1);
-
     lines.push(Line {
-        x0,
-        top,
-        x1,
-        bottom,
+        x0: start.x.min(end.x),
+        top: fy0.min(fy1),
+        x1: start.x.max(end.x),
+        bottom: fy0.max(fy1),
         line_width: painted.line_width,
         stroke_color: painted.stroke_color.clone(),
-        orientation,
+        orientation: classify_orientation(start.x, fy0, end.x, fy1),
     });
-}
-
-/// Extract curves (and lines from mixed subpaths) from a subpath containing CurveTo segments.
-fn extract_curves_from_subpath(
-    subpath: &[PathSegment],
-    painted: &PaintedPath,
-    page_height: f64,
-    curves: &mut Vec<Curve>,
-    lines: &mut Vec<Line>,
-) {
-    let mut prev_point: Option<Point> = None;
-    let mut subpath_start: Option<Point> = None;
-
-    for seg in subpath {
-        match seg {
-            PathSegment::MoveTo(p) => {
-                prev_point = Some(*p);
-                subpath_start = Some(*p);
-            }
-            PathSegment::LineTo(p) => {
-                if painted.stroke {
-                    if let Some(start) = prev_point {
-                        push_line(start, *p, painted, page_height, lines);
-                    }
-                }
-                prev_point = Some(*p);
-            }
-            PathSegment::CurveTo { cp1, cp2, end } => {
-                if let Some(start) = prev_point {
-                    // Collect all x/y coordinates for bbox
-                    let all_x = [start.x, cp1.x, cp2.x, end.x];
-                    let all_y = [
-                        flip_y(start.y, page_height),
-                        flip_y(cp1.y, page_height),
-                        flip_y(cp2.y, page_height),
-                        flip_y(end.y, page_height),
-                    ];
-
-                    let x0 = all_x.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let x1 = all_x.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-                    let top = all_y.iter().cloned().fold(f64::INFINITY, f64::min);
-                    let bottom = all_y.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-
-                    curves.push(Curve {
-                        x0,
-                        top,
-                        x1,
-                        bottom,
-                        pts: vec![
-                            (start.x, flip_y(start.y, page_height)),
-                            (cp1.x, flip_y(cp1.y, page_height)),
-                            (cp2.x, flip_y(cp2.y, page_height)),
-                            (end.x, flip_y(end.y, page_height)),
-                        ],
-                        line_width: painted.line_width,
-                        stroke: painted.stroke,
-                        fill: painted.fill,
-                        stroke_color: painted.stroke_color.clone(),
-                        fill_color: painted.fill_color.clone(),
-                    });
-                }
-                prev_point = Some(*end);
-            }
-            PathSegment::ClosePath => {
-                // ClosePath draws a line back to the subpath start
-                if painted.stroke {
-                    if let (Some(current), Some(start_pt)) = (prev_point, subpath_start) {
-                        if (current.x - start_pt.x).abs() > AXIS_TOLERANCE
-                            || (current.y - start_pt.y).abs() > AXIS_TOLERANCE
-                        {
-                            push_line(current, start_pt, painted, page_height, lines);
-                        }
-                    }
-                }
-                prev_point = subpath_start;
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -744,7 +619,7 @@ mod tests {
     // --- Non-rectangular closed path produces lines ---
 
     #[test]
-    fn test_non_rect_closed_path_produces_lines() {
+    fn test_non_rect_closed_path_is_a_curve() {
         // A triangle (3 vertices, not 4) — not a rectangle
         let mut builder = PathBuilder::new(Ctm::identity());
         builder.move_to(100.0, 100.0);
@@ -753,22 +628,19 @@ mod tests {
         builder.close_path(); // closes back to (100, 100)
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
-        // 3 lines: (100,100)→(200,100), (200,100)→(150,200), (150,200)→(100,100)
-        assert_eq!(lines.len(), 3);
+        assert!(lines.is_empty());
 
-        // First line is horizontal
-        assert_eq!(lines[0].orientation, Orientation::Horizontal);
-        // Other two are diagonal
-        assert_eq!(lines[1].orientation, Orientation::Diagonal);
-        assert_eq!(lines[2].orientation, Orientation::Diagonal);
+        // One shape, holding the corners it was drawn through and back again.
+        assert_eq!(curves.len(), 1);
+        assert_eq!(curves[0].pts.len(), 4);
     }
 
     // --- Non-axis-aligned 4-vertex path produces lines ---
 
     #[test]
-    fn test_non_axis_aligned_quadrilateral_produces_lines() {
+    fn test_non_axis_aligned_quadrilateral_is_a_curve() {
         // A diamond/rhombus shape — 4 vertices but not axis-aligned
         let mut builder = PathBuilder::new(Ctm::identity());
         builder.move_to(150.0, 100.0);
@@ -778,16 +650,17 @@ mod tests {
         builder.close_path();
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
-        assert_eq!(lines.len(), 4); // 4 diagonal lines
+        assert!(lines.is_empty());
+        assert_eq!(curves.len(), 1);
     }
 
     // --- Fill-only path does not produce lines ---
 
     #[test]
-    fn test_fill_only_does_not_produce_lines() {
-        // A non-rectangle filled path should not produce lines
+    fn test_fill_only_shape_is_still_extracted() {
+        // A filled triangle is on the page even though nothing was stroked.
         let mut builder = PathBuilder::new(Ctm::identity());
         builder.move_to(100.0, 100.0);
         builder.line_to(200.0, 100.0);
@@ -795,9 +668,11 @@ mod tests {
         builder.close_path();
         let painted = builder.fill(&default_gs());
 
-        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
-        assert!(lines.is_empty()); // fill-only, no stroked lines
+        let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
+        assert!(lines.is_empty());
         assert!(rects.is_empty()); // not a rectangle
+        assert_eq!(curves.len(), 1);
+        assert!(curves[0].fill);
     }
 
     // --- Multiple subpaths ---
@@ -933,9 +808,10 @@ mod tests {
 
         let (lines, rects, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         assert!(rects.is_empty());
-        // ClosePath generates a line back to (0,0) since path is stroked
-        assert_eq!(lines.len(), 1);
+        assert!(lines.is_empty());
         assert_eq!(curves.len(), 1);
+        // Start, the curve's endpoint, and the close back to the start.
+        assert_eq!(curves[0].pts.len(), 3);
     }
 
     // --- Rectangle with CTM transformation ---
@@ -975,20 +851,13 @@ mod tests {
         assert_eq!(curves.len(), 1);
 
         let curve = &curves[0];
-        // 4 points: start, cp1, cp2, end
-        assert_eq!(curve.pts.len(), 4);
-        // Start: (0, flip(0)) = (0, 792)
+        // Segment endpoints only: where the path starts and where it lands.
+        // Control points steer the curve but are not points on it.
+        assert_eq!(curve.pts.len(), 2);
         assert_approx(curve.pts[0].0, 0.0);
         assert_approx(curve.pts[0].1, 792.0);
-        // CP1: (10, flip(50)) = (10, 742)
-        assert_approx(curve.pts[1].0, 10.0);
-        assert_approx(curve.pts[1].1, 742.0);
-        // CP2: (90, flip(50)) = (90, 742)
-        assert_approx(curve.pts[2].0, 90.0);
-        assert_approx(curve.pts[2].1, 742.0);
-        // End: (100, flip(0)) = (100, 792)
-        assert_approx(curve.pts[3].0, 100.0);
-        assert_approx(curve.pts[3].1, 792.0);
+        assert_approx(curve.pts[1].0, 100.0);
+        assert_approx(curve.pts[1].1, 792.0);
     }
 
     #[test]
@@ -1001,11 +870,10 @@ mod tests {
         let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         let curve = &curves[0];
 
-        // x: min(0, 10, 90, 100) = 0, max = 100
+        // The box spans the endpoints: x from 0 to 100, both at y = 792.
         assert_approx(curve.x0, 0.0);
         assert_approx(curve.x1, 100.0);
-        // y (flipped): min(792, 742, 742, 792) = 742, max = 792
-        assert_approx(curve.top, 742.0);
+        assert_approx(curve.top, 792.0);
         assert_approx(curve.bottom, 792.0);
     }
 
@@ -1044,7 +912,8 @@ mod tests {
 
     #[test]
     fn test_multiple_curves_in_subpath() {
-        // Two curve segments in one subpath
+        // Two curve segments in one subpath are one object, not two: a subpath
+        // is a single shape however many segments draw it.
         let mut builder = PathBuilder::new(Ctm::identity());
         builder.move_to(0.0, 0.0);
         builder.curve_to(10.0, 50.0, 40.0, 50.0, 50.0, 0.0);
@@ -1052,19 +921,19 @@ mod tests {
         let painted = builder.stroke(&default_gs());
 
         let (_, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
-        assert_eq!(curves.len(), 2);
+        assert_eq!(curves.len(), 1);
 
-        // First curve: (0,0) -> (50,0)
-        assert_approx(curves[0].pts[0].0, 0.0);
-        assert_approx(curves[0].pts[3].0, 50.0);
-        // Second curve: (50,0) -> (100,0)
-        assert_approx(curves[1].pts[0].0, 50.0);
-        assert_approx(curves[1].pts[3].0, 100.0);
+        let pts = &curves[0].pts;
+        assert_eq!(pts.len(), 3);
+        assert_approx(pts[0].0, 0.0);
+        assert_approx(pts[1].0, 50.0);
+        assert_approx(pts[2].0, 100.0);
     }
 
     #[test]
     fn test_mixed_line_and_curve_subpath() {
-        // Subpath with both LineTo and CurveTo: line + curve + line
+        // One subpath of line, curve and line is one shape, and a shape with a
+        // curve in it is never a Line object.
         let mut builder = PathBuilder::new(Ctm::identity());
         builder.move_to(0.0, 0.0);
         builder.line_to(50.0, 0.0);
@@ -1074,7 +943,8 @@ mod tests {
 
         let (lines, _, curves) = extract_shapes(&painted, PAGE_HEIGHT);
         assert_eq!(curves.len(), 1);
-        assert_eq!(lines.len(), 2); // line_to(50,0) and line_to(70,50)
+        assert!(lines.is_empty());
+        assert_eq!(curves[0].pts.len(), 4);
     }
 
     #[test]
@@ -1090,10 +960,9 @@ mod tests {
         assert_eq!(curves.len(), 1);
 
         let curve = &curves[0];
-        // Coords are CTM-transformed: (0,0)->(0,0), (10,25)->(20,50), (40,25)->(80,50), (50,0)->(100,0)
+        // The endpoints are CTM-transformed: (0,0) -> (0,0), (50,0) -> (100,0)
+        assert_eq!(curve.pts.len(), 2);
         assert_approx(curve.pts[0].0, 0.0);
-        assert_approx(curve.pts[1].0, 20.0);
-        assert_approx(curve.pts[2].0, 80.0);
-        assert_approx(curve.pts[3].0, 100.0);
+        assert_approx(curve.pts[1].0, 100.0);
     }
 }
