@@ -60,13 +60,27 @@ pub fn char_from_event(
     let ox = -vx / 1000.0;
     let oy = -vy / 1000.0;
 
+    // Vertical extent of the glyph box in glyph-normalized space.
+    //
+    // For horizontal writing the box rises exactly one em above its own
+    // descent, matching pdfminer (`descent` to `descent + fontsize`), so a
+    // char's height always equals its font size. Vertical writing keeps the
+    // ascent/descent span, where the glyph is placed relative to its vertical
+    // origin instead of a baseline.
+    let is_vertical = event.vertical_origin != (0.0, 0.0);
+    let (box_bottom, box_top) = if is_vertical {
+        (oy + descent_norm, oy + ascent_norm)
+    } else {
+        (oy + descent_norm, oy + descent_norm + 1.0)
+    };
+
     // Four corners of the character rectangle in glyph-normalized space,
     // transformed through Trm to page space (PDF bottom-left origin).
     let corners = [
-        trm.transform_point(Point::new(ox, oy + descent_norm)),
-        trm.transform_point(Point::new(ox + w_norm, oy + descent_norm)),
-        trm.transform_point(Point::new(ox + w_norm, oy + ascent_norm)),
-        trm.transform_point(Point::new(ox, oy + ascent_norm)),
+        trm.transform_point(Point::new(ox, box_bottom)),
+        trm.transform_point(Point::new(ox + w_norm, box_bottom)),
+        trm.transform_point(Point::new(ox + w_norm, box_top)),
+        trm.transform_point(Point::new(ox, box_top)),
     ];
 
     // Axis-aligned bounding box in PDF page space

@@ -14,6 +14,12 @@ pub struct StandardFontData {
     pub widths: [u16; 256],
     /// Font bounding box [llx, lly, urx, ury] in 1/1000 em-square units.
     pub font_bbox: [i16; 4],
+    /// Font ascent in 1/1000 em-square units, from the AFM `Ascender` entry.
+    pub ascent: f64,
+    /// Font descent in 1/1000 em-square units (negative), from the AFM `Descender`
+    /// entry. Symbol and ZapfDingbats declare neither, so both are 0 — the same
+    /// value pdfminer falls back to.
+    pub descent: f64,
 }
 
 /// Look up standard font data by font name.
@@ -23,15 +29,27 @@ pub struct StandardFontData {
 /// Symbol, ZapfDingbats.
 ///
 /// Returns `None` for unknown font names.
+/// The Microsoft names (`Arial`, `CourierNew`, `TimesNewRoman` and their style
+/// suffixes) are aliases carrying the same metrics, matching the set of names
+/// pdfminer resolves from its bundled AFM data.
 pub fn lookup(name: &str) -> Option<&'static StandardFontData> {
     match name {
-        "Courier" | "Courier-Bold" | "Courier-Oblique" | "Courier-BoldOblique" => Some(&COURIER),
-        "Helvetica" | "Helvetica-Oblique" => Some(&HELVETICA),
-        "Helvetica-Bold" | "Helvetica-BoldOblique" => Some(&HELVETICA_BOLD),
-        "Times-Roman" => Some(&TIMES_ROMAN),
-        "Times-Bold" => Some(&TIMES_BOLD),
-        "Times-Italic" => Some(&TIMES_ITALIC),
-        "Times-BoldItalic" => Some(&TIMES_BOLD_ITALIC),
+        "Courier"
+        | "Courier-Bold"
+        | "Courier-Oblique"
+        | "Courier-BoldOblique"
+        | "CourierNew"
+        | "CourierNew,Bold"
+        | "CourierNew,Italic"
+        | "CourierNew,BoldItalic" => Some(&COURIER),
+        "Helvetica" | "Helvetica-Oblique" | "Arial" | "Arial,Italic" => Some(&HELVETICA),
+        "Helvetica-Bold" | "Helvetica-BoldOblique" | "Arial,Bold" | "Arial,BoldItalic" => {
+            Some(&HELVETICA_BOLD)
+        }
+        "Times-Roman" | "TimesNewRoman" => Some(&TIMES_ROMAN),
+        "Times-Bold" | "TimesNewRoman,Bold" => Some(&TIMES_BOLD),
+        "Times-Italic" | "TimesNewRoman,Italic" => Some(&TIMES_ITALIC),
+        "Times-BoldItalic" | "TimesNewRoman,BoldItalic" => Some(&TIMES_BOLD_ITALIC),
         "Symbol" => Some(&SYMBOL),
         "ZapfDingbats" => Some(&ZAPF_DINGBATS),
         _ => None,
@@ -44,6 +62,8 @@ pub fn lookup(name: &str) -> Option<&'static StandardFontData> {
 static COURIER: StandardFontData = StandardFontData {
     widths: [600; 256],
     font_bbox: [-23, -250, 715, 805],
+    ascent: 627.0,
+    descent: -194.0,
 };
 
 // =============================================================================
@@ -95,6 +115,8 @@ static HELVETICA: StandardFontData = StandardFontData {
         556, 556, 556, 556, 556, 556, 556, 584, 611, 556, 556, 556, 556, 500, 556, 500,
     ],
     font_bbox: [-166, -225, 1000, 931],
+    ascent: 718.0,
+    descent: -207.0,
 };
 
 // =============================================================================
@@ -135,6 +157,8 @@ static HELVETICA_BOLD: StandardFontData = StandardFontData {
         611, 611, 611, 611, 611, 611, 611, 584, 611, 611, 611, 611, 611, 556, 611, 556,
     ],
     font_bbox: [-170, -228, 1003, 962],
+    ascent: 718.0,
+    descent: -207.0,
 };
 
 // =============================================================================
@@ -175,6 +199,8 @@ static TIMES_ROMAN: StandardFontData = StandardFontData {
         500, 500, 500, 500, 500, 500, 500, 564, 500, 500, 500, 500, 500, 500, 500, 500,
     ],
     font_bbox: [-168, -218, 1000, 898],
+    ascent: 683.0,
+    descent: -217.0,
 };
 
 // =============================================================================
@@ -215,6 +241,8 @@ static TIMES_BOLD: StandardFontData = StandardFontData {
         500, 556, 500, 500, 500, 500, 500, 570, 500, 556, 556, 556, 556, 500, 556, 500,
     ],
     font_bbox: [-168, -218, 1000, 935],
+    ascent: 683.0,
+    descent: -217.0,
 };
 
 // =============================================================================
@@ -255,6 +283,8 @@ static TIMES_ITALIC: StandardFontData = StandardFontData {
         500, 500, 500, 500, 500, 500, 500, 675, 500, 500, 500, 500, 500, 444, 500, 444,
     ],
     font_bbox: [-169, -217, 1010, 883],
+    ascent: 683.0,
+    descent: -217.0,
 };
 
 // =============================================================================
@@ -295,6 +325,8 @@ static TIMES_BOLD_ITALIC: StandardFontData = StandardFontData {
         500, 556, 500, 500, 500, 500, 500, 570, 500, 556, 556, 556, 556, 444, 500, 444,
     ],
     font_bbox: [-200, -218, 996, 921],
+    ascent: 683.0,
+    descent: -217.0,
 };
 
 // =============================================================================
@@ -334,6 +366,8 @@ static SYMBOL: StandardFontData = StandardFontData {
         0, 329, 274, 686, 686, 686, 384, 384, 384, 384, 384, 384, 494, 494, 494, 0,
     ],
     font_bbox: [-180, -293, 1090, 1010],
+    ascent: 0.0,
+    descent: 0.0,
 };
 
 // =============================================================================
@@ -373,6 +407,8 @@ static ZAPF_DINGBATS: StandardFontData = StandardFontData {
         0, 874, 760, 946, 771, 865, 771, 888, 967, 888, 831, 873, 927, 970, 918, 0,
     ],
     font_bbox: [-1, -143, 981, 820],
+    ascent: 0.0,
+    descent: 0.0,
 };
 
 /// Build a 256-element width vector for a standard font, remapped for a target encoding.
@@ -478,7 +514,7 @@ mod tests {
 
     #[test]
     fn unknown_font_returns_none() {
-        assert!(lookup("Arial").is_none());
+        assert!(lookup("Arial-Bold").is_none()); // not a name pdfminer carries
         assert!(lookup("UnknownFont").is_none());
         assert!(lookup("").is_none());
         assert!(lookup("helvetica").is_none()); // case sensitive

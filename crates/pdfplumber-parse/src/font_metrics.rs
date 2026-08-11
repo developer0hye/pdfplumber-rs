@@ -162,7 +162,17 @@ pub fn extract_font_metrics(
     };
 
     // Parse /FontDescriptor
-    let desc_info = parse_font_descriptor(doc, font_dict)?;
+    let mut desc_info = parse_font_descriptor(doc, font_dict)?;
+
+    // pdfminer resolves the standard 14 fonts from bundled AFM metrics before
+    // it ever looks at the PDF's own descriptor, so a font literally named
+    // "Helvetica" uses the AFM descent of -207 rather than a descriptor value
+    // (or our fallback). The match is on the exact /BaseFont name: a subset like
+    // "WEVZII+ArialMT" is a different font and keeps its own descriptor.
+    if let Some(std_font) = lookup_standard_font_by_exact_name(font_dict) {
+        desc_info.ascent = std_font.ascent;
+        desc_info.descent = std_font.descent;
+    }
 
     // Standard font fallback: when /Widths is absent, try standard Type1 font widths
     if widths.is_empty() {
@@ -331,6 +341,22 @@ fn lookup_standard_font(
         .map(|name| std::str::from_utf8(name).unwrap_or(""))?;
     let stripped = crate::cid_font::strip_subset_prefix(base_font);
     standard_fonts::lookup(stripped)
+}
+
+/// Look up standard font data by the exact /BaseFont name, without stripping a
+/// subset prefix.
+///
+/// Used for the ascent/descent override, where a subset-embedded font must keep
+/// its own descriptor even when its base name is one of the standard 14.
+fn lookup_standard_font_by_exact_name(
+    font_dict: &lopdf::Dictionary,
+) -> Option<&'static standard_fonts::StandardFontData> {
+    let base_font = font_dict
+        .get(b"BaseFont")
+        .ok()
+        .and_then(|obj| obj.as_name().ok())
+        .and_then(|name| std::str::from_utf8(name).ok())?;
+    standard_fonts::lookup(base_font)
 }
 
 /// Parsed font descriptor values.
@@ -567,13 +593,27 @@ mod tests {
         first_char: i64,
         last_char: i64,
     ) -> lopdf::Dictionary {
+        create_font_dict_named("Helvetica", doc, widths, first_char, last_char)
+    }
+
+    /// Same as [`create_font_dict_with_widths`] but with an explicit /BaseFont.
+    ///
+    /// Use a name outside the standard 14 to exercise descriptor handling: an
+    /// exact standard name resolves its ascent/descent from AFM metrics instead.
+    fn create_font_dict_named(
+        base_font: &str,
+        doc: &mut Document,
+        widths: &[f64],
+        first_char: i64,
+        last_char: i64,
+    ) -> lopdf::Dictionary {
         let width_objects: Vec<Object> = widths.iter().map(|w| Object::Real(*w as f32)).collect();
         let widths_id = doc.add_object(Object::Array(width_objects));
 
         dictionary! {
             "Type" => "Font",
             "Subtype" => "Type1",
-            "BaseFont" => "Helvetica",
+            "BaseFont" => base_font,
             "FirstChar" => first_char,
             "LastChar" => last_char,
             "Widths" => widths_id,
@@ -635,7 +675,7 @@ mod tests {
     #[test]
     fn extract_metrics_without_font_descriptor() {
         let mut doc = Document::with_version("1.5");
-        let font_dict = create_font_dict_with_widths(&mut doc, &[500.0, 600.0], 32, 33);
+        let font_dict = create_font_dict_named("UnknownFont", &mut doc, &[500.0, 600.0], 32, 33);
         // No FontDescriptor added
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
@@ -662,8 +702,9 @@ mod tests {
 
         // No /Widths — Helvetica is a standard font, so standard widths are used
         assert_eq!(metrics.get_width(65), 667.0); // Helvetica 'A' = 667
-        assert!((metrics.ascent() - 800.0).abs() < 1.0);
-        assert!((metrics.descent() - (-200.0)).abs() < 1.0);
+        // The descriptor's 800/-200 lose to Helvetica's own AFM metrics.
+        assert!((metrics.ascent() - 718.0).abs() < 1.0);
+        assert!((metrics.descent() - (-207.0)).abs() < 1.0);
     }
 
     #[test]
@@ -910,8 +951,9 @@ mod tests {
     }
 
     #[test]
-    fn fallback_descriptor_ascent_descent_override_standard() {
-        // FontDescriptor ascent/descent should override standard defaults
+    fn standard_font_afm_metrics_win_over_the_descriptor() {
+        // pdfminer resolves the standard 14 from AFM data before reading the
+        // PDF's descriptor, so Helvetica keeps 718/-207 whatever the file says.
         let mut doc = Document::with_version("1.5");
         let mut font_dict = dictionary! {
             "Type" => "Font",
@@ -922,7 +964,24 @@ mod tests {
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
 
-        // Ascent/descent from descriptor, not standard defaults
+        assert!((metrics.ascent() - 718.0).abs() < 1.0);
+        assert!((metrics.descent() - (-207.0)).abs() < 1.0);
+    }
+
+    #[test]
+    fn subset_embedded_font_keeps_its_descriptor_metrics() {
+        // A subset is its own font: the standard-14 AFM override must not apply
+        // just because the base name resembles one.
+        let mut doc = Document::with_version("1.5");
+        let mut font_dict = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "Type1",
+            "BaseFont" => "WEVZII+Helvetica",
+        };
+        add_font_descriptor(&mut doc, &mut font_dict, 800.0, -250.0, None, None);
+
+        let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
+
         assert!((metrics.ascent() - 800.0).abs() < 1.0);
         assert!((metrics.descent() - (-250.0)).abs() < 1.0);
     }
@@ -997,7 +1056,8 @@ mod tests {
         // Descent value in the FontDescriptor, which violates the PDF spec.
         // The parser should normalize positive Descent to negative.
         let mut doc = Document::with_version("1.5");
-        let mut font_dict = create_font_dict_with_widths(&mut doc, &[722.0], 65, 65);
+        let mut font_dict =
+            create_font_dict_named("BAAAAA+Arial-BoldMT", &mut doc, &[722.0], 65, 65);
         add_font_descriptor(
             &mut doc,
             &mut font_dict,
@@ -1022,7 +1082,8 @@ mod tests {
     fn negative_descent_unchanged() {
         // Normal negative descent should remain unchanged
         let mut doc = Document::with_version("1.5");
-        let mut font_dict = create_font_dict_with_widths(&mut doc, &[722.0], 65, 65);
+        let mut font_dict =
+            create_font_dict_named("BAAAAA+Arial-BoldMT", &mut doc, &[722.0], 65, 65);
         add_font_descriptor(&mut doc, &mut font_dict, 905.0, -212.0, None, None);
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
@@ -1033,7 +1094,8 @@ mod tests {
     fn zero_descent_unchanged() {
         // Zero descent should remain zero (triggers special handling in interpreter)
         let mut doc = Document::with_version("1.5");
-        let mut font_dict = create_font_dict_with_widths(&mut doc, &[722.0], 65, 65);
+        let mut font_dict =
+            create_font_dict_named("BAAAAA+Arial-BoldMT", &mut doc, &[722.0], 65, 65);
         add_font_descriptor(&mut doc, &mut font_dict, 0.0, 0.0, None, None);
 
         let metrics = extract_font_metrics(&doc, &font_dict).unwrap();
