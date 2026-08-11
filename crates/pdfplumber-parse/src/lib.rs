@@ -38,6 +38,7 @@ pub mod text_renderer;
 pub mod text_state;
 pub mod tokenizer;
 pub mod truetype;
+pub mod type1;
 
 pub use backend::PdfBackend;
 pub use char_extraction::char_from_event;
