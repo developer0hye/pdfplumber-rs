@@ -101,6 +101,16 @@ pub fn char_from_event(
 
     let bbox = BBox::new(min_x, top, max_x, bottom);
 
+    // The size a reader sees, which is the box the glyph was drawn into rather
+    // than the operand of `Tf`: a PDF may select a font at 1pt and scale the
+    // text matrix instead. Vertical writing measures across the box, since that
+    // is the direction an em spans there.
+    let size = if is_vertical {
+        bbox.x1 - bbox.x0
+    } else {
+        bbox.bottom - bbox.top
+    };
+
     // Upright: no rotation/shear in the text rendering matrix
     let upright = trm.b.abs() < 1e-6 && trm.c.abs() < 1e-6;
 
@@ -128,7 +138,7 @@ pub fn char_from_event(
         text,
         bbox,
         fontname: event.font_name.clone(),
-        size: font_size,
+        size,
         doctop: top,
         upright,
         direction,
