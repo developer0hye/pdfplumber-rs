@@ -1,5 +1,5 @@
 use crate::geometry::BBox;
-use crate::text::{Char, TextDirection};
+use crate::text::Char;
 use crate::words::Word;
 
 /// Column detection mode for multi-column layout reading order.
@@ -98,39 +98,66 @@ impl Default for TextOptions {
     }
 }
 
+/// Assign each word the index of the horizontal band its top falls in.
+///
+/// Bands are built by sorting the distinct tops and chaining them: a top opens
+/// a new band only when it is further than `y_tolerance` from the one before.
+fn top_bands(words: &[Word], y_tolerance: f64) -> Vec<usize> {
+    let mut tops: Vec<f64> = words.iter().map(|w| w.bbox.top).collect();
+    tops.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
+    tops.dedup();
+
+    let mut band_of_top: Vec<usize> = Vec::with_capacity(tops.len());
+    let mut band = 0;
+    for (i, &top) in tops.iter().enumerate() {
+        if i > 0 && top > tops[i - 1] + y_tolerance {
+            band += 1;
+        }
+        band_of_top.push(band);
+    }
+
+    words
+        .iter()
+        .map(|word| {
+            let index = tops
+                .binary_search_by(|probe| {
+                    probe
+                        .partial_cmp(&word.bbox.top)
+                        .unwrap_or(core::cmp::Ordering::Equal)
+                })
+                .expect("every top is present in the sorted list");
+            band_of_top[index]
+        })
+        .collect()
+}
+
 /// Cluster words into text lines based on y-proximity.
 ///
-/// Words belong to the same line when their tops are within `y_tolerance` of
-/// each other, chained: a word joins the line if it is close enough to the
-/// nearest top already in it, so a line can span more than the tolerance
-/// overall. Measuring from the top rather than the vertical centre keeps a
-/// heading and a smaller caption beside it apart — they often share a centre
-/// while starting at very different heights.
+/// Words belong to the same line when their tops fall in the same band: bands
+/// are formed by chaining the distinct tops on the page, so a top joins the
+/// band when it is within `y_tolerance` of the nearest top already in it and a
+/// band can span more than the tolerance overall. Measuring from the top rather
+/// than the vertical centre keeps a heading and a smaller caption beside it
+/// apart — they often share a centre while starting at very different heights.
 ///
-/// Words within each line are ordered by reading direction.
+/// The given order of `words` is preserved, and a line ends as soon as the next
+/// word belongs to a different band. Words come out of extraction in reading
+/// order with anything set at an angle after the upright text, so a sideways
+/// stamp reads as its own line instead of landing inside the paragraph it
+/// happens to sit beside.
 pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLine> {
     if words.is_empty() {
         return Vec::new();
     }
 
-    let mut sorted: Vec<&Word> = words.iter().collect();
-    sorted.sort_by(|a, b| {
-        a.bbox
-            .top
-            .partial_cmp(&b.bbox.top)
-            .unwrap()
-            .then(a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
-    });
+    let bands = top_bands(words, y_tolerance);
 
     let mut lines: Vec<TextLine> = Vec::new();
-    let mut previous_top = f64::NEG_INFINITY;
+    let mut current_band = usize::MAX;
 
-    for word in sorted {
-        let top = word.bbox.top;
-        let starts_new_line = lines.is_empty() || top > previous_top + y_tolerance;
-        previous_top = top;
-
-        if starts_new_line {
+    for (word, band) in words.iter().zip(bands) {
+        if band != current_band {
+            current_band = band;
             lines.push(TextLine {
                 words: vec![word.clone()],
                 bbox: word.bbox,
@@ -141,28 +168,6 @@ pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLin
             line.words.push(word.clone());
         }
     }
-
-    // Sort words within each line by reading direction.
-    // For Rtl lines (e.g., 180° rotated text), sort right-to-left.
-    for line in &mut lines {
-        let rtl_count = line
-            .words
-            .iter()
-            .filter(|w| w.direction == TextDirection::Rtl)
-            .count();
-        if rtl_count > line.words.len() / 2 {
-            // Majority Rtl: sort by x0 descending (right-to-left)
-            line.words
-                .sort_by(|a, b| b.bbox.x0.partial_cmp(&a.bbox.x0).unwrap());
-        } else {
-            // Default Ltr: sort by x0 ascending (left-to-right)
-            line.words
-                .sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
-        }
-    }
-
-    // Sort lines top-to-bottom
-    lines.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
 
     lines
 }
@@ -301,8 +306,23 @@ pub fn detect_columns(words: &[Word], min_column_gap: f64, max_columns: usize) -
     // A column gap should appear consistently across multiple lines
     let mut gap_positions: Vec<(f64, f64)> = Vec::new(); // (gap_start_x, gap_end_x)
 
-    // Group words into lines by y-proximity
-    let lines = cluster_words_into_lines(words, 3.0);
+    // Group words into lines by y-proximity. The gaps below are read between
+    // neighbours, so the words have to be in spatial order first — column
+    // detection looks at the page as laid out, not as extracted.
+    let mut in_reading_order: Vec<Word> = words.to_vec();
+    in_reading_order.sort_by(|a, b| {
+        a.bbox
+            .top
+            .partial_cmp(&b.bbox.top)
+            .unwrap_or(core::cmp::Ordering::Equal)
+            .then(
+                a.bbox
+                    .x0
+                    .partial_cmp(&b.bbox.x0)
+                    .unwrap_or(core::cmp::Ordering::Equal),
+            )
+    });
+    let lines = cluster_words_into_lines(&in_reading_order, 3.0);
 
     for line in &lines {
         if line.words.len() < 2 {
@@ -626,15 +646,18 @@ mod tests {
     }
 
     #[test]
-    fn test_cluster_words_sorted_left_to_right_within_line() {
-        // Words given in reverse x-order
+    fn test_cluster_keeps_the_order_it_is_given() {
+        // Words arrive in reading order from extraction, and the line keeps it:
+        // reordering here would undo the direction handling done upstream.
         let words = vec![
             make_word("World", 55.0, 100.0, 95.0, 112.0),
             make_word("Hello", 10.0, 100.0, 50.0, 112.0),
         ];
         let lines = cluster_words_into_lines(&words, 3.0);
-        assert_eq!(lines[0].words[0].text, "Hello");
-        assert_eq!(lines[0].words[1].text, "World");
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].words[0].text, "World");
+        assert_eq!(lines[0].words[1].text, "Hello");
     }
 
     #[test]
