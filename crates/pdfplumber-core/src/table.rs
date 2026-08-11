@@ -706,35 +706,8 @@ pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
                 bbox = bbox.union(&cell.bbox);
             }
 
-            // Organize into rows: group by top coordinate, sort left-to-right
-            let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> =
-                std::collections::BTreeMap::new();
-            for cell in &group_cells {
-                let key = float_key(cell.bbox.top);
-                row_map.entry(key).or_default().push(cell.clone());
-            }
-            let rows: Vec<Vec<Cell>> = row_map
-                .into_values()
-                .map(|mut row| {
-                    row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
-                    row
-                })
-                .collect();
-
-            // Organize into columns: group by x0 coordinate, sort top-to-bottom
-            let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> =
-                std::collections::BTreeMap::new();
-            for cell in &group_cells {
-                let key = float_key(cell.bbox.x0);
-                col_map.entry(key).or_default().push(cell.clone());
-            }
-            let columns: Vec<Vec<Cell>> = col_map
-                .into_values()
-                .map(|mut col| {
-                    col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
-                    col
-                })
-                .collect();
+            let rows = lay_out(&group_cells, CellOrder::Row);
+            let columns = lay_out(&group_cells, CellOrder::Column);
 
             Table {
                 bbox,
@@ -760,6 +733,65 @@ pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
     tables.retain(|table| table.cells.len() > 1);
 
     tables
+}
+
+/// Which way a group of cells is being read.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum CellOrder {
+    /// Left to right: one entry per distinct cell left edge.
+    Row,
+    /// Top to bottom: one entry per distinct cell top edge.
+    Column,
+}
+
+/// Lay a table's cells out on a grid, one line per distinct start along the
+/// axis and one position per distinct start across it.
+///
+/// A cell that spans several positions occupies the one it starts at; the rest
+/// of its span is filled with a placeholder carrying no text, so every line has
+/// the same width and callers can index a table by column. This is how
+/// pdfplumber presents a table: a position no cell starts at reads as absent,
+/// while a cell that is simply blank reads as empty text.
+fn lay_out(cells: &[Cell], order: CellOrder) -> Vec<Vec<Cell>> {
+    let along = |cell: &Cell| match order {
+        CellOrder::Row => cell.bbox.top,
+        CellOrder::Column => cell.bbox.x0,
+    };
+    let across = |cell: &Cell| match order {
+        CellOrder::Row => cell.bbox.x0,
+        CellOrder::Column => cell.bbox.top,
+    };
+
+    let mut starts: Vec<i64> = cells.iter().map(|c| float_key(across(c))).collect();
+    starts.sort_unstable();
+    starts.dedup();
+
+    let mut by_line: std::collections::BTreeMap<i64, Vec<&Cell>> =
+        std::collections::BTreeMap::new();
+    for cell in cells {
+        by_line
+            .entry(float_key(along(cell)))
+            .or_default()
+            .push(cell);
+    }
+
+    by_line
+        .into_values()
+        .map(|line| {
+            starts
+                .iter()
+                .map(
+                    |&start| match line.iter().find(|cell| float_key(across(cell)) == start) {
+                        Some(cell) => (*cell).clone(),
+                        None => Cell {
+                            bbox: BBox::new(0.0, 0.0, 0.0, 0.0),
+                            text: None,
+                        },
+                    },
+                )
+                .collect()
+        })
+        .collect()
 }
 
 /// Check if two cells share an edge (a common boundary segment).
@@ -883,110 +915,6 @@ pub fn duplicate_merged_content_in_table(table: &Table) -> Table {
     }
 }
 
-/// Normalize a table so all rows have equal column count by splitting merged cells.
-///
-/// Similar to [`duplicate_merged_content_in_table`], but text is placed only in the
-/// first sub-cell of each merged group (top-left corner) instead of being duplicated
-/// to all sub-cells. This matches Python pdfplumber's behavior where merged header
-/// cells have text in the first column position and empty strings in the rest.
-///
-/// Should be called after [`extract_text_for_cells`] so merged cells already have
-/// their text content populated.
-pub fn normalize_table_columns(table: &Table) -> Table {
-    if table.cells.is_empty() {
-        return table.clone();
-    }
-
-    // Collect all unique x-coordinates and y-coordinates from cell boundaries
-    let mut xs: Vec<f64> = Vec::new();
-    let mut ys: Vec<f64> = Vec::new();
-
-    for cell in &table.cells {
-        if !xs.iter().any(|&x| (x - cell.bbox.x0).abs() < 1e-6) {
-            xs.push(cell.bbox.x0);
-        }
-        if !xs.iter().any(|&x| (x - cell.bbox.x1).abs() < 1e-6) {
-            xs.push(cell.bbox.x1);
-        }
-        if !ys.iter().any(|&y| (y - cell.bbox.top).abs() < 1e-6) {
-            ys.push(cell.bbox.top);
-        }
-        if !ys.iter().any(|&y| (y - cell.bbox.bottom).abs() < 1e-6) {
-            ys.push(cell.bbox.bottom);
-        }
-    }
-
-    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    // For each grid position, find the enclosing cell and create a sub-cell
-    let mut new_cells: Vec<Cell> = Vec::new();
-
-    for yi in 0..ys.len().saturating_sub(1) {
-        for xi in 0..xs.len().saturating_sub(1) {
-            let sub_x0 = xs[xi];
-            let sub_x1 = xs[xi + 1];
-            let sub_top = ys[yi];
-            let sub_bottom = ys[yi + 1];
-            let sub_cx = (sub_x0 + sub_x1) / 2.0;
-            let sub_cy = (sub_top + sub_bottom) / 2.0;
-
-            // Find which existing cell contains this grid position's center
-            let enclosing_cell = table.cells.iter().find(|c| {
-                sub_cx >= c.bbox.x0 - 1e-6
-                    && sub_cx <= c.bbox.x1 + 1e-6
-                    && sub_cy >= c.bbox.top - 1e-6
-                    && sub_cy <= c.bbox.bottom + 1e-6
-            });
-
-            if let Some(cell) = enclosing_cell {
-                // Text goes in first sub-cell only (top-left corner of the enclosing cell)
-                let is_first =
-                    (sub_x0 - cell.bbox.x0).abs() < 1e-6 && (sub_top - cell.bbox.top).abs() < 1e-6;
-                new_cells.push(Cell {
-                    bbox: BBox::new(sub_x0, sub_top, sub_x1, sub_bottom),
-                    text: if is_first { cell.text.clone() } else { None },
-                });
-            }
-        }
-    }
-
-    // Organize into rows (group by top, sort by x0)
-    let mut row_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
-    for cell in &new_cells {
-        let key = float_key(cell.bbox.top);
-        row_map.entry(key).or_default().push(cell.clone());
-    }
-    let rows: Vec<Vec<Cell>> = row_map
-        .into_values()
-        .map(|mut row| {
-            row.sort_by(|a, b| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap());
-            row
-        })
-        .collect();
-
-    // Organize into columns (group by x0, sort by top)
-    let mut col_map: std::collections::BTreeMap<i64, Vec<Cell>> = std::collections::BTreeMap::new();
-    for cell in &new_cells {
-        let key = float_key(cell.bbox.x0);
-        col_map.entry(key).or_default().push(cell.clone());
-    }
-    let columns: Vec<Vec<Cell>> = col_map
-        .into_values()
-        .map(|mut col| {
-            col.sort_by(|a, b| a.bbox.top.partial_cmp(&b.bbox.top).unwrap());
-            col
-        })
-        .collect();
-
-    Table {
-        bbox: table.bbox,
-        cells: new_cells,
-        rows,
-        columns,
-    }
-}
-
 /// Convert a float to an integer key for grouping (multiply by 1000 to preserve 3 decimal places).
 fn float_key(v: f64) -> i64 {
     (v * 1000.0).round() as i64
@@ -1024,6 +952,12 @@ pub fn extract_text_for_cells_with_options(
     );
 
     for cell in cells.iter_mut() {
+        // A placeholder standing in for a position no cell covers has no area
+        // and holds nothing: leave it absent rather than reporting it blank.
+        if cell.bbox.x1 <= cell.bbox.x0 || cell.bbox.bottom <= cell.bbox.top {
+            continue;
+        }
+
         // Find chars whose bbox center falls within this cell
         let cell_chars: Vec<Char> = chars
             .iter()
@@ -3041,86 +2975,6 @@ mod tests {
         for cell in &cells {
             assert!(cell.text.is_none());
         }
-    }
-
-    // --- normalize_table_columns tests ---
-
-    #[test]
-    fn test_normalize_table_columns_uniform_grid() {
-        // 2x2 uniform grid: no merged cells → should be unchanged
-        let cells = vec![
-            Cell {
-                bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
-                text: Some("A".to_string()),
-            },
-            Cell {
-                bbox: BBox::new(50.0, 0.0, 100.0, 30.0),
-                text: Some("B".to_string()),
-            },
-            Cell {
-                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
-                text: Some("C".to_string()),
-            },
-            Cell {
-                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
-                text: Some("D".to_string()),
-            },
-        ];
-        let table = cells_to_tables(cells);
-        assert_eq!(table.len(), 1);
-        let normalized = normalize_table_columns(&table[0]);
-        assert_eq!(normalized.rows.len(), 2);
-        assert_eq!(normalized.rows[0].len(), 2);
-        assert_eq!(normalized.rows[1].len(), 2);
-        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("A"));
-        assert_eq!(normalized.rows[0][1].text.as_deref(), Some("B"));
-        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
-        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
-    }
-
-    #[test]
-    fn test_normalize_table_columns_merged_header() {
-        // Row 0: 1 wide cell spanning full width (merged header)
-        // Row 1: 2 normal cells
-        // After normalization: row 0 should have 2 cells (text in first, None in second)
-        let cells = vec![
-            Cell {
-                bbox: BBox::new(0.0, 0.0, 100.0, 30.0),
-                text: Some("Title".to_string()),
-            },
-            Cell {
-                bbox: BBox::new(0.0, 30.0, 50.0, 60.0),
-                text: Some("C".to_string()),
-            },
-            Cell {
-                bbox: BBox::new(50.0, 30.0, 100.0, 60.0),
-                text: Some("D".to_string()),
-            },
-        ];
-        let table = cells_to_tables(cells);
-        assert_eq!(table.len(), 1);
-        let normalized = normalize_table_columns(&table[0]);
-        assert_eq!(normalized.rows.len(), 2);
-        // Row 0: merged cell split into 2, text in first only
-        assert_eq!(normalized.rows[0].len(), 2);
-        assert_eq!(normalized.rows[0][0].text.as_deref(), Some("Title"));
-        assert!(normalized.rows[0][1].text.is_none());
-        // Row 1: unchanged
-        assert_eq!(normalized.rows[1].len(), 2);
-        assert_eq!(normalized.rows[1][0].text.as_deref(), Some("C"));
-        assert_eq!(normalized.rows[1][1].text.as_deref(), Some("D"));
-    }
-
-    #[test]
-    fn test_normalize_table_columns_empty_table() {
-        let table = Table {
-            bbox: BBox::new(0.0, 0.0, 100.0, 100.0),
-            cells: vec![],
-            rows: vec![],
-            columns: vec![],
-        };
-        let normalized = normalize_table_columns(&table);
-        assert!(normalized.cells.is_empty());
     }
 
     // --- cells_to_tables tests ---
