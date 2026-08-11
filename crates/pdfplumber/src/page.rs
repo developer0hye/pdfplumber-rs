@@ -1557,7 +1557,8 @@ mod tests {
 
     #[test]
     fn test_extract_tables_empty_cells() {
-        // Table with no text inside cells
+        // Cells that exist but hold no text read as empty strings, not as the
+        // `None` reserved for positions another cell spans.
         let lines = vec![
             hline(10.0, 10.0, 110.0),
             hline(10.0, 30.0, 110.0),
@@ -1570,7 +1571,7 @@ mod tests {
         let tables = page.extract_tables(&settings);
 
         assert_eq!(tables.len(), 1);
-        assert_eq!(tables[0][0], vec![None, None]);
+        assert_eq!(tables[0][0], vec![Some(String::new()), Some(String::new())]);
     }
 
     #[test]

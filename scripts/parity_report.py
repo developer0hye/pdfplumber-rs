@@ -107,7 +107,9 @@ def compare_tables(expected: list, actual: list) -> dict:
     for want_table, got_table in zip(expected, actual):
         for want_row, got_row in zip(want_table, got_table):
             for want_cell, got_cell in zip(want_row, got_row):
-                if (want_cell or "") == (got_cell or ""):
+                # None and "" are compared as written: pdfplumber uses None for a
+                # position another cell spans and "" for a cell left blank.
+                if want_cell == got_cell:
                     matching += 1
     total_cells = max(expected_cells, actual_cells)
     return {

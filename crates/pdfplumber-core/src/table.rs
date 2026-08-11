@@ -1038,15 +1038,18 @@ pub fn extract_text_for_cells_with_options(
             .cloned()
             .collect();
 
+        // A cell holding no characters is blank, not absent: `None` is reserved
+        // for a position some other cell spans, which callers use to tell a
+        // left-blank field from a row with fewer columns.
         if cell_chars.is_empty() {
-            cell.text = None;
+            cell.text = Some(String::new());
             continue;
         }
 
         // Group chars into words
         let words = WordExtractor::extract(&cell_chars, options);
         if words.is_empty() {
-            cell.text = None;
+            cell.text = Some(String::new());
             continue;
         }
 
@@ -3607,19 +3610,19 @@ mod tests {
 
     #[test]
     fn test_extract_text_empty_cell() {
-        // Cell with no characters inside → text should remain None
+        // Cell with no characters inside → blank, which reads as an empty string
         let mut cells = vec![Cell {
             bbox: BBox::new(0.0, 0.0, 100.0, 50.0),
             text: None,
         }];
         let chars: Vec<Char> = vec![];
         extract_text_for_cells(&mut cells, &chars);
-        assert_eq!(cells[0].text, None);
+        assert_eq!(cells[0].text, Some(String::new()));
     }
 
     #[test]
     fn test_extract_text_chars_outside_cell() {
-        // All characters are outside the cell bbox → text should be None
+        // All characters are outside the cell bbox → the cell reads as blank
         let mut cells = vec![Cell {
             bbox: BBox::new(0.0, 0.0, 50.0, 30.0),
             text: None,
@@ -3630,7 +3633,7 @@ mod tests {
             make_char("B", 210.0, 10.0, 220.0, 22.0),
         ];
         extract_text_for_cells(&mut cells, &chars);
-        assert_eq!(cells[0].text, None);
+        assert_eq!(cells[0].text, Some(String::new()));
     }
 
     #[test]
@@ -3644,7 +3647,7 @@ mod tests {
         }];
         let chars = vec![make_char("X", 48.0, 10.0, 60.0, 22.0)];
         extract_text_for_cells(&mut cells, &chars);
-        assert_eq!(cells[0].text, None);
+        assert_eq!(cells[0].text, Some(String::new()));
     }
 
     #[test]
@@ -3756,7 +3759,7 @@ mod tests {
         ];
         extract_text_for_cells(&mut cells, &chars);
         assert_eq!(cells[0].text, Some("X".to_string()));
-        assert_eq!(cells[1].text, None);
+        assert_eq!(cells[1].text, Some(String::new()));
         assert_eq!(cells[2].text, Some("Z".to_string()));
     }
 
