@@ -322,11 +322,12 @@ pub struct ExtractOptions {
     pub max_total_image_bytes: Option<usize>,
     /// Maximum total extracted objects across all pages (default: None = no limit).
     pub max_total_objects: Option<usize>,
-    /// Character deduplication options (default: enabled with tolerance 1.0).
+    /// Character deduplication options (default: `None`, no deduplication).
     ///
-    /// When `Some`, duplicate overlapping characters are removed after extraction.
-    /// Some PDF generators output duplicate glyphs for bold/shadow effects or
-    /// due to bugs. Set to `None` to disable deduplication.
+    /// Some PDF generators draw a glyph several times a fraction of a point
+    /// apart to fake bold, and each draw is a real character on the page.
+    /// Extraction reports them all, as Python pdfplumber does; set this to
+    /// remove them during extraction, or call `Page::dedupe_chars` afterwards.
     pub dedupe: Option<crate::dedupe::DedupeOptions>,
 }
 
@@ -344,7 +345,7 @@ impl Default for ExtractOptions {
             max_pages: None,
             max_total_image_bytes: None,
             max_total_objects: None,
-            dedupe: Some(crate::dedupe::DedupeOptions::default()),
+            dedupe: None,
         }
     }
 }

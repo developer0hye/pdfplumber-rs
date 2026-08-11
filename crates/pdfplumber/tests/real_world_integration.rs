@@ -10,7 +10,7 @@
 use std::path::PathBuf;
 use std::sync::Once;
 
-use pdfplumber::{ExtractOptions, Pdf, TableSettings, TextOptions, WordOptions};
+use pdfplumber::{DedupeOptions, ExtractOptions, Pdf, TableSettings, TextOptions, WordOptions};
 
 // --- Constants ---
 
@@ -1271,16 +1271,21 @@ fn edge_cases_overlapping_text_extracts_both_without_dedup() {
 #[test]
 fn edge_cases_overlapping_text_dedup_reduces() {
     ensure_fixtures();
-    // Default extraction includes auto-dedup
     let pdf = open_fixture("edge-cases", "overlapping-text.pdf");
     let page = pdf.page(0).unwrap();
-    let chars = page.chars();
+    let all = page.chars().len();
 
-    // Auto-dedup: overlapping chars reduced
+    // Asking for dedup collapses the overlapping "BOLD" draws.
+    let deduped = page.dedupe_chars(&DedupeOptions::default());
+
     assert!(
-        chars.len() <= 4,
-        "after auto-dedup, overlapping 'BOLD' should reduce to <= 4 chars, got {}",
-        chars.len()
+        deduped.chars().len() <= 4,
+        "after dedupe, overlapping 'BOLD' should reduce to <= 4 chars, got {}",
+        deduped.chars().len()
+    );
+    assert!(
+        all > deduped.chars().len(),
+        "extraction should have kept every draw, got {all}"
     );
 }
 

@@ -1450,14 +1450,29 @@ fn pdf_with_two_fonts_content() -> Vec<u8> {
 }
 
 #[test]
-fn dedupe_auto_enabled_by_default() {
-    // Dedup is enabled by default in ExtractOptions — duplicate H should be
-    // removed automatically during extraction.
+fn every_draw_is_kept_by_default() {
+    // Extraction reports each draw, as pdfplumber does: a repeated glyph is a
+    // real mark on the page, and removing it is the caller's decision.
     let bytes = pdf_with_duplicate_chars();
     let pdf = Pdf::open(&bytes, None).unwrap();
     let page = pdf.page(0).unwrap();
 
-    // Auto-dedup: duplicate H removed → (H, i)
+    assert_eq!(page.chars().len(), 3);
+    assert_eq!(page.chars()[0].text, "H");
+    assert_eq!(page.chars()[1].text, "H");
+    assert_eq!(page.chars()[2].text, "i");
+}
+
+#[test]
+fn dedupe_can_be_enabled_during_extraction() {
+    let bytes = pdf_with_duplicate_chars();
+    let opts = ExtractOptions {
+        dedupe: Some(DedupeOptions::default()),
+        ..ExtractOptions::default()
+    };
+    let pdf = Pdf::open(&bytes, Some(opts)).unwrap();
+    let page = pdf.page(0).unwrap();
+
     assert_eq!(page.chars().len(), 2);
     assert_eq!(page.chars()[0].text, "H");
     assert_eq!(page.chars()[1].text, "i");
