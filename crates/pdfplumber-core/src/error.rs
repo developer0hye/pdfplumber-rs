@@ -304,7 +304,13 @@ pub struct ExtractOptions {
     pub max_stream_bytes: usize,
     /// Whether to collect warnings during extraction (default: true).
     pub collect_warnings: bool,
-    /// Unicode normalization form to apply to extracted character text (default: Nfc).
+    /// Unicode normalization to apply to extracted character text
+    /// (default: [`UnicodeNorm::None`]).
+    ///
+    /// A font's ToUnicode mapping is what the document says its glyphs mean,
+    /// and extraction reports it unchanged, as Python pdfplumber does. Even
+    /// canonical normalization rewrites code points a caller may be looking
+    /// for — U+037E, the Greek question mark, becomes an ordinary semicolon.
     pub unicode_norm: UnicodeNorm,
     /// Whether to extract image stream data into Image structs (default: false).
     ///
@@ -338,7 +344,7 @@ impl Default for ExtractOptions {
             max_objects_per_page: 100_000,
             max_stream_bytes: 100 * 1024 * 1024,
             collect_warnings: true,
-            unicode_norm: UnicodeNorm::Nfc,
+            unicode_norm: UnicodeNorm::None,
             extract_image_data: false,
             strict_mode: false,
             max_input_bytes: None,
@@ -617,7 +623,7 @@ mod tests {
         assert_eq!(opts.max_objects_per_page, 100_000);
         assert_eq!(opts.max_stream_bytes, 100 * 1024 * 1024);
         assert!(opts.collect_warnings);
-        assert_eq!(opts.unicode_norm, UnicodeNorm::Nfc);
+        assert_eq!(opts.unicode_norm, UnicodeNorm::None);
         assert!(!opts.extract_image_data);
         assert!(opts.max_input_bytes.is_none());
         assert!(opts.max_pages.is_none());
