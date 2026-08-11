@@ -6,10 +6,10 @@
 
 use pdfplumber_core::{
     BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, Image, Line, PageObject, Rect, Table,
-    TableFinder, TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, extract_text_for_cells, normalize_table_columns, sort_blocks_column_order,
-    sort_blocks_reading_order, split_lines_at_columns, words_to_text,
+    TableFinder, TableSettings, TextLine, TextOptions, Word, WordExtractor, WordOptions,
+    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, extract_text_for_cells, normalize_table_columns,
+    sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
 /// A spatially filtered view of a PDF page.
@@ -83,6 +83,21 @@ impl CroppedPage {
     /// Extract words from this cropped page.
     pub fn extract_words(&self, options: &WordOptions) -> Vec<Word> {
         WordExtractor::extract(&self.chars, options)
+    }
+
+    /// Extract text lines from this cropped page: words grouped by vertical
+    /// position, top to bottom.
+    ///
+    /// Only `y_tolerance` and `expand_ligatures` from `options` apply; the
+    /// layout and column settings affect [`CroppedPage::extract_text`] alone.
+    pub fn extract_text_lines(&self, options: &TextOptions) -> Vec<TextLine> {
+        let words = self.extract_words(&WordOptions {
+            y_tolerance: options.y_tolerance,
+            expand_ligatures: options.expand_ligatures,
+            ..WordOptions::default()
+        });
+
+        cluster_words_into_lines(&words, options.y_tolerance)
     }
 
     /// Extract text from this cropped page.

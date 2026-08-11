@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::geometry::BBox;
-use crate::text::TextDirection;
+use crate::text::{Char, TextDirection};
 use crate::words::Word;
 
 /// Column detection mode for multi-column layout reading order.
@@ -27,6 +27,28 @@ pub struct TextLine {
     pub words: Vec<Word>,
     /// Bounding box of this line.
     pub bbox: BBox,
+}
+
+impl TextLine {
+    /// The line's text: word texts joined by a single space.
+    pub fn text(&self) -> String {
+        let mut text = String::new();
+        for (index, word) in self.words.iter().enumerate() {
+            if index > 0 {
+                text.push(' ');
+            }
+            text.push_str(&word.text);
+        }
+        text
+    }
+
+    /// The characters of every word in the line, in reading order.
+    ///
+    /// The separating spaces reported by [`TextLine::text`] are not included:
+    /// they are inserted between words rather than read from the PDF.
+    pub fn chars(&self) -> impl Iterator<Item = &Char> {
+        self.words.iter().flat_map(|word| word.chars.iter())
+    }
 }
 
 /// A text block: a group of lines forming a coherent paragraph or section.
