@@ -10,22 +10,15 @@
 //! Character counts exclude the spaces between words: those are inserted by the
 //! text layout rather than read from the PDF.
 //!
-//! Text, `x0`, `x1` and character counts are asserted exactly. `top` and
-//! `bottom` are asserted within [`Y_TOLERANCE`], because our character boxes sit
-//! slightly lower than pdfminer's: pdfminer places a glyph box at
-//! `baseline + descent` with a height of exactly the font size and reads the
-//! descent from the font, while we derive the box from an ascent/descent pair
-//! and fall back to -250/1000 for the standard 14 fonts (Helvetica's own descent
-//! is -207/1000, a 0.5pt difference at 12pt).
-//! TODO(char-descent-parity): adopt pdfminer's box model, then tighten these to
-//! exact equality.
+//! Text, every coordinate and the character counts are asserted to within
+//! [`COORD_TOLERANCE`], which is float noise rather than a modelling allowance.
 
 use std::path::PathBuf;
 
 use pdfplumber::{BBox, Pdf, TextOptions};
 
-/// Largest accepted deviation in `top`/`bottom`, in points.
-const Y_TOLERANCE: f64 = 1.1;
+/// Largest accepted coordinate deviation, in points.
+const COORD_TOLERANCE: f64 = 0.001;
 
 /// One line of pdfplumber output: text, x0, top, x1, bottom, character count.
 type LineTuple = (&'static str, f64, f64, f64, f64, usize);
@@ -67,30 +60,17 @@ fn assert_matches_pdfplumber(name: &str, expected: &[LineTuple]) {
     for (index, (got, want)) in actual.iter().zip(expected).enumerate() {
         let label = format!("{name} line {index}");
         assert_eq!(got.0, want.0, "{label}: text");
-        assert!(
-            (got.1 - want.1).abs() < 0.001,
-            "{label}: x0 {} != {}",
-            got.1,
-            want.1
-        );
-        assert!(
-            (got.3 - want.3).abs() < 0.001,
-            "{label}: x1 {} != {}",
-            got.3,
-            want.3
-        );
-        assert!(
-            (got.2 - want.2).abs() < Y_TOLERANCE,
-            "{label}: top {} not within {Y_TOLERANCE} of {}",
-            got.2,
-            want.2
-        );
-        assert!(
-            (got.4 - want.4).abs() < Y_TOLERANCE,
-            "{label}: bottom {} not within {Y_TOLERANCE} of {}",
-            got.4,
-            want.4
-        );
+        for (coordinate, got_value, want_value) in [
+            ("x0", got.1, want.1),
+            ("top", got.2, want.2),
+            ("x1", got.3, want.3),
+            ("bottom", got.4, want.4),
+        ] {
+            assert!(
+                (got_value - want_value).abs() < COORD_TOLERANCE,
+                "{label}: {coordinate} {got_value} != {want_value}"
+            );
+        }
         assert_eq!(got.5, want.5, "{label}: character count");
     }
 }
