@@ -1000,22 +1000,24 @@ fn show_string_cjk(
     string_bytes: &[u8],
     get_width: &dyn Fn(u32) -> f64,
     encoding: &'static encoding_rs::Encoding,
+    spacing: &mut crate::text_renderer::CharSpacingCursor,
 ) -> Vec<crate::text_renderer::RawChar> {
     let decoded = cjk_encoding::decode_cjk_string(string_bytes, encoding);
     let mut chars = Vec::with_capacity(decoded.len());
 
     for dc in decoded {
+        spacing.apply(text_state);
+
         let text_matrix = text_state.text_matrix_array();
         let w0 = get_width(dc.char_code);
         let font_size = text_state.font_size;
-        let char_spacing = text_state.char_spacing;
         let word_spacing = if dc.char_code == 32 {
             text_state.word_spacing
         } else {
             0.0
         };
         let h_scaling = text_state.h_scaling_normalized();
-        let tx = ((w0 / 1000.0) * font_size + char_spacing + word_spacing) * h_scaling;
+        let tx = ((w0 / 1000.0) * font_size + word_spacing) * h_scaling;
 
         chars.push(crate::text_renderer::RawChar {
             char_code: dc.char_code,
@@ -1088,14 +1090,21 @@ fn show_string_with_positioning_cjk(
     encoding: Option<&'static encoding_rs::Encoding>,
 ) -> Vec<crate::text_renderer::RawChar> {
     let mut chars = Vec::new();
+    // One cursor for the whole array: the spacing carries across its elements.
+    let mut spacing = crate::text_renderer::CharSpacingCursor::new();
 
     for element in elements {
         match element {
             TjElement::String(bytes) => {
                 let mut sub_chars = if let Some(enc) = encoding {
-                    show_string_cjk(text_state, bytes, get_width, enc)
+                    show_string_cjk(text_state, bytes, get_width, enc, &mut spacing)
                 } else {
-                    show_string_cid(text_state, bytes, get_width)
+                    crate::text_renderer::show_string_cid_spaced(
+                        text_state,
+                        bytes,
+                        get_width,
+                        &mut spacing,
+                    )
                 };
                 chars.append(&mut sub_chars);
             }
@@ -1104,6 +1113,7 @@ fn show_string_with_positioning_cjk(
                 let h_scaling = text_state.h_scaling_normalized();
                 let tx = -(adj / 1000.0) * font_size * h_scaling;
                 text_state.advance_text_position(tx);
+                spacing.arm();
             }
         }
     }
@@ -1176,7 +1186,8 @@ fn handle_tj(
         let vert_fn = get_vertical_advance_fn(cached);
         show_string_cid_vertical(tstate, string_bytes, &*vert_fn)
     } else if let Some(enc) = cached.and_then(|c| c.cjk_encoding) {
-        show_string_cjk(tstate, string_bytes, &*width_fn, enc)
+        let mut spacing = crate::text_renderer::CharSpacingCursor::new();
+        show_string_cjk(tstate, string_bytes, &*width_fn, enc, &mut spacing)
     } else if cached.is_some_and(|c| c.is_cid_font) {
         show_string_cid(tstate, string_bytes, &*width_fn)
     } else {

@@ -52,10 +52,52 @@ pub fn show_string(
     string_bytes: &[u8],
     get_width: &dyn Fn(u32) -> f64,
 ) -> Vec<RawChar> {
+    let mut spacing = CharSpacingCursor::new();
+    show_string_spaced(text_state, string_bytes, get_width, &mut spacing)
+}
+
+/// Tracks whether the next glyph shown is preceded by character spacing.
+///
+/// `Tc` separates glyphs within one show operation, so it applies before every
+/// glyph except the first the operation shows. A positioning adjustment counts
+/// as something to be separated from, so it arms the spacing too.
+pub(crate) struct CharSpacingCursor {
+    armed: bool,
+}
+
+impl CharSpacingCursor {
+    pub(crate) fn new() -> Self {
+        Self { armed: false }
+    }
+
+    /// Insert the spacing before the next glyph, if one is due.
+    pub(crate) fn apply(&mut self, text_state: &mut TextState) {
+        if self.armed {
+            let spacing = text_state.char_spacing * text_state.h_scaling_normalized();
+            text_state.advance_text_position(spacing);
+        }
+        self.armed = true;
+    }
+
+    /// Note that something was placed, so the next glyph needs spacing.
+    pub(crate) fn arm(&mut self) {
+        self.armed = true;
+    }
+}
+
+/// Show a string, continuing an operation's character spacing.
+pub(crate) fn show_string_spaced(
+    text_state: &mut TextState,
+    string_bytes: &[u8],
+    get_width: &dyn Fn(u32) -> f64,
+    spacing: &mut CharSpacingCursor,
+) -> Vec<RawChar> {
     let mut chars = Vec::with_capacity(string_bytes.len());
 
     for &byte in string_bytes {
         let char_code = u32::from(byte);
+
+        spacing.apply(text_state);
 
         // Snapshot the text matrix before advancing
         let text_matrix = text_state.text_matrix_array();
@@ -63,7 +105,6 @@ pub fn show_string(
         // Calculate displacement in text space
         let w0 = get_width(char_code);
         let font_size = text_state.font_size;
-        let char_spacing = text_state.char_spacing;
         let word_spacing = if char_code == 32 {
             text_state.word_spacing
         } else {
@@ -71,7 +112,7 @@ pub fn show_string(
         };
         let h_scaling = text_state.h_scaling_normalized();
 
-        let tx = ((w0 / 1000.0) * font_size + char_spacing + word_spacing) * h_scaling;
+        let tx = ((w0 / 1000.0) * font_size + word_spacing) * h_scaling;
 
         chars.push(RawChar {
             char_code,
@@ -96,26 +137,7 @@ pub fn show_string_with_positioning(
     elements: &[TjElement],
     get_width: &dyn Fn(u32) -> f64,
 ) -> Vec<RawChar> {
-    let mut chars = Vec::new();
-
-    for element in elements {
-        match element {
-            TjElement::String(bytes) => {
-                let mut sub_chars = show_string(text_state, bytes, get_width);
-                chars.append(&mut sub_chars);
-            }
-            TjElement::Adjustment(adj) => {
-                // PDF spec: positive adjustment moves left, negative moves right
-                // tx = -(adj / 1000) * font_size * h_scaling
-                let font_size = text_state.font_size;
-                let h_scaling = text_state.h_scaling_normalized();
-                let tx = -(adj / 1000.0) * font_size * h_scaling;
-                text_state.advance_text_position(tx);
-            }
-        }
-    }
-
-    chars
+    show_string_with_positioning_mode(text_state, elements, get_width, false)
 }
 
 /// `Tj` operator for CID fonts: show a string using 2-byte character codes.
@@ -127,6 +149,17 @@ pub fn show_string_cid(
     text_state: &mut TextState,
     string_bytes: &[u8],
     get_width: &dyn Fn(u32) -> f64,
+) -> Vec<RawChar> {
+    let mut spacing = CharSpacingCursor::new();
+    show_string_cid_spaced(text_state, string_bytes, get_width, &mut spacing)
+}
+
+/// Show a CID string, continuing an operation's character spacing.
+pub(crate) fn show_string_cid_spaced(
+    text_state: &mut TextState,
+    string_bytes: &[u8],
+    get_width: &dyn Fn(u32) -> f64,
+    spacing: &mut CharSpacingCursor,
 ) -> Vec<RawChar> {
     let mut chars = Vec::with_capacity(string_bytes.len() / 2);
     let mut i = 0;
@@ -142,13 +175,14 @@ pub fn show_string_cid(
             code
         };
 
+        spacing.apply(text_state);
+
         // Snapshot the text matrix before advancing
         let text_matrix = text_state.text_matrix_array();
 
         // Calculate displacement in text space
         let w0 = get_width(char_code);
         let font_size = text_state.font_size;
-        let char_spacing = text_state.char_spacing;
         let word_spacing = if char_code == 32 {
             text_state.word_spacing
         } else {
@@ -156,7 +190,7 @@ pub fn show_string_cid(
         };
         let h_scaling = text_state.h_scaling_normalized();
 
-        let tx = ((w0 / 1000.0) * font_size + char_spacing + word_spacing) * h_scaling;
+        let tx = ((w0 / 1000.0) * font_size + word_spacing) * h_scaling;
 
         chars.push(RawChar {
             char_code,
@@ -182,14 +216,16 @@ pub fn show_string_with_positioning_mode(
     cid_mode: bool,
 ) -> Vec<RawChar> {
     let mut chars = Vec::new();
+    // One cursor for the whole array: the spacing carries across its elements.
+    let mut spacing = CharSpacingCursor::new();
 
     for element in elements {
         match element {
             TjElement::String(bytes) => {
                 let mut sub_chars = if cid_mode {
-                    show_string_cid(text_state, bytes, get_width)
+                    show_string_cid_spaced(text_state, bytes, get_width, &mut spacing)
                 } else {
-                    show_string(text_state, bytes, get_width)
+                    show_string_spaced(text_state, bytes, get_width, &mut spacing)
                 };
                 chars.append(&mut sub_chars);
             }
@@ -199,6 +235,7 @@ pub fn show_string_with_positioning_mode(
                 let h_scaling = text_state.h_scaling_normalized();
                 let tx = -(adj / 1000.0) * font_size * h_scaling;
                 text_state.advance_text_position(tx);
+                spacing.arm();
             }
         }
     }
@@ -365,9 +402,9 @@ mod tests {
 
         let chars = show_string(&mut ts, &[65, 66], &constant_width);
 
-        // First char displacement: (600/1000 * 10 + 2.0) * 1.0 = 8.0
-        assert_approx(chars[0].displacement, 8.0);
-        // Second char starts at 100 + 8 = 108
+        // A glyph advances by its own width: (600/1000 * 10) * 1.0 = 6.0.
+        assert_approx(chars[0].displacement, 6.0);
+        // The spacing goes between the two: 100 + 6 + 2 = 108.
         assert_approx(chars[1].text_matrix[4], 108.0);
     }
 
@@ -415,13 +452,13 @@ mod tests {
         ts.set_h_scaling(200.0); // 200%
         ts.move_text_position(0.0, 0.0);
 
-        // Space char: (600/1000 * 10 + 1.0 + 3.0) * 2.0 = (6 + 1 + 3) * 2 = 20.0
-        let chars = show_string(&mut ts, &[32], &constant_width);
-        assert_approx(chars[0].displacement, 20.0);
-
-        // Non-space: (600/1000 * 10 + 1.0 + 0) * 2.0 = (6 + 1) * 2 = 14.0
-        let chars = show_string(&mut ts, &[65], &constant_width);
-        assert_approx(chars[0].displacement, 14.0);
+        // Space char: (600/1000 * 10 + 3.0) * 2.0 = (6 + 3) * 2 = 18.0
+        let chars = show_string(&mut ts, &[32, 65], &constant_width);
+        assert_approx(chars[0].displacement, 18.0);
+        // Non-space: (600/1000 * 10) * 2.0 = 12.0
+        assert_approx(chars[1].displacement, 12.0);
+        // The second glyph also carries the scaled spacing: 18 + 1.0 * 2 = 20.
+        assert_approx(chars[1].text_matrix[4], 20.0);
     }
 
     #[test]
@@ -707,8 +744,9 @@ mod tests {
         // T* moved to (72, 686), then showed 'A'
         assert_approx(chars[0].text_matrix[4], 72.0);
         assert_approx(chars[0].text_matrix[5], 686.0);
-        // displacement includes the new char_spacing: (600/1000 * 10 + 1.0) * 1.0 = 7.0
-        assert_approx(chars[0].displacement, 7.0);
+        // A glyph advances by its own width; the spacing it just set applies
+        // between glyphs, and this operation shows only one.
+        assert_approx(chars[0].displacement, 6.0);
     }
 
     #[test]
@@ -874,17 +912,18 @@ mod tests {
     }
 
     #[test]
-    fn zero_font_size_produces_only_spacing_displacement() {
+    fn zero_font_size_advances_by_spacing_alone() {
         let mut ts = TextState::new();
         ts.begin_text();
         ts.set_font("F1".to_string(), 0.0); // zero font size
         ts.set_char_spacing(2.0);
         ts.move_text_position(100.0, 500.0);
 
-        let chars = show_string(&mut ts, &[65], &constant_width);
+        let chars = show_string(&mut ts, &[65, 66], &constant_width);
 
-        // displacement: (600/1000 * 0 + 2.0) * 1.0 = 2.0
-        assert_approx(chars[0].displacement, 2.0);
+        // No width at zero font size, so only the spacing moves the position.
+        assert_approx(chars[0].displacement, 0.0);
+        assert_approx(chars[1].text_matrix[4], 102.0);
     }
 
     // --- CID font 2-byte character codes: show_string_cid ---
