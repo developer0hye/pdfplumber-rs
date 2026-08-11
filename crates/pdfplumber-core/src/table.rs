@@ -478,20 +478,20 @@ pub fn edges_to_intersections(
     intersections
 }
 
-/// Construct rectangular cells using edge coverage with grid completion.
+/// Construct rectangular cells from intersection points and the edges that
+/// connect them.
 ///
-/// Uses a two-phase approach:
+/// Every intersection is tried as a cell's top-left corner. Walking down the
+/// points sharing its x, then right along the points sharing its y, the first
+/// pair whose bottom-right corner also exists — with edges running along all
+/// four sides — becomes that corner's cell. Taking the first match yields the
+/// smallest cell anchored there, and a cell that spans several rows or columns
+/// falls out naturally: the points in between simply are not connected.
 ///
-/// **Phase 1 (strict edge coverage):** For each candidate cell (consecutive x-pair and
-/// y-pair from intersection grid), check all 4 edges: horizontal edges span \[x0, x1\]
-/// at top and bottom y, AND vertical edges span \[top, bottom\] at left and right x.
-///
-/// **Phase 2 (merged cell completion):** For rows not fully covered by Phase 1, identify
-/// x-positions that have vertical edge coverage at the current y-range. Between consecutive
-/// such x-positions, create one merged cell if horizontal edges span the range at both
-/// top and bottom y. This produces wider cells for merged header/footer rows (matching
-/// Python pdfplumber behavior). Use [`normalize_table_columns`] after text extraction
-/// to split merged cells into uniform grid columns.
+/// A side counts as present when a single edge covers it end to end, within
+/// `x_tolerance`/`y_tolerance`. A row of edges that merely abut does not close
+/// a cell, matching Python pdfplumber, which requires the two corners to share
+/// one edge object.
 pub fn edges_to_cells(
     intersections: &[Intersection],
     edges: &[Edge],
@@ -502,23 +502,6 @@ pub fn edges_to_cells(
         return Vec::new();
     }
 
-    // Collect unique x and y coordinates (sorted) from intersections
-    let mut xs: Vec<f64> = Vec::new();
-    let mut ys: Vec<f64> = Vec::new();
-
-    for pt in intersections {
-        if !xs.iter().any(|&x| (x - pt.x).abs() < 1e-9) {
-            xs.push(pt.x);
-        }
-        if !ys.iter().any(|&y| (y - pt.y).abs() < 1e-9) {
-            ys.push(pt.y);
-        }
-    }
-
-    xs.sort_by(|a, b| a.partial_cmp(b).unwrap());
-    ys.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-    // Separate edges by orientation
     let horizontals: Vec<&Edge> = edges
         .iter()
         .filter(|e| e.orientation == Orientation::Horizontal)
@@ -528,15 +511,15 @@ pub fn edges_to_cells(
         .filter(|e| e.orientation == Orientation::Vertical)
         .collect();
 
-    // Check if a horizontal edge covers the x-range [x0, x1] at y-position
-    let has_h_coverage = |x0: f64, x1: f64, y: f64| -> bool {
+    // A horizontal edge at `y` running from `x0` to `x1` without a break.
+    let joined_horizontally = |x0: f64, x1: f64, y: f64| -> bool {
         horizontals.iter().any(|e| {
             (e.top - y).abs() <= y_tolerance && e.x0 <= x0 + x_tolerance && e.x1 >= x1 - x_tolerance
         })
     };
 
-    // Check if a vertical edge covers the y-range [top, bottom] at x-position
-    let has_v_coverage = |x: f64, top: f64, bottom: f64| -> bool {
+    // A vertical edge at `x` running from `top` to `bottom` without a break.
+    let joined_vertically = |x: f64, top: f64, bottom: f64| -> bool {
         verticals.iter().any(|e| {
             (e.x0 - x).abs() <= x_tolerance
                 && e.top <= top + y_tolerance
@@ -544,86 +527,55 @@ pub fn edges_to_cells(
         })
     };
 
-    // Phase 1: strict edge coverage (all 4 edges required)
+    let mut points: Vec<(f64, f64)> = intersections.iter().map(|p| (p.x, p.y)).collect();
+    points.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap()
+            .then_with(|| a.1.partial_cmp(&b.1).unwrap())
+    });
+    points.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-9 && (a.1 - b.1).abs() < 1e-9);
+
+    let point_exists = |x: f64, y: f64| -> bool {
+        points
+            .iter()
+            .any(|p| (p.0 - x).abs() < 1e-6 && (p.1 - y).abs() < 1e-6)
+    };
+
     let mut cells = Vec::new();
-    // Track which column boundaries (x-positions) are established by phase-1 cells
-    let mut established_xs = std::collections::HashSet::new();
 
-    for yi in 0..ys.len().saturating_sub(1) {
-        for xi in 0..xs.len().saturating_sub(1) {
-            let x0 = xs[xi];
-            let x1 = xs[xi + 1];
-            let top = ys[yi];
-            let bottom = ys[yi + 1];
-
-            if has_h_coverage(x0, x1, top)
-                && has_h_coverage(x0, x1, bottom)
-                && has_v_coverage(x0, top, bottom)
-                && has_v_coverage(x1, top, bottom)
-            {
-                cells.push(Cell {
-                    bbox: BBox::new(x0, top, x1, bottom),
-                    text: None,
-                });
-                // Record that x0 and x1 are established column boundaries
-                // Use integer key (scaled by 1000) to avoid float hash issues
-                established_xs.insert((x0 * 1000.0).round() as i64);
-                established_xs.insert((x1 * 1000.0).round() as i64);
-            }
-        }
-    }
-
-    // Phase 2: grid completion with merged cells — for rows with missing vertical edges,
-    // create merged cells spanning between consecutive x-positions that have vertical
-    // edge coverage at the current y-range. This produces wider cells for merged header/
-    // footer rows (matching Python pdfplumber behavior) instead of narrow cells that
-    // fragment text.
-    let is_established_x =
-        |x: f64| -> bool { established_xs.contains(&((x * 1000.0).round() as i64)) };
-
-    for yi in 0..ys.len().saturating_sub(1) {
-        let top = ys[yi];
-        let bottom = ys[yi + 1];
-
-        // Check if this row is already fully covered by Phase 1
-        let phase1_count = cells
+    for &(x, top) in &points {
+        let mut below: Vec<f64> = points
             .iter()
-            .filter(|c| (c.bbox.top - top).abs() < 1e-9)
-            .count();
-        let max_cells = xs.len().saturating_sub(1);
-        if phase1_count >= max_cells {
-            continue;
-        }
-
-        // Find x-positions with vertical edge coverage at this y-range
-        let v_xs: Vec<f64> = xs
-            .iter()
-            .filter(|&&x| is_established_x(x) && has_v_coverage(x, top, bottom))
-            .copied()
+            .filter(|p| (p.0 - x).abs() < 1e-6 && p.1 > top + 1e-6)
+            .map(|p| p.1)
             .collect();
+        below.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-        // Create merged cells between consecutive V-boundary positions
-        for vi in 0..v_xs.len().saturating_sub(1) {
-            let cell_x0 = v_xs[vi];
-            let cell_x1 = v_xs[vi + 1];
+        let mut right: Vec<f64> = points
+            .iter()
+            .filter(|p| (p.1 - top).abs() < 1e-6 && p.0 > x + 1e-6)
+            .map(|p| p.0)
+            .collect();
+        right.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
-            // Skip if Phase 1 already created a matching cell
-            let already_exists = cells.iter().any(|c| {
-                (c.bbox.x0 - cell_x0).abs() < 1e-9
-                    && (c.bbox.top - top).abs() < 1e-9
-                    && (c.bbox.x1 - cell_x1).abs() < 1e-9
-                    && (c.bbox.bottom - bottom).abs() < 1e-9
-            });
-            if already_exists {
+        'corner: for &bottom in &below {
+            if !joined_vertically(x, top, bottom) {
                 continue;
             }
-
-            // Check H edge coverage at top and bottom
-            if has_h_coverage(cell_x0, cell_x1, top) && has_h_coverage(cell_x0, cell_x1, bottom) {
-                cells.push(Cell {
-                    bbox: BBox::new(cell_x0, top, cell_x1, bottom),
-                    text: None,
-                });
+            for &x1 in &right {
+                if !joined_horizontally(x, x1, top) {
+                    continue;
+                }
+                if point_exists(x1, bottom)
+                    && joined_horizontally(x, x1, bottom)
+                    && joined_vertically(x1, top, bottom)
+                {
+                    cells.push(Cell {
+                        bbox: BBox::new(x, top, x1, bottom),
+                        text: None,
+                    });
+                    break 'corner;
+                }
             }
         }
     }
@@ -2970,13 +2922,11 @@ mod tests {
             make_v_edge(100.0, 0.0, 30.0), // right border
         ];
         let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
-        // Should produce 2 cells: (0,0)-(50,30) and (50,0)-(100,30)
-        assert_eq!(cells.len(), 2);
+        // A cell needs all four corners. Without an intersection at (50, 0) the
+        // divider cannot close a cell against the top edge, so the pair spans
+        // the full width instead.
+        assert_eq!(cells.len(), 1);
         assert!(cells.iter().any(|c| (c.bbox.x0 - 0.0).abs() < 1e-6
-            && (c.bbox.top - 0.0).abs() < 1e-6
-            && (c.bbox.x1 - 50.0).abs() < 1e-6
-            && (c.bbox.bottom - 30.0).abs() < 1e-6));
-        assert!(cells.iter().any(|c| (c.bbox.x0 - 50.0).abs() < 1e-6
             && (c.bbox.top - 0.0).abs() < 1e-6
             && (c.bbox.x1 - 100.0).abs() < 1e-6
             && (c.bbox.bottom - 30.0).abs() < 1e-6));
@@ -3026,8 +2976,9 @@ mod tests {
     }
 
     #[test]
-    fn test_edges_to_cells_missing_vertical_no_cell() {
-        // Missing vertical edge at x=50 means cells adjacent to x=50 are invalid
+    fn test_edges_to_cells_missing_vertical_spans_the_gap() {
+        // Missing vertical edge at x=50: no cell can end there, so the outer
+        // borders close one wide cell across it.
         let intersections = vec![
             make_intersection(0.0, 0.0),
             make_intersection(50.0, 0.0),
@@ -3044,9 +2995,10 @@ mod tests {
             make_v_edge(100.0, 0.0, 30.0),
         ];
         let cells = edges_to_cells(&intersections, &edges, 3.0, 3.0);
-        // Cell (0,0)-(50,30): V left OK, V right at x=50 missing → skip
-        // Cell (50,0)-(100,30): V left at x=50 missing → skip
-        assert_eq!(cells.len(), 0);
+        assert_eq!(cells.len(), 1);
+        let cell = &cells[0];
+        assert!((cell.bbox.x0 - 0.0).abs() < 1e-6);
+        assert!((cell.bbox.x1 - 100.0).abs() < 1e-6);
     }
 
     #[test]
