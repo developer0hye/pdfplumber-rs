@@ -530,7 +530,8 @@ impl Page {
         let edges = self.edges();
         let words = self.extract_words(&WordOptions::default());
 
-        let finder = TableFinder::new_with_words(edges, words, settings.clone());
+        let finder =
+            TableFinder::new_with_words(edges, words, settings.clone()).with_page_bbox(self.bbox());
         let mut tables = finder.find_tables();
 
         // Populate cell text from page characters
@@ -748,7 +749,8 @@ impl Page {
     ) -> String {
         let edges = self.edges();
         let words = self.extract_words(&WordOptions::default());
-        let finder = TableFinder::new_with_words(edges, words, settings.clone());
+        let finder =
+            TableFinder::new_with_words(edges, words, settings.clone()).with_page_bbox(self.bbox());
         let debug = finder.find_tables_debug();
 
         let mut renderer = pdfplumber_core::SvgRenderer::new(self.width, self.height);

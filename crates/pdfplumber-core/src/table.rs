@@ -29,8 +29,13 @@ pub enum Strategy {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableSettings {
-    /// Table detection strategy.
+    /// Table detection strategy, used for whichever axis has no strategy of
+    /// its own.
     pub strategy: Strategy,
+    /// Strategy for finding column boundaries. Falls back to [`Self::strategy`].
+    pub vertical_strategy: Option<Strategy>,
+    /// Strategy for finding row boundaries. Falls back to [`Self::strategy`].
+    pub horizontal_strategy: Option<Strategy>,
     /// General snap tolerance for aligning nearby edges.
     pub snap_tolerance: f64,
     /// Snap tolerance for horizontal alignment.
@@ -43,8 +48,13 @@ pub struct TableSettings {
     pub join_x_tolerance: f64,
     /// Join tolerance for vertical edges.
     pub join_y_tolerance: f64,
-    /// Minimum edge length to consider for table detection.
+    /// Minimum edge length to consider for table detection, applied after
+    /// collinear segments have been joined.
     pub edge_min_length: f64,
+    /// Minimum length a detected edge must have to enter the pipeline at all,
+    /// applied before snapping and joining. Keeps stray marks out without
+    /// discarding the segments that make up a longer rule.
+    pub edge_min_length_prefilter: f64,
     /// Minimum number of words sharing a vertical alignment for Stream strategy.
     pub min_words_vertical: usize,
     /// Minimum number of words sharing a horizontal alignment for Stream strategy.
@@ -61,7 +71,9 @@ pub struct TableSettings {
     pub intersection_x_tolerance: f64,
     /// Intersection tolerance along y-axis.
     pub intersection_y_tolerance: f64,
-    /// Optional explicit line coordinates for Explicit strategy.
+    /// Optional explicit line coordinates. These are always added to whatever
+    /// the axis strategy finds; [`Strategy::Explicit`] means *only* they are
+    /// used for that axis.
     pub explicit_lines: Option<ExplicitLines>,
     /// Minimum accuracy threshold for auto-filtering low-quality tables (0.0 to 1.0).
     /// Tables with accuracy below this threshold are discarded. Default: None (no filtering).
@@ -76,6 +88,8 @@ impl Default for TableSettings {
     fn default() -> Self {
         Self {
             strategy: Strategy::default(),
+            vertical_strategy: None,
+            horizontal_strategy: None,
             snap_tolerance: 3.0,
             snap_x_tolerance: 3.0,
             snap_y_tolerance: 3.0,
@@ -83,6 +97,7 @@ impl Default for TableSettings {
             join_x_tolerance: 3.0,
             join_y_tolerance: 3.0,
             edge_min_length: 3.0,
+            edge_min_length_prefilter: 1.0,
             min_words_vertical: 3,
             min_words_horizontal: 1,
             text_tolerance: 3.0,
@@ -95,6 +110,18 @@ impl Default for TableSettings {
             min_accuracy: None,
             duplicate_merged_content: false,
         }
+    }
+}
+
+impl TableSettings {
+    /// Strategy to use for column boundaries.
+    pub fn resolved_vertical_strategy(&self) -> Strategy {
+        self.vertical_strategy.unwrap_or(self.strategy)
+    }
+
+    /// Strategy to use for row boundaries.
+    pub fn resolved_horizontal_strategy(&self) -> Strategy {
+        self.horizontal_strategy.unwrap_or(self.strategy)
     }
 }
 
@@ -1425,6 +1452,28 @@ pub struct TableFinderDebug {
     pub tables: Vec<Table>,
 }
 
+/// The axis a strategy is being resolved for.
+///
+/// Narrower than [`Orientation`], which also admits diagonals: a table axis is
+/// only ever vertical (columns) or horizontal (rows).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Axis {
+    /// Column boundaries.
+    Vertical,
+    /// Row boundaries.
+    Horizontal,
+}
+
+impl Axis {
+    /// The edge orientation this axis is made of.
+    fn orientation(self) -> Orientation {
+        match self {
+            Axis::Vertical => Orientation::Vertical,
+            Axis::Horizontal => Orientation::Horizontal,
+        }
+    }
+}
+
 /// Orchestrator for the table detection pipeline.
 ///
 /// Takes edges (and optionally words/chars) and settings, then runs
@@ -1436,6 +1485,9 @@ pub struct TableFinder {
     words: Vec<Word>,
     /// Configuration settings.
     settings: TableSettings,
+    /// Page bounds, used to size explicit lines. Without it, explicit lines
+    /// span the range covered by the detected edges instead.
+    page_bbox: Option<BBox>,
 }
 
 impl TableFinder {
@@ -1445,6 +1497,7 @@ impl TableFinder {
             edges,
             words: Vec::new(),
             settings,
+            page_bbox: None,
         }
     }
 
@@ -1457,7 +1510,18 @@ impl TableFinder {
             edges,
             words,
             settings,
+            page_bbox: None,
         }
+    }
+
+    /// Set the page bounds explicit lines should span.
+    ///
+    /// An explicit line has one coordinate; the other two ends come from here,
+    /// so a line given for an empty page still crosses it. pdfplumber always
+    /// has the page to hand, so pass it whenever a page is available.
+    pub fn with_page_bbox(mut self, page_bbox: BBox) -> Self {
+        self.page_bbox = Some(page_bbox);
+        self
     }
 
     /// Get a reference to the settings.
@@ -1470,121 +1534,146 @@ impl TableFinder {
         &self.edges
     }
 
-    /// Run the table detection pipeline and return detected tables.
+    /// Pick the edges each axis contributes, per its own strategy.
     ///
-    /// Pipeline: filter edges → snap → join → intersections → cells → tables.
-    ///
-    /// For **Lattice** strategy, all edges (lines + rect edges) are used.
-    /// For **LatticeStrict** strategy, only line-sourced edges are used (no rect edges).
-    /// For **Stream** strategy, synthetic edges are generated from word alignment patterns.
-    /// For **Explicit** strategy, edges from user-provided coordinates are used,
-    /// combined with any detected edges passed to the finder (mixing).
-    pub fn find_tables(&self) -> Vec<Table> {
-        // Step 1: Select edges based on strategy
-        let edges: Vec<Edge> = match self.settings.strategy {
-            Strategy::LatticeStrict => self
-                .edges
+    /// Each axis is resolved independently, so a table ruled between rows but
+    /// not between columns can be read with `horizontal_strategy` on lines and
+    /// `vertical_strategy` on text. Explicit lines are added to whatever the
+    /// strategy produced; [`Strategy::Explicit`] simply contributes no
+    /// detected edges of its own for that axis.
+    fn select_edges(&self) -> Vec<Edge> {
+        let vertical = self.settings.resolved_vertical_strategy();
+        let horizontal = self.settings.resolved_horizontal_strategy();
+
+        let mut edges = self.axis_edges(Axis::Vertical, vertical);
+        edges.extend(self.axis_edges(Axis::Horizontal, horizontal));
+        edges
+    }
+
+    /// Edges for one axis: the strategy's own edges plus any explicit lines.
+    fn axis_edges(&self, axis: Axis, strategy: Strategy) -> Vec<Edge> {
+        let orientation = axis.orientation();
+        let prefilter = self.settings.edge_min_length_prefilter;
+        let detected = |only_lines: bool| -> Vec<Edge> {
+            self.edges
                 .iter()
-                .filter(|e| e.source == EdgeSource::Line)
+                .filter(|e| e.orientation == orientation)
+                .filter(|e| !only_lines || e.source == EdgeSource::Line)
+                .filter(|e| edge_length(e) >= prefilter)
                 .cloned()
-                .collect(),
-            Strategy::Stream => {
-                // Generate synthetic edges from word alignment patterns
-                words_to_edges_stream(
-                    &self.words,
-                    self.settings.min_words_vertical,
-                    self.settings.min_words_horizontal,
-                )
-            }
-            Strategy::Explicit => {
-                // Start with detected edges (for mixing)
-                let mut edges = self.edges.clone();
-
-                if let Some(ref explicit) = self.settings.explicit_lines {
-                    // Compute the overall bounding range from detected edges + explicit coords
-                    let mut min_x = f64::INFINITY;
-                    let mut max_x = f64::NEG_INFINITY;
-                    let mut min_y = f64::INFINITY;
-                    let mut max_y = f64::NEG_INFINITY;
-
-                    for e in &edges {
-                        min_x = min_x.min(e.x0);
-                        max_x = max_x.max(e.x1);
-                        min_y = min_y.min(e.top);
-                        max_y = max_y.max(e.bottom);
-                    }
-                    for &x in &explicit.vertical_lines {
-                        min_x = min_x.min(x);
-                        max_x = max_x.max(x);
-                    }
-                    for &y in &explicit.horizontal_lines {
-                        min_y = min_y.min(y);
-                        max_y = max_y.max(y);
-                    }
-
-                    if min_x <= max_x && min_y <= max_y {
-                        for &y in &explicit.horizontal_lines {
-                            edges.push(Edge {
-                                x0: min_x,
-                                top: y,
-                                x1: max_x,
-                                bottom: y,
-                                orientation: Orientation::Horizontal,
-                                source: EdgeSource::Explicit,
-                            });
-                        }
-                        for &x in &explicit.vertical_lines {
-                            edges.push(Edge {
-                                x0: x,
-                                top: min_y,
-                                x1: x,
-                                bottom: max_y,
-                                orientation: Orientation::Vertical,
-                                source: EdgeSource::Explicit,
-                            });
-                        }
-                    }
-                }
-
-                edges
-            }
-            // Lattice (default): use all edges
-            Strategy::Lattice => self.edges.clone(),
+                .collect()
         };
 
-        // Step 2: Filter edges by minimum length
-        let min_len = self.settings.edge_min_length;
-        let edges: Vec<Edge> = edges
-            .into_iter()
-            .filter(|e| edge_length(e) >= min_len)
-            .collect();
+        let mut edges = match strategy {
+            Strategy::Lattice => detected(false),
+            Strategy::LatticeStrict => detected(true),
+            Strategy::Stream => match axis {
+                Axis::Vertical => words_to_edges_v(&self.words, self.settings.min_words_vertical),
+                Axis::Horizontal => {
+                    words_to_edges_h(&self.words, self.settings.min_words_horizontal)
+                }
+            },
+            Strategy::Explicit => Vec::new(),
+        };
+
+        edges.extend(self.explicit_edges(axis));
+        edges
+    }
+
+    /// Turn the configured explicit coordinates for one axis into edges.
+    fn explicit_edges(&self, axis: Axis) -> Vec<Edge> {
+        let Some(explicit) = self.settings.explicit_lines.as_ref() else {
+            return Vec::new();
+        };
+
+        let coordinates = match axis {
+            Axis::Vertical => &explicit.vertical_lines,
+            Axis::Horizontal => &explicit.horizontal_lines,
+        };
+        if coordinates.is_empty() {
+            return Vec::new();
+        }
+
+        let span = self.explicit_span();
+        let orientation = axis.orientation();
+        coordinates
+            .iter()
+            .map(|&coordinate| match axis {
+                Axis::Vertical => Edge {
+                    x0: coordinate,
+                    top: span.top,
+                    x1: coordinate,
+                    bottom: span.bottom,
+                    orientation,
+                    source: EdgeSource::Explicit,
+                },
+                Axis::Horizontal => Edge {
+                    x0: span.x0,
+                    top: coordinate,
+                    x1: span.x1,
+                    bottom: coordinate,
+                    orientation,
+                    source: EdgeSource::Explicit,
+                },
+            })
+            .collect()
+    }
+
+    /// The rectangle an explicit line stretches across.
+    ///
+    /// The page when one was given, otherwise the extent of the detected edges
+    /// and the explicit coordinates themselves, so a finder built from bare
+    /// edges still produces lines that meet.
+    fn explicit_span(&self) -> BBox {
+        if let Some(page_bbox) = self.page_bbox {
+            return page_bbox;
+        }
+
+        let mut x0 = f64::INFINITY;
+        let mut top = f64::INFINITY;
+        let mut x1 = f64::NEG_INFINITY;
+        let mut bottom = f64::NEG_INFINITY;
+
+        for edge in &self.edges {
+            x0 = x0.min(edge.x0);
+            x1 = x1.max(edge.x1);
+            top = top.min(edge.top);
+            bottom = bottom.max(edge.bottom);
+        }
+        if let Some(explicit) = self.settings.explicit_lines.as_ref() {
+            for &x in &explicit.vertical_lines {
+                x0 = x0.min(x);
+                x1 = x1.max(x);
+            }
+            for &y in &explicit.horizontal_lines {
+                top = top.min(y);
+                bottom = bottom.max(y);
+            }
+        }
+
+        if x0 > x1 || top > bottom {
+            return BBox::new(0.0, 0.0, 0.0, 0.0);
+        }
+        BBox::new(x0, top, x1, bottom)
+    }
+
+    /// Run the table detection pipeline and return detected tables.
+    ///
+    /// Pipeline: select edges per axis → snap → join → drop short edges →
+    /// intersections → cells → tables.
+    pub fn find_tables(&self) -> Vec<Table> {
+        let edges = self.merged_edges();
 
         if edges.is_empty() {
             return Vec::new();
         }
 
-        // Step 3: Snap nearby parallel edges
-        let edges = snap_edges(
-            edges,
-            self.settings.snap_x_tolerance,
-            self.settings.snap_y_tolerance,
-        );
-
-        // Step 4: Join collinear edge segments
-        let edges = join_edge_group(
-            edges,
-            self.settings.join_x_tolerance,
-            self.settings.join_y_tolerance,
-        );
-
-        // Step 5: Find intersections
         let intersections = edges_to_intersections(
             &edges,
             self.settings.intersection_x_tolerance,
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Build cells from intersections using edge coverage
         let cells = edges_to_cells(
             &intersections,
             &edges,
@@ -1592,8 +1681,37 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 7: Group cells into tables
         cells_to_tables(cells)
+    }
+
+    /// Edges ready for intersection: selected per axis, snapped, joined, then
+    /// filtered by `edge_min_length`.
+    ///
+    /// The length filter runs last because joining reconnects collinear runs:
+    /// a rule drawn as several short segments only reaches its full length
+    /// after the join, and filtering first would discard the pieces.
+    fn merged_edges(&self) -> Vec<Edge> {
+        let edges = self.select_edges();
+        if edges.is_empty() {
+            return Vec::new();
+        }
+
+        let edges = snap_edges(
+            edges,
+            self.settings.snap_x_tolerance,
+            self.settings.snap_y_tolerance,
+        );
+        let edges = join_edge_group(
+            edges,
+            self.settings.join_x_tolerance,
+            self.settings.join_y_tolerance,
+        );
+
+        let min_len = self.settings.edge_min_length;
+        edges
+            .into_iter()
+            .filter(|e| edge_length(e) >= min_len)
+            .collect()
     }
 
     /// Run the table detection pipeline and return intermediate results for debugging.
@@ -1602,74 +1720,7 @@ impl TableFinder {
     /// cells, and tables from each pipeline stage. This is used by the visual
     /// debugging system to render the table detection process.
     pub fn find_tables_debug(&self) -> TableFinderDebug {
-        // Step 1: Select edges based on strategy (same as find_tables)
-        let edges: Vec<Edge> = match self.settings.strategy {
-            Strategy::LatticeStrict => self
-                .edges
-                .iter()
-                .filter(|e| e.source == EdgeSource::Line)
-                .cloned()
-                .collect(),
-            Strategy::Stream => words_to_edges_stream(
-                &self.words,
-                self.settings.min_words_vertical,
-                self.settings.min_words_horizontal,
-            ),
-            Strategy::Explicit => {
-                let mut edges = self.edges.clone();
-                if let Some(ref explicit) = self.settings.explicit_lines {
-                    let mut min_x = f64::INFINITY;
-                    let mut max_x = f64::NEG_INFINITY;
-                    let mut min_y = f64::INFINITY;
-                    let mut max_y = f64::NEG_INFINITY;
-                    for e in &edges {
-                        min_x = min_x.min(e.x0);
-                        max_x = max_x.max(e.x1);
-                        min_y = min_y.min(e.top);
-                        max_y = max_y.max(e.bottom);
-                    }
-                    for &x in &explicit.vertical_lines {
-                        min_x = min_x.min(x);
-                        max_x = max_x.max(x);
-                    }
-                    for &y in &explicit.horizontal_lines {
-                        min_y = min_y.min(y);
-                        max_y = max_y.max(y);
-                    }
-                    if min_x <= max_x && min_y <= max_y {
-                        for &y in &explicit.horizontal_lines {
-                            edges.push(Edge {
-                                x0: min_x,
-                                top: y,
-                                x1: max_x,
-                                bottom: y,
-                                orientation: Orientation::Horizontal,
-                                source: EdgeSource::Explicit,
-                            });
-                        }
-                        for &x in &explicit.vertical_lines {
-                            edges.push(Edge {
-                                x0: x,
-                                top: min_y,
-                                x1: x,
-                                bottom: max_y,
-                                orientation: Orientation::Vertical,
-                                source: EdgeSource::Explicit,
-                            });
-                        }
-                    }
-                }
-                edges
-            }
-            Strategy::Lattice => self.edges.clone(),
-        };
-
-        // Step 2: Filter by minimum length
-        let min_len = self.settings.edge_min_length;
-        let edges: Vec<Edge> = edges
-            .into_iter()
-            .filter(|e| edge_length(e) >= min_len)
-            .collect();
+        let edges = self.merged_edges();
 
         if edges.is_empty() {
             return TableFinderDebug {
@@ -1680,28 +1731,12 @@ impl TableFinder {
             };
         }
 
-        // Step 3: Snap
-        let edges = snap_edges(
-            edges,
-            self.settings.snap_x_tolerance,
-            self.settings.snap_y_tolerance,
-        );
-
-        // Step 4: Join
-        let edges = join_edge_group(
-            edges,
-            self.settings.join_x_tolerance,
-            self.settings.join_y_tolerance,
-        );
-
-        // Step 5: Intersections
         let intersections = edges_to_intersections(
             &edges,
             self.settings.intersection_x_tolerance,
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 6: Cells (using edge coverage)
         let cells = edges_to_cells(
             &intersections,
             &edges,
@@ -1709,7 +1744,6 @@ impl TableFinder {
             self.settings.intersection_y_tolerance,
         );
 
-        // Step 7: Tables
         let tables = cells_to_tables(cells.clone());
 
         TableFinderDebug {
@@ -4219,20 +4253,19 @@ mod tests {
 
     #[test]
     fn test_explicit_mixing_with_detected_edges() {
-        // Detected edges form partial grid; explicit lines complete it
-        // Detected: two vertical edges at x=0 and x=100
+        // Rows come from explicit coordinates, columns from the detected edges.
         let detected_edges = vec![
             make_v_edge(0.0, 0.0, 40.0),
             make_v_edge(50.0, 0.0, 40.0),
             make_v_edge(100.0, 0.0, 40.0),
         ];
-        // Explicit: add horizontal lines at y=0 and y=40
         let explicit = ExplicitLines {
             horizontal_lines: vec![0.0, 40.0],
             vertical_lines: vec![], // no explicit verticals
         };
         let settings = TableSettings {
-            strategy: Strategy::Explicit,
+            vertical_strategy: Some(Strategy::Lattice),
+            horizontal_strategy: Some(Strategy::Explicit),
             explicit_lines: Some(explicit),
             ..TableSettings::default()
         };
@@ -4242,6 +4275,24 @@ mod tests {
         // The explicit horizontal lines + detected vertical edges form a complete grid
         assert_eq!(tables.len(), 1);
         assert_eq!(tables[0].cells.len(), 2);
+    }
+
+    #[test]
+    fn test_explicit_strategy_ignores_detected_edges_on_that_axis() {
+        // With both axes explicit, the detected verticals contribute nothing and
+        // the two explicit horizontals alone cannot enclose a cell.
+        let detected_edges = vec![make_v_edge(0.0, 0.0, 40.0), make_v_edge(100.0, 0.0, 40.0)];
+        let settings = TableSettings {
+            strategy: Strategy::Explicit,
+            explicit_lines: Some(ExplicitLines {
+                horizontal_lines: vec![0.0, 40.0],
+                vertical_lines: vec![],
+            }),
+            ..TableSettings::default()
+        };
+        let finder = TableFinder::new(detected_edges, settings);
+
+        assert!(finder.find_tables().is_empty());
     }
 
     #[test]
