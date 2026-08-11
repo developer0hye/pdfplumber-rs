@@ -121,7 +121,7 @@ pub use table::{
     TableQuality, TableSettings, cells_to_tables, duplicate_merged_content_in_table,
     edges_to_cells, edges_to_intersections, explicit_lines_to_edges, extract_text_for_cells,
     extract_text_for_cells_with_options, intersections_to_cells, join_edge_group,
-    normalize_table_columns, snap_edges, words_to_edges_stream,
+    normalize_table_columns, snap_edges, words_to_edges_h, words_to_edges_stream, words_to_edges_v,
 };
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use unicode_norm::{UnicodeNorm, normalize_chars};

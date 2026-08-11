@@ -1135,155 +1135,210 @@ pub fn extract_text_for_cells_with_options(
     }
 }
 
-/// Generate synthetic edges from text alignment patterns for the Stream strategy.
+/// Cluster tolerance used when grouping words by an alignment coordinate.
 ///
-/// Analyzes word positions to detect vertical and horizontal text alignments:
-/// - Words sharing similar x0 or x1 coordinates → synthetic vertical edges
-/// - Words sharing similar top or bottom coordinates → synthetic horizontal edges
+/// Python pdfplumber hardcodes 1.0 point in `words_to_edges_v`/`words_to_edges_h`;
+/// it is deliberately independent of the table settings' text tolerances, which
+/// configure word extraction rather than alignment detection.
+const ALIGNMENT_CLUSTER_TOLERANCE: f64 = 1.0;
+
+/// Group word indices by an alignment coordinate.
 ///
-/// Groups must meet the minimum word count thresholds (`min_words_vertical` for
-/// vertical edges, `min_words_horizontal` for horizontal edges) to produce an edge.
-///
-/// Each synthetic edge spans the full extent of the aligned words in the
-/// perpendicular direction.
-pub fn words_to_edges_stream(
-    words: &[Word],
-    text_x_tolerance: f64,
-    text_y_tolerance: f64,
-    min_words_vertical: usize,
-    min_words_horizontal: usize,
-) -> Vec<Edge> {
+/// Distinct coordinate values are sorted and chained: a value joins the current
+/// cluster when it is within `tolerance` of the **previous** value, so a cluster
+/// may span more than `tolerance` overall. Returned clusters are ordered by
+/// ascending coordinate.
+fn cluster_words_by<F>(words: &[Word], key: F, tolerance: f64) -> Vec<Vec<usize>>
+where
+    F: Fn(&Word) -> f64,
+{
     if words.is_empty() {
         return Vec::new();
     }
 
-    let mut edges = Vec::new();
+    let keys: Vec<f64> = words.iter().map(&key).collect();
 
-    // Vertical edges from x0 alignment (left edges of words)
-    edges.extend(cluster_words_to_edges(
-        words,
-        |w| w.bbox.x0,
-        text_x_tolerance,
-        min_words_vertical,
-        EdgeKind::Vertical,
-    ));
+    let mut distinct: Vec<f64> = keys.clone();
+    distinct.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
+    distinct.dedup();
 
-    // Vertical edges from x1 alignment (right edges of words)
-    edges.extend(cluster_words_to_edges(
-        words,
-        |w| w.bbox.x1,
-        text_x_tolerance,
-        min_words_vertical,
-        EdgeKind::Vertical,
-    ));
+    // Cluster id for each distinct value, assigned by chaining neighbours.
+    let mut cluster_of_distinct: Vec<usize> = Vec::with_capacity(distinct.len());
+    let mut cluster_count = 0usize;
+    for (i, &value) in distinct.iter().enumerate() {
+        if i > 0 && value > distinct[i - 1] + tolerance {
+            cluster_count += 1;
+        }
+        cluster_of_distinct.push(cluster_count);
+    }
+    if !distinct.is_empty() {
+        cluster_count += 1;
+    }
 
-    // Horizontal edges from top alignment
-    edges.extend(cluster_words_to_edges(
-        words,
-        |w| w.bbox.top,
-        text_y_tolerance,
-        min_words_horizontal,
-        EdgeKind::Horizontal,
-    ));
+    let mut clusters: Vec<Vec<usize>> = vec![Vec::new(); cluster_count];
+    for (word_index, value) in keys.iter().enumerate() {
+        let distinct_index = distinct
+            .binary_search_by(|probe| {
+                probe
+                    .partial_cmp(value)
+                    .unwrap_or(core::cmp::Ordering::Equal)
+            })
+            .expect("every key is present in the distinct value list");
+        clusters[cluster_of_distinct[distinct_index]].push(word_index);
+    }
 
-    // Horizontal edges from bottom alignment
-    edges.extend(cluster_words_to_edges(
-        words,
-        |w| w.bbox.bottom,
-        text_y_tolerance,
-        min_words_horizontal,
-        EdgeKind::Horizontal,
-    ));
-
-    edges
+    clusters
 }
 
-/// Internal enum to specify what kind of edge to produce from word clusters.
-enum EdgeKind {
-    Vertical,
-    Horizontal,
+/// Smallest bounding box containing every word in the cluster.
+fn cluster_bbox(words: &[Word], cluster: &[usize]) -> BBox {
+    let mut bbox = words[cluster[0]].bbox;
+    for &i in &cluster[1..] {
+        let b = words[i].bbox;
+        bbox = BBox::new(
+            bbox.x0.min(b.x0),
+            bbox.top.min(b.top),
+            bbox.x1.max(b.x1),
+            bbox.bottom.max(b.bottom),
+        );
+    }
+    bbox
 }
 
-/// Cluster words by a coordinate accessor, then produce synthetic edges for qualifying clusters.
-fn cluster_words_to_edges<F>(
-    words: &[Word],
-    key: F,
-    tolerance: f64,
-    min_words: usize,
-    kind: EdgeKind,
-) -> Vec<Edge>
-where
-    F: Fn(&Word) -> f64,
-{
-    if words.is_empty() || min_words == 0 {
+/// True when two boxes share area, or touch along an edge with non-zero extent.
+///
+/// Matches pdfplumber's `get_bbox_overlap`: a zero-area intersection still counts
+/// as an overlap as long as the boxes meet along a segment of non-zero length.
+fn bboxes_overlap(a: &BBox, b: &BBox) -> bool {
+    let width = a.x1.min(b.x1) - a.x0.max(b.x0);
+    let height = a.bottom.min(b.bottom) - a.top.max(b.top);
+    width >= 0.0 && height >= 0.0 && width + height > 0.0
+}
+
+/// Find imaginary vertical lines connecting the left, right, or center of at
+/// least `word_threshold` words.
+///
+/// Words are clustered three ways — by `x0`, by `x1`, and by horizontal center.
+/// Qualifying clusters are ranked largest-first, and a cluster whose bounding
+/// box overlaps an already-accepted one is dropped, so each column contributes a
+/// single alignment. Every accepted cluster yields an edge at its left side, and
+/// one final edge is added at the rightmost extent so the last column is closed.
+/// All returned edges span the full vertical range of the accepted clusters.
+pub fn words_to_edges_v(words: &[Word], word_threshold: usize) -> Vec<Edge> {
+    if words.is_empty() {
         return Vec::new();
     }
 
-    // Sort word indices by the key coordinate
-    let mut indices: Vec<usize> = (0..words.len()).collect();
-    indices.sort_by(|&a, &b| key(&words[a]).partial_cmp(&key(&words[b])).unwrap());
+    let mut clusters = cluster_words_by(words, |w| w.bbox.x0, ALIGNMENT_CLUSTER_TOLERANCE);
+    clusters.extend(cluster_words_by(
+        words,
+        |w| w.bbox.x1,
+        ALIGNMENT_CLUSTER_TOLERANCE,
+    ));
+    clusters.extend(cluster_words_by(
+        words,
+        |w| (w.bbox.x0 + w.bbox.x1) / 2.0,
+        ALIGNMENT_CLUSTER_TOLERANCE,
+    ));
 
-    let mut edges = Vec::new();
-    let mut cluster_start = 0;
+    // Stable sort keeps the x0 → x1 → center precedence for equally sized
+    // clusters, which decides who wins the overlap check below.
+    clusters.sort_by_key(|cluster| core::cmp::Reverse(cluster.len()));
 
-    for i in 1..=indices.len() {
-        let end_of_cluster = i == indices.len()
-            || (key(&words[indices[i]]) - key(&words[indices[cluster_start]])).abs() > tolerance;
-
-        if end_of_cluster {
-            let cluster_size = i - cluster_start;
-            if cluster_size >= min_words {
-                // Compute the mean position for the cluster
-                let sum: f64 = (cluster_start..i).map(|j| key(&words[indices[j]])).sum();
-                let mean_pos = sum / cluster_size as f64;
-
-                // Compute the span in the perpendicular direction
-                let cluster_words: Vec<&Word> =
-                    (cluster_start..i).map(|j| &words[indices[j]]).collect();
-
-                match kind {
-                    EdgeKind::Vertical => {
-                        let min_top = cluster_words
-                            .iter()
-                            .map(|w| w.bbox.top)
-                            .fold(f64::INFINITY, f64::min);
-                        let max_bottom = cluster_words
-                            .iter()
-                            .map(|w| w.bbox.bottom)
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        edges.push(Edge {
-                            x0: mean_pos,
-                            top: min_top,
-                            x1: mean_pos,
-                            bottom: max_bottom,
-                            orientation: Orientation::Vertical,
-                            source: EdgeSource::Stream,
-                        });
-                    }
-                    EdgeKind::Horizontal => {
-                        let min_x0 = cluster_words
-                            .iter()
-                            .map(|w| w.bbox.x0)
-                            .fold(f64::INFINITY, f64::min);
-                        let max_x1 = cluster_words
-                            .iter()
-                            .map(|w| w.bbox.x1)
-                            .fold(f64::NEG_INFINITY, f64::max);
-                        edges.push(Edge {
-                            x0: min_x0,
-                            top: mean_pos,
-                            x1: max_x1,
-                            bottom: mean_pos,
-                            orientation: Orientation::Horizontal,
-                            source: EdgeSource::Stream,
-                        });
-                    }
-                }
-            }
-            cluster_start = i;
+    let mut condensed: Vec<BBox> = Vec::new();
+    for cluster in clusters.iter().filter(|c| c.len() >= word_threshold) {
+        let bbox = cluster_bbox(words, cluster);
+        if !condensed.iter().any(|kept| bboxes_overlap(&bbox, kept)) {
+            condensed.push(bbox);
         }
     }
 
+    if condensed.is_empty() {
+        return Vec::new();
+    }
+
+    condensed.sort_by(|a, b| {
+        a.x0.partial_cmp(&b.x0)
+            .unwrap_or(core::cmp::Ordering::Equal)
+    });
+
+    let max_x1 = condensed
+        .iter()
+        .map(|b| b.x1)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let min_top = condensed
+        .iter()
+        .map(|b| b.top)
+        .fold(f64::INFINITY, f64::min);
+    let max_bottom = condensed
+        .iter()
+        .map(|b| b.bottom)
+        .fold(f64::NEG_INFINITY, f64::max);
+
+    let vertical_edge_at = |x: f64| Edge {
+        x0: x,
+        top: min_top,
+        x1: x,
+        bottom: max_bottom,
+        orientation: Orientation::Vertical,
+        source: EdgeSource::Stream,
+    };
+
+    let mut edges: Vec<Edge> = condensed.iter().map(|b| vertical_edge_at(b.x0)).collect();
+    edges.push(vertical_edge_at(max_x1));
+    edges
+}
+
+/// Find imaginary horizontal lines connecting the tops of at least
+/// `word_threshold` words.
+///
+/// Each cluster of vertically aligned words emits two edges: one at the
+/// cluster's top and one at its bottom. The bottom edge is often redundant with
+/// the next row's top edge, but it is what closes the final row of a table.
+/// All returned edges span the full horizontal range of the qualifying clusters.
+pub fn words_to_edges_h(words: &[Word], word_threshold: usize) -> Vec<Edge> {
+    if words.is_empty() {
+        return Vec::new();
+    }
+
+    let rects: Vec<BBox> = cluster_words_by(words, |w| w.bbox.top, ALIGNMENT_CLUSTER_TOLERANCE)
+        .iter()
+        .filter(|cluster| cluster.len() >= word_threshold)
+        .map(|cluster| cluster_bbox(words, cluster))
+        .collect();
+
+    if rects.is_empty() {
+        return Vec::new();
+    }
+
+    let min_x0 = rects.iter().map(|r| r.x0).fold(f64::INFINITY, f64::min);
+    let max_x1 = rects.iter().map(|r| r.x1).fold(f64::NEG_INFINITY, f64::max);
+
+    let horizontal_edge_at = |y: f64| Edge {
+        x0: min_x0,
+        top: y,
+        x1: max_x1,
+        bottom: y,
+        orientation: Orientation::Horizontal,
+        source: EdgeSource::Stream,
+    };
+
+    rects
+        .iter()
+        .flat_map(|r| [horizontal_edge_at(r.top), horizontal_edge_at(r.bottom)])
+        .collect()
+}
+
+/// Generate synthetic edges from text alignment patterns for the Stream strategy.
+///
+/// Combines [`words_to_edges_v`] and [`words_to_edges_h`].
+pub fn words_to_edges_stream(
+    words: &[Word],
+    min_words_vertical: usize,
+    min_words_horizontal: usize,
+) -> Vec<Edge> {
+    let mut edges = words_to_edges_v(words, min_words_vertical);
+    edges.extend(words_to_edges_h(words, min_words_horizontal));
     edges
 }
 
@@ -1432,8 +1487,6 @@ impl TableFinder {
                 // Generate synthetic edges from word alignment patterns
                 words_to_edges_stream(
                     &self.words,
-                    self.settings.text_x_tolerance,
-                    self.settings.text_y_tolerance,
                     self.settings.min_words_vertical,
                     self.settings.min_words_horizontal,
                 )
@@ -1554,8 +1607,6 @@ impl TableFinder {
                 .collect(),
             Strategy::Stream => words_to_edges_stream(
                 &self.words,
-                self.settings.text_x_tolerance,
-                self.settings.text_y_tolerance,
                 self.settings.min_words_vertical,
                 self.settings.min_words_horizontal,
             ),
@@ -3717,7 +3768,7 @@ mod tests {
 
     #[test]
     fn test_words_to_edges_stream_empty() {
-        let edges = words_to_edges_stream(&[], 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&[], 3, 1);
         assert!(edges.is_empty());
     }
 
@@ -3730,7 +3781,7 @@ mod tests {
             make_word("B", 10.0, 30.0, 35.0, 42.0),
             make_word("C", 10.0, 50.0, 40.0, 62.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         // Should have at least one vertical edge from x0 alignment
         let v_edges: Vec<&Edge> = edges
@@ -3760,7 +3811,7 @@ mod tests {
             make_word("B", 20.0, 30.0, 50.0, 42.0),
             make_word("C", 15.0, 50.0, 50.0, 62.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let v_edges: Vec<&Edge> = edges
             .iter()
@@ -3787,7 +3838,7 @@ mod tests {
             make_word("B", 40.0, 10.0, 60.0, 22.0),
             make_word("C", 70.0, 10.0, 90.0, 22.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let h_edges: Vec<&Edge> = edges
             .iter()
@@ -3815,7 +3866,7 @@ mod tests {
             make_word("B", 40.0, 12.0, 60.0, 22.0),
             make_word("C", 70.0, 8.0, 90.0, 22.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let h_edges: Vec<&Edge> = edges
             .iter()
@@ -3841,7 +3892,7 @@ mod tests {
             make_word("A", 10.0, 10.0, 30.0, 22.0),
             make_word("B", 10.0, 30.0, 35.0, 42.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let v_edges: Vec<&Edge> = edges
             .iter()
@@ -3860,7 +3911,7 @@ mod tests {
             make_word("A", 10.0, 10.0, 30.0, 22.0),
             make_word("B", 40.0, 10.0, 60.0, 22.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 3);
+        let edges = words_to_edges_stream(&words, 3, 3);
 
         let h_edges: Vec<&Edge> = edges
             .iter()
@@ -3874,22 +3925,22 @@ mod tests {
 
     #[test]
     fn test_words_to_edges_stream_tolerance_grouping() {
-        // Words with x0 slightly different but within tolerance
+        // x0 values 10.0, 10.8, 11.5 chain into a single cluster: each is within
+        // the 1.0 alignment tolerance of its predecessor.
         let words = vec![
             make_word("A", 10.0, 10.0, 30.0, 22.0),
-            make_word("B", 11.5, 30.0, 35.0, 42.0),
-            make_word("C", 12.0, 50.0, 40.0, 62.0),
+            make_word("B", 10.8, 30.0, 35.0, 42.0),
+            make_word("C", 11.5, 50.0, 40.0, 62.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let v_edges: Vec<&Edge> = edges
             .iter()
             .filter(|e| e.orientation == Orientation::Vertical)
             .collect();
-        // Should group x0 values 10.0, 11.5, 12.0 into one cluster (all within 3.0 tolerance)
         assert!(
-            !v_edges.is_empty(),
-            "Should group nearby x0 values within tolerance"
+            v_edges.iter().any(|e| (e.x0 - 10.0).abs() < 0.01),
+            "chained x0 values should yield an edge at the cluster's left side"
         );
     }
 
@@ -3901,7 +3952,7 @@ mod tests {
             make_word("B", 50.0, 30.0, 70.0, 42.0),
             make_word("C", 90.0, 50.0, 110.0, 62.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let v_edges: Vec<&Edge> = edges
             .iter()
@@ -3976,7 +4027,7 @@ mod tests {
             make_word("B", 10.0, 30.0, 35.0, 42.0),
             make_word("C", 10.0, 50.0, 40.0, 62.0),
         ];
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
         for edge in &edges {
             assert_eq!(
                 edge.source,
@@ -3995,7 +4046,7 @@ mod tests {
             make_word("C", 90.0, 10.0, 110.0, 22.0),
         ];
         // min_words_horizontal=1 means each group of 1+ word at same y produces horizontal edges
-        let edges = words_to_edges_stream(&words, 3.0, 3.0, 3, 1);
+        let edges = words_to_edges_stream(&words, 3, 1);
 
         let h_edges: Vec<&Edge> = edges
             .iter()
