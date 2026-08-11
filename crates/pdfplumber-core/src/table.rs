@@ -989,70 +989,13 @@ pub fn extract_text_for_cells_with_options(
             continue;
         }
 
-        // Group words into lines:
-        // - For horizontal text (LTR/RTL): group by y-coordinate (top)
-        // - For vertical text (TTB/BTT): group by x-coordinate (x0)
-        let mut sorted_words: Vec<&crate::words::Word> = words.iter().collect();
-        if is_vertical {
-            sorted_words.sort_by(|a, b| {
-                a.bbox
-                    .x0
-                    .partial_cmp(&b.bbox.x0)
-                    .unwrap()
-                    .then_with(|| a.bbox.top.partial_cmp(&b.bbox.top).unwrap())
-            });
+        // A cell's text is read exactly as page text is, so a heading whose
+        // parts sit a fraction apart comes out in the order it was written.
+        let text = if is_vertical {
+            vertical_cell_text(&words, options.x_tolerance)
         } else {
-            sorted_words.sort_by(|a, b| {
-                a.bbox
-                    .top
-                    .partial_cmp(&b.bbox.top)
-                    .unwrap()
-                    .then_with(|| a.bbox.x0.partial_cmp(&b.bbox.x0).unwrap())
-            });
-        }
-
-        let tolerance = if is_vertical {
-            options.x_tolerance
-        } else {
-            options.y_tolerance
+            crate::layout::words_to_text_by_band(&words, options.y_tolerance)
         };
-
-        let mut lines: Vec<Vec<&crate::words::Word>> = Vec::new();
-        for word in &sorted_words {
-            let added = lines.last_mut().and_then(|line| {
-                let last_key = if is_vertical {
-                    line[0].bbox.x0
-                } else {
-                    line[0].bbox.top
-                };
-                let word_key = if is_vertical {
-                    word.bbox.x0
-                } else {
-                    word.bbox.top
-                };
-                if (word_key - last_key).abs() <= tolerance {
-                    line.push(word);
-                    Some(())
-                } else {
-                    None
-                }
-            });
-            if added.is_none() {
-                lines.push(vec![word]);
-            }
-        }
-
-        // Join: words within a line separated by spaces, lines separated by newlines
-        let text: String = lines
-            .iter()
-            .map(|line| {
-                line.iter()
-                    .map(|w| w.text.as_str())
-                    .collect::<Vec<_>>()
-                    .join(" ")
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
 
         cell.text = Some(text);
     }
@@ -1250,6 +1193,45 @@ pub fn words_to_edges_h(words: &[Word], word_threshold: usize) -> Vec<Edge> {
         .iter()
         .flat_map(|r| [horizontal_edge_at(r.top), horizontal_edge_at(r.bottom)])
         .collect()
+}
+
+/// Join the words of a vertically written cell into text.
+///
+/// Columns run right to left, so words are grouped by their left edge and each
+/// group becomes a line.
+fn vertical_cell_text(words: &[Word], x_tolerance: f64) -> String {
+    let mut sorted: Vec<&Word> = words.iter().collect();
+    sorted.sort_by(|a, b| {
+        a.bbox
+            .x0
+            .partial_cmp(&b.bbox.x0)
+            .unwrap_or(core::cmp::Ordering::Equal)
+            .then_with(|| {
+                a.bbox
+                    .top
+                    .partial_cmp(&b.bbox.top)
+                    .unwrap_or(core::cmp::Ordering::Equal)
+            })
+    });
+
+    let mut lines: Vec<Vec<&Word>> = Vec::new();
+    for word in sorted {
+        match lines.last_mut() {
+            Some(line) if (word.bbox.x0 - line[0].bbox.x0).abs() <= x_tolerance => line.push(word),
+            _ => lines.push(vec![word]),
+        }
+    }
+
+    lines
+        .iter()
+        .map(|line| {
+            line.iter()
+                .map(|w| w.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 /// Generate synthetic edges from text alignment patterns for the Stream strategy.
