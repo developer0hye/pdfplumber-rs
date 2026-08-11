@@ -105,7 +105,7 @@ pub use images::{
 pub use layout::{
     ColumnMode, TextBlock, TextLine, TextOptions, blocks_to_text, cluster_lines_into_blocks,
     cluster_words_into_lines, detect_columns, sort_blocks_column_order, sort_blocks_reading_order,
-    split_lines_at_columns, words_to_text,
+    split_lines_at_columns, words_to_text, words_to_text_by_band,
 };
 pub use metadata::DocumentMetadata;
 pub use page_object::PageObject;

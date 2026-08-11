@@ -541,6 +541,36 @@ pub fn words_to_text(words: &[Word], y_tolerance: f64) -> String {
         .join("\n")
 }
 
+/// Join words into text, gathering every word of a band onto one line.
+///
+/// Unlike [`words_to_text`], a word joins its band wherever it appears in the
+/// list, so a word set at an angle beside a heading reads on that heading's
+/// line rather than on one of its own. This is how the text of a table cell is
+/// read, where a caller has already narrowed the words to one small region and
+/// expects them gathered by height.
+///
+/// Within a band the given order is kept, and bands run top to bottom.
+pub fn words_to_text_by_band(words: &[Word], y_tolerance: f64) -> String {
+    if words.is_empty() {
+        return String::new();
+    }
+
+    let bands = top_bands(words, y_tolerance);
+    let band_count = bands.iter().copied().max().map_or(0, |max| max + 1);
+
+    let mut lines: Vec<Vec<&str>> = vec![Vec::new(); band_count];
+    for (word, band) in words.iter().zip(bands) {
+        lines[band].push(word.text.as_str());
+    }
+
+    lines
+        .iter()
+        .filter(|line| !line.is_empty())
+        .map(|line| line.join(" "))
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
