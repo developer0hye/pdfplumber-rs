@@ -126,4 +126,4 @@ pub use table::{
 pub use text::{Char, TextDirection, is_cjk, is_cjk_text};
 pub use unicode_norm::{UnicodeNorm, normalize_chars};
 pub use validation::{Severity, ValidationIssue};
-pub use words::{Word, WordExtractor, WordOptions};
+pub use words::{DEFAULT_SPLIT_PUNCTUATION, Word, WordExtractor, WordOptions};
