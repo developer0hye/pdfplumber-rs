@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::geometry::BBox;
 use crate::text::{Char, TextDirection};
 use crate::words::Word;
@@ -102,11 +100,14 @@ impl Default for TextOptions {
 
 /// Cluster words into text lines based on y-proximity.
 ///
-/// Words whose vertical midpoints are within `y_tolerance` of a line's
-/// vertical midpoint are grouped into the same line. Words within each
-/// line are sorted left-to-right.
+/// Words belong to the same line when their tops are within `y_tolerance` of
+/// each other, chained: a word joins the line if it is close enough to the
+/// nearest top already in it, so a line can span more than the tolerance
+/// overall. Measuring from the top rather than the vertical centre keeps a
+/// heading and a smaller caption beside it apart — they often share a centre
+/// while starting at very different heights.
 ///
-/// Uses y-coordinate bucketing for O(n log n) performance instead of O(n²).
+/// Words within each line are ordered by reading direction.
 pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLine> {
     if words.is_empty() {
         return Vec::new();
@@ -122,66 +123,22 @@ pub fn cluster_words_into_lines(words: &[Word], y_tolerance: f64) -> Vec<TextLin
     });
 
     let mut lines: Vec<TextLine> = Vec::new();
-    // Map from quantized y-bucket to line index. Each line is registered
-    // in the bucket corresponding to its current mid_y. When a line's
-    // bbox grows (union with a new word), its bucket registration is updated.
-    let mut bucket_to_line: HashMap<i64, Vec<usize>> = HashMap::new();
-
-    let bucket_size = if y_tolerance > 0.0 {
-        y_tolerance
-    } else {
-        // For zero tolerance, use a very small bucket size
-        1e-9
-    };
+    let mut previous_top = f64::NEG_INFINITY;
 
     for word in sorted {
-        let word_mid_y = (word.bbox.top + word.bbox.bottom) / 2.0;
-        let word_bucket = (word_mid_y / bucket_size).floor() as i64;
+        let top = word.bbox.top;
+        let starts_new_line = lines.is_empty() || top > previous_top + y_tolerance;
+        previous_top = top;
 
-        // Check adjacent buckets (word_bucket - 1, word_bucket, word_bucket + 1)
-        // to find a matching line within y_tolerance
-        let mut matched_line_idx: Option<usize> = None;
-        'outer: for delta in [-1i64, 0, 1] {
-            let check_bucket = word_bucket + delta;
-            if let Some(line_indices) = bucket_to_line.get(&check_bucket) {
-                for &line_idx in line_indices {
-                    let line = &lines[line_idx];
-                    let line_mid_y = (line.bbox.top + line.bbox.bottom) / 2.0;
-                    if (word_mid_y - line_mid_y).abs() <= y_tolerance {
-                        matched_line_idx = Some(line_idx);
-                        break 'outer;
-                    }
-                }
-            }
-        }
-
-        if let Some(idx) = matched_line_idx {
-            // Remove old bucket registration for this line
-            let old_mid_y = (lines[idx].bbox.top + lines[idx].bbox.bottom) / 2.0;
-            let old_bucket = (old_mid_y / bucket_size).floor() as i64;
-
-            // Update the line
-            lines[idx].bbox = lines[idx].bbox.union(&word.bbox);
-            lines[idx].words.push(word.clone());
-
-            // Re-register in the new bucket if mid_y changed
-            let new_mid_y = (lines[idx].bbox.top + lines[idx].bbox.bottom) / 2.0;
-            let new_bucket = (new_mid_y / bucket_size).floor() as i64;
-            if new_bucket != old_bucket {
-                if let Some(indices) = bucket_to_line.get_mut(&old_bucket) {
-                    indices.retain(|&i| i != idx);
-                }
-                bucket_to_line.entry(new_bucket).or_default().push(idx);
-            }
-        } else {
-            let new_idx = lines.len();
-            let mid_y = (word.bbox.top + word.bbox.bottom) / 2.0;
-            let bucket = (mid_y / bucket_size).floor() as i64;
+        if starts_new_line {
             lines.push(TextLine {
                 words: vec![word.clone()],
                 bbox: word.bbox,
             });
-            bucket_to_line.entry(bucket).or_default().push(new_idx);
+        } else {
+            let line = lines.last_mut().expect("a line exists once one was pushed");
+            line.bbox = line.bbox.union(&word.bbox);
+            line.words.push(word.clone());
         }
     }
 
@@ -1089,25 +1046,32 @@ mod tests {
     }
 
     #[test]
-    fn test_cluster_overlapping_y_ranges() {
-        // Words with overlapping y ranges that straddle bucket boundaries
-        // Word A: mid_y = 106, Word B: mid_y = 108.5 (diff = 2.5, within tolerance 3.0)
-        // Word C: mid_y = 111.5 (diff from B = 3.0, at boundary)
+    fn test_cluster_chains_across_the_tolerance() {
+        // Tops 100, 102.5 and 105.5: each is within 3.0 of the one before, so
+        // all three chain into one line even though the span is 5.5.
         let words = vec![
-            make_word("A", 10.0, 100.0, 50.0, 112.0),   // mid_y = 106
-            make_word("B", 60.0, 102.5, 100.0, 114.5),  // mid_y = 108.5
-            make_word("C", 110.0, 105.5, 150.0, 117.5), // mid_y = 111.5
+            make_word("A", 10.0, 100.0, 50.0, 112.0),
+            make_word("B", 60.0, 102.5, 100.0, 114.5),
+            make_word("C", 110.0, 105.5, 150.0, 117.5),
         ];
         let lines = cluster_words_into_lines(&words, 3.0);
-        // A and B are within tolerance, B and C are exactly at tolerance boundary
-        // The original algorithm processes sorted by (top, x0): A first, then B joins A's line,
-        // then C checks A's line (line mid_y evolves as union grows).
-        // After A+B: line bbox = (10, 100, 100, 114.5), line mid_y = 107.25
-        // C mid_y = 111.5, |111.5 - 107.25| = 4.25 > 3.0 → C becomes new line
+
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].words.len(), 3);
+    }
+
+    #[test]
+    fn test_cluster_breaks_when_a_gap_exceeds_the_tolerance() {
+        let words = vec![
+            make_word("A", 10.0, 100.0, 50.0, 112.0),
+            make_word("B", 60.0, 102.5, 100.0, 114.5),
+            // 3.6 below B: too far to chain.
+            make_word("C", 110.0, 106.1, 150.0, 118.1),
+        ];
+        let lines = cluster_words_into_lines(&words, 3.0);
+
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].words.len(), 2);
-        assert_eq!(lines[0].words[0].text, "A");
-        assert_eq!(lines[0].words[1].text, "B");
         assert_eq!(lines[1].words[0].text, "C");
     }
 
