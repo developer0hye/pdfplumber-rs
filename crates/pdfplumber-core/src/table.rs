@@ -276,11 +276,13 @@ where
     // Sort by the perpendicular coordinate
     edges.sort_by(|a, b| key(a).partial_cmp(&key(b)).unwrap());
 
-    // Build clusters of consecutive edges within tolerance
+    // Build clusters by chaining: an edge joins the cluster when it is within
+    // `tolerance` of the one before it, so a run of rules drawn a fraction
+    // apart collapses to a single position however far the run reaches.
     let mut cluster_start = 0;
     for i in 1..=edges.len() {
         let end_of_cluster =
-            i == edges.len() || (key(&edges[i]) - key(&edges[cluster_start])).abs() > tolerance;
+            i == edges.len() || (key(&edges[i]) - key(&edges[i - 1])).abs() > tolerance;
         if end_of_cluster {
             // Compute mean of the cluster
             let sum: f64 = (cluster_start..i).map(|j| key(&edges[j])).sum();
