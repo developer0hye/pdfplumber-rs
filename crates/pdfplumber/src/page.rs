@@ -1143,10 +1143,11 @@ mod tests {
         let page = Page::with_geometry(0, 612.0, 792.0, vec![], lines, rects, curves);
         let edges = page.edges();
 
-        // 1 from line + 4 from rect + 1 from curve = 6
-        assert_eq!(edges.len(), 6);
+        // 1 from the line, 4 from the rect, and one per segment of the
+        // four-point curve = 8
+        assert_eq!(edges.len(), 8);
         assert_eq!(edges[0].source, EdgeSource::Line);
-        assert_eq!(edges[5].source, EdgeSource::Curve);
+        assert_eq!(edges[7].source, EdgeSource::Curve);
     }
 
     // --- Image accessors ---
@@ -1255,7 +1256,8 @@ mod tests {
         assert_eq!(page.rects().len(), 1);
         assert_eq!(page.curves().len(), 1);
         assert_eq!(page.images().len(), 1);
-        assert_eq!(page.edges().len(), 6); // 1 + 4 + 1
+        // 1 line + 4 rect sides + one per segment of the four-point curve
+        assert_eq!(page.edges().len(), 8);
     }
 
     // --- extract_text tests ---
