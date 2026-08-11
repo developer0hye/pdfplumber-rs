@@ -6,7 +6,7 @@ use pdfplumber_core::{
     Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
     FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, PageObject,
     PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
-    TableSettings, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
+    TableSettings, TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
     cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
     detect_columns, duplicate_merged_content_in_table, export_image_set,
     extract_text_for_cells_with_options, normalize_table_columns, search_chars,
@@ -471,6 +471,25 @@ impl Page {
         }
 
         blocks_to_text(&blocks)
+    }
+
+    /// Extract text lines: words grouped by vertical position, top to bottom.
+    ///
+    /// Words within a line are ordered by reading direction, and a line's text
+    /// joins them with single spaces. Grouping is purely vertical, so words
+    /// printed side by side in separate columns share one line — crop the page
+    /// first to read columns independently.
+    ///
+    /// Only `y_tolerance` and `expand_ligatures` from `options` apply; the
+    /// layout and column settings affect [`Page::extract_text`] alone.
+    pub fn extract_text_lines(&self, options: &TextOptions) -> Vec<TextLine> {
+        let words = self.extract_words(&WordOptions {
+            y_tolerance: options.y_tolerance,
+            expand_ligatures: options.expand_ligatures,
+            ..WordOptions::default()
+        });
+
+        cluster_words_into_lines(&words, options.y_tolerance)
     }
 
     /// Extract text from the body region of this page, excluding header and footer.
