@@ -150,13 +150,11 @@ fn try_strip_preamble(bytes: &[u8]) -> Option<Vec<u8>> {
         0
     } else {
         let search_limit = bytes.len().min(1024);
-        match bytes[..search_limit].windows(5).position(|w| w == b"%PDF-") {
-            Some(offset) => {
-                cleaned = true;
-                offset
-            }
-            None => return None,
-        }
+        let offset = bytes[..search_limit]
+            .windows(5)
+            .position(|w| w == b"%PDF-")?;
+        cleaned = true;
+        offset
     };
 
     let pdf_bytes = &bytes[start_offset..];
@@ -1570,17 +1568,13 @@ fn extract_dest_top(arr: &[lopdf::Object]) -> Option<f64> {
     if let lopdf::Object::Name(dest_type) = &arr[1] {
         let type_str = String::from_utf8_lossy(dest_type);
         match type_str.as_ref() {
-            "XYZ" => {
-                // [page, /XYZ, left, top, zoom]
-                if arr.len() >= 4 {
-                    return obj_to_f64(&arr[3]);
-                }
+            // [page, /XYZ, left, top, zoom]
+            "XYZ" if arr.len() >= 4 => {
+                return obj_to_f64(&arr[3]);
             }
-            "FitH" | "FitBH" => {
-                // [page, /FitH, top] or [page, /FitBH, top]
-                if arr.len() >= 3 {
-                    return obj_to_f64(&arr[2]);
-                }
+            // [page, /FitH, top] or [page, /FitBH, top]
+            "FitH" | "FitBH" if arr.len() >= 3 => {
+                return obj_to_f64(&arr[2]);
             }
             _ => {} // /Fit, /FitV, /FitR, /FitB — no meaningful top
         }
@@ -2533,10 +2527,8 @@ fn collect_mcids_and_children(
                     lopdf::Object::Dictionary(dict) => {
                         process_k_dict(doc, dict, mcids, children, depth, max_depth, pages_map);
                     }
-                    lopdf::Object::Integer(n) => {
-                        if *n >= 0 {
-                            mcids.push(*n as u32);
-                        }
+                    lopdf::Object::Integer(n) if *n >= 0 => {
+                        mcids.push(*n as u32);
                     }
                     _ => {}
                 }
