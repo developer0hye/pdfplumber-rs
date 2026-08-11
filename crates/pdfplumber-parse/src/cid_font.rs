@@ -726,17 +726,16 @@ pub fn parse_predefined_cmap_name(name: &str) -> Option<PredefinedCMapInfo> {
 
     // Adobe CJK CMap names (e.g., "Adobe-Japan1-6")
     if let Some(rest) = name.strip_prefix("Adobe-") {
-        let (ordering, supplement) = if let Some(r) = rest.strip_prefix("Japan1-") {
-            ("Japan1".to_string(), r)
-        } else if let Some(r) = rest.strip_prefix("GB1-") {
-            ("GB1".to_string(), r)
-        } else if let Some(r) = rest.strip_prefix("CNS1-") {
-            ("CNS1".to_string(), r)
-        } else if let Some(r) = rest.strip_prefix("Korea1-") {
-            ("Korea1".to_string(), r)
-        } else {
-            return None;
-        };
+        const ADOBE_ORDERINGS: [(&str, &str); 4] = [
+            ("Japan1-", "Japan1"),
+            ("GB1-", "GB1"),
+            ("CNS1-", "CNS1"),
+            ("Korea1-", "Korea1"),
+        ];
+        let (ordering, supplement) = ADOBE_ORDERINGS.iter().find_map(|(prefix, ordering)| {
+            rest.strip_prefix(prefix)
+                .map(|supplement| ((*ordering).to_string(), supplement))
+        })?;
 
         // Supplement should be a number
         if supplement.parse::<i32>().is_ok() {
@@ -773,10 +772,8 @@ pub fn parse_predefined_cmap_name(name: &str) -> Option<PredefinedCMapInfo> {
     // Standard CJK encoding CMaps with -H/-V suffix
     let (base, writing_mode) = if let Some(b) = name.strip_suffix("-H") {
         (b, 0u8)
-    } else if let Some(b) = name.strip_suffix("-V") {
-        (b, 1u8)
     } else {
-        return None;
+        (name.strip_suffix("-V")?, 1u8)
     };
 
     // Recognize known CMap base names by their ordering

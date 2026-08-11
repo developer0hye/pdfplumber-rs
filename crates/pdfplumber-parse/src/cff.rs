@@ -234,13 +234,11 @@ fn parse_dict(data: &[u8]) -> Option<TopDictInfo> {
                             info.charstrings_offset = Some(v);
                         }
                     }
-                    18 => {
+                    18 if operand_stack.len() >= 2 => {
                         // Private: size, offset
-                        if operand_stack.len() >= 2 {
-                            let size = operand_stack[operand_stack.len() - 2];
-                            let offset = operand_stack[operand_stack.len() - 1];
-                            info.private = Some((size, offset));
-                        }
+                        let size = operand_stack[operand_stack.len() - 2];
+                        let offset = operand_stack[operand_stack.len() - 1];
+                        info.private = Some((size, offset));
                     }
                     _ => {} // Other operators: ignore
                 }
