@@ -89,7 +89,8 @@ jobs:
         run: >-
           .venv-reference/bin/python -m unittest
           compat.tests.parity_report_pages_test
-          compat.tests.ordered_sequence_test -v
+          compat.tests.ordered_sequence_test
+          compat.tests.dictionary_structure_test -v
 
       - name: Verify the pinned upstream public API snapshot
         run: .venv-reference/bin/python scripts/generate_api_snapshot.py --check
