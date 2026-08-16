@@ -678,12 +678,13 @@ pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
         }
     }
 
-    // Two cells share an edge if they have a common boundary segment:
-    // - Same x0/x1 boundary AND overlapping y-ranges, or
-    // - Same top/bottom boundary AND overlapping x-ranges
+    // Cells that meet at a corner belong to the same table. Grouping by the
+    // connected components of that relation is what Python pdfplumber's
+    // grow-a-group loop arrives at, since a group's corners are just the union
+    // of its cells' corners.
     for i in 0..n {
         for j in (i + 1)..n {
-            if cells_share_edge(&cells[i], &cells[j]) {
+            if cells_share_corner(&cells[i], &cells[j]) {
                 union(&mut parent, i, j);
             }
         }
@@ -796,25 +797,35 @@ fn lay_out(cells: &[Cell], order: CellOrder) -> Vec<Vec<Cell>> {
         .collect()
 }
 
-/// Check if two cells share an edge (a common boundary segment).
-fn cells_share_edge(a: &Cell, b: &Cell) -> bool {
-    let eps = 1e-6;
+/// The four corners of a cell, in top-left origin.
+fn cell_corners(cell: &Cell) -> [(f64, f64); 4] {
+    let b = &cell.bbox;
+    [
+        (b.x0, b.top),
+        (b.x0, b.bottom),
+        (b.x1, b.top),
+        (b.x1, b.bottom),
+    ]
+}
 
-    // Check for shared vertical boundary (one cell's x1 == other's x0 or vice versa)
-    // with overlapping y-ranges
-    let shared_vertical = ((a.bbox.x1 - b.bbox.x0).abs() < eps
-        || (a.bbox.x0 - b.bbox.x1).abs() < eps)
-        && a.bbox.top < b.bbox.bottom + eps
-        && b.bbox.top < a.bbox.bottom + eps;
+/// Whether two cells belong to the same table.
+///
+/// Cells belong together when they meet at a corner. Running alongside each
+/// other is not enough: two tables set side by side share the rule between
+/// them, and if their rows are ruled at different heights no corner of one
+/// ever lands on a corner of the other — they are two tables, and joining them
+/// would fold both into a single grid whose rows and columns match neither.
+///
+/// This is the rule Python pdfplumber applies in `cells_to_tables`.
+fn cells_share_corner(a: &Cell, b: &Cell) -> bool {
+    const EPS: f64 = 1e-6;
 
-    // Check for shared horizontal boundary (one cell's bottom == other's top or vice versa)
-    // with overlapping x-ranges
-    let shared_horizontal = ((a.bbox.bottom - b.bbox.top).abs() < eps
-        || (a.bbox.top - b.bbox.bottom).abs() < eps)
-        && a.bbox.x0 < b.bbox.x1 + eps
-        && b.bbox.x0 < a.bbox.x1 + eps;
-
-    shared_vertical || shared_horizontal
+    let b_corners = cell_corners(b);
+    cell_corners(a).iter().any(|&(ax, ay)| {
+        b_corners
+            .iter()
+            .any(|&(bx, by)| (ax - bx).abs() < EPS && (ay - by).abs() < EPS)
+    })
 }
 
 /// Normalize a table by splitting merged cells into sub-cells with duplicated content.
@@ -3100,6 +3111,50 @@ mod tests {
         assert_eq!(tables[1].cells.len(), 2);
         assert_eq!(tables[1].rows.len(), 1);
         assert_eq!(tables[1].columns.len(), 2);
+    }
+
+    #[test]
+    fn test_cells_to_tables_neighbours_sharing_only_a_border_stay_separate() {
+        // Two bordered tables set side by side, sharing the rule at x=300 but
+        // ruled into rows at different heights. They touch along that rule
+        // without meeting at a single point, so they are two tables, not one:
+        // pdfplumber joins cells that share a corner, not cells that merely
+        // run alongside each other.
+        let cells = vec![
+            // Left table: rows split at y=80.
+            make_cell(100.0, 50.0, 300.0, 80.0),
+            make_cell(100.0, 80.0, 300.0, 110.0),
+            // Right table: rows split at y=95, and neither its top nor its
+            // bottom lines up with the left table's.
+            make_cell(300.0, 60.0, 500.0, 95.0),
+            make_cell(300.0, 95.0, 500.0, 130.0),
+        ];
+        let tables = cells_to_tables(cells);
+
+        assert_eq!(tables.len(), 2, "expected two tables, got {}", tables.len());
+        assert_approx(tables[0].bbox.x0, 100.0);
+        assert_approx(tables[0].bbox.x1, 300.0);
+        assert_eq!(tables[0].cells.len(), 2);
+        assert_approx(tables[1].bbox.x0, 300.0);
+        assert_approx(tables[1].bbox.x1, 500.0);
+        assert_eq!(tables[1].cells.len(), 2);
+    }
+
+    #[test]
+    fn test_cells_to_tables_neighbours_meeting_at_a_corner_are_one_table() {
+        // The same two neighbours, but now the right table's first row starts
+        // exactly where the left table's does. They meet at (300, 50), so they
+        // read as a single table.
+        let cells = vec![
+            make_cell(100.0, 50.0, 300.0, 80.0),
+            make_cell(100.0, 80.0, 300.0, 110.0),
+            make_cell(300.0, 50.0, 500.0, 95.0),
+            make_cell(300.0, 95.0, 500.0, 130.0),
+        ];
+        let tables = cells_to_tables(cells);
+
+        assert_eq!(tables.len(), 1, "expected one table, got {}", tables.len());
+        assert_eq!(tables[0].cells.len(), 4);
     }
 
     #[test]
