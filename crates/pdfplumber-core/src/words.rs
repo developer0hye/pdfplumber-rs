@@ -89,42 +89,36 @@ impl WordExtractor {
             return Vec::new();
         }
 
-        // Check if any chars have vertical per-char direction (Ttb/Btt).
-        // Horizontal chars (Ltr + Rtl) are always merged and sorted spatially,
-        // matching Python pdfplumber which sorts all upright chars left-to-right.
-        // Vertical chars (Ttb + Btt) are merged and sorted top-to-bottom,
-        // matching Python pdfplumber which sorts all non-upright chars by top.
-        let has_vertical = chars
-            .iter()
-            .any(|c| matches!(c.direction, TextDirection::Ttb | TextDirection::Btt));
+        let is_vertical =
+            |ch: &Char| matches!(ch.direction, TextDirection::Ttb | TextDirection::Btt);
 
-        if !has_vertical {
+        if !chars.iter().any(is_vertical) {
             // All chars are horizontal (Ltr or Rtl) → spatial LTR sorting
             return Self::extract_group(chars, options, None);
         }
 
-        // Partition into horizontal (Ltr + Rtl) and vertical (Ttb + Btt) groups.
-        let mut horizontal_chars: Vec<Char> = Vec::new();
-        let mut vertical_chars: Vec<Char> = Vec::new();
-        for ch in chars {
-            match ch.direction {
-                TextDirection::Ltr | TextDirection::Rtl => horizontal_chars.push(ch.clone()),
-                TextDirection::Ttb | TextDirection::Btt => vertical_chars.push(ch.clone()),
-            }
-        }
-
+        // Sideways text is read apart from upright text, but the split follows
+        // the order the characters were drawn in: each unbroken run of one kind
+        // is its own group. Python pdfplumber groups with `itertools.groupby`
+        // on `upright`, which yields runs rather than two buckets, so a page
+        // that alternates — a table of upright figures with sideways labels
+        // between them — gives a group per stretch. Gathering every sideways
+        // character on the page into one group instead lets a label at the top
+        // share a line with one at the bottom.
         let mut words = Vec::new();
-        if !horizontal_chars.is_empty() {
-            words.extend(Self::extract_group(&horizontal_chars, options, None));
-        }
-        if !vertical_chars.is_empty() {
-            // All vertical chars use TTB sorting (spatial top-to-bottom),
-            // matching Python pdfplumber behavior.
-            words.extend(Self::extract_group(
-                &vertical_chars,
-                options,
-                Some(TextDirection::Ttb),
-            ));
+        let mut run_start = 0;
+        for i in 1..=chars.len() {
+            let run_ended =
+                i == chars.len() || is_vertical(&chars[i]) != is_vertical(&chars[run_start]);
+            if !run_ended {
+                continue;
+            }
+            let run = &chars[run_start..i];
+            // Sideways characters are read top to bottom within their line, the
+            // way pdfplumber's `char_dir_rotated` (`ttb`) has it.
+            let forced = is_vertical(&run[0]).then_some(TextDirection::Ttb);
+            words.extend(Self::extract_group(run, options, forced));
+            run_start = i;
         }
         words
     }

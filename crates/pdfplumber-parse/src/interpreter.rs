@@ -1381,10 +1381,16 @@ fn emit_char_events(
                                     .and_then(|cm| cm.system_info())
                                     .is_none_or(|si| si.ordering == "Identity"))
                     });
-                    if identity_fallback {
-                        char::from_u32(rc.char_code).map(|ch| ch.to_string())
-                    } else {
-                        Some(format!("(cid:{})", rc.char_code))
+                    // Reading the CID as a Unicode scalar is what makes an
+                    // Identity-H font readable at all, but it cannot be right
+                    // when the scalar is a control character: no font draws a
+                    // glyph for one. A music font whose notehead sits at CID 13
+                    // would otherwise yield a carriage return, which then
+                    // disappears into the line layout and pulls the words on
+                    // either side of it together.
+                    match char::from_u32(rc.char_code).filter(|_| identity_fallback) {
+                        Some(ch) if !ch.is_control() => Some(ch.to_string()),
+                        _ => Some(format!("(cid:{})", rc.char_code)),
                     }
                 } else if cached.is_some_and(|c| c.encoding.is_some()) {
                     // Simple font that names an encoding: a code the encoding
@@ -1394,10 +1400,19 @@ fn emit_char_events(
                     // control character indistinguishable from real text.
                     Some(format!("(cid:{})", rc.char_code))
                 } else {
-                    // No encoding to consult, so the code is all there is to go
-                    // on. pdfminer reaches a built-in encoding table here that
-                    // we do not always have; guessing beats reporting nothing.
-                    char::from_u32(rc.char_code).map(|ch| ch.to_string())
+                    // No encoding to consult, so the code is mostly all there is
+                    // to go on. pdfminer reaches a built-in encoding table here
+                    // that we do not always have, and guessing beats reporting
+                    // nothing — except where the guess lands on a control
+                    // character. StandardEncoding names no glyph below U+0020,
+                    // so pdfminer always fails there and writes `(cid:N)`. A
+                    // symbol font that draws a glyph for code 13 would otherwise
+                    // yield a carriage return, which then vanishes into the line
+                    // layout and takes the neighbouring words with it.
+                    match char::from_u32(rc.char_code) {
+                        Some(ch) if !ch.is_control() => Some(ch.to_string()),
+                        _ => Some(format!("(cid:{})", rc.char_code)),
+                    }
                 }
             });
 
