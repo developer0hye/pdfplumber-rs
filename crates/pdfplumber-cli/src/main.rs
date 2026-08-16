@@ -2,6 +2,7 @@ mod annots_cmd;
 mod bookmarks_cmd;
 mod chars_cmd;
 mod cli;
+mod compat_snapshot_cmd;
 mod debug_cmd;
 mod forms_cmd;
 mod images_cmd;
@@ -22,6 +23,12 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
+        cli::Commands::CompatSnapshot {
+            ref file,
+            ref pages,
+            ref password,
+            repair,
+        } => compat_snapshot_cmd::run(file, pages.as_deref(), password.as_deref(), repair),
         cli::Commands::Text {
             ref file,
             ref pages,

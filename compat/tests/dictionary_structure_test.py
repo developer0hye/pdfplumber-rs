@@ -83,14 +83,29 @@ class DictionaryStructureComparisonTests(unittest.TestCase):
 
         class Page:
             chars = [char]
+            annots = []
+            hyperlinks = []
+            structure_tree = []
 
             @staticmethod
             def extract_words() -> list[dict]:
                 return [word]
 
             @staticmethod
-            def extract_text() -> str:
+            def extract_text(*, layout: bool = False) -> str:
+                return "A" if not layout else " A"
+
+            @staticmethod
+            def extract_text_simple() -> str:
                 return "A"
+
+            @staticmethod
+            def extract_text_lines() -> list[dict]:
+                return []
+
+            @staticmethod
+            def search(_pattern: str) -> list[dict]:
+                return []
 
             @staticmethod
             def extract_tables() -> list:

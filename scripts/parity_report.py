@@ -2,9 +2,10 @@
 """Compare pdfplumber-rs output against Python pdfplumber, fixture by fixture.
 
 Reports, per page of every PDF, how closely the Rust CLI matches Python
-pdfplumber on characters (text and bounding boxes), words, page text, and
-lattice tables. Character and word ratios are position-sensitive: matching an
-object elsewhere in the sequence does not hide an ordering difference. Object
+pdfplumber on characters, page text, layout text, simple text, text lines,
+words, search results, lattice tables, annotations, hyperlinks, and structure
+trees. Character and word ratios are position-sensitive: matching an object
+elsewhere in the sequence does not hide an ordering difference. Object
 dictionary structure is compared recursively without projecting away upstream
 keys, value types, nested containers, or explicit null placement.
 Use it to pick the next parity gap to close and to confirm a change moved the
@@ -44,6 +45,20 @@ FIXTURE_DIRS = [
 # real disagreement about where the object sits, not float noise.
 COORD_TOLERANCE = 0.05
 FIXTURE_COLUMN_WIDTH = 60
+SEARCH_PATTERN = r"\S+"
+UNSUPPORTED_API_MARKER = "unsupported"
+PARITY_APIS = (
+    "page_text",
+    "layout_text",
+    "simple_text",
+    "text_lines",
+    "words",
+    "search",
+    "tables",
+    "annotations",
+    "hyperlinks",
+    "structure_tree",
+)
 
 
 def find_fixtures(fixture_root: str) -> list[str]:
@@ -188,6 +203,7 @@ def compare_words(expected: list[dict], actual: list[dict]) -> dict:
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
+        "equal": expected == actual,
         **comparison,
         "dictionary": compare_dictionary_sequence(expected, actual),
     }
@@ -212,10 +228,51 @@ def compare_tables(expected: list, actual: list) -> dict:
         "tables_actual": len(actual),
         "cells_expected": expected_cells,
         "cells_actual": actual_cells,
+        "equal": expected == actual,
         # Agreeing that a page holds no tables is a match, not a miss.
         "cell_ratio": 1.0 if total_cells == 0 else matching / total_cells,
         "structure_equal": structural_signature(expected) == structural_signature(actual),
     }
+
+
+def unsupported_api(task_id: str) -> dict:
+    """Represent an unavailable candidate API without omitting it."""
+    return {"status": UNSUPPORTED_API_MARKER, "task_id": task_id}
+
+
+def compare_api_value(expected: Any, actual: Any) -> dict:
+    """Compare arbitrary API values while preserving unsupported candidates."""
+    if (
+        isinstance(actual, dict)
+        and actual.get("status") == UNSUPPORTED_API_MARKER
+        and isinstance(actual.get("task_id"), str)
+    ):
+        return {
+            "status": "unsupported_in_rust",
+            "task_id": actual["task_id"],
+            "equal": False,
+            "structure_equal": False,
+        }
+
+    result = {
+        "status": "compared",
+        "equal": expected == actual,
+        "structure_equal": structural_signature(expected)
+        == structural_signature(actual),
+    }
+    if isinstance(expected, list) and isinstance(actual, list):
+        result["count_expected"] = len(expected)
+        result["count_actual"] = len(actual)
+    return result
+
+
+def unsupported_api_names(page_result: dict) -> list[str]:
+    """Return candidate APIs that the page comparison could not exercise."""
+    return [
+        name
+        for name in PARITY_APIS
+        if page_result[name].get("status") == "unsupported_in_rust"
+    ]
 
 
 def python_page(page: Any, page_number: int) -> dict:
@@ -223,8 +280,15 @@ def python_page(page: Any, page_number: int) -> dict:
         "page_number": page_number,
         "chars": [dict(char) for char in page.chars],
         "words": [dict(word) for word in page.extract_words()],
-        "text": page.extract_text() or "",
+        "page_text": page.extract_text() or "",
+        "layout_text": page.extract_text(layout=True) or "",
+        "simple_text": page.extract_text_simple() or "",
+        "text_lines": [dict(line) for line in page.extract_text_lines()],
+        "search": [dict(match) for match in page.search(SEARCH_PATTERN)],
         "tables": page.extract_tables(),
+        "annotations": [dict(annotation) for annotation in page.annots],
+        "hyperlinks": [dict(link) for link in page.hyperlinks],
+        "structure_tree": [dict(element) for element in page.structure_tree],
     }
 
 
@@ -258,8 +322,15 @@ def rust_side(repo: str, path: str) -> dict:
             "page_number": page_number,
             "chars": [],
             "words": [],
-            "text": None,
+            "page_text": None,
+            "layout_text": None,
+            "simple_text": unsupported_api("TEXT-EXTRA-001"),
+            "text_lines": None,
+            "search": [],
             "tables": [],
+            "annotations": [],
+            "hyperlinks": [],
+            "structure_tree": None,
         }
         for page_number in range(1, page_count + 1)
     ]
@@ -268,6 +339,9 @@ def rust_side(repo: str, path: str) -> dict:
     objects = {
         "chars": run_cli(repo, ["chars", path, *json_args]),
         "words": run_cli(repo, ["words", path, *json_args]),
+        "search": run_cli(repo, ["search", path, SEARCH_PATTERN, *json_args]),
+        "annotations": run_cli(repo, ["annots", path, *json_args]),
+        "hyperlinks": run_cli(repo, ["links", path, *json_args]),
     }
     for label, items in objects.items():
         if not isinstance(items, list):
@@ -276,19 +350,48 @@ def rust_side(repo: str, path: str) -> dict:
             page_number = rust_page_number(item, label, page_count)
             pages[page_number - 1][label].append(item)
 
-    text_items = run_cli_json_lines(repo, ["text", path, *json_args])
-    seen_text_pages = set()
-    for item in text_items:
-        page_number = rust_page_number(item, "text", page_count)
-        if page_number in seen_text_pages:
-            raise RuntimeError(f"Rust text output repeats page {page_number}")
-        if not isinstance(item.get("text"), str):
-            raise RuntimeError(f"Rust text output for page {page_number} is not a string")
-        pages[page_number - 1]["text"] = item["text"]
-        seen_text_pages.add(page_number)
-    missing_text_pages = sorted(set(range(1, page_count + 1)) - seen_text_pages)
-    if missing_text_pages:
-        raise RuntimeError(f"Rust text output omits pages: {missing_text_pages}")
+    text_commands = {
+        "page_text": ["text", path, *json_args],
+        "layout_text": ["text", path, *json_args, "--layout"],
+    }
+    for label, command in text_commands.items():
+        seen_pages = set()
+        for item in run_cli_json_lines(repo, command):
+            page_number = rust_page_number(item, label, page_count)
+            if page_number in seen_pages:
+                raise RuntimeError(f"Rust {label} output repeats page {page_number}")
+            if not isinstance(item.get("text"), str):
+                raise RuntimeError(
+                    f"Rust {label} output for page {page_number} is not a string"
+                )
+            pages[page_number - 1][label] = item["text"]
+            seen_pages.add(page_number)
+        missing_pages = sorted(set(range(1, page_count + 1)) - seen_pages)
+        if missing_pages:
+            raise RuntimeError(f"Rust {label} output omits pages: {missing_pages}")
+
+    snapshots = run_cli(repo, ["compat-snapshot", path])
+    if not isinstance(snapshots, list):
+        raise RuntimeError("Rust compatibility snapshot output is not a list")
+    seen_snapshot_pages = set()
+    for snapshot in snapshots:
+        page_number = rust_page_number(snapshot, "compatibility snapshot", page_count)
+        if page_number in seen_snapshot_pages:
+            raise RuntimeError(f"Rust compatibility snapshot repeats page {page_number}")
+        for field in ("text_lines", "structure_tree"):
+            if not isinstance(snapshot.get(field), list):
+                raise RuntimeError(
+                    f"Rust compatibility snapshot {field} for page {page_number} is not a list"
+                )
+            pages[page_number - 1][field] = snapshot[field]
+        seen_snapshot_pages.add(page_number)
+    missing_snapshot_pages = sorted(
+        set(range(1, page_count + 1)) - seen_snapshot_pages
+    )
+    if missing_snapshot_pages:
+        raise RuntimeError(
+            f"Rust compatibility snapshot omits pages: {missing_snapshot_pages}"
+        )
 
     tables = run_cli(repo, ["tables", path, *json_args])
     if not isinstance(tables, list):
@@ -347,9 +450,32 @@ def compare_documents(expected: dict, actual: dict) -> dict:
                 "status": "compared",
                 "chars": compare_chars(python_page_result["chars"], rust_page_result["chars"]),
                 "words": compare_words(python_page_result["words"], rust_page_result["words"]),
-                "text": compare_text(python_page_result["text"], rust_page_result["text"]),
+                "page_text": compare_text(
+                    python_page_result["page_text"], rust_page_result["page_text"]
+                ),
+                "layout_text": compare_text(
+                    python_page_result["layout_text"], rust_page_result["layout_text"]
+                ),
+                "simple_text": compare_api_value(
+                    python_page_result["simple_text"], rust_page_result["simple_text"]
+                ),
+                "text_lines": compare_api_value(
+                    python_page_result["text_lines"], rust_page_result["text_lines"]
+                ),
+                "search": compare_api_value(
+                    python_page_result["search"], rust_page_result["search"]
+                ),
                 "tables": compare_tables(
                     python_page_result["tables"], rust_page_result["tables"]
+                ),
+                "annotations": compare_api_value(
+                    python_page_result["annotations"], rust_page_result["annotations"]
+                ),
+                "hyperlinks": compare_api_value(
+                    python_page_result["hyperlinks"], rust_page_result["hyperlinks"]
+                ),
+                "structure_tree": compare_api_value(
+                    python_page_result["structure_tree"], rust_page_result["structure_tree"]
                 ),
             }
         )
@@ -382,9 +508,9 @@ def main() -> int:
     had_failure = False
     print(
         f"{'fixture':<{FIXTURE_COLUMN_WIDTH}} {'page':>4} "
-        f"{'chars':>14} {'words':>8} {'text':>6} {'tables':>8}"
+        f"{'chars':>14} {'words':>8} {'text':>6} {'tables':>8} {'unsupported':>11}"
     )
-    print("-" * (FIXTURE_COLUMN_WIDTH + 45))
+    print("-" * (FIXTURE_COLUMN_WIDTH + 57))
 
     for path in find_fixtures(args.fixtures):
         name = fixture_id(path, args.fixtures)
@@ -422,17 +548,21 @@ def main() -> int:
                 )
                 continue
             compared_pages.append(page)
+            unsupported = unsupported_api_names(page)
+            if unsupported:
+                had_failure = True
             print(
                 f"{name:<{FIXTURE_COLUMN_WIDTH}} "
                 f"{page['page_number']:>4} "
                 f"{page['chars']['text_ratio']:>6.3f}/{page['chars']['box_ratio']:<7.3f} "
                 f"{page['words']['ratio']:>8.3f} "
-                f"{'yes' if page['text']['equal'] else 'no':>6} "
-                f"{page['tables']['cell_ratio']:>8.3f}"
+                f"{'yes' if page['page_text']['equal'] else 'no':>6} "
+                f"{page['tables']['cell_ratio']:>8.3f} "
+                f"{len(unsupported):>11}"
             )
 
     if compared_pages:
-        print("-" * (FIXTURE_COLUMN_WIDTH + 45))
+        print("-" * (FIXTURE_COLUMN_WIDTH + 57))
         print(
             "mean       "
             f"chars(text/box) "
@@ -440,10 +570,12 @@ def main() -> int:
             f"/{sum(p['chars']['box_ratio'] for p in compared_pages) / len(compared_pages):.3f}  "
             f"words "
             f"{sum(p['words']['ratio'] for p in compared_pages) / len(compared_pages):.3f}  "
-            f"text {sum(1 for p in compared_pages if p['text']['equal'])}"
+            f"text {sum(1 for p in compared_pages if p['page_text']['equal'])}"
             f"/{len(compared_pages)}  "
             f"tables "
-            f"{sum(p['tables']['cell_ratio'] for p in compared_pages) / len(compared_pages):.3f}"
+            f"{sum(p['tables']['cell_ratio'] for p in compared_pages) / len(compared_pages):.3f}  "
+            f"unsupported "
+            f"{sum(len(unsupported_api_names(p)) for p in compared_pages)}"
         )
 
     if args.json:
