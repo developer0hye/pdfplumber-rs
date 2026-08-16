@@ -126,6 +126,52 @@ class UpstreamSuiteContractTests(unittest.TestCase):
         self.assertEqual(result.stale_unsupported, ("test_module.py::test_stale",))
         self.assertEqual(result.exit_code, 1)
 
+    def test_unsupported_entries_require_existing_unchecked_prd_tasks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            prd = Path(directory) / "PRD.md"
+            prd.write_text(
+                "- [x] **PYAPI-002** Outside the master checklist.\n"
+                "## 8. Master Implementation Checklist\n"
+                "- [x] **PARITY-001** Completed task.\n"
+                "- [ ] **PYAPI-002** Open task.\n"
+                "## 9. Known Open-Issue Mapping\n"
+                "- [x] **PYAPI-002** Also outside the master checklist.\n",
+                encoding="utf-8",
+            )
+            valid = upstream_suite.UnsupportedManifest(
+                version="0.11.10",
+                commit="7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+                tests=(
+                    upstream_suite.UnsupportedTest(
+                        nodeid="test_module.py::test_open_gap",
+                        task_id="PYAPI-002",
+                        reason="candidate package is not available",
+                    ),
+                ),
+            )
+            upstream_suite.validate_unsupported_task_links(valid, prd)
+
+            for task_id, message in (
+                ("PARITY-001", "references checked task PARITY-001"),
+                ("UNKNOWN-999", "references unknown task UNKNOWN-999"),
+            ):
+                invalid = upstream_suite.UnsupportedManifest(
+                    version=valid.version,
+                    commit=valid.commit,
+                    tests=(
+                        upstream_suite.UnsupportedTest(
+                            nodeid="test_module.py::test_invalid_gap",
+                            task_id=task_id,
+                            reason="invalid task link",
+                        ),
+                    ),
+                )
+                with self.assertRaisesRegex(
+                    upstream_suite.UnsupportedManifestError,
+                    message,
+                ):
+                    upstream_suite.validate_unsupported_task_links(invalid, prd)
+
 
 if __name__ == "__main__":
     unittest.main()
