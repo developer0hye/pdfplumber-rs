@@ -85,6 +85,9 @@ jobs:
       - name: Confirm the reference environment is the pinned upstream release
         run: .venv-reference/bin/python scripts/verify_compat_env.py --reference --expect-root "$PWD/.venv-reference"
 
+      - name: Test all-page fixture reporting against pinned upstream
+        run: .venv-reference/bin/python -m unittest compat.tests.parity_report_pages_test -v
+
       - name: Verify the pinned upstream public API snapshot
         run: .venv-reference/bin/python scripts/generate_api_snapshot.py --check
 

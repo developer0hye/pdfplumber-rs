@@ -56,6 +56,12 @@ bash scripts/setup_golden_venv.sh
 # In the isolated candidate environment, compare only behavioral case outcomes.
 .venv-candidate/bin/python compat/api_contract.py --candidate
 
+# Compare every page of every fixture and retain per-page JSON results.
+.venv-reference/bin/python scripts/parity_report.py --json parity-report.json
+
+# Pinned-upstream behavioral tests for page accounting.
+.venv-reference/bin/python -m unittest compat.tests.parity_report_pages_test -v
+
 # Harness's own tests (no network, no install).
 python3 -m unittest discover -s compat/tests -t .
 ```
@@ -73,6 +79,11 @@ accepted only through `**kwargs`, preserve processed defaults, and record both
 Python binding errors and runtime exception types. It stores the fixture hash
 and compact output digests so the artifact is reviewable without weakening the
 behavioral comparison.
+
+The parity report identifies fixtures by their corpus-relative paths, so files
+with the same basename remain separate. It obtains the Python and Rust page
+counts independently, compares each corresponding page, and exits nonzero if a
+fixture cannot be processed or either side omits or adds a page.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides
