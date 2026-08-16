@@ -1386,8 +1386,17 @@ fn emit_char_events(
                     } else {
                         Some(format!("(cid:{})", rc.char_code))
                     }
+                } else if cached.is_some_and(|c| c.encoding.is_some()) {
+                    // Simple font that names an encoding: a code the encoding
+                    // does not cover is reported as `(cid:N)`, the way pdfminer
+                    // does when cid2unicode has no entry. Reading the code as a
+                    // character instead turns an unmapped bullet into U+0081, a
+                    // control character indistinguishable from real text.
+                    Some(format!("(cid:{})", rc.char_code))
                 } else {
-                    // Simple fonts: interpret char_code as Unicode code point.
+                    // No encoding to consult, so the code is all there is to go
+                    // on. pdfminer reaches a built-in encoding table here that
+                    // we do not always have; guessing beats reporting nothing.
                     char::from_u32(rc.char_code).map(|ch| ch.to_string())
                 }
             });
