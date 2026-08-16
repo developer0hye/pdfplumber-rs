@@ -266,6 +266,65 @@ class MultiApiReportTests(unittest.TestCase):
             {"status": "blocked", "task_id": "PYAPI-002"},
         )
 
+    def test_summary_output_shows_the_first_differing_object(self) -> None:
+        upstream_page = self.empty_page()
+        upstream_page["chars"] = [
+            {
+                "text": "A",
+                "x0": 10.0,
+                "x1": 15.0,
+                "top": 20.0,
+                "bottom": 30.0,
+            }
+        ]
+        rust_page = dict(upstream_page)
+        rust_page["chars"] = [
+            {
+                "text": "B",
+                "x0": 10.25,
+                "x1": 15.0,
+                "top": 21.5,
+                "bottom": 30.0,
+            }
+        ]
+        expected = {"page_count": 1, "pages": [upstream_page]}
+        actual = {"page_count": 1, "pages": [rust_page]}
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "parity-summary.md"
+            with (
+                mock.patch.object(parity_report.environment, "verify_reference"),
+                mock.patch.object(
+                    parity_report,
+                    "find_fixtures",
+                    return_value=["/fixtures/object.pdf"],
+                ),
+                mock.patch.object(parity_report, "python_side", return_value=expected),
+                mock.patch.object(parity_report, "rust_side", return_value=actual),
+                mock.patch(
+                    "sys.argv",
+                    [
+                        "parity_report.py",
+                        "--fixtures",
+                        "/fixtures",
+                        "--summary",
+                        str(output),
+                    ],
+                ),
+                mock.patch("builtins.print"),
+            ):
+                status = parity_report.main(object())
+
+            rendered = output.read_text(encoding="utf-8")
+
+        self.assertEqual(status, 1)
+        self.assertIn("# pdfplumber-rs parity summary", rendered)
+        self.assertIn("- Fixture: `object.pdf`", rendered)
+        self.assertIn("- API: `chars`", rendered)
+        self.assertIn("- Object index: 0", rendered)
+        self.assertIn('- Text: upstream `"A"` -> Rust `"B"`', rendered)
+        self.assertIn("x0 `10.0` -> `10.25` (delta `+0.25`)", rendered)
+
     @staticmethod
     def empty_page() -> dict:
         return {

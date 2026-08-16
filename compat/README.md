@@ -27,6 +27,7 @@ Everything here exists to make that reproducible.
 | `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
 | `harness/approved_deltas.py` | Validates exact intentional differences and rejects unregistered or stale results |
 | `harness/machine_report.py` | Builds the versioned per-API/per-option/per-fixture/per-page JSON report |
+| `harness/human_summary.py` | Renders the deterministic first-difference Markdown summary from that JSON model |
 | `approved_deltas.toml` | Target-bound maintainer approvals for exact fixture/page/API result pairs |
 | `harness/upstream_suite.py` | Verifies the pinned upstream test tree and classifies, but never suppresses, failures |
 | `upstream-suite.toml` | Exact upstream commit/test-tree fingerprint and test-tool lock digest |
@@ -64,8 +65,9 @@ bash scripts/setup_golden_venv.sh
 # In the isolated candidate environment, compare only behavioral case outcomes.
 .venv-candidate/bin/python compat/api_contract.py --candidate
 
-# Compare every page of every fixture and retain per-page JSON results.
-.venv-reference/bin/python scripts/parity_report.py --json parity-report.json
+# Compare every page, retain complete JSON, and write a compact review summary.
+.venv-reference/bin/python scripts/parity_report.py \
+  --json parity-report.json --summary parity-summary.md
 
 # Once an isolated compatibility package exists, collect its option outcomes
 # and include their exact comparison in the same machine report.
@@ -140,6 +142,16 @@ If no isolated candidate option snapshot is supplied, every option case is
 recorded as `blocked` by `PYAPI-002` and the command exits nonzero. Candidate
 snapshots must contain exactly the same case IDs and identity fields; missing,
 extra, or changed cases fail instead of disappearing from the report.
+
+`--summary` renders a deterministic Markdown artifact from the same machine
+report model. It includes target and result counts, then selects the first
+differing fixture/page/API in corpus and API order. For sequences it records
+the exact object index and JSON-safe upstream/Rust objects; for text it records
+the first character offset and bounded context. Common object coordinates are
+shown with their signed delta when they differ and explicitly marked unchanged
+otherwise. The summary is compact
+diagnostic evidence, while `--json` remains the complete record of all later
+results, blocked cases, processing failures, and delta-gate dispositions.
 
 Parity-report character/word diagnostics and Rust cross-validation
 character/word/line/rectangle diagnostics compare objects at the same sequence

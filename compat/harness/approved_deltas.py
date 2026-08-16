@@ -176,11 +176,16 @@ def evaluate(
 
 def value_digest(value: Any) -> str:
     encoded = json.dumps(
-        _canonical_value(value),
+        canonical_value(value),
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def canonical_value(value: Any) -> list[Any]:
+    """Return the exact, JSON-safe value form used by delta identities."""
+    return _canonical_value(value)
 
 
 def _canonical_value(value: Any) -> list[Any]:
