@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
 """Generate golden JSON data from test PDFs using Python pdfplumber.
 
-Usage:
-    # With the .venv-golden virtualenv activated:
-    python scripts/generate_golden.py
+Must run inside the pinned reference environment, which is checked on startup:
+golden data produced by an arbitrary pdfplumber build is not evidence of
+anything (PARITY-003, PARITY-004).
+
+    bash scripts/setup_golden_venv.sh
+    .venv-reference/bin/python scripts/generate_golden.py
 
 Reads PDFs from crates/pdfplumber/tests/fixtures/pdfs/
 Writes JSON to crates/pdfplumber/tests/fixtures/golden/
+
+Every artifact carries a provenance block naming the upstream release, the
+dependency lock, the source fixture, and the generating machine (PARITY-002).
 """
 
 import json
 import os
 import sys
+from pathlib import Path
 
 import pdfplumber
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
+sys.path.insert(0, REPO_ROOT)
+
+from compat.harness import environment, provenance  # noqa: E402
+
 PDF_DIR = os.path.join(REPO_ROOT, "crates", "pdfplumber", "tests", "fixtures", "pdfs")
 GOLDEN_DIR = os.path.join(REPO_ROOT, "crates", "pdfplumber", "tests", "fixtures", "golden")
 
@@ -156,6 +167,7 @@ def process_pdf(pdf_path):
     return {
         "source": filename,
         "pdfplumber_version": pdfplumber.__version__,
+        "provenance": provenance.build(Path(pdf_path)),
         "pages": pages,
     }
 
@@ -174,6 +186,13 @@ def collect_pdfs(base_dir):
 
 
 def main():
+    try:
+        environment.verify_reference(pdfplumber)
+    except environment.EnvironmentMismatch as mismatch:
+        print(f"refusing to generate golden data: {mismatch}")
+        print("Run: bash scripts/setup_golden_venv.sh")
+        sys.exit(1)
+
     os.makedirs(GOLDEN_DIR, exist_ok=True)
 
     pdf_files = collect_pdfs(PDF_DIR)

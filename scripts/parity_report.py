@@ -6,11 +6,14 @@ characters (text and bounding boxes), words, page text, and lattice tables.
 Use it to pick the next parity gap to close and to confirm a change moved the
 numbers in the right direction.
 
-Usage (Python pdfplumber must be importable — see scripts/setup_golden_venv.sh):
+Must run inside the pinned reference environment — see scripts/setup_golden_venv.sh.
+The interpreter is checked on startup, because a report generated against the
+wrong pdfplumber compares an implementation with itself and always looks perfect
+(PARITY-004).
 
-    .venv-golden/bin/python scripts/parity_report.py
-    .venv-golden/bin/python scripts/parity_report.py --repo ../pdfplumber-rs-some-worktree
-    .venv-golden/bin/python scripts/parity_report.py --json report.json
+    .venv-reference/bin/python scripts/parity_report.py
+    .venv-reference/bin/python scripts/parity_report.py --repo ../pdfplumber-rs-some-worktree
+    .venv-reference/bin/python scripts/parity_report.py --json report.json
 """
 
 import argparse
@@ -24,6 +27,10 @@ from typing import Any
 import pdfplumber
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO_ROOT)
+
+from compat.harness import environment  # noqa: E402
+
 FIXTURE_DIRS = ["tests/fixtures/generated", "tests/fixtures/downloaded", "crates/pdfplumber/tests/fixtures/pdfs"]
 
 # Coordinates are compared at this tolerance, in points. Anything larger is a
@@ -161,6 +168,13 @@ def main() -> int:
     parser.add_argument("--json", help="also write the full report here")
     parser.add_argument("--only", help="substring filter on the fixture filename")
     args = parser.parse_args()
+
+    try:
+        environment.verify_reference(pdfplumber)
+    except environment.EnvironmentMismatch as mismatch:
+        print(f"refusing to report parity: {mismatch}", file=sys.stderr)
+        print("Run: bash scripts/setup_golden_venv.sh", file=sys.stderr)
+        return 1
 
     report = {}
     print(f"{'fixture':<34} {'chars':>14} {'words':>8} {'text':>6} {'tables':>8}")
