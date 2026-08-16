@@ -143,6 +143,48 @@ fn coords_match(a: f64, b: f64, tolerance: f64) -> bool {
     (a - b).abs() <= tolerance
 }
 
+/// Count objects that match at the same sequence position.
+///
+/// The denominator includes additions on either side. A reordered object is a
+/// mismatch even when an identical object appears elsewhere in the page.
+fn match_ordered_sequence<Actual, Expected, Matches>(
+    actual: &[Actual],
+    expected: &[Expected],
+    matches: Matches,
+) -> (usize, usize)
+where
+    Matches: Fn(&Actual, &Expected) -> bool,
+{
+    let matched = actual
+        .iter()
+        .zip(expected)
+        .filter(|(left, right)| matches(left, right))
+        .count();
+    (matched, actual.len().max(expected.len()))
+}
+
+#[test]
+fn ordered_sequence_matching_rejects_reordered_items() {
+    let actual = ["first", "second"];
+    let expected = ["second", "first"];
+
+    assert_eq!(
+        match_ordered_sequence(&actual, &expected, |left, right| left == right),
+        (0, 2),
+    );
+}
+
+#[test]
+fn ordered_sequence_matching_counts_extra_items() {
+    let actual = [1, 2, 3];
+    let expected = [1, 3];
+
+    assert_eq!(
+        match_ordered_sequence(&actual, &expected, |left, right| left == right),
+        (1, 3),
+    );
+}
+
 // ─── Char matching ──────────────────────────────────────────────────────────
 
 fn char_matches(rust_char: &pdfplumber::Char, golden: &GoldenChar) -> bool {
@@ -157,24 +199,8 @@ fn char_matches(rust_char: &pdfplumber::Char, golden: &GoldenChar) -> bool {
         && coords_match(rust_char.bbox.bottom, golden.bottom, COORD_TOLERANCE)
 }
 
-/// Greedy best-match: for each golden char, find the best matching Rust char.
 fn match_chars(rust_chars: &[pdfplumber::Char], golden_chars: &[GoldenChar]) -> (usize, usize) {
-    let total = golden_chars.len();
-    if total == 0 {
-        return (0, 0);
-    }
-    let mut used = vec![false; rust_chars.len()];
-    let mut matched = 0;
-    for golden in golden_chars {
-        for (i, rc) in rust_chars.iter().enumerate() {
-            if !used[i] && char_matches(rc, golden) {
-                used[i] = true;
-                matched += 1;
-                break;
-            }
-        }
-    }
-    (matched, total)
+    match_ordered_sequence(rust_chars, golden_chars, char_matches)
 }
 
 // ─── Word matching ──────────────────────────────────────────────────────────
@@ -191,22 +217,7 @@ fn word_matches(rust_word: &pdfplumber::Word, golden: &GoldenWord) -> bool {
 }
 
 fn match_words(rust_words: &[pdfplumber::Word], golden_words: &[GoldenWord]) -> (usize, usize) {
-    let total = golden_words.len();
-    if total == 0 {
-        return (0, 0);
-    }
-    let mut used = vec![false; rust_words.len()];
-    let mut matched = 0;
-    for golden in golden_words {
-        for (i, rw) in rust_words.iter().enumerate() {
-            if !used[i] && word_matches(rw, golden) {
-                used[i] = true;
-                matched += 1;
-                break;
-            }
-        }
-    }
-    (matched, total)
+    match_ordered_sequence(rust_words, golden_words, word_matches)
 }
 
 // ─── Table matching ─────────────────────────────────────────────────────────
@@ -265,22 +276,7 @@ fn line_matches(rust_line: &pdfplumber::Line, golden: &GoldenLine) -> bool {
 }
 
 fn match_lines(rust_lines: &[pdfplumber::Line], golden_lines: &[GoldenLine]) -> (usize, usize) {
-    let total = golden_lines.len();
-    if total == 0 {
-        return (0, 0);
-    }
-    let mut used = vec![false; rust_lines.len()];
-    let mut matched = 0;
-    for golden in golden_lines {
-        for (i, rl) in rust_lines.iter().enumerate() {
-            if !used[i] && line_matches(rl, golden) {
-                used[i] = true;
-                matched += 1;
-                break;
-            }
-        }
-    }
-    (matched, total)
+    match_ordered_sequence(rust_lines, golden_lines, line_matches)
 }
 
 // ─── Rect matching ──────────────────────────────────────────────────────────
@@ -293,22 +289,7 @@ fn rect_matches(rust_rect: &pdfplumber::Rect, golden: &GoldenRect) -> bool {
 }
 
 fn match_rects(rust_rects: &[pdfplumber::Rect], golden_rects: &[GoldenRect]) -> (usize, usize) {
-    let total = golden_rects.len();
-    if total == 0 {
-        return (0, 0);
-    }
-    let mut used = vec![false; rust_rects.len()];
-    let mut matched = 0;
-    for golden in golden_rects {
-        for (i, rr) in rust_rects.iter().enumerate() {
-            if !used[i] && rect_matches(rr, golden) {
-                used[i] = true;
-                matched += 1;
-                break;
-            }
-        }
-    }
-    (matched, total)
+    match_ordered_sequence(rust_rects, golden_rects, rect_matches)
 }
 
 // ─── Per-page and per-PDF validation ────────────────────────────────────────
