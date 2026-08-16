@@ -234,11 +234,15 @@ impl WordExtractor {
 
         // Step 1: Sort by cross-direction coordinate
         if is_vertical {
-            // Vertical text: columns go right-to-left, so sort by x0 descending
+            // Vertical text: the columns are the lines, and they are taken left
+            // to right by x0. pdfplumber flips its two reading directions for
+            // text that is not upright — `line_dir_rotated` defaults to
+            // `char_dir`, which is `ltr` — so a sideways row of labels starts at
+            // the leftmost column, not the rightmost.
             chars.sort_by(|a, b| {
-                b.bbox
+                a.bbox
                     .x0
-                    .partial_cmp(&a.bbox.x0)
+                    .partial_cmp(&b.bbox.x0)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
         } else {
@@ -1009,13 +1013,19 @@ mod tests {
 
     #[test]
     fn test_vertical_text_two_columns() {
-        // Two vertical columns: column 1 at x=100, column 2 at x=70
-        // Vertical text reads right-to-left (column1 first, column2 second)
+        // Two vertical columns, one at x=70 and one at x=100. The columns are
+        // the lines, and they are taken left to right, so the x=70 column comes
+        // first. Python pdfplumber on the same four characters:
+        //
+        // ```python
+        // WordExtractor().iter_extract_tuples(chars)  # upright=False
+        // # -> ['三四', '一二']
+        // ```
         let chars = vec![
-            // Column 1 (right side, x=100)
+            // Right column (x=100)
             make_cjk_char("一", 100.0, 10.0, 12.0, 12.0),
             make_cjk_char("二", 100.0, 23.0, 12.0, 12.0),
-            // Column 2 (left side, x=70)
+            // Left column (x=70)
             make_cjk_char("三", 70.0, 10.0, 12.0, 12.0),
             make_cjk_char("四", 70.0, 23.0, 12.0, 12.0),
         ];
@@ -1025,9 +1035,8 @@ mod tests {
         };
         let words = WordExtractor::extract(&chars, &opts);
         assert_eq!(words.len(), 2);
-        // Right column first in reading order (right-to-left)
-        assert_eq!(words[0].text, "一二");
-        assert_eq!(words[1].text, "三四");
+        assert_eq!(words[0].text, "三四");
+        assert_eq!(words[1].text, "一二");
     }
 
     #[test]
