@@ -26,6 +26,7 @@ Everything here exists to make that reproducible.
 | `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
 | `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
 | `harness/approved_deltas.py` | Validates exact intentional differences and rejects unregistered or stale results |
+| `harness/machine_report.py` | Builds the versioned per-API/per-option/per-fixture/per-page JSON report |
 | `approved_deltas.toml` | Target-bound maintainer approvals for exact fixture/page/API result pairs |
 | `harness/upstream_suite.py` | Verifies the pinned upstream test tree and classifies, but never suppresses, failures |
 | `upstream-suite.toml` | Exact upstream commit/test-tree fingerprint and test-tool lock digest |
@@ -65,6 +66,13 @@ bash scripts/setup_golden_venv.sh
 
 # Compare every page of every fixture and retain per-page JSON results.
 .venv-reference/bin/python scripts/parity_report.py --json parity-report.json
+
+# Once an isolated compatibility package exists, collect its option outcomes
+# and include their exact comparison in the same machine report.
+.venv-candidate/bin/python scripts/generate_option_matrix.py \
+  --candidate-output candidate-options.json
+.venv-reference/bin/python scripts/parity_report.py \
+  --candidate-options candidate-options.json --json parity-report.json
 
 # Validate the target binding and complete schema of every approved delta.
 python3 scripts/check_approved_deltas.py
@@ -120,6 +128,18 @@ stale and also fails within the fixture scope being run. Each approval must
 record both result summaries, its reason and compatibility risk, the approving
 maintainer, a regression test, and an expiration or review condition. The
 committed registry starts empty because no deviation has been approved.
+
+`--json` writes schema-versioned deterministic JSON rather than the legacy raw
+fixture dictionary. It records the pinned target and reference environment,
+then retains explicit outcomes for every fixture, page, and API plus all 161
+option-matrix cases. Option results include their fixture/page/API identity,
+arguments, resolved options, warnings, logs, and complete referenced output.
+The report also records the candidate-environment state and attaches exact
+approved or unregistered delta dispositions to the affected API results.
+If no isolated candidate option snapshot is supplied, every option case is
+recorded as `blocked` by `PYAPI-002` and the command exits nonzero. Candidate
+snapshots must contain exactly the same case IDs and identity fields; missing,
+extra, or changed cases fail instead of disappearing from the report.
 
 Parity-report character/word diagnostics and Rust cross-validation
 character/word/line/rectangle diagnostics compare objects at the same sequence

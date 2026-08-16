@@ -32,7 +32,13 @@ from typing import Any
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-from compat.harness import approved_deltas, environment, upstream  # noqa: E402
+from compat.harness import (  # noqa: E402
+    approved_deltas,
+    environment,
+    machine_report,
+    option_matrix,
+    upstream,
+)
 
 FIXTURE_DIRS = [
     "tests/fixtures/generated",
@@ -487,6 +493,7 @@ def compare_documents(expected: dict, actual: dict) -> dict:
         )
 
     return {
+        "status": "compared",
         "page_count_expected": expected["page_count"],
         "page_count_actual": actual["page_count"],
         "page_count_equal": expected["page_count"] == actual["page_count"],
@@ -548,6 +555,15 @@ def observed_document_deltas(
     return observations
 
 
+def load_json_object(path: Path, label: str) -> dict[str, object]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise machine_report.MachineReportError(
+            f"{label} must be a JSON object: {path}"
+        )
+    return data
+
+
 def main(reference_package: Any = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=REPO_ROOT, help="worktree to test (default: this repo)")
@@ -559,14 +575,38 @@ def main(reference_package: Any = None) -> int:
         default=APPROVED_DELTAS_PATH,
         help="exact intentional-difference registry",
     )
+    parser.add_argument(
+        "--option-reference",
+        default=str(option_matrix.snapshot_path()),
+        help="pinned reference option-matrix snapshot used by --json",
+    )
+    parser.add_argument(
+        "--candidate-options",
+        help="candidate option-matrix snapshot to compare in --json output",
+    )
     args = parser.parse_args()
 
+    reference_options: dict[str, object] | None = None
+    candidate_options: dict[str, object] | None = None
     try:
         registry = approved_deltas.load_registry(Path(args.approved_deltas))
         target = upstream.load_target()
         approved_deltas.validate_target(registry, target.version, target.commit)
+        if args.json:
+            reference_options = load_json_object(
+                Path(args.option_reference),
+                "reference option matrix",
+            )
+            if args.candidate_options:
+                candidate_options = load_json_object(
+                    Path(args.candidate_options),
+                    "candidate option matrix",
+                )
     except approved_deltas.DeltaRegistryError as mismatch:
         print(f"refusing to report parity: {mismatch}", file=sys.stderr)
+        return 1
+    except (OSError, json.JSONDecodeError, machine_report.MachineReportError) as error:
+        print(f"refusing to report parity: {error}", file=sys.stderr)
         return 1
 
     try:
@@ -690,8 +730,22 @@ def main(reference_package: Any = None) -> int:
         had_failure = True
 
     if args.json:
+        assert reference_options is not None
+        try:
+            artifact = machine_report.build(
+                report,
+                reference_options,
+                candidate_options,
+                delta_gate=gate,
+            )
+        except machine_report.MachineReportError as error:
+            print(f"machine report failed: {error}", file=sys.stderr)
+            return 1
+        if artifact["status"] == "failed":
+            had_failure = True
+        artifact["status"] = "failed" if had_failure else "passed"
         with open(args.json, "w", encoding="utf-8") as handle:
-            json.dump(report, handle, indent=1)
+            handle.write(machine_report.render(artifact))
 
     return 1 if had_failure else 0
 
