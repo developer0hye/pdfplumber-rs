@@ -84,3 +84,6 @@ jobs:
 
       - name: Confirm the reference environment is the pinned upstream release
         run: .venv-reference/bin/python scripts/verify_compat_env.py --reference --expect-root "$PWD/.venv-reference"
+
+      - name: Verify the pinned upstream public API snapshot
+        run: .venv-reference/bin/python scripts/generate_api_snapshot.py --check
