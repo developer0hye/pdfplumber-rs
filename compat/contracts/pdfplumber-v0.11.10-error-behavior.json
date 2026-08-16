@@ -1,0 +1,556 @@
+{
+  "cases": [
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.entirely_outside",
+      "invocation": {
+        "bbox": "$entirely_outside",
+        "strict": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "Bounding box (596.28, 842.89, 606.28, 852.89) is entirely outside parent page bounding box (0, 0.0, 595.28, 841.89)"
+        ],
+        "kind": "exception",
+        "message": "Bounding box (596.28, 842.89, 606.28, 852.89) is entirely outside parent page bounding box (0, 0.0, 595.28, 841.89)",
+        "type": "builtins.ValueError"
+      },
+      "phase": "bbox_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.negative_height",
+      "invocation": {
+        "bbox": "$negative_height",
+        "strict": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "(0, 10.0, 10, 0.0) has a negative width or height."
+        ],
+        "kind": "exception",
+        "message": "(0, 10.0, 10, 0.0) has a negative width or height.",
+        "type": "builtins.ValueError"
+      },
+      "phase": "bbox_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.negative_width",
+      "invocation": {
+        "bbox": "$negative_width",
+        "strict": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "(10, 0.0, 0, 10.0) has a negative width or height."
+        ],
+        "kind": "exception",
+        "message": "(10, 0.0, 0, 10.0) has a negative width or height.",
+        "type": "builtins.ValueError"
+      },
+      "phase": "bbox_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.partially_outside",
+      "invocation": {
+        "bbox": "$partially_outside",
+        "strict": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "Bounding box (-1, 0.0, 10, 10.0) is not fully within parent page bounding box (0, 0.0, 595.28, 841.89)"
+        ],
+        "kind": "exception",
+        "message": "Bounding box (-1, 0.0, 10, 10.0) is not fully within parent page bounding box (0, 0.0, 595.28, 841.89)",
+        "type": "builtins.ValueError"
+      },
+      "phase": "bbox_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.strict_false",
+      "invocation": {
+        "bbox": "$outside_parent",
+        "strict": false
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "bbox": [
+            -10,
+            -10.0,
+            605.28,
+            851.89
+          ],
+          "height": 861.89,
+          "width": 615.28
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.crop",
+      "category": "invalid_bounding_boxes",
+      "id": "bbox.zero_area",
+      "invocation": {
+        "bbox": "$zero_area",
+        "strict": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "Bounding box (0, 0.0, 0, 0.0) has an area of zero."
+        ],
+        "kind": "exception",
+        "message": "Bounding box (0, 0.0, 0, 0.0) has an area of zero.",
+        "type": "builtins.ValueError"
+      },
+      "phase": "bbox_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.pdf.PDF.close",
+      "category": "closed_resources",
+      "id": "closed.external_stream",
+      "invocation": {
+        "close_calls": 2,
+        "input": "external BytesIO"
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "page_count_after_close": 1,
+          "page_count_before_close": 1,
+          "stream_closed": false,
+          "stream_is_external": true
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "closed_resources",
+      "id": "closed.initial_input",
+      "invocation": {
+        "input": "closed BytesIO"
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          {
+            "args": [
+              "I/O operation on closed file."
+            ],
+            "message": "I/O operation on closed file.",
+            "type": "builtins.ValueError"
+          }
+        ],
+        "kind": "exception",
+        "message": "I/O operation on closed file.",
+        "type": "pdfplumber.utils.exceptions.PdfminerException"
+      },
+      "phase": "open",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.pdf.PDF.close",
+      "category": "closed_resources",
+      "id": "closed.owned_stream",
+      "invocation": {
+        "close_calls": 2,
+        "input": "tests/fixtures/generated/basic_text.pdf"
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "first_page_identity_retained": false,
+          "original_page_char_count_after_close": 258,
+          "original_page_char_count_before_close": 258,
+          "page_count_after_close": 1,
+          "stream_closed": true,
+          "stream_is_external": false
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "exceptions",
+      "id": "exception.empty_pdf",
+      "invocation": {
+        "input": {
+          "bytes_hex": ""
+        }
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          {
+            "args": [
+              "No /Root object! - Is this really a PDF?"
+            ],
+            "message": "No /Root object! - Is this really a PDF?",
+            "type": "pdfminer.pdfparser.PDFSyntaxError"
+          }
+        ],
+        "kind": "exception",
+        "message": "No /Root object! - Is this really a PDF?",
+        "type": "pdfplumber.utils.exceptions.PdfminerException"
+      },
+      "phase": "open",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.table.TableSettings",
+      "category": "exceptions",
+      "id": "exception.table_settings_strategy",
+      "invocation": {
+        "vertical_strategy": "bogus"
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "vertical_strategy must be one of{lines,lines_strict,text,explicit}"
+        ],
+        "kind": "exception",
+        "message": "vertical_strategy must be one of{lines,lines_strict,text,explicit}",
+        "type": "builtins.ValueError"
+      },
+      "phase": "settings_validation",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "malformed_metadata",
+      "id": "metadata.non_strict_cycle",
+      "invocation": {
+        "input": "inline:cyclic-metadata.pdf",
+        "strict_metadata": false
+      },
+      "logs": [
+        {
+          "level": "WARNING",
+          "logger": "pdfplumber.pdf",
+          "message": "[WARNING] Metadata key \"Loop\" could not be parsed due to exception: maximum recursion depth exceeded"
+        }
+      ],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "external_stream_closed": false,
+          "keys": [
+            "Loop"
+          ],
+          "loop_value_type": "pdfminer.pdftypes.PDFObjRef"
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "malformed_metadata",
+      "id": "metadata.strict_cycle",
+      "invocation": {
+        "input": "inline:cyclic-metadata.pdf",
+        "strict_metadata": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "maximum recursion depth exceeded"
+        ],
+        "kind": "exception",
+        "message": "maximum recursion depth exceeded",
+        "type": "builtins.RecursionError"
+      },
+      "phase": "metadata_decode",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "passwords",
+      "id": "password.correct",
+      "invocation": {
+        "input": "crates/pdfplumber/tests/fixtures/pdfs/password-example.pdf",
+        "password": "<redacted>"
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "first_page_char_count": 2355,
+          "page_count": 4
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "passwords",
+      "id": "password.missing",
+      "invocation": {
+        "input": "crates/pdfplumber/tests/fixtures/pdfs/password-example.pdf",
+        "password": null
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          {
+            "args": [],
+            "message": "",
+            "type": "pdfminer.pdfdocument.PDFPasswordIncorrect"
+          }
+        ],
+        "kind": "exception",
+        "message": "",
+        "type": "pdfplumber.utils.exceptions.PdfminerException"
+      },
+      "phase": "password_authentication",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "passwords",
+      "id": "password.wrong",
+      "invocation": {
+        "input": "crates/pdfplumber/tests/fixtures/pdfs/password-example.pdf",
+        "password": "<redacted>"
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          {
+            "args": [],
+            "message": "",
+            "type": "pdfminer.pdfdocument.PDFPasswordIncorrect"
+          }
+        ],
+        "kind": "exception",
+        "message": "",
+        "type": "pdfplumber.utils.exceptions.PdfminerException"
+      },
+      "phase": "password_authentication",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.repair",
+      "category": "repair",
+      "id": "repair.bytesio_return",
+      "invocation": {
+        "input": "BytesIO",
+        "setting": "prepress"
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "returned_closed": false,
+          "returned_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
+          "returned_type": "_io.BytesIO",
+          "source_closed": false
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "repair",
+      "id": "repair.open_internal_stream",
+      "invocation": {
+        "input": "tests/fixtures/generated/basic_text.pdf",
+        "repair": true
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "page_count": 1,
+          "path_is_none": true,
+          "stream_closed_after_context": true,
+          "stream_closed_in_context": false,
+          "stream_is_external": false
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.repair",
+      "category": "repair",
+      "id": "repair.outfile",
+      "invocation": {
+        "input": "tests/fixtures/generated/basic_text.pdf",
+        "outfile": "<temporary>"
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "outfile_exists": true,
+          "outfile_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
+          "return_is_none": true
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.repair",
+      "category": "repair",
+      "id": "repair.process_failure",
+      "invocation": {
+        "helper_exit": 7,
+        "input": "tests/fixtures/generated/basic_text.pdf"
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "synthetic repair failure\n"
+        ],
+        "kind": "exception",
+        "message": "synthetic repair failure\n",
+        "type": "builtins.Exception"
+      },
+      "phase": "repair_subprocess",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.annots",
+      "category": "warnings",
+      "id": "warning.annotation_unicode_fatal",
+      "invocation": {
+        "input": "crates/pdfplumber/tests/fixtures/pdfs/annotations-unicode-issues.pdf",
+        "raise_unicode_errors": true
+      },
+      "logs": [],
+      "outcome": {
+        "args": [
+          "utf-16-le",
+          {
+            "bytes_hex": "eda080"
+          },
+          2,
+          3,
+          "truncated data"
+        ],
+        "kind": "exception",
+        "message": "'utf-16-le' codec can't decode byte 0x80 in position 2: truncated data",
+        "type": "builtins.UnicodeDecodeError"
+      },
+      "phase": "annotation_decode",
+      "warnings": []
+    },
+    {
+      "callable": "pdfplumber.page.Page.annots",
+      "category": "warnings",
+      "id": "warning.annotation_unicode_nonfatal",
+      "invocation": {
+        "input": "crates/pdfplumber/tests/fixtures/pdfs/annotations-unicode-issues.pdf",
+        "raise_unicode_errors": false
+      },
+      "logs": [],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "annotation_count": 1,
+          "contents_is_none": false,
+          "contents_present": true
+        }
+      },
+      "phase": "complete",
+      "warnings": [
+        {
+          "category": "builtins.UserWarning",
+          "message": "Could not decode contents of annotation. contents will be missing."
+        }
+      ]
+    },
+    {
+      "callable": "pdfplumber.page.Page.extract_words",
+      "category": "warnings",
+      "id": "warning.deprecated_vertical_ttb",
+      "invocation": {
+        "input": "tests/fixtures/generated/basic_text.pdf",
+        "vertical_ttb": false
+      },
+      "logs": [
+        {
+          "level": "WARNING",
+          "logger": "pdfplumber.utils.text",
+          "message": "vertical_ttb is deprecated and will be removed; use line_dir/char_dir instead."
+        }
+      ],
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.dict",
+        "value": {
+          "word_count": 48
+        }
+      },
+      "phase": "complete",
+      "warnings": []
+    }
+  ],
+  "environment": {
+    "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
+    "python_version": "3.13.12"
+  },
+  "resources": {
+    "crates/pdfplumber/tests/fixtures/pdfs/annotations-unicode-issues.pdf": {
+      "sha256": "e774f5c98d25a725ca2163a52b9cd36113a9694bf4a07b452e3819bf3b268250"
+    },
+    "crates/pdfplumber/tests/fixtures/pdfs/password-example.pdf": {
+      "sha256": "76593a57d9787a86050815e830a4c69425f5c95017fdb6f509074658932056e2"
+    },
+    "inline:cyclic-metadata.pdf": {
+      "sha256": "cedb3d3f3ffdd57f3e6e363d5549e49a75b07b3d27f92c503c083a9b6d50c9b4"
+    },
+    "inline:repair-helper.py": {
+      "sha256": "ce9b27b4cafefc218fd22b325a036c0ca68df7f6dc462f0c7f3cdef7c0a922d7"
+    },
+    "tests/fixtures/generated/basic_text.pdf": {
+      "sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec"
+    }
+  },
+  "schema_version": 1,
+  "target": {
+    "commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+    "project": "pdfplumber",
+    "repository": "https://github.com/jsvine/pdfplumber",
+    "tag": "v0.11.10",
+    "version": "0.11.10"
+  }
+}

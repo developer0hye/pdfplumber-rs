@@ -98,5 +98,8 @@ jobs:
       - name: Verify the pinned upstream text/table option matrix
         run: .venv-reference/bin/python scripts/generate_option_matrix.py --check
 
+      - name: Verify exceptional and resource behavior against pinned upstream
+        run: .venv-reference/bin/python compat/error_contract.py --reference
+
       - name: Verify the pinned upstream call contracts
         run: .venv-reference/bin/python compat/api_contract.py
