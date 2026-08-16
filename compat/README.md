@@ -25,6 +25,11 @@ Everything here exists to make that reproducible.
 | `harness/environment.py` | Guards against importing the wrong `pdfplumber` |
 | `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
 | `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
+| `harness/upstream_suite.py` | Verifies the pinned upstream test tree and classifies, but never suppresses, failures |
+| `upstream-suite.toml` | Exact upstream commit/test-tree fingerprint and test-tool lock digest |
+| `upstream-unsupported.toml` | Machine-readable temporary failure classifications |
+| `requirements-upstream-tests.txt` | Hash-pinned minimal pytest/xdist/pandas dependency closure |
+| `upstream-tests/` | Ignored materialized copy of the verified upstream tests and their external fixture |
 | `snapshots/pdfplumber-v0.11.10-api.json` | Committed public API contract for the pinned upstream release |
 | `contracts/pdfplumber-v0.11.10-calls.json` | Pinned behavioral outcomes for representative public calls |
 | `tests/` | Structural gates on all of the above |
@@ -67,6 +72,20 @@ bash scripts/setup_golden_venv.sh
 
 # Harness's own tests (no network, no install).
 python3 -m unittest discover -s compat/tests -t .
+
+# Materialize and re-verify the 101-file tests plus their external PDF fixture.
+python3 scripts/setup_upstream_suite.py
+python3 scripts/setup_upstream_suite.py --check
+
+# Install only the hash-locked upstream test tools into the candidate venv.
+.venv-candidate/bin/python -m pip install --require-hashes \
+  -r compat/requirements-upstream-tests.txt
+
+# The upstream repair tests also require the `gs` executable (Ghostscript).
+command -v gs
+
+# Run every upstream test against the installed candidate package.
+python3 scripts/run_upstream_suite.py
 ```
 
 The API snapshot discovers the package tree recursively and records public
@@ -99,6 +118,17 @@ types, list/tuple and dictionary nesting, and explicit `None` positions at the
 same object indexes. Scalar values remain under their dedicated exact or
 tolerance-aware comparisons. Table cells keep `None` distinct from an empty
 string.
+
+The upstream-suite source is accepted only when its Git commit, `tests` Git
+tree, 102-file content fingerprint (101 test-tree files plus the PDF referenced
+from `examples/`), and test-requirements digest all match
+`upstream-suite.toml`. The runner preflights an installed package inside
+`.venv-candidate`, records the origin again inside pytest workers, and refuses
+the pinned reference package. It also refuses to start if the manifest-declared
+Ghostscript executable is absent, because six upstream repair tests require it.
+`upstream-unsupported.toml` classifies observed
+failures for follow-up; it never deselects, skips, marks xfail, changes, or masks
+a test, and the runner preserves pytest's nonzero exit status.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides

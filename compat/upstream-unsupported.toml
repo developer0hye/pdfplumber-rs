@@ -1,0 +1,13 @@
+schema_version = 1
+
+[target]
+version = "0.11.10"
+commit = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+
+# Add one table per observed candidate failure. Entries classify failures but
+# never deselect, skip, xfail, or otherwise make the pytest process successful.
+#
+# [[test]]
+# nodeid = "test_module.py::TestClass::test_name"
+# task_id = "UNCHECKED-PRD-TASK"
+# reason = "Observable compatibility gap"
