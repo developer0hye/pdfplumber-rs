@@ -49,14 +49,30 @@ pub struct Edge {
     pub source: EdgeSource,
 }
 
-/// Derive an Edge from a Line (direct conversion).
+/// Derive an Edge from a Line.
+///
+/// A line contributes a horizontal edge only when it is flat — its top equal
+/// to its bottom — and any other line, however slight its slope, contributes a
+/// vertical one standing at `x0` and spanning `top..bottom`. Python pdfplumber
+/// draws the same two-way distinction in `line_to_edge`, and it matters: a rule
+/// drawn a fraction off true still bounds a table, and dropping it as diagonal
+/// costs every intersection along it.
+///
+/// Curves are classified differently — see [`edges_from_curve`], where a
+/// slanted segment really is diagonal and plays no part in a table.
 pub fn edge_from_line(line: &Line) -> Edge {
+    let orientation = if line.top == line.bottom {
+        Orientation::Horizontal
+    } else {
+        Orientation::Vertical
+    };
+
     Edge {
         x0: line.x0,
         top: line.top,
         x1: line.x1,
         bottom: line.bottom,
-        orientation: line.orientation,
+        orientation,
         source: EdgeSource::Line,
     }
 }
@@ -228,6 +244,32 @@ mod tests {
         );
     }
 
+    #[test]
+    fn a_slanted_line_becomes_a_vertical_edge() {
+        // A rule drawn a fraction off true — 91.5 wide but 7.3 tall — still
+        // bounds a table. pdfplumber's line_to_edge has no diagonal case: a
+        // line is horizontal only when its top equals its bottom, and anything
+        // else is vertical, standing at x0 and spanning top..bottom.
+        let line = make_line(179.93, 142.11, 271.43, 149.44, Orientation::Diagonal);
+        assert_eq!(edge_from_line(&line).orientation, Orientation::Vertical);
+    }
+
+    #[test]
+    fn a_line_is_horizontal_only_when_flat() {
+        let flat = make_line(10.0, 50.0, 200.0, 50.0, Orientation::Horizontal);
+        assert_eq!(edge_from_line(&flat).orientation, Orientation::Horizontal);
+
+        // A hair off flat is vertical, the same as any other non-flat line.
+        let nearly_flat = make_line(10.0, 50.0, 200.0, 50.5, Orientation::Diagonal);
+        assert_eq!(
+            edge_from_line(&nearly_flat).orientation,
+            Orientation::Vertical
+        );
+
+        let upright = make_line(10.0, 50.0, 10.0, 300.0, Orientation::Vertical);
+        assert_eq!(edge_from_line(&upright).orientation, Orientation::Vertical);
+    }
+
     fn make_line(x0: f64, top: f64, x1: f64, bottom: f64, orient: Orientation) -> Line {
         Line {
             x0,
@@ -301,10 +343,17 @@ mod tests {
 
     #[test]
     fn test_edge_from_diagonal_line() {
+        // A diagonal line still yields a vertical edge, standing at x0 and
+        // spanning top..bottom. Python pdfplumber:
+        //
+        // ```python
+        // line_to_edge({"x0": 10, "top": 20, "x1": 100, "bottom": 200})
+        // # -> orientation 'v'
+        // ```
         let line = make_line(10.0, 20.0, 100.0, 200.0, Orientation::Diagonal);
         let edge = edge_from_line(&line);
 
-        assert_eq!(edge.orientation, Orientation::Diagonal);
+        assert_eq!(edge.orientation, Orientation::Vertical);
         assert_eq!(edge.source, EdgeSource::Line);
     }
 

@@ -89,42 +89,36 @@ impl WordExtractor {
             return Vec::new();
         }
 
-        // Check if any chars have vertical per-char direction (Ttb/Btt).
-        // Horizontal chars (Ltr + Rtl) are always merged and sorted spatially,
-        // matching Python pdfplumber which sorts all upright chars left-to-right.
-        // Vertical chars (Ttb + Btt) are merged and sorted top-to-bottom,
-        // matching Python pdfplumber which sorts all non-upright chars by top.
-        let has_vertical = chars
-            .iter()
-            .any(|c| matches!(c.direction, TextDirection::Ttb | TextDirection::Btt));
+        let is_vertical =
+            |ch: &Char| matches!(ch.direction, TextDirection::Ttb | TextDirection::Btt);
 
-        if !has_vertical {
+        if !chars.iter().any(is_vertical) {
             // All chars are horizontal (Ltr or Rtl) → spatial LTR sorting
             return Self::extract_group(chars, options, None);
         }
 
-        // Partition into horizontal (Ltr + Rtl) and vertical (Ttb + Btt) groups.
-        let mut horizontal_chars: Vec<Char> = Vec::new();
-        let mut vertical_chars: Vec<Char> = Vec::new();
-        for ch in chars {
-            match ch.direction {
-                TextDirection::Ltr | TextDirection::Rtl => horizontal_chars.push(ch.clone()),
-                TextDirection::Ttb | TextDirection::Btt => vertical_chars.push(ch.clone()),
-            }
-        }
-
+        // Sideways text is read apart from upright text, but the split follows
+        // the order the characters were drawn in: each unbroken run of one kind
+        // is its own group. Python pdfplumber groups with `itertools.groupby`
+        // on `upright`, which yields runs rather than two buckets, so a page
+        // that alternates — a table of upright figures with sideways labels
+        // between them — gives a group per stretch. Gathering every sideways
+        // character on the page into one group instead lets a label at the top
+        // share a line with one at the bottom.
         let mut words = Vec::new();
-        if !horizontal_chars.is_empty() {
-            words.extend(Self::extract_group(&horizontal_chars, options, None));
-        }
-        if !vertical_chars.is_empty() {
-            // All vertical chars use TTB sorting (spatial top-to-bottom),
-            // matching Python pdfplumber behavior.
-            words.extend(Self::extract_group(
-                &vertical_chars,
-                options,
-                Some(TextDirection::Ttb),
-            ));
+        let mut run_start = 0;
+        for i in 1..=chars.len() {
+            let run_ended =
+                i == chars.len() || is_vertical(&chars[i]) != is_vertical(&chars[run_start]);
+            if !run_ended {
+                continue;
+            }
+            let run = &chars[run_start..i];
+            // Sideways characters are read top to bottom within their line, the
+            // way pdfplumber's `char_dir_rotated` (`ttb`) has it.
+            let forced = is_vertical(&run[0]).then_some(TextDirection::Ttb);
+            words.extend(Self::extract_group(run, options, forced));
+            run_start = i;
         }
         words
     }
@@ -234,11 +228,15 @@ impl WordExtractor {
 
         // Step 1: Sort by cross-direction coordinate
         if is_vertical {
-            // Vertical text: columns go right-to-left, so sort by x0 descending
+            // Vertical text: the columns are the lines, and they are taken left
+            // to right by x0. pdfplumber flips its two reading directions for
+            // text that is not upright — `line_dir_rotated` defaults to
+            // `char_dir`, which is `ltr` — so a sideways row of labels starts at
+            // the leftmost column, not the rightmost.
             chars.sort_by(|a, b| {
-                b.bbox
+                a.bbox
                     .x0
-                    .partial_cmp(&a.bbox.x0)
+                    .partial_cmp(&b.bbox.x0)
                     .unwrap_or(std::cmp::Ordering::Equal)
             });
         } else {
@@ -1009,13 +1007,19 @@ mod tests {
 
     #[test]
     fn test_vertical_text_two_columns() {
-        // Two vertical columns: column 1 at x=100, column 2 at x=70
-        // Vertical text reads right-to-left (column1 first, column2 second)
+        // Two vertical columns, one at x=70 and one at x=100. The columns are
+        // the lines, and they are taken left to right, so the x=70 column comes
+        // first. Python pdfplumber on the same four characters:
+        //
+        // ```python
+        // WordExtractor().iter_extract_tuples(chars)  # upright=False
+        // # -> ['三四', '一二']
+        // ```
         let chars = vec![
-            // Column 1 (right side, x=100)
+            // Right column (x=100)
             make_cjk_char("一", 100.0, 10.0, 12.0, 12.0),
             make_cjk_char("二", 100.0, 23.0, 12.0, 12.0),
-            // Column 2 (left side, x=70)
+            // Left column (x=70)
             make_cjk_char("三", 70.0, 10.0, 12.0, 12.0),
             make_cjk_char("四", 70.0, 23.0, 12.0, 12.0),
         ];
@@ -1025,9 +1029,8 @@ mod tests {
         };
         let words = WordExtractor::extract(&chars, &opts);
         assert_eq!(words.len(), 2);
-        // Right column first in reading order (right-to-left)
-        assert_eq!(words[0].text, "一二");
-        assert_eq!(words[1].text, "三四");
+        assert_eq!(words[0].text, "三四");
+        assert_eq!(words[1].text, "一二");
     }
 
     #[test]
