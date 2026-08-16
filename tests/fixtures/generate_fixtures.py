@@ -178,6 +178,46 @@ def gen_table_borderless():
     save(pdf, "table_borderless.pdf")
 
 
+# ---------- 4b. table_side_by_side.pdf ----------
+def gen_table_side_by_side():
+    """An invoice-style page: a line-items table with a totals box alongside it.
+
+    The two share the rule at x=125 but are ruled into rows at different
+    heights, so no corner of one lands on a corner of the other. They are two
+    tables, and a reader that joins anything merely touching that rule reports
+    them as one grid whose rows match neither.
+    """
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=9)
+
+    def boxed_row(x, y, w, h, text):
+        pdf.rect(x, y, w, h)
+        pdf.set_xy(x + 1, y + 1.5)
+        pdf.cell(w - 2, 5, text)
+
+    # Line items: 12mm rows, left of the shared rule at x=125.
+    items = [
+        ("Design retainer", "40.00"),
+        ("Implementation", "128.50"),
+        ("Code review", "16.00"),
+        ("Deployment", "8.25"),
+    ]
+    for i, (label, amount) in enumerate(items):
+        y = 40 + i * 12
+        boxed_row(15, y, 70, 12, label)
+        boxed_row(85, y, 40, 12, amount)
+
+    # Totals box: 16mm rows starting 6mm lower, right of the same rule.
+    totals = [("Subtotal", "192.75"), ("Tax", "19.28"), ("Total", "212.03")]
+    for i, (label, amount) in enumerate(totals):
+        y = 46 + i * 16
+        boxed_row(125, y, 35, 16, label)
+        boxed_row(160, y, 30, 16, amount)
+
+    save(pdf, "table_side_by_side.pdf")
+
+
 # ---------- 5. table_merged_cells.pdf ----------
 def gen_table_merged_cells():
     pdf = FPDF()
@@ -393,13 +433,14 @@ def main():
     gen_multicolumn()
     gen_table_lattice()
     gen_table_borderless()
+    gen_table_side_by_side()
     gen_table_merged_cells()
     gen_cjk_mixed()
     gen_rotated_pages()
     gen_multi_font()
     gen_long_document()
     gen_annotations_links()
-    print("Done! Generated 10 PDFs in tests/fixtures/generated/")
+    print("Done! Generated 11 PDFs in tests/fixtures/generated/")
 
 
 if __name__ == "__main__":
