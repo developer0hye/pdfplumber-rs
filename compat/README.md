@@ -24,7 +24,9 @@ Everything here exists to make that reproducible.
 | `harness/provenance.py` | Builds the provenance block stamped into golden artifacts |
 | `harness/environment.py` | Guards against importing the wrong `pdfplumber` |
 | `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
+| `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
 | `snapshots/pdfplumber-v0.11.10-api.json` | Committed public API contract for the pinned upstream release |
+| `contracts/pdfplumber-v0.11.10-calls.json` | Pinned behavioral outcomes for representative public calls |
 | `tests/` | Structural gates on all of the above |
 
 ## Usage
@@ -45,6 +47,15 @@ bash scripts/setup_golden_venv.sh
 # Fail if the committed API snapshot has drifted.
 .venv-reference/bin/python scripts/generate_api_snapshot.py --check
 
+# Fail if pinned call binding, defaults, validation, or exceptions drift.
+.venv-reference/bin/python compat/api_contract.py
+
+# Deliberately replace the reference call contract after reviewing a target change.
+.venv-reference/bin/python compat/api_contract.py --write-reference
+
+# In the isolated candidate environment, compare only behavioral case outcomes.
+.venv-candidate/bin/python compat/api_contract.py --candidate
+
 # Harness's own tests (no network, no install).
 python3 -m unittest discover -s compat/tests -t .
 ```
@@ -55,6 +66,13 @@ and call signatures. It also preserves inconsistencies in the pinned release:
 for example, v0.11.10 declares `set_debug` in top-level `__all__` without
 defining that attribute. Review snapshot diffs as compatibility changes; do not
 edit the generated JSON by hand.
+
+The executable call contract complements the surface snapshot. Its cases invoke
+real upstream callables positionally and by keyword, exercise options that are
+accepted only through `**kwargs`, preserve processed defaults, and record both
+Python binding errors and runtime exception types. It stores the fixture hash
+and compact output digests so the artifact is reviewable without weakening the
+behavioral comparison.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides
