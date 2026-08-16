@@ -26,12 +26,13 @@ import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
-from compat.harness import environment  # noqa: E402
+from compat.harness import approved_deltas, environment, upstream  # noqa: E402
 
 FIXTURE_DIRS = [
     "tests/fixtures/generated",
@@ -57,6 +58,7 @@ PARITY_APIS = (
     "hyperlinks",
     "structure_tree",
 )
+APPROVED_DELTAS_PATH = os.path.join(REPO_ROOT, "compat", "approved_deltas.toml")
 
 
 def find_fixtures(fixture_root: str) -> list[str]:
@@ -492,13 +494,80 @@ def compare_documents(expected: dict, actual: dict) -> dict:
     }
 
 
+def observed_document_deltas(
+    fixture: str,
+    expected: dict,
+    actual: dict,
+    comparison: dict,
+) -> list[approved_deltas.ObservedDelta]:
+    """Return exact result identities for differences the report observes."""
+    expected_pages = pages_by_number(expected, "Python")
+    actual_pages = pages_by_number(actual, "Rust")
+    observations: list[approved_deltas.ObservedDelta] = []
+    for page in comparison["pages"]:
+        page_number = page["page_number"]
+        if page["status"] != "compared":
+            continue
+        expected_page = expected_pages[page_number]
+        actual_page = actual_pages[page_number]
+        differing_apis: list[str] = []
+        chars = page["chars"]
+        if not (
+            chars["count_expected"] == chars["count_actual"]
+            and chars["text_order_equal"]
+            and chars["box_order_equal"]
+            and chars["dictionary"]["structure_equal"]
+        ):
+            differing_apis.append("chars")
+        if not page["words"]["equal"]:
+            differing_apis.append("words")
+        for api in (
+            "page_text",
+            "layout_text",
+            "simple_text",
+            "text_lines",
+            "search",
+            "tables",
+            "annotations",
+            "hyperlinks",
+            "structure_tree",
+        ):
+            result = page[api]
+            if result.get("status", "compared") == "compared" and not result["equal"]:
+                differing_apis.append(api)
+        for api in differing_apis:
+            observations.append(
+                approved_deltas.ObservedDelta(
+                    fixture=fixture,
+                    page=page_number,
+                    api=api,
+                    upstream_sha256=approved_deltas.value_digest(expected_page[api]),
+                    rust_sha256=approved_deltas.value_digest(actual_page[api]),
+                )
+            )
+    return observations
+
+
 def main(reference_package: Any = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=REPO_ROOT, help="worktree to test (default: this repo)")
     parser.add_argument("--fixtures", default=REPO_ROOT, help="repo holding tests/fixtures")
     parser.add_argument("--json", help="also write the full report here")
     parser.add_argument("--only", help="substring filter on the fixture filename")
+    parser.add_argument(
+        "--approved-deltas",
+        default=APPROVED_DELTAS_PATH,
+        help="exact intentional-difference registry",
+    )
     args = parser.parse_args()
+
+    try:
+        registry = approved_deltas.load_registry(Path(args.approved_deltas))
+        target = upstream.load_target()
+        approved_deltas.validate_target(registry, target.version, target.commit)
+    except approved_deltas.DeltaRegistryError as mismatch:
+        print(f"refusing to report parity: {mismatch}", file=sys.stderr)
+        return 1
 
     try:
         if reference_package is None:
@@ -512,6 +581,7 @@ def main(reference_package: Any = None) -> int:
 
     report = {}
     compared_pages = []
+    observed_deltas: list[approved_deltas.ObservedDelta] = []
     had_failure = False
     print(
         f"{'fixture':<{FIXTURE_COLUMN_WIDTH}} {'page':>4} "
@@ -540,6 +610,13 @@ def main(reference_package: Any = None) -> int:
 
         entry = compare_documents(expected, actual)
         report[name] = entry
+        try:
+            observed_deltas.extend(
+                observed_document_deltas(name, expected, actual, entry)
+            )
+        except approved_deltas.DeltaRegistryError as error:
+            print(f"{name:<{FIXTURE_COLUMN_WIDTH}} delta digest failed: {error}")
+            had_failure = True
         if not entry["page_count_equal"]:
             had_failure = True
             print(
@@ -584,6 +661,33 @@ def main(reference_package: Any = None) -> int:
             f"unsupported "
             f"{sum(len(unsupported_api_names(p)) for p in compared_pages)}"
         )
+
+    scoped_registry = approved_deltas.Registry(
+        version=registry.version,
+        commit=registry.commit,
+        deltas=tuple(
+            delta for delta in registry.deltas if delta.fixture in report
+        ),
+    )
+    gate = approved_deltas.evaluate(tuple(observed_deltas), scoped_registry)
+    for delta in gate.unregistered:
+        print(
+            "unregistered delta: "
+            f"{delta.fixture} page {delta.page} {delta.api} "
+            f"upstream={delta.upstream_sha256} rust={delta.rust_sha256}"
+        )
+    for delta in gate.stale:
+        print(
+            "stale approved delta: "
+            f"{delta.identifier} {delta.fixture} page {delta.page} {delta.api}"
+        )
+    print(
+        "approved-delta gate: "
+        f"{len(gate.approved)} approved, "
+        f"{len(gate.unregistered)} unregistered, {len(gate.stale)} stale"
+    )
+    if gate.exit_code:
+        had_failure = True
 
     if args.json:
         with open(args.json, "w", encoding="utf-8") as handle:

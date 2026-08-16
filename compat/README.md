@@ -25,6 +25,8 @@ Everything here exists to make that reproducible.
 | `harness/environment.py` | Guards against importing the wrong `pdfplumber` |
 | `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
 | `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
+| `harness/approved_deltas.py` | Validates exact intentional differences and rejects unregistered or stale results |
+| `approved_deltas.toml` | Target-bound maintainer approvals for exact fixture/page/API result pairs |
 | `harness/upstream_suite.py` | Verifies the pinned upstream test tree and classifies, but never suppresses, failures |
 | `upstream-suite.toml` | Exact upstream commit/test-tree fingerprint and test-tool lock digest |
 | `upstream-unsupported.toml` | Machine-readable temporary failure classifications |
@@ -63,6 +65,9 @@ bash scripts/setup_golden_venv.sh
 
 # Compare every page of every fixture and retain per-page JSON results.
 .venv-reference/bin/python scripts/parity_report.py --json parity-report.json
+
+# Validate the target binding and complete schema of every approved delta.
+python3 scripts/check_approved_deltas.py
 
 # Pinned-upstream behavioral tests for page accounting, object order, and schemas.
 .venv-reference/bin/python -m unittest \
@@ -106,6 +111,15 @@ The parity report identifies fixtures by their corpus-relative paths, so files
 with the same basename remain separate. It obtains the Python and Rust page
 counts independently, compares each corresponding page, and exits nonzero if a
 fixture cannot be processed or either side omits or adds a page.
+
+Observed output differences are matched against `approved_deltas.toml` by exact
+fixture ID, page number, API, type-preserving upstream digest, and
+type-preserving Rust digest. Wildcards are not supported. An unregistered
+difference fails the report, and an approval that is no longer observed is
+stale and also fails within the fixture scope being run. Each approval must
+record both result summaries, its reason and compatibility risk, the approving
+maintainer, a regression test, and an expiration or review condition. The
+committed registry starts empty because no deviation has been approved.
 
 Parity-report character/word diagnostics and Rust cross-validation
 character/word/line/rectangle diagnostics compare objects at the same sequence

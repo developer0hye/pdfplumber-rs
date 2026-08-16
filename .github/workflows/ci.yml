@@ -74,6 +74,9 @@ jobs:
       - name: Test the harness
         run: python -m unittest discover -s compat/tests -t . -v
 
+      - name: Validate the approved-delta registry
+        run: python scripts/check_approved_deltas.py
+
       # Proves the lock file is installable and hash-complete, which is the
       # claim every later compatibility gate rests on.
       - name: Build the pinned reference environment
