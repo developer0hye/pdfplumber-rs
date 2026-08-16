@@ -28,8 +28,6 @@ import subprocess
 import sys
 from typing import Any
 
-import pdfplumber
-
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO_ROOT)
 
@@ -292,8 +290,14 @@ def python_page(page: Any, page_number: int) -> dict:
     }
 
 
-def python_side(path: str) -> dict:
-    with pdfplumber.open(path) as pdf:
+def python_side(path: str, reference_package: Any = None) -> dict:
+    if reference_package is None:
+        # Keep structural unit-test discovery independent of the pinned venv.
+        # The executable path verifies this lazily imported package before it
+        # passes it here; direct callers run under .venv-reference as well.
+        import pdfplumber as reference_package
+
+    with reference_package.open(path) as pdf:
         pages = [python_page(page, number) for number, page in enumerate(pdf.pages, start=1)]
         return {"page_count": len(pages), "pages": pages}
 
@@ -488,7 +492,7 @@ def compare_documents(expected: dict, actual: dict) -> dict:
     }
 
 
-def main() -> int:
+def main(reference_package: Any = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=REPO_ROOT, help="worktree to test (default: this repo)")
     parser.add_argument("--fixtures", default=REPO_ROOT, help="repo holding tests/fixtures")
@@ -497,7 +501,10 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        environment.verify_reference(pdfplumber)
+        if reference_package is None:
+            import pdfplumber as reference_package
+
+        environment.verify_reference(reference_package)
     except environment.EnvironmentMismatch as mismatch:
         print(f"refusing to report parity: {mismatch}", file=sys.stderr)
         print("Run: bash scripts/setup_golden_venv.sh", file=sys.stderr)
@@ -517,7 +524,7 @@ def main() -> int:
         if args.only and args.only not in name:
             continue
         try:
-            expected = python_side(path)
+            expected = python_side(path, reference_package)
         except Exception as exc:  # noqa: BLE001 - report and continue
             print(f"{name:<{FIXTURE_COLUMN_WIDTH}} python failed: {exc}")
             report[name] = {"status": "python_failed", "error": str(exc)}

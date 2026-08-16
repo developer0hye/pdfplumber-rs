@@ -129,7 +129,7 @@ class MultiApiReportTests(unittest.TestCase):
             mock.patch("sys.argv", ["parity_report.py", "--fixtures", "/fixtures"]),
             mock.patch("builtins.print"),
         ):
-            status = parity_report.main()
+            status = parity_report.main(object())
 
         self.assertEqual(status, 1)
 
