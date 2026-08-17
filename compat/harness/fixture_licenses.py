@@ -82,8 +82,8 @@ def validate_registry(
 
     problems: list[str] = []
     schema = registry.get("schema")
-    if not isinstance(schema, dict) or schema.get("version") != 1:
-        problems.append("schema.version must be 1")
+    if not isinstance(schema, dict) or schema.get("version") != 2:
+        problems.append("schema.version must be 2")
 
     raw_sources = registry.get("sources")
     if not isinstance(raw_sources, list) or not raw_sources:
