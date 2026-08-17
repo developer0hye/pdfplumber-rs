@@ -133,6 +133,108 @@ class MultiApiReportTests(unittest.TestCase):
 
         self.assertEqual(status, 1)
 
+    def test_report_returns_nonzero_for_unregistered_output_difference(self) -> None:
+        expected_page = {
+            "page_number": 1,
+            "chars": [],
+            "page_text": "upstream",
+            "layout_text": "",
+            "simple_text": "",
+            "text_lines": [],
+            "words": [],
+            "search": [],
+            "tables": [],
+            "annotations": [],
+            "hyperlinks": [],
+            "structure_tree": [],
+        }
+        actual_page = dict(expected_page)
+        actual_page["page_text"] = "rust"
+        expected = {"page_count": 1, "pages": [expected_page]}
+        actual = {"page_count": 1, "pages": [actual_page]}
+
+        with (
+            mock.patch.object(parity_report.environment, "verify_reference"),
+            mock.patch.object(
+                parity_report,
+                "find_fixtures",
+                return_value=["/fixtures/a.pdf"],
+            ),
+            mock.patch.object(parity_report, "python_side", return_value=expected),
+            mock.patch.object(parity_report, "rust_side", return_value=actual),
+            mock.patch("sys.argv", ["parity_report.py", "--fixtures", "/fixtures"]),
+            mock.patch("builtins.print"),
+        ):
+            status = parity_report.main(object())
+
+        self.assertEqual(status, 1)
+
+    def test_report_accepts_only_the_exact_registered_output_difference(self) -> None:
+        expected_page = self.empty_page()
+        expected_page["page_text"] = "upstream"
+        actual_page = dict(expected_page)
+        actual_page["page_text"] = "rust"
+        expected = {"page_count": 1, "pages": [expected_page]}
+        actual = {"page_count": 1, "pages": [actual_page]}
+        entry = parity_report.approved_deltas.ApprovedDelta(
+            identifier="DELTA-001",
+            fixture="a.pdf",
+            page=1,
+            api="page_text",
+            upstream_result="upstream",
+            upstream_sha256=parity_report.approved_deltas.value_digest("upstream"),
+            rust_result="rust",
+            rust_sha256=parity_report.approved_deltas.value_digest("rust"),
+            technical_reason="intentional difference",
+            compatibility_risk="different text is observable",
+            approving_maintainer="developer0hye",
+            regression_test="compat.tests.test_multi_api_report",
+            review_condition="remove when outputs agree",
+        )
+        registry = parity_report.approved_deltas.Registry(
+            version="0.11.10",
+            commit="7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+            deltas=(entry,),
+        )
+
+        with (
+            mock.patch.object(parity_report.environment, "verify_reference"),
+            mock.patch.object(
+                parity_report.approved_deltas,
+                "load_registry",
+                return_value=registry,
+            ),
+            mock.patch.object(
+                parity_report,
+                "find_fixtures",
+                return_value=["/fixtures/a.pdf"],
+            ),
+            mock.patch.object(parity_report, "python_side", return_value=expected),
+            mock.patch.object(parity_report, "rust_side", return_value=actual),
+            mock.patch("sys.argv", ["parity_report.py", "--fixtures", "/fixtures"]),
+            mock.patch("builtins.print"),
+        ):
+            status = parity_report.main(object())
+
+        self.assertEqual(status, 0)
+
+    @staticmethod
+    def empty_page() -> dict:
+        return {
+            "page_number": 1,
+            "chars": [],
+            "page_text": "",
+            "layout_text": "",
+            "simple_text": "",
+            "text_lines": [],
+            "words": [],
+            "search": [],
+            "tables": [],
+            "annotations": [],
+            "hyperlinks": [],
+            "structure_tree": [],
+        }
+
 
 if __name__ == "__main__":
     unittest.main()

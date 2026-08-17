@@ -1,0 +1,24 @@
+schema_version = 1
+
+[target]
+version = "0.11.10"
+commit = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+
+# Add an entry only after a maintainer intentionally approves the exact
+# observable difference. Wildcards are not supported; any result change makes
+# the old entry stale and the new observation unregistered.
+#
+# [[delta]]
+# id = "DELTA-001"
+# fixture = "tests/fixtures/generated/example.pdf"
+# page = 1
+# api = "page_text"
+# upstream_result = "reviewable upstream summary"
+# upstream_sha256 = "64 lowercase hexadecimal characters"
+# rust_result = "reviewable Rust summary"
+# rust_sha256 = "64 lowercase hexadecimal characters"
+# technical_reason = "why this intentional difference exists"
+# compatibility_risk = "what callers can observe"
+# approving_maintainer = "GitHub login"
+# regression_test = "test or node ID that protects the behavior"
+# review_condition = "expiration date or condition that triggers review"
