@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import tomllib
@@ -13,6 +14,9 @@ from pathlib import Path
 
 SOURCE_METADATA_NAME: str = ".pdfplumber-upstream-source.json"
 _IGNORED_PARTS: frozenset[str] = frozenset({".pytest_cache", "__pycache__"})
+_PRD_TASK_PATTERN: re.Pattern[str] = re.compile(
+    r"^- \[([ xX])\] \*\*([A-Z][A-Z0-9-]*-[0-9]+)\*\*"
+)
 
 
 class SuiteSourceMismatch(RuntimeError):
@@ -244,6 +248,57 @@ def classify_results(
         uncollected_unsupported=uncollected,
         exit_code=exit_code,
     )
+
+
+def validate_unsupported_task_links(
+    manifest: UnsupportedManifest,
+    prd_path: Path,
+) -> None:
+    """Require every unsupported node to reference an open section 8 task."""
+    try:
+        lines = prd_path.read_text(encoding="utf-8").splitlines()
+    except OSError as error:
+        raise UnsupportedManifestError(f"cannot read PRD: {prd_path}") from error
+    section = _section_eight(lines, prd_path)
+    task_states: dict[str, bool] = {}
+    for line in section:
+        match = _PRD_TASK_PATTERN.match(line)
+        if match is None:
+            continue
+        checked, task_id = match.groups()
+        task_states[task_id] = checked.lower() == "x"
+
+    for test in manifest.tests:
+        checked = task_states.get(test.task_id)
+        if checked is None:
+            raise UnsupportedManifestError(
+                f"unsupported test {test.nodeid} references unknown task "
+                f"{test.task_id}"
+            )
+        if checked:
+            raise UnsupportedManifestError(
+                f"unsupported test {test.nodeid} references checked task "
+                f"{test.task_id}"
+            )
+
+
+def _section_eight(lines: list[str], prd_path: Path) -> list[str]:
+    try:
+        start = next(
+            index
+            for index, line in enumerate(lines)
+            if line.startswith("## 8.")
+        )
+        end = next(
+            index
+            for index, line in enumerate(lines[start + 1 :], start + 1)
+            if line.startswith("## 9.")
+        )
+    except StopIteration as error:
+        raise UnsupportedManifestError(
+            f"cannot locate PRD sections 8 and 9 in {prd_path}"
+        ) from error
+    return lines[start + 1 : end]
 
 
 def _verify_fingerprint(

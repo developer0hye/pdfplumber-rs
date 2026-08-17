@@ -128,7 +128,9 @@ the pinned reference package. It also refuses to start if the manifest-declared
 Ghostscript executable is absent, because six upstream repair tests require it.
 `upstream-unsupported.toml` classifies observed
 failures for follow-up; it never deselects, skips, marks xfail, changes, or masks
-a test, and the runner preserves pytest's nonzero exit status.
+a test, and the runner preserves pytest's nonzero exit status. Every entry must
+reference a task that exists in PRD section 8 and is still unchecked; checked or
+unknown task IDs fail runner preflight.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides

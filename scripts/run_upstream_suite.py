@@ -60,6 +60,10 @@ def main() -> int:
             args.unsupported_manifest
         )
         verify_target(config, manifest)
+        upstream_suite.validate_unsupported_task_links(
+            manifest,
+            REPO_ROOT / "PRD.md",
+        )
         verify_requirements(config)
         upstream_suite.verify_materialized_suite(args.tests, config)
         candidate = candidate_preflight(candidate_python)
