@@ -101,6 +101,8 @@ class FixtureLicenseContractTests(unittest.TestCase):
         cases = (
             ("revision", "main", r"immutable 40-character revision"),
             ("license", "not licensed", r"valid SPDX license"),
+            ("license", "not-a-real-spdx-id", r"approved SPDX license"),
+            ("license", "LicenseRef-Proprietary", r"approved SPDX license"),
             ("license_evidence", "", r"license evidence"),
             ("public", False, r"is not public"),
             ("redistribution", "restricted", r"does not allow redistribution"),

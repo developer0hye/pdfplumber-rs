@@ -11,7 +11,6 @@ import dataclasses
 import hashlib
 import importlib
 import io
-import platform
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
@@ -53,6 +52,7 @@ def contract_path() -> Path:
 
 def build(package: ModuleType) -> dict[str, object]:
     target: upstream.Target = upstream.load_target()
+    environment: upstream.Environment = upstream.load_environment()
     fixture: Path = upstream.REPO_ROOT / PDF_FIXTURE
     cases: list[dict[str, object]] = [
         run_case(case, package, fixture) for case in sorted(_cases(), key=lambda c: c.id)
@@ -68,7 +68,7 @@ def build(package: ModuleType) -> dict[str, object]:
             "repository": target.repository,
         },
         "environment": {
-            "python_version": platform.python_version(),
+            "python_version": environment.python_version,
             "lockfile_sha256": lockfile.digest(),
         },
         "resources": {

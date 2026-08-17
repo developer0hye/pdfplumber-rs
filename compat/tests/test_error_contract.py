@@ -100,7 +100,9 @@ class ErrorBehaviorContractTests(unittest.TestCase):
         )
         environment: dict[str, object] = contract["environment"]  # type: ignore[assignment]
         self.assertEqual(environment["lockfile_sha256"], lockfile.digest())
-        self.assertTrue(str(environment["python_version"]).startswith("3.13."))
+        self.assertEqual(
+            environment["python_version"], upstream.load_environment().python_version
+        )
 
         resources: dict[str, dict[str, str]] = contract["resources"]  # type: ignore[assignment]
         for relative_path in FIXTURES:
