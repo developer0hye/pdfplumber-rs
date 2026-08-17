@@ -1,11 +1,7 @@
 #!/usr/bin/env bash
 # Download test PDF fixtures from multiple sources for cross-validation testing.
 #
-# Sources:
-#   1. jsvine/pdfplumber (stable branch) - MIT license
-#   2. mozilla/pdf.js (master branch) - Apache 2.0 license
-#   3. apache/pdfbox (trunk branch) - Apache 2.0 license
-#   4. poppler/test (GitLab, master branch) - GPL license
+# Sources and immutable revisions are recorded in compat/fixture-provenance.toml.
 #
 # Usage: ./scripts/download_test_fixtures.sh
 
@@ -14,6 +10,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PDF_DIR="$REPO_ROOT/crates/pdfplumber/tests/fixtures/pdfs"
+
+PDFPLUMBER_REVISION="7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+PDFJS_REVISION="7a8571459a02a582ef334fb71c94b2fc84c6b23e"
+PDFBOX_REVISION="056e849b72862ed34db8354c4d9b5a0401bda2ef"
+POPPLER_REVISION="b85e4d1ce75636b3e727555a9d31da34ad771c1c"
 
 DOWNLOADED=0
 SKIPPED=0
@@ -50,18 +51,18 @@ download_file() {
     fi
 }
 
-# Download PDFs from jsvine/pdfplumber GitHub repo (stable branch)
+# Download PDFs from the pinned jsvine/pdfplumber release revision.
 download_pdfplumber_python() {
-    echo "=== Downloading from jsvine/pdfplumber (stable) ==="
+    echo "=== Downloading from jsvine/pdfplumber ($PDFPLUMBER_REVISION) ==="
     local dest_dir="$PDF_DIR"
     mkdir -p "$dest_dir"
 
-    local base_url="https://raw.githubusercontent.com/jsvine/pdfplumber/stable/tests/pdfs"
+    local base_url="https://raw.githubusercontent.com/jsvine/pdfplumber/$PDFPLUMBER_REVISION/tests/pdfs"
 
     # List all files via gh api, filter to .pdf files only (skip .py, .zip, directories)
     local files
-    files=$(gh api repos/jsvine/pdfplumber/contents/tests/pdfs \
-        --jq '.[] | select(.type == "file") | select(.name | endswith(".pdf")) | .name')
+    files=$(gh api "repos/jsvine/pdfplumber/contents/tests/pdfs?ref=$PDFPLUMBER_REVISION" \
+        --jq '.[] | select(.type == "file" and .size > 0) | select(.name | endswith(".pdf")) | .name')
 
     local count=0
     while IFS= read -r filename; do
@@ -78,8 +79,8 @@ download_pdfplumber_python() {
     mkdir -p "$oss_dir"
 
     local oss_files
-    oss_files=$(gh api repos/jsvine/pdfplumber/contents/tests/pdfs/from-oss-fuzz/load \
-        --jq '.[] | select(.type == "file") | select(.name | endswith(".pdf")) | .name')
+    oss_files=$(gh api "repos/jsvine/pdfplumber/contents/tests/pdfs/from-oss-fuzz/load?ref=$PDFPLUMBER_REVISION" \
+        --jq '.[] | select(.type == "file" and .size > 0) | select(.name | endswith(".pdf")) | .name')
 
     local oss_count=0
     while IFS= read -r filename; do
@@ -91,13 +92,13 @@ download_pdfplumber_python() {
     echo ""
 }
 
-# Download CJK/encoding test PDFs from mozilla/pdf.js (master branch)
+# Download CJK/encoding test PDFs from an immutable mozilla/pdf.js revision.
 download_pdfjs() {
-    echo "=== Downloading from mozilla/pdf.js (master) ==="
+    echo "=== Downloading from mozilla/pdf.js ($PDFJS_REVISION) ==="
     local dest_dir="$PDF_DIR/pdfjs"
     mkdir -p "$dest_dir"
 
-    local base_url="https://raw.githubusercontent.com/mozilla/pdf.js/master/test/pdfs"
+    local base_url="https://raw.githubusercontent.com/mozilla/pdf.js/$PDFJS_REVISION/test/pdfs"
 
     # Target PDFs for CJK and encoding testing
     local pdfjs_files=(
@@ -127,13 +128,13 @@ download_pdfjs() {
     echo ""
 }
 
-# Download CJK/multilingual test PDFs from apache/pdfbox (trunk branch)
+# Download CJK/multilingual test PDFs from an immutable apache/pdfbox revision.
 download_pdfbox() {
-    echo "=== Downloading from apache/pdfbox (trunk) ==="
+    echo "=== Downloading from apache/pdfbox ($PDFBOX_REVISION) ==="
     local dest_dir="$PDF_DIR/pdfbox"
     mkdir -p "$dest_dir"
 
-    local base_url="https://raw.githubusercontent.com/apache/pdfbox/trunk"
+    local base_url="https://raw.githubusercontent.com/apache/pdfbox/$PDFBOX_REVISION"
 
     # Map: source_path -> local_filename (shortened for readability)
     local -a pdfbox_mappings=(
@@ -162,11 +163,11 @@ download_pdfbox() {
 
 # Download CJK/multilingual test PDFs from poppler test data (GitLab)
 download_poppler() {
-    echo "=== Downloading from poppler/test (GitLab, master) ==="
+    echo "=== Downloading from poppler/test ($POPPLER_REVISION) ==="
     local dest_dir="$PDF_DIR/poppler"
     mkdir -p "$dest_dir"
 
-    local base_url="https://gitlab.freedesktop.org/poppler/test/-/raw/master"
+    local base_url="https://gitlab.freedesktop.org/poppler/test/-/raw/$POPPLER_REVISION"
 
     # Target PDFs for multilingual testing
     local -a poppler_files=(
@@ -209,6 +210,11 @@ main() {
     download_poppler
 
     print_summary
+    if [[ "$FAILED" -ne 0 ]]; then
+        echo "Fixture download failed for $FAILED file(s)" >&2
+        return 1
+    fi
+    python3 "$REPO_ROOT/scripts/check_fixture_licenses.py"
 }
 
 main
