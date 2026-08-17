@@ -1,0 +1,14 @@
+schema_version = 1
+
+[source]
+project = "pdfplumber"
+version = "0.11.10"
+tag = "v0.11.10"
+commit = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+repository = "https://github.com/jsvine/pdfplumber"
+
+[corpus]
+source_root = "tests/pdfs"
+destination_root = "compat/fixtures/upstream/pdfplumber-v0.11.10"
+sha256 = "74b8ab0bc2dc561010b48a5488bca3aeaf1ab5b495267f8b34795b3a41f5a175"
+file_count = 81
