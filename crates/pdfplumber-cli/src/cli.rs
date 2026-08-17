@@ -13,6 +13,26 @@ pub struct Cli {
 /// Available subcommands.
 #[derive(Debug, Subcommand)]
 pub enum Commands {
+    /// Emit page APIs needed by the pinned compatibility harness
+    #[command(hide = true)]
+    CompatSnapshot {
+        /// Path to the PDF file
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Page range (e.g. '1,3-5'). Default: all pages
+        #[arg(long)]
+        pages: Option<String>,
+
+        /// Password for encrypted PDFs
+        #[arg(long)]
+        password: Option<String>,
+
+        /// Attempt best-effort repair before extraction
+        #[arg(long)]
+        repair: bool,
+    },
+
     /// Extract text from PDF pages
     Text {
         /// Path to the PDF file

@@ -86,8 +86,15 @@ class ParityReportPageTests(unittest.TestCase):
             "page_number": page_number,
             "chars": [],
             "words": [],
-            "text": "",
+            "page_text": "",
+            "layout_text": "",
+            "simple_text": "",
+            "text_lines": [],
+            "search": [],
             "tables": [],
+            "annotations": [],
+            "hyperlinks": [],
+            "structure_tree": [],
         }
 
 
