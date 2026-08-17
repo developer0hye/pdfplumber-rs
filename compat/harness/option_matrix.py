@@ -12,7 +12,6 @@ import hashlib
 import json
 import logging
 import math
-import platform
 import warnings
 from dataclasses import dataclass
 from decimal import Decimal
@@ -541,6 +540,7 @@ def _run_case(root_package: Any, case: Case) -> dict[str, object]:
 def build(root_package: Any) -> dict[str, object]:
     """Execute every case against the already-verified pinned package."""
     target: upstream.Target = upstream.load_target()
+    environment: upstream.Environment = upstream.load_environment()
     records: list[dict[str, object]] = [
         _run_case(root_package, case) for case in cases()
     ]
@@ -568,7 +568,7 @@ def build(root_package: Any) -> dict[str, object]:
             "commit": target.commit,
             "repository": target.repository,
         },
-        "python_version": platform.python_version(),
+        "python_version": environment.python_version,
         "lockfile_sha256": lockfile.digest(),
         "generated_by": GENERATION_COMMAND,
         "outputs": outputs,
