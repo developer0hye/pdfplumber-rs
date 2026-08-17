@@ -9,7 +9,7 @@ description = "Python bindings for pdfplumber-rs via PyO3"
 publish = false
 
 [lib]
-name = "pdfplumber"
+name = "_native"
 crate-type = ["cdylib", "rlib"]
 doctest = false
 

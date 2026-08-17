@@ -2,7 +2,7 @@
 
 High-performance PDF text, table, and geometry extraction for Python — powered by Rust.
 
-`pdfplumber-rs` is a Rust-native reimplementation of [pdfplumber](https://github.com/jsvine/pdfplumber) exposed to Python via [PyO3](https://pyo3.rs). It provides a familiar API while delivering significantly faster extraction speeds.
+`pdfplumber-rs` is a Rust-native reimplementation of [pdfplumber](https://github.com/jsvine/pdfplumber) exposed to Python via [PyO3](https://pyo3.rs). The Rust extension is installed as the private `pdfplumber._native` submodule so the public package can provide a Python compatibility layer separately.
 
 ## Installation
 
@@ -13,10 +13,10 @@ pip install pdfplumber-rs
 ## Quick Start
 
 ```python
-import pdfplumber
+from pdfplumber import _native
 
 # Open a PDF
-pdf = pdfplumber.PDF.open("document.pdf")
+pdf = _native.PDF.open("document.pdf")
 
 # Access pages
 for page in pdf.pages:
@@ -38,8 +38,10 @@ for page in pdf.pages:
 
 # Open from bytes
 with open("document.pdf", "rb") as f:
-    pdf = pdfplumber.PDF.open_bytes(f.read())
+    pdf = _native.PDF.open_bytes(f.read())
 ```
+
+The top-level `pdfplumber` compatibility facade is not part of this low-level native package boundary yet. Until it lands, import the extension explicitly as shown above.
 
 ## API Reference
 

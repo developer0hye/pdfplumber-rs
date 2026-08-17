@@ -49,6 +49,36 @@ jobs:
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
 
+  python-native-layout:
+    name: Python native package layout
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install 'maturin==1.14.1'
+          maturin build --manifest-path crates/pdfplumber-py/Cargo.toml --interpreter python --out dist
+          maturin sdist --manifest-path crates/pdfplumber-py/Cargo.toml --out dist
+
+      - name: Test installed wheel layout
+        run: |
+          python -m venv .venv-native-wheel
+          .venv-native-wheel/bin/python -m pip install --no-deps dist/*.whl
+          .venv-native-wheel/bin/python -m unittest discover -s crates/pdfplumber-py/tests -p 'test_native_layout.py' -v
+
+      - name: Test installed source distribution layout
+        run: |
+          python -m venv .venv-native-sdist
+          . .venv-native-sdist/bin/activate
+          python -m pip install 'maturin==1.14.1'
+          python -m pip install --no-build-isolation --no-deps dist/*.tar.gz
+          python -m unittest discover -s crates/pdfplumber-py/tests -p 'test_native_layout.py' -v
+
   compat-harness:
     name: Compatibility harness
     runs-on: ubuntu-latest
