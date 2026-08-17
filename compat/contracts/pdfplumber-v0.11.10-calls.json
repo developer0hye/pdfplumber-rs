@@ -1,0 +1,305 @@
+{
+  "cases": [
+    {
+      "callable": "pdfplumber.utils.cluster_list",
+      "category": "defaults",
+      "id": "defaults.cluster_list",
+      "invocation": {
+        "args": [
+          [
+            1,
+            2,
+            3,
+            4
+          ]
+        ],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.list",
+        "value": [
+          [
+            1
+          ],
+          [
+            2
+          ],
+          [
+            3
+          ],
+          [
+            4
+          ]
+        ]
+      }
+    },
+    {
+      "callable": "pdfplumber.table.TableSettings",
+      "category": "defaults",
+      "id": "defaults.table_settings",
+      "invocation": {
+        "args": [],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "pdfplumber.table.TableSettings",
+        "value": {
+          "edge_min_length": 3,
+          "edge_min_length_prefilter": 1,
+          "explicit_horizontal_lines": null,
+          "explicit_vertical_lines": null,
+          "horizontal_strategy": "lines",
+          "intersection_tolerance": 3,
+          "intersection_x_tolerance": 3,
+          "intersection_y_tolerance": 3,
+          "join_tolerance": 3,
+          "join_x_tolerance": 3,
+          "join_y_tolerance": 3,
+          "min_words_horizontal": 1,
+          "min_words_vertical": 3,
+          "snap_tolerance": 3,
+          "snap_x_tolerance": 3,
+          "snap_y_tolerance": 3,
+          "text_settings": {
+            "x_tolerance": 3,
+            "y_tolerance": 3
+          },
+          "vertical_strategy": "lines"
+        }
+      }
+    },
+    {
+      "callable": "pdfplumber.open",
+      "category": "exception_types",
+      "id": "exception.empty_pdf",
+      "invocation": {
+        "args": [
+          {
+            "bytes_hex": ""
+          }
+        ],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "No /Root object! - Is this really a PDF?",
+        "type": "pdfplumber.utils.exceptions.PdfminerException"
+      }
+    },
+    {
+      "callable": "pdfplumber.table.TableSettings",
+      "category": "exception_types",
+      "id": "exception.table_settings_strategy",
+      "invocation": {
+        "args": [],
+        "kwargs": {
+          "vertical_strategy": "bogus"
+        }
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "vertical_strategy must be one of{lines,lines_strict,text,explicit}",
+        "type": "builtins.ValueError"
+      }
+    },
+    {
+      "callable": "pdfplumber.utils.get_bbox_overlap",
+      "category": "invalid_arguments",
+      "id": "invalid.missing_required",
+      "invocation": {
+        "args": [
+          [
+            0,
+            0,
+            1,
+            1
+          ]
+        ],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "get_bbox_overlap() missing 1 required positional argument: 'b'",
+        "type": "builtins.TypeError"
+      }
+    },
+    {
+      "callable": "pdfplumber.utils.cluster_list",
+      "category": "invalid_arguments",
+      "id": "invalid.too_many_positional",
+      "invocation": {
+        "args": [
+          [
+            1
+          ],
+          0,
+          2
+        ],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "cluster_list() takes from 1 to 2 positional arguments but 3 were given",
+        "type": "builtins.TypeError"
+      }
+    },
+    {
+      "callable": "pdfplumber.utils.cluster_list",
+      "category": "invalid_arguments",
+      "id": "invalid.unexpected_keyword",
+      "invocation": {
+        "args": [
+          [
+            1
+          ]
+        ],
+        "kwargs": {
+          "surprise": true
+        }
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "cluster_list() got an unexpected keyword argument 'surprise'",
+        "type": "builtins.TypeError"
+      }
+    },
+    {
+      "callable": "pdfplumber.utils.cluster_list",
+      "category": "keyword_arguments",
+      "id": "keyword.cluster_list",
+      "invocation": {
+        "args": [],
+        "kwargs": {
+          "tolerance": 1,
+          "xs": [
+            1,
+            2,
+            5,
+            6
+          ]
+        }
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.list",
+        "value": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "callable": "pdfplumber.page.Page.extract_text",
+      "category": "keyword_only_arguments",
+      "id": "keyword_only.page_extract_text",
+      "invocation": {
+        "args": [],
+        "kwargs": {
+          "layout": true
+        },
+        "receiver": "tests/fixtures/downloaded/pdffill-demo.pdf page 1"
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.str",
+        "value": {
+          "length": 5099,
+          "line_count": 60,
+          "pdfill_heading_present": true,
+          "utf8_sha256": "f1cbc07651a8f7fb7f2a833291e1a8a8e506c2922fb3b357321c73780b0a00d8"
+        }
+      },
+      "result_projection": "utf8_sha256, length, line_count, pdfill_heading_present"
+    },
+    {
+      "callable": "pdfplumber.page.Page.extract_text",
+      "category": "keyword_only_arguments",
+      "id": "keyword_only.page_extract_text_rejects_positional",
+      "invocation": {
+        "args": [
+          true
+        ],
+        "kwargs": {},
+        "receiver": "tests/fixtures/downloaded/pdffill-demo.pdf page 1"
+      },
+      "outcome": {
+        "kind": "exception",
+        "message": "Page.extract_text() takes 1 positional argument but 2 were given",
+        "type": "builtins.TypeError"
+      }
+    },
+    {
+      "callable": "pdfplumber.utils.cluster_list",
+      "category": "positional_arguments",
+      "id": "positional.cluster_list",
+      "invocation": {
+        "args": [
+          [
+            1,
+            2,
+            5,
+            6
+          ],
+          1
+        ],
+        "kwargs": {}
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.list",
+        "value": [
+          [
+            1,
+            2
+          ],
+          [
+            5,
+            6
+          ]
+        ]
+      }
+    },
+    {
+      "callable": "pdfplumber.ctm.CTM.count",
+      "category": "positional_arguments",
+      "id": "positional_only.ctm_count",
+      "invocation": {
+        "args": [
+          0
+        ],
+        "kwargs": {},
+        "receiver": "CTM(1, 0, 0, 1, 0, 0)"
+      },
+      "outcome": {
+        "kind": "return",
+        "type": "builtins.int",
+        "value": 4
+      }
+    }
+  ],
+  "environment": {
+    "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
+    "python_version": "3.13"
+  },
+  "resources": {
+    "tests/fixtures/downloaded/pdffill-demo.pdf": {
+      "sha256": "2594a5364ea598047a7389b4f35a5e0908c973c7aa4bc6d8c5e8fb34baaba426"
+    }
+  },
+  "schema_version": 1,
+  "target": {
+    "commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+    "project": "pdfplumber",
+    "repository": "https://github.com/jsvine/pdfplumber",
+    "tag": "v0.11.10",
+    "version": "0.11.10"
+  }
+}
