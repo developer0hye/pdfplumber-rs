@@ -204,7 +204,8 @@ A partially implemented task stays unchecked. Add a note to the Active Work tabl
 4. Update this file in the same commit.
 5. Add evidence to the ledger.
 6. Commit with sign-off and open a focused pull request.
-7. Do not start another task until the current task is committed and its branch state is clear.
+7. Follow the `CLAUDE.md` PR merge procedure. Autonomously merge a PR only after every check on its exact current head succeeds, then verify it on `main`; leave a non-green PR open with its blocker documented.
+8. Do not start another task until the current task is committed and its branch state is clear.
 
 ### 3.5 Multi-agent coordination
 
@@ -1469,7 +1470,6 @@ Agents must claim a task before implementation.
 | `PARITY-017` | Codex | `test/machine-readable-parity-report` / `../pdfplumber-rs-machine-report` | 2026-08-17 | `PYAPI-002`, `PARITY-018`, `PARITY-023`, `PARITY-026`, `CI-001`, `CI-002`, `CI-003` | Added deterministic schema-v1 JSON with target/environment state, 80 fixture records, 271 pages, 2,981 page-API records, exact delta dispositions, and all 161 option cases. The candidate option producer and comparison reject upstream self-comparison, incomplete/mutated identities, and invalid content digests. All option cases remain explicitly blocked by `PYAPI-002`, the corpus remains red, and strict section 10 is not green, so the task stays unchecked. |
 | `PARITY-018` | Codex | `test/human-readable-parity-summary` / `../pdfplumber-rs-human-summary` | 2026-08-17 | `PARITY-023`, `PARITY-026`, `CI-001`, `CI-002`, `CI-003` | Added deterministic Markdown derived from the complete machine model, including stable first fixture/page/API selection, exact object index and JSON-safe values, bounded text context, signed coordinate deltas, and explicit unchanged-coordinate evidence. Full corpus: 80 fixtures, 271 pages, 2,981 API results, 1,486 first-difference records, four existing failures, and 1,486 unregistered deltas. The task stays unchecked until artifacts are CI-gated and section 10 passes. |
 | `PARITY-019` | Codex | `test/prd-evidence-linter` / `../pdfplumber-rs-prd-linter` | 2026-08-17 | `CI-001`, `CI-002`, `CI-003` | Added a deterministic, fenced-code-aware linter for unique section-8 task definitions and section-13 evidence coverage. The standalone gate reports 721 tasks, two checked tasks, and 19 evidence rows and now runs in compatibility CI. The task stays unchecked because the existing strict section 10 failures remain; no task state, evidence, test, threshold, tolerance, fixture, or ignore was weakened. |
-| `PARITY-022` | Codex | `test/indexed-compat-corpus` / `../pdfplumber-rs-indexed-compat-corpus` | 2026-08-17 | `CI-001`, `CI-002`, `CI-003` | Unified all 223 committed PDFs in the existing provenance registry with exactly one deterministic primary collection per path: 81 pinned upstream, 88 Rust issue/regression, 28 licensed external-parser, and 26 project-generated fixtures. The offline CI gate composes collection validation with the existing Git inventory, SHA-256, source, license, and redistribution audit. PR #310 is open against `main`. The task stays unchecked solely because the inherited strict section 10 failures remain; no PDF or acceptance gate changed. |
 | `PARITY-004` | unclaimed | — | — | `PYAPI-002` | Reference side is done. The candidate environment cannot be built until an importable `pdfplumber` package ships. |
 
 Remove the active row after merge and add a permanent Evidence Ledger row.
@@ -1519,6 +1519,7 @@ No checklist item outside the source-level inventory may be marked `[x]` without
 | `DEC-006` | Proposed | Better-than-upstream decoding is allowed only through approved deltas or an explicit enhanced mode | Silent output improvement can still break a drop-in consumer |
 | `DEC-007` | Proposed | Preserve the current rebased-center crop only under an explicit Rust-extension API | Current behavior conflicts with Python `pdfplumber` crop semantics |
 | `DEC-008` | Proposed | Keep the rich Rust subcommand CLI under a separate executable/mode and make `pdfplumber` upstream-compatible | Avoids sacrificing useful Rust functionality while restoring drop-in behavior |
+| `DEC-009` | Accepted | Agents may autonomously merge focused PRs after exact-head CI, DCO, final-diff, and mergeability checks all pass | Completes the requested PR lifecycle while preserving red gates, stacked-PR ordering, and post-merge verification |
 
 Agents may change a proposed decision only in a focused design pull request with tests and an updated rationale.
 
