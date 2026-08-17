@@ -80,6 +80,9 @@ jobs:
       - name: Validate PDF fixture provenance and licenses
         run: python scripts/check_fixture_licenses.py
 
+      - name: Verify the pinned upstream PDF fixture corpus
+        run: python scripts/import_upstream_fixtures.py --check
+
       - name: Validate the approved-delta registry
         run: python scripts/check_approved_deltas.py
 

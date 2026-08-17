@@ -161,7 +161,7 @@ class FixtureLicenseContractTests(unittest.TestCase):
     def test_repository_registry_covers_every_committed_pdf(self) -> None:
         result = fixture_licenses.audit_repository(REPO_ROOT, REGISTRY_PATH)
 
-        self.assertEqual(result.fixture_count, 142)
+        self.assertEqual(result.fixture_count, 223)
         self.assertEqual(result.source_count, 5)
 
     def test_downloaders_use_the_registered_immutable_revisions(self) -> None:

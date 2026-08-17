@@ -839,6 +839,492 @@ path = "tests/fixtures/real-world/edge-cases/empty-page.pdf"
 sha256 = "7d8cfba50762ea408138d6ff89ffaac77fe88745fab228ca09e699e32b595ed7"
 source = "pdfplumber-rs-generated"
 source_path = "crates/pdfplumber/tests/real_world_integration.rs"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/150109DSP-Milw-505-90D.pdf"
+sha256 = "901409e8e3d504a07ca1793e0b05d4b58e333760026dc1996d27edee9365a513"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/150109DSP-Milw-505-90D.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/2023-06-20-PV.pdf"
+sha256 = "8e01f32e6a40f956aad593b0e54c5cec7684285ff4be0c7b754dce3711c67bb4"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/2023-06-20-PV.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/WARN-Report-for-7-1-2015-to-03-25-2016.pdf"
+sha256 = "f52f80bd057313c8abec2e854c65c4d96658e72744c836e81d3048d8a5861046"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/WARN-Report-for-7-1-2015-to-03-25-2016.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations-rotated-180.pdf"
+sha256 = "b8910d64033eeb7560e11a1bbc397751261597f8bc781ba79ca1a77362386ceb"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/annotations-rotated-180.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations-rotated-270.pdf"
+sha256 = "2fa32eb26559bd5762e70bc8f1bb85d05dd5ae2d15c2fe1e4910b05d468cf65b"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/annotations-rotated-270.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations-rotated-90.pdf"
+sha256 = "0c680ab11ec73b71cd879d5af80f698dfbfce1d1e2086365fbacb6225fd23468"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/annotations-rotated-90.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations-unicode-issues.pdf"
+sha256 = "e774f5c98d25a725ca2163a52b9cd36113a9694bf4a07b452e3819bf3b268250"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/annotations-unicode-issues.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations.pdf"
+sha256 = "ad2a4eee7b71d554f37b4e37f2447e106f0751b70b673bc0ab7c46c851d451b9"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/annotations.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/chelsea_pdta.pdf"
+sha256 = "e9823b5527fed648c9b4a891b0c018d75a4acfa3697f9bfa91b2f8e5097579e0"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/chelsea_pdta.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/cupertino_usd_4-6-16.pdf"
+sha256 = "944ab863d7c83521d6250cc8682d2c985a6ae82622de1d461bb80c21a654206a"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/cupertino_usd_4-6-16.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/empty.pdf"
+sha256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/empty.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/extra-attrs-example.pdf"
+sha256 = "76cfc3645bdb76d2e670774ea1dc474b9ab0e3f1599f82403ab095a349f19a98"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/extra-attrs-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/federal-register-2020-17221.pdf"
+sha256 = "ac419e4e084ea7a7a33a7be3f129dd07bc705b1a9e45ad751e33357f17d60f5c"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/federal-register-2020-17221.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/figure_structure.pdf"
+sha256 = "46ffbb251fbefd6f0b0e7410f504a3b0370f7f5c98f374b10cd1907fb400ee65"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/figure_structure.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4591020179783680.pdf"
+sha256 = "1fa395f36909b6bae45a86b0611f95bd7bbc07ef6d8fe3c01b4bc9651d89888c"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4591020179783680.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4646567755972608.pdf"
+sha256 = "c2c4efbc27e61f7302f25b69a790b3bc0c41c88c21745704d0f64510f5b2efd2"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4646567755972608.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4652594248613888.pdf"
+sha256 = "bc7cac33fa6a69568661a9a0db515402e029c4f4f4b46f3b949610d8bfed89c0"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4652594248613888.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4691742750474240.pdf"
+sha256 = "28ba22794afc99978a51006cdca55f2561aa8e8e731d46e19eb8bd6c522a856d"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4691742750474240.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4715311080734720.pdf"
+sha256 = "0c0bd494344002b53edf0f3dfbcdd769f61c5b339c12f5aec4911dd903cc2c86"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4715311080734720.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4736668896133120.pdf"
+sha256 = "608407d60ac531afaf5bed5711c8b78651e0497f3c87b3dcabf45c8d82dd0a64"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4736668896133120.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4833695495684096.pdf"
+sha256 = "d68eb487c9b2c9d6ec8499eaebf8cdd931a77a4d830d46f279d522d1aedc296d"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4833695495684096.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4927662560968704.pdf"
+sha256 = "b195cc3ad97d753defe0389d529ed1cc798ba743bcbf5e87aa7ee376274ff573"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/4927662560968704.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5177159198507008.pdf"
+sha256 = "f0d110e67572cc3be55a1aef11f484969a6a1cabd75cabb2fe625a57842ee6e5"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5177159198507008.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5317294594523136.pdf"
+sha256 = "50dc70a42f43a0676f6bb776a0fb4651e5b0149a846475db1289544db3ed47f8"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5317294594523136.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5452007745323008.pdf"
+sha256 = "fd95500e37c767c79e7ea82c2bc7b42a024ccc7f7c2acb37857a74ec079ba4e5"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5452007745323008.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5592736912179200.pdf"
+sha256 = "b16e93d599cfe1409fe36ba6fdf36eafa04a4773f2db59800a59b69f48dbc563"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5592736912179200.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5809779695484928.pdf"
+sha256 = "f9aa195dfe87c5dde89710e962695af872f247cd7ba3ebabe5c64f1c7aed19fb"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5809779695484928.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5903429863538688.pdf"
+sha256 = "7ae027bd97daf40553925b38ec1b1f25b349bdded27d99925bf7f844314b4ba0"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5903429863538688.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5914823472250880.pdf"
+sha256 = "62144e76824f3b99162f68303ca0dce751b3da8461fe4e555880261a175c808c"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/5914823472250880.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6013812888633344.pdf"
+sha256 = "d27e210d1c14bd093ed048c820526a73f4319e3c1335a8954748702d02c5dc0b"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/6013812888633344.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6085913544818688.pdf"
+sha256 = "91c46fe061b16b4c055aff84b4c22ba9ddd2fad5c36c6c13f9f3c5fa95963d93"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/6085913544818688.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6400141380878336.pdf"
+sha256 = "4418f36f97b0e0b07be734bbeee1ef4a7becf20527857d7d0ea2665a35c69ec3"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/6400141380878336.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6515565732102144.pdf"
+sha256 = "49fd77a03424107c138743923645e77e406ec1ccfb8f2303a1513b58ddacc537"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/from-oss-fuzz/load/6515565732102144.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/hello_structure.pdf"
+sha256 = "949dccc013e2cc2f44e515225ace59bd5e4aa53ee38db1297094e7640d6e4f2a"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/hello_structure.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/image_structure.pdf"
+sha256 = "ce664b97ca3f765ad6a82352c2555cbfcd687d554722341413d633178164fad4"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/image_structure.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-1054-example.pdf"
+sha256 = "87c424c0833734a4d2dff996a20b686c0cc252f3231fe067fbcffaf2d90723de"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-1054-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-1114-dedupe-chars.pdf"
+sha256 = "0d94eb9541b68404ce5e3fc524614dc87e6bba470cb3e83bccecaf2f873b8ed5"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-1114-dedupe-chars.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-1147-example.pdf"
+sha256 = "39e9d5e5876c0fc833fdc01e84019a0f5d2f74a203cf99070d359ac20603de45"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-1147-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-1181.pdf"
+sha256 = "5c699a86d22a859da0f3124642ebba8bbc22b648578d94f212d97816fa023eb1"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-1181.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-1279-example.pdf"
+sha256 = "ebca9104debf6177df939ed8402435f3e9fd12d22b07845b280b4b71a4e80292"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-1279-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-13-151201DSP-Fond-581-90D.pdf"
+sha256 = "ea25af844e659c5f760de43bff7232272af34a1feec717b43de4a94bee5abb92"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-13-151201DSP-Fond-581-90D.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-140-example.pdf"
+sha256 = "0b5accf5702d12b9a58eba9f4d11295c9e268c8c6333b4cd4ac07e46768b023b"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-140-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-192-example.pdf"
+sha256 = "705af4b4e52a68d4d574216618a7d037001d9fbd1b7fa5a75aba25c903e230d9"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-192-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-203-decimalize.pdf"
+sha256 = "dfd0a34e0509d4d0666ba94810b3b2346180115b9a2fef89f3d700061e1b0746"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-203-decimalize.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-297-example.pdf"
+sha256 = "875bd20fe4074abc91772ae33781ac3de895d7af55826c93d28067e50d23d295"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-297-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-316-example.pdf"
+sha256 = "19b0ab7b2e0cddc96c1bfaf96fd928547811d1dd2e451d0410b618308fe986f9"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-316-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-33-lorem-ipsum.pdf"
+sha256 = "951e9ab1d5ec310429f89173357a7c9f84b08153fd7f81b5d060ed2487869f16"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-33-lorem-ipsum.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-336-example.pdf"
+sha256 = "59ad0eb8dc9601782a72bc4cabe2390ee2e4eed03d545f874c7425b6d40492cd"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-336-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-461-example.pdf"
+sha256 = "34f3fe05d1c8e242f0e2d2204399f46aebcbef630834d544deb4a0d625846d63"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-461-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-463-example.pdf"
+sha256 = "7337e4267970818c55692f371d1fbaeb18a6dbc2d2d58739a07df94a4e3b7999"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-463-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-466-example.pdf"
+sha256 = "da49286d9f6f985136c6a1788ca4a33f20bbdcbe4ea8153b81bb87841e95cba4"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-466-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-53-example.pdf"
+sha256 = "ddddc6f90cdc61457164abf04e36cfda00b16718b534b1069a34e88272ce4b5b"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-53-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-598-example.pdf"
+sha256 = "022dc4c57d995bea2317537fd91ca3b08d267f1c20469b9104e3a682e0b7dad8"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-598-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-67-example.pdf"
+sha256 = "517c394a000b3dc2c0f3b21198e0fad725ff65cd82c90915bbeca4f60383d176"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-67-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-71-duplicate-chars-2.pdf"
+sha256 = "0acf672dc1143f49baaa12e1e130ca131070b0d54eb487e48b24921d21e53b11"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-71-duplicate-chars-2.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-71-duplicate-chars.pdf"
+sha256 = "c0f4504ee7c5f0e98d091db6ff866c8421694baa5f053efa6b82d9e19233e8ca"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-71-duplicate-chars.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-842-example.pdf"
+sha256 = "1c49e633f46097016b41113160de375ae7367d607706b3a042580baed90defeb"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-842-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-848.pdf"
+sha256 = "7ac8ec08037168a6c55e770e577341483b6bff4de604c3410857248ae9f371c6"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-848.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-90-example.pdf"
+sha256 = "9ed459c53bdd5ae91a08b3bacc5d93f3944dfddac9b6a140a4ea6b5e6eea2a61"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-90-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-905.pdf"
+sha256 = "26bf4eadb94944ec61fb7c3120f190db74b7a067bbeb9489ea02a2b11f228a55"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-905.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-912.pdf"
+sha256 = "317f8e045ec0a67a272bcfd0d38e33f6aaf1110d0a57a26faa739dbdc4bc09bb"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-912.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-982-example.pdf"
+sha256 = "c18ea7dc2e8d075f22ca0030e83000adc05cd4f75218c1d774564aa91b5edd94"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-982-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/issue-987-test.pdf"
+sha256 = "353c84f0bdd88d17f04b87896e02bc0a54ad169da56b8ecf1aeacab9a75213bc"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/issue-987-test.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/la-precinct-bulletin-2014-p1.pdf"
+sha256 = "a87eb3ca32462296ad07e6c62ab05c85527a5d7daca6f33d531eb4ae3f263b95"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/la-precinct-bulletin-2014-p1.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/line-char-render-example.pdf"
+sha256 = "10ceede5e884a1566d96ab888bc378576167292cae53d72498a6b89388107fdf"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/line-char-render-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/malformed-from-issue-932.pdf"
+sha256 = "471f16c8716a7fa8cda228ad293a4df97fe16f184ff3d952f26fc9e38a348ff3"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/malformed-from-issue-932.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/mcid_example.pdf"
+sha256 = "46ffbb251fbefd6f0b0e7410f504a3b0370f7f5c98f374b10cd1907fb400ee65"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/mcid_example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/nics-background-checks-2015-11-rotated.pdf"
+sha256 = "3820767f7b9c8a80d20916daa8664afee49421c4bc6d6efb70bb21ae5f9a7195"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/nics-background-checks-2015-11-rotated.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/nics-background-checks-2015-11.pdf"
+sha256 = "4f0ae6e017b0e97de211da8fd97316e55bd927af5740d6ce95e1b7b1539f9407"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/nics-background-checks-2015-11.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/page-boxes-example.pdf"
+sha256 = "e0be9f61f14ec31f14d77fa0db26c1013eed67b662d8fdd4aa77fd4226cebb5f"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/page-boxes-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/password-example.pdf"
+sha256 = "76593a57d9787a86050815e830a4c69425f5c95017fdb6f509074658932056e2"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/password-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pdf_structure.pdf"
+sha256 = "247db629cecbb2d6c58eaac7531dfb82125608881c6433e620689c807900c64c"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/pdf_structure.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pdffill-demo.pdf"
+sha256 = "2594a5364ea598047a7389b4f35a5e0908c973c7aa4bc6d8c5e8fb34baaba426"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/pdffill-demo.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pr-136-example.pdf"
+sha256 = "bd7d7a3c3114e0c809d275227439e4997578a7fa3de57b5110a594172320cb74"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/pr-136-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pr-138-example.pdf"
+sha256 = "20bd9ee89a10cc92f679085a0d6cab85baa05ca3f781543f23f19d1e5ea7409f"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/pr-138-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pr-88-example.pdf"
+sha256 = "70840f0da97cffe9b833780f4bb192e4455d0d086291cf60f35b37bb2b35d84f"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/pr-88-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/scotus-transcript-p1.pdf"
+sha256 = "c63508c7b195e6b6c398311fb1f3a36de31f604e3ae94b486a6776f1f144b379"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/scotus-transcript-p1.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/senate-expenditures.pdf"
+sha256 = "16921f0fc9b2c6039b23b694e0317917118ad7dd2b3a95a88518b7e144df527c"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/senate-expenditures.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/table-curves-example.pdf"
+sha256 = "d68dce5cfaae86c5282b50603d60bc2601af23ecfd26245a9966382b5d3fdb70"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/table-curves-example.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/test-punkt.pdf"
+sha256 = "576e8eef9551291538bf96323776c39fc1a0f15acafb488ec90bf514cf148089"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/test-punkt.pdf"
+
+[[fixtures]]
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/word365_structure.pdf"
+sha256 = "3301c8da647514abf8fa145470bd0367daa3d8b0a1e7281f1c6850b50889ee53"
+source = "pdfplumber-upstream"
+source_path = "tests/pdfs/word365_structure.pdf"
 [[fixtures]]
 path = "tests/fixtures/real-world/edge-cases/overlapping-text.pdf"
 sha256 = "399140bb4510bb66365cd9c60b285bdb77a80573f2623f03d6e51d027d1f80b3"

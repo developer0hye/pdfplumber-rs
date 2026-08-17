@@ -31,6 +31,9 @@ Everything here exists to make that reproducible.
 | `approved_deltas.toml` | Target-bound maintainer approvals for exact fixture/page/API result pairs |
 | `harness/upstream_suite.py` | Verifies the pinned upstream test tree and classifies, but never suppresses, failures |
 | `upstream-suite.toml` | Exact upstream commit/test-tree fingerprint and test-tool lock digest |
+| `harness/upstream_fixture_corpus.py` | Imports and verifies the pinned PDF paths and bytes without flattening directories |
+| `upstream-fixtures.toml` | Exact v0.11.10 PDF-corpus source, destination, file count, and tree fingerprint |
+| `fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/` | Committed 81-file upstream PDF tree, including malformed and OSS-Fuzz inputs |
 | `upstream-unsupported.toml` | Machine-readable temporary failure classifications |
 | `requirements-upstream-tests.txt` | Hash-pinned minimal pytest/xdist/pandas dependency closure |
 | `upstream-tests/` | Ignored materialized copy of the verified upstream tests and their external fixture |
@@ -91,6 +94,10 @@ python3 -m unittest discover -s compat/tests -t .
 # Materialize and re-verify the 101-file tests plus their external PDF fixture.
 python3 scripts/setup_upstream_suite.py
 python3 scripts/setup_upstream_suite.py --check
+
+# Import from the pinned Git checkout, then verify the committed PDF-only tree.
+python3 scripts/import_upstream_fixtures.py
+python3 scripts/import_upstream_fixtures.py --check
 
 # Install only the hash-locked upstream test tools into the candidate venv.
 .venv-candidate/bin/python -m pip install --require-hashes \
@@ -177,6 +184,15 @@ failures for follow-up; it never deselects, skips, marks xfail, changes, or mask
 a test, and the runner preserves pytest's nonzero exit status. Every entry must
 reference a task that exists in PRD section 8 and is still unchecked; checked or
 unknown task IDs fail runner preflight.
+
+The separately committed upstream PDF corpus contains all 81 `.pdf` paths under
+the v0.11.10 `tests/pdfs` tree. The import retains those paths below
+`compat/fixtures/upstream/pdfplumber-v0.11.10`, including
+`tests/pdfs/from-oss-fuzz/load` and the zero-byte `tests/pdfs/empty.pdf` error
+fixture. Both the source checkout and the committed copy must match the pinned
+commit's path-and-byte fingerprint; a missing, changed, extra, or flattened PDF
+fails verification. The provenance registry records every imported path and
+its MIT-licensed immutable source revision.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides
