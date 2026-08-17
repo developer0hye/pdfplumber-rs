@@ -207,6 +207,10 @@ class OptionMatrixSnapshotTests(unittest.TestCase):
             },
         )
         self.assertEqual(payload["lockfile_sha256"], lockfile.digest())
+        self.assertEqual(
+            payload["python_version"],
+            upstream.load_environment().python_version,
+        )
 
         records: list[dict[str, object]] = payload["cases"]  # type: ignore[assignment]
         outputs: dict[str, object] = payload["outputs"]  # type: ignore[assignment]
