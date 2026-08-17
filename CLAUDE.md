@@ -8,6 +8,7 @@
 - After completing each planned task, run tests and commit before moving to the next task. **Skip tests if the change has no impact on runtime behavior** (e.g., docs, comments, CI config). Changes to runtime config files (YAML, JSON, etc. read by code) must still trigger tests.
 - **Always run `cargo fmt` before committing.** CI enforces formatting checks.
 - **After any code change (feature addition, bug fix, refactoring, PR merge), check if `README.md` needs updating.** If project description, usage, setup, architecture, or API changed, update `README.md` with clear, concise language. Keep it minimal — only document what users need to know.
+- Before committing, compare documentation, examples, comments, and configuration claims with the changed behavior. Update anything stale.
 
 ## Testing (TDD)
 
@@ -74,18 +75,22 @@
 
 ## PR Merge Procedure
 
+The agent is authorized to make a PR ready and merge it without separate confirmation once every step below passes. Never force-merge or bypass a failed, queued, in-progress, cancelled, skipped, or unstable check.
+
+For stacked PRs, merge from the bottom up. After each merge, retarget the next PR to `main`, synchronize it with the current `main`, and rerun all applicable checks before merging it.
+
 Follow all steps in order:
 
 1. Rewrite PR description if empty/unclear via `gh pr edit`. Include: what changed, why, key changes, and relevant context.
 2. Cross-reference related issues (`gh issue list`). Use "Related: #N" — avoid auto-close keywords unless instructed.
-3. Check for conflicts. If `main` has advanced, rebase/merge as needed.
-4. Wait for CI to pass: `gh pr checks <number> --watch`. Abort if tests fail.
+3. Verify the PR targets `main`, is not draft, and is cleanly mergeable. If `main` advanced, synchronize and retest.
+4. Wait for every check, including DCO, on the exact current head SHA to succeed: `gh pr checks <number> --watch`. If the head or base changes, restart the audit. Abort if any check remains non-successful.
 5. Final code review via `gh pr diff <number>` — check for debug statements, hardcoded paths, credentials, unused imports.
 6. Merge: `gh pr merge <number> --merge`. **Never use `--delete-branch`** (worktree depends on the branch).
-7. Return to main repo, `git pull` to sync.
-8. Remove worktree: `git worktree remove ../<repo-name>-<branch-name>`
-9. Delete local branch: `git branch -d <branch-name>`
-10. Delete remote branch: `git push origin --delete <branch-name>`
+7. Verify the PR state is `MERGED`, `main` contains the merge, relevant merged-tree gates pass, and the main worktree is clean after `git pull`.
+8. Keep a merged branch and worktree while another open PR still depends on it. Otherwise remove the worktree: `git worktree remove ../<repo-name>-<branch-name>`
+9. Delete the local branch: `git branch -d <branch-name>`
+10. Delete the remote branch: `git push origin --delete <branch-name>`
 
 ## Releases
 
