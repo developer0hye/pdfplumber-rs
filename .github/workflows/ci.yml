@@ -48,6 +48,7 @@ jobs:
           key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+      - run: python3 -m unittest compat.tests.cross_validation_ignore_contract_test -v
 
   compat-harness:
     name: Compatibility harness
