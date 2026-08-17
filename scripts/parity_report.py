@@ -19,13 +19,18 @@ wrong pdfplumber compares an implementation with itself and always looks perfect
     .venv-reference/bin/python scripts/parity_report.py
     .venv-reference/bin/python scripts/parity_report.py --repo ../pdfplumber-rs-some-worktree
     .venv-reference/bin/python scripts/parity_report.py --json report.json
+    .venv-reference/bin/python scripts/parity_report.py --summary parity-summary.md
 """
 
 import argparse
+import base64
 import json
+import math
 import os
 import subprocess
 import sys
+from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +40,7 @@ sys.path.insert(0, REPO_ROOT)
 from compat.harness import (  # noqa: E402
     approved_deltas,
     environment,
+    human_summary,
     machine_report,
     option_matrix,
     upstream,
@@ -65,6 +71,7 @@ PARITY_APIS = (
     "structure_tree",
 )
 APPROVED_DELTAS_PATH = os.path.join(REPO_ROOT, "compat", "approved_deltas.toml")
+TEXT_CONTEXT_RADIUS = 24
 
 
 def find_fixtures(fixture_root: str) -> list[str]:
@@ -186,12 +193,103 @@ def compare_dictionary_sequence(expected: list[dict], actual: list[dict]) -> dic
     }
 
 
+def display_value(value: Any) -> Any:
+    """Return a deterministic JSON-safe diagnostic value without dropping types."""
+    if value is None or isinstance(value, (bool, int, str)):
+        return value
+    if isinstance(value, float):
+        if math.isfinite(value):
+            return value
+        return {"$type": "float", "value": value.hex()}
+    if isinstance(value, Decimal):
+        return {"$type": "decimal.Decimal", "value": str(value)}
+    if isinstance(value, bytes):
+        return {
+            "$type": "bytes",
+            "base64": base64.b64encode(value).decode("ascii"),
+        }
+    if isinstance(value, list):
+        return [display_value(item) for item in value]
+    if isinstance(value, tuple):
+        return {
+            "$type": "tuple",
+            "items": [display_value(item) for item in value],
+        }
+    if isinstance(value, dict):
+        if all(isinstance(key, str) for key in value):
+            return {key: display_value(nested) for key, nested in value.items()}
+        items = [
+            [display_value(key), display_value(nested)]
+            for key, nested in value.items()
+        ]
+        items.sort(
+            key=lambda item: json.dumps(
+                item[0],
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+        return {"$type": "dict", "items": items}
+    if isinstance(value, Enum):
+        value_type = type(value)
+        return {
+            "$type": f"{value_type.__module__}.{value_type.__qualname__}",
+            "name": value.name,
+        }
+    return {"$canonical": approved_deltas.canonical_value(value)}
+
+
+def first_difference(expected: Any, actual: Any) -> dict[str, Any] | None:
+    """Retain the first exact value difference for human diagnostics."""
+    if expected == actual:
+        return None
+    if isinstance(expected, str) and isinstance(actual, str):
+        shared = min(len(expected), len(actual))
+        index = next(
+            (position for position in range(shared) if expected[position] != actual[position]),
+            shared,
+        )
+        start = max(0, index - TEXT_CONTEXT_RADIUS)
+        end = index + TEXT_CONTEXT_RADIUS + 1
+        return {
+            "kind": "text",
+            "index": index,
+            "upstream_present": index < len(expected),
+            "rust_present": index < len(actual),
+            "upstream": expected[index] if index < len(expected) else None,
+            "rust": actual[index] if index < len(actual) else None,
+            "upstream_context": expected[start:end],
+            "rust_context": actual[start:end],
+            "context_start": start,
+        }
+    if isinstance(expected, list) and isinstance(actual, list):
+        shared = min(len(expected), len(actual))
+        index = next(
+            (position for position in range(shared) if expected[position] != actual[position]),
+            shared,
+        )
+        return {
+            "kind": "sequence",
+            "index": index,
+            "upstream_present": index < len(expected),
+            "rust_present": index < len(actual),
+            "upstream": display_value(expected[index]) if index < len(expected) else None,
+            "rust": display_value(actual[index]) if index < len(actual) else None,
+        }
+    return {
+        "kind": "value",
+        "upstream": display_value(expected),
+        "rust": display_value(actual),
+    }
+
+
 def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
     """How far the characters agree, by text alone and by text plus position."""
     text = compare_object_sequence(expected, actual, with_box=False)
     boxes = compare_object_sequence(expected, actual, with_box=True)
     dictionaries = compare_dictionary_sequence(expected, actual)
-    return {
+    result = {
         "count_expected": len(expected),
         "count_actual": len(actual),
         "text_matched": text["matched"],
@@ -202,21 +300,37 @@ def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
         "box_order_equal": boxes["order_equal"],
         "dictionary": dictionaries,
     }
+    difference = first_difference(expected, actual)
+    if difference is not None:
+        result["first_difference"] = difference
+    return result
 
 
 def compare_words(expected: list[dict], actual: list[dict]) -> dict:
     comparison = compare_object_sequence(expected, actual, with_box=True)
-    return {
+    result = {
         "count_expected": len(expected),
         "count_actual": len(actual),
         "equal": expected == actual,
         **comparison,
         "dictionary": compare_dictionary_sequence(expected, actual),
     }
+    difference = first_difference(expected, actual)
+    if difference is not None:
+        result["first_difference"] = difference
+    return result
 
 
 def compare_text(expected: str, actual: str) -> dict:
-    return {"equal": expected == actual, "len_expected": len(expected), "len_actual": len(actual)}
+    result = {
+        "equal": expected == actual,
+        "len_expected": len(expected),
+        "len_actual": len(actual),
+    }
+    difference = first_difference(expected, actual)
+    if difference is not None:
+        result["first_difference"] = difference
+    return result
 
 
 def compare_tables(expected: list, actual: list) -> dict:
@@ -229,7 +343,7 @@ def compare_tables(expected: list, actual: list) -> dict:
                 if want_cell == got_cell:
                     matching += 1
     total_cells = max(expected_cells, actual_cells)
-    return {
+    result = {
         "tables_expected": len(expected),
         "tables_actual": len(actual),
         "cells_expected": expected_cells,
@@ -239,6 +353,10 @@ def compare_tables(expected: list, actual: list) -> dict:
         "cell_ratio": 1.0 if total_cells == 0 else matching / total_cells,
         "structure_equal": structural_signature(expected) == structural_signature(actual),
     }
+    difference = first_difference(expected, actual)
+    if difference is not None:
+        result["first_difference"] = difference
+    return result
 
 
 def unsupported_api(task_id: str) -> dict:
@@ -269,6 +387,9 @@ def compare_api_value(expected: Any, actual: Any) -> dict:
     if isinstance(expected, list) and isinstance(actual, list):
         result["count_expected"] = len(expected)
         result["count_actual"] = len(actual)
+    difference = first_difference(expected, actual)
+    if difference is not None:
+        result["first_difference"] = difference
     return result
 
 
@@ -569,6 +690,7 @@ def main(reference_package: Any = None) -> int:
     parser.add_argument("--repo", default=REPO_ROOT, help="worktree to test (default: this repo)")
     parser.add_argument("--fixtures", default=REPO_ROOT, help="repo holding tests/fixtures")
     parser.add_argument("--json", help="also write the full report here")
+    parser.add_argument("--summary", help="also write a human-readable Markdown summary here")
     parser.add_argument("--only", help="substring filter on the fixture filename")
     parser.add_argument(
         "--approved-deltas",
@@ -585,6 +707,7 @@ def main(reference_package: Any = None) -> int:
         help="candidate option-matrix snapshot to compare in --json output",
     )
     args = parser.parse_args()
+    artifact_requested = bool(args.json or args.summary)
 
     reference_options: dict[str, object] | None = None
     candidate_options: dict[str, object] | None = None
@@ -592,7 +715,7 @@ def main(reference_package: Any = None) -> int:
         registry = approved_deltas.load_registry(Path(args.approved_deltas))
         target = upstream.load_target()
         approved_deltas.validate_target(registry, target.version, target.commit)
-        if args.json:
+        if artifact_requested:
             reference_options = load_json_object(
                 Path(args.option_reference),
                 "reference option matrix",
@@ -729,7 +852,7 @@ def main(reference_package: Any = None) -> int:
     if gate.exit_code:
         had_failure = True
 
-    if args.json:
+    if artifact_requested:
         assert reference_options is not None
         try:
             artifact = machine_report.build(
@@ -739,13 +862,23 @@ def main(reference_package: Any = None) -> int:
                 delta_gate=gate,
             )
         except machine_report.MachineReportError as error:
-            print(f"machine report failed: {error}", file=sys.stderr)
+            print(f"parity artifact failed: {error}", file=sys.stderr)
             return 1
         if artifact["status"] == "failed":
             had_failure = True
         artifact["status"] = "failed" if had_failure else "passed"
-        with open(args.json, "w", encoding="utf-8") as handle:
-            handle.write(machine_report.render(artifact))
+        try:
+            rendered_summary = human_summary.render(artifact) if args.summary else None
+        except human_summary.HumanSummaryError as error:
+            print(f"parity artifact failed: {error}", file=sys.stderr)
+            return 1
+        if args.json:
+            with open(args.json, "w", encoding="utf-8") as handle:
+                handle.write(machine_report.render(artifact))
+        if args.summary:
+            assert rendered_summary is not None
+            with open(args.summary, "w", encoding="utf-8") as handle:
+                handle.write(rendered_summary)
 
     return 1 if had_failure else 0
 
