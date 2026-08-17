@@ -23,6 +23,8 @@ Everything here exists to make that reproducible.
 | `harness/lockfile.py` | Parses the lock and computes its digest |
 | `harness/provenance.py` | Builds the provenance block stamped into golden artifacts |
 | `harness/environment.py` | Guards against importing the wrong `pdfplumber` |
+| `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
+| `snapshots/pdfplumber-v0.11.10-api.json` | Committed public API contract for the pinned upstream release |
 | `tests/` | Structural gates on all of the above |
 
 ## Usage
@@ -37,9 +39,22 @@ bash scripts/setup_golden_venv.sh
 # Regenerate golden data.
 .venv-reference/bin/python scripts/generate_golden.py
 
+# Regenerate the pinned upstream public API snapshot.
+.venv-reference/bin/python scripts/generate_api_snapshot.py
+
+# Fail if the committed API snapshot has drifted.
+.venv-reference/bin/python scripts/generate_api_snapshot.py --check
+
 # Harness's own tests (no network, no install).
 python3 -m unittest discover -s compat/tests -t .
 ```
+
+The API snapshot discovers the package tree recursively and records public
+module exports, `__all__`, classes, inherited public descriptors, constants,
+and call signatures. It also preserves inconsistencies in the pinned release:
+for example, v0.11.10 declares `set_debug` in top-level `__all__` without
+defining that attribute. Review snapshot diffs as compatibility changes; do not
+edit the generated JSON by hand.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides
