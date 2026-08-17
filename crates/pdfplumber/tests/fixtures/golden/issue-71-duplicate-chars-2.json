@@ -1,6 +1,20 @@
 {
   "source": "issue-71-duplicate-chars-2.pdf",
-  "pdfplumber_version": "0.11.9",
+  "pdfplumber_version": "0.11.10",
+  "provenance": {
+    "upstream_project": "pdfplumber",
+    "upstream_version": "0.11.10",
+    "upstream_tag": "v0.11.10",
+    "upstream_commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+    "upstream_repository": "https://github.com/jsvine/pdfplumber",
+    "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
+    "fixture_path": "crates/pdfplumber/tests/fixtures/pdfs/issue-71-duplicate-chars-2.pdf",
+    "fixture_sha256": "0acf672dc1143f49baaa12e1e130ca131070b0d54eb487e48b24921d21e53b11",
+    "generated_by": "scripts/generate_golden.py",
+    "python_version": "3.13.12",
+    "platform_system": "Darwin",
+    "platform_machine": "arm64"
+  },
   "pages": [
     {
       "page_number": 0,
@@ -55028,7 +55042,7 @@
         {
           "bbox": {
             "x0": 149.6881,
-            "top": 605.9809,
+            "top": 605.981,
             "x1": 518.6954,
             "bottom": 696.8918
           },
@@ -173045,7 +173059,7 @@
           "bbox": {
             "x0": 150.059,
             "top": 109.4978,
-            "x1": 530.7271,
+            "x1": 530.727,
             "bottom": 647.5637
           },
           "rows": [

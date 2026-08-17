@@ -1,6 +1,20 @@
 {
   "source": "issue-90-example.pdf",
-  "pdfplumber_version": "0.11.9",
+  "pdfplumber_version": "0.11.10",
+  "provenance": {
+    "upstream_project": "pdfplumber",
+    "upstream_version": "0.11.10",
+    "upstream_tag": "v0.11.10",
+    "upstream_commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+    "upstream_repository": "https://github.com/jsvine/pdfplumber",
+    "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
+    "fixture_path": "crates/pdfplumber/tests/fixtures/pdfs/issue-90-example.pdf",
+    "fixture_sha256": "9ed459c53bdd5ae91a08b3bacc5d93f3944dfddac9b6a140a4ea6b5e6eea2a61",
+    "generated_by": "scripts/generate_golden.py",
+    "python_version": "3.13.12",
+    "platform_system": "Darwin",
+    "platform_machine": "arm64"
+  },
   "pages": [
     {
       "page_number": 0,
