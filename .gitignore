@@ -3,5 +3,6 @@ Cargo.lock
 .venv-golden/
 .venv-reference/
 .venv-candidate/
+compat/upstream-tests/
 __pycache__/
 .DS_Store

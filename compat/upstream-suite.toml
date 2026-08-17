@@ -1,0 +1,22 @@
+schema_version = 1
+
+[source]
+project = "pdfplumber"
+version = "0.11.10"
+tag = "v0.11.10"
+commit = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+repository = "https://github.com/jsvine/pdfplumber"
+
+[tests]
+git_tree = "2bb743a011aa8d07aedad51fa0dbfa2f301bcd1c"
+paths = [
+  "tests",
+  "examples/pdfs/ag-energy-round-up-2017-02-24.pdf",
+]
+sha256 = "fbf6ab39476b35dc557c2da48855c44d64079dfbb32c8a1dd8de4c91bc7f1248"
+file_count = 102
+
+[test_environment]
+requirements = "compat/requirements-upstream-tests.txt"
+requirements_sha256 = "fb5bf00d81cee941082e4d6758bd7132f922111a4d168c3d7f91d7ca178b6189"
+external_commands = ["gs"]

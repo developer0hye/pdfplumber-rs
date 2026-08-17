@@ -1,0 +1,4 @@
+# Minimal dependencies imported by the pinned v0.11.10 upstream test suite.
+pandas==2.3.3
+pytest==9.1.0
+pytest-xdist==3.8.0
