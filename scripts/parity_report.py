@@ -4,7 +4,9 @@
 Reports, per page of every PDF, how closely the Rust CLI matches Python
 pdfplumber on characters (text and bounding boxes), words, page text, and
 lattice tables. Character and word ratios are position-sensitive: matching an
-object elsewhere in the sequence does not hide an ordering difference.
+object elsewhere in the sequence does not hide an ordering difference. Object
+dictionary structure is compared recursively without projecting away upstream
+keys, value types, nested containers, or explicit null placement.
 Use it to pick the next parity gap to close and to confirm a change moved the
 numbers in the right direction.
 
@@ -116,10 +118,58 @@ def compare_object_sequence(expected: list[dict], actual: list[dict], with_box: 
     }
 
 
+def type_name(value: Any) -> str:
+    """Return a stable, fully qualified runtime type name."""
+    value_type = type(value)
+    return f"{value_type.__module__}.{value_type.__qualname__}"
+
+
+def structural_signature(value: Any) -> tuple:
+    """Describe keys, runtime types, nesting, and null positions, not values."""
+    if value is None:
+        return ("none",)
+    if isinstance(value, dict):
+        items = [
+            ((type_name(key), repr(key)), structural_signature(nested))
+            for key, nested in value.items()
+        ]
+        return ("dict", type_name(value), tuple(sorted(items, key=lambda item: item[0])))
+    if isinstance(value, list):
+        return (
+            "list",
+            type_name(value),
+            tuple(structural_signature(item) for item in value),
+        )
+    if isinstance(value, tuple):
+        return (
+            "tuple",
+            type_name(value),
+            tuple(structural_signature(item) for item in value),
+        )
+    return ("scalar", type_name(value))
+
+
+def compare_dictionary_sequence(expected: list[dict], actual: list[dict]) -> dict:
+    """Compare complete dictionary structure at matching sequence positions."""
+    expected_signatures = [structural_signature(obj) for obj in expected]
+    actual_signatures = [structural_signature(obj) for obj in actual]
+    total = max(len(expected), len(actual))
+    matched = sum(
+        left == right for left, right in zip(expected_signatures, actual_signatures)
+    )
+    return {
+        "matched": matched,
+        "total": total,
+        "ratio": 1.0 if total == 0 else matched / total,
+        "structure_equal": expected_signatures == actual_signatures,
+    }
+
+
 def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
     """How far the characters agree, by text alone and by text plus position."""
     text = compare_object_sequence(expected, actual, with_box=False)
     boxes = compare_object_sequence(expected, actual, with_box=True)
+    dictionaries = compare_dictionary_sequence(expected, actual)
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
@@ -129,6 +179,7 @@ def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
         "box_matched": boxes["matched"],
         "box_ratio": boxes["ratio"],
         "box_order_equal": boxes["order_equal"],
+        "dictionary": dictionaries,
     }
 
 
@@ -138,6 +189,7 @@ def compare_words(expected: list[dict], actual: list[dict]) -> dict:
         "count_expected": len(expected),
         "count_actual": len(actual),
         **comparison,
+        "dictionary": compare_dictionary_sequence(expected, actual),
     }
 
 
@@ -152,7 +204,7 @@ def compare_tables(expected: list, actual: list) -> dict:
     for want_table, got_table in zip(expected, actual):
         for want_row, got_row in zip(want_table, got_table):
             for want_cell, got_cell in zip(want_row, got_row):
-                if (want_cell or "") == (got_cell or ""):
+                if want_cell == got_cell:
                     matching += 1
     total_cells = max(expected_cells, actual_cells)
     return {
@@ -162,20 +214,15 @@ def compare_tables(expected: list, actual: list) -> dict:
         "cells_actual": actual_cells,
         # Agreeing that a page holds no tables is a match, not a miss.
         "cell_ratio": 1.0 if total_cells == 0 else matching / total_cells,
+        "structure_equal": structural_signature(expected) == structural_signature(actual),
     }
 
 
 def python_page(page: Any, page_number: int) -> dict:
     return {
         "page_number": page_number,
-        "chars": [
-            {k: char[k] for k in ("text", "x0", "top", "x1", "bottom")}
-            for char in page.chars
-        ],
-        "words": [
-            {k: word[k] for k in ("text", "x0", "top", "x1", "bottom")}
-            for word in page.extract_words()
-        ],
+        "chars": [dict(char) for char in page.chars],
+        "words": [dict(word) for word in page.extract_words()],
         "text": page.extract_text() or "",
         "tables": page.extract_tables(),
     }
