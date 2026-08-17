@@ -1,0 +1,21 @@
+# The single pinned upstream target for every compatibility claim in PRD.md.
+#
+# Editing anything here is a target upgrade (PARITY-030), not a routine change:
+# regenerate compat/requirements-golden.txt and every golden artifact in the
+# same pull request, and record the move in the PRD Decision Log.
+
+[target]
+project = "pdfplumber"
+version = "0.11.10"
+tag = "v0.11.10"
+commit = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+repository = "https://github.com/jsvine/pdfplumber"
+
+[environment]
+# The reference interpreter is pinned as well. Upstream output depends on it —
+# pdfminer.six and Pillow both behave differently across Python releases — so
+# "whichever python3 is on PATH" is not a reproducible baseline.
+python_version = "3.13"
+lockfile = "compat/requirements-golden.txt"
+reference_venv = ".venv-reference"
+candidate_venv = ".venv-candidate"

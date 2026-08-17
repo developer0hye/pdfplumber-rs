@@ -1,4 +1,7 @@
 /target
 Cargo.lock
 .venv-golden/
+.venv-reference/
+.venv-candidate/
+__pycache__/
 .DS_Store

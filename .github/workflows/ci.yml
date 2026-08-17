@@ -48,3 +48,39 @@ jobs:
           key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+
+  compat-harness:
+    name: Compatibility harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read the pinned reference interpreter
+        id: pinned
+        run: |
+          version=$(python3 -c "
+          import tomllib
+          with open('compat/upstream.toml', 'rb') as handle:
+              print(tomllib.load(handle)['environment']['python_version'])
+          ")
+          echo "python-version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.pinned.outputs.python-version }}
+
+      # Structural gates on the lock file and provenance. These need no network,
+      # so a broken harness fails in seconds instead of after a full install.
+      - name: Test the harness
+        run: python -m unittest discover -s compat/tests -t . -v
+
+      # Proves the lock file is installable and hash-complete, which is the
+      # claim every later compatibility gate rests on.
+      - name: Build the pinned reference environment
+        run: bash scripts/setup_golden_venv.sh
+        env:
+          # Fail rather than warn if the runner's interpreter drifts from the pin.
+          PDFPLUMBER_RS_REQUIRE_PINNED_PYTHON: "1"
+
+      - name: Confirm the reference environment is the pinned upstream release
+        run: .venv-reference/bin/python scripts/verify_compat_env.py --reference --expect-root "$PWD/.venv-reference"

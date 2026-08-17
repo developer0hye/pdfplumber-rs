@@ -410,10 +410,14 @@ Reasons:
 
 ### 8.1 P0 — Reproducible Compatibility Harness
 
-- [ ] **PARITY-001** Pin Python `pdfplumber==0.11.10` and its complete dependency set in a lock file used by golden generation and CI.
+- [x] **PARITY-001** Pin Python `pdfplumber==0.11.10` and its complete dependency set in a lock file used by golden generation and CI.
 - [ ] **PARITY-002** Record the upstream tag, commit, dependency lock hash, fixture hashes, generation command, operating system, architecture, and Python version in every golden artifact.
-- [ ] **PARITY-003** Replace the unpinned `scripts/setup_golden_venv.sh` behavior with a deterministic environment.
+  - Implemented and tested in `compat/harness/provenance.py`; `scripts/generate_golden.py` stamps every artifact it writes.
+  - Unchecked because the committed golden artifacts still carry no provenance block. Regenerating them on the pinned interpreter is the remaining step.
+- [x] **PARITY-003** Replace the unpinned `scripts/setup_golden_venv.sh` behavior with a deterministic environment.
 - [ ] **PARITY-004** Add isolated reference and candidate environments so the test runner cannot accidentally import the wrong `pdfplumber`.
+  - Reference environment is built, verified, and enforced in `scripts/generate_golden.py` and `scripts/parity_report.py`.
+  - Unchecked because the candidate environment is declared and guarded but not yet constructed; it depends on `PYAPI-002` shipping an importable `pdfplumber` package.
 - [ ] **PARITY-005** Snapshot the complete public module/export tree, including `__all__`, public classes, constants, functions, properties, descriptors, and call signatures.
 - [ ] **PARITY-006** Add API-contract tests for positional arguments, keyword arguments, keyword-only arguments, defaults, invalid arguments, and exception types.
 - [ ] **PARITY-007** Compare every page of every fixture; remove first-page-only reporting.
@@ -1191,6 +1195,7 @@ Reasons:
 - [ ] **CI-026** Add post-publish installation smoke tests from crates.io, the Python Package Index, and the Node Package Manager registry.
 - [ ] **CI-027** Verify `__version__` and package metadata after installation.
 - [ ] **CI-028** Ensure the compatibility executable and Rust-extension executable do not overwrite each other unexpectedly.
+- [ ] **CI-029** Protect `main` and mark the compatibility, format, lint, and test jobs as required status checks. Until this exists, "CI gated" in section 5 means "a job ran", not "a job had to pass", and every evidence claim at that level is weaker than it reads.
 
 ### 8.20 P2 — Performance and Memory
 
@@ -1401,7 +1406,8 @@ Agents must claim a task before implementation.
 
 | Task ID | Owner/Agent | Branch/Worktree | Started | Blockers | Notes |
 |---|---|---|---|---|---|
-| _none_ |  |  |  |  |  |
+| `PARITY-002` | unclaimed | — | — | none | Regenerate every golden artifact on the pinned interpreter so it carries a provenance block. The generator already emits one. Measured in PR #291: regenerating all 97 artifacts moves the oracle from 0.11.9 to 0.11.10 and changes extracted data in exactly three fixtures — `chelsea_pdta`, `issue-67-example`, `issue-71-duplicate-chars-2` — all table cell text, with table and row counts unchanged. `cargo test -p pdfplumber --tests` passed against the regenerated set, though several of those comparisons are informational rather than gating, so review the three diffs rather than relying on a green suite. Regeneration also produces one artifact that does not exist today, `oss-fuzz/5914823472250880.json`: 0.11.10 parses that fixture where 0.11.9 raised. Regenerate on the pinned Python 3.13, not a substitute interpreter. |
+| `PARITY-004` | unclaimed | — | — | `PYAPI-002` | Reference side is done. The candidate environment cannot be built until an importable `pdfplumber` package ships. |
 
 Remove the active row after merge and add a permanent Evidence Ledger row.
 
@@ -1414,6 +1420,8 @@ No checklist item outside the source-level inventory may be marked `[x]` without
 | Task ID | Date | Agent | Commit or PR | Tests / artifacts | Notes |
 |---|---|---|---|---|---|
 | `AUDIT-BASELINE` | 2026-08-16 | GPT-5.6 Pro | Rust `da0663ce`; Python `v0.11.10` | Source/API audit used to create this PRD | Source-presence checks are not parity completion |
+| `PARITY-001` | 2026-08-16 | Claude Opus 5 | PR #291 | `compat/requirements-golden.txt` pins 9 packages with 435 SHA-256 hashes covering every published file. `bash scripts/setup_golden_venv.sh` installs it with `pip install --require-hashes` and resolves `pdfplumber 0.11.10`. Corrupting the hashes of one locked package makes that install fail with `THESE PACKAGES DO NOT MATCH THE HASHES`, so the lock is a gate rather than a record. `python -m unittest discover -s compat/tests -t .` (36 tests) asserts every requirement is `==`-pinned, hashed, unique, and sorted. Runs on every pull request in the `Compatibility harness` CI job. | `main` has no branch protection, so no CI job is enforced yet; see `CI-029`. Regenerate the lock with `python3 scripts/lock_golden_env.py`; `--check` fails when the committed lock is stale. Markers are derived from the dependency graph, so `cffi` and `pycparser` stay PyPy-gated and `typing_extensions` stays gated to Python < 3.11 |
+| `PARITY-003` | 2026-08-16 | Claude Opus 5 | PR #291 | `scripts/setup_golden_venv.sh` now rebuilds `.venv-reference` from the lock and then runs `scripts/verify_compat_env.py --reference --expect-root`, which fails on a version mismatch, a compiled module, or an import from outside the environment. Verified locally end to end; CI runs the same script on the pinned interpreter. | Replaces `pip install pdfplumber`, which resolved against whatever PyPI served that day. The interpreter is pinned too, since `pdfminer.six` and Pillow behave differently across Python releases |
 
 ---
 
