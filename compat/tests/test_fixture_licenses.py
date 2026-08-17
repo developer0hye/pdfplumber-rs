@@ -17,7 +17,7 @@ REGISTRY_PATH = REPO_ROOT / "compat" / "fixture-provenance.toml"
 
 def synthetic_registry(digest: str) -> dict[str, object]:
     return {
-        "schema": {"version": 1},
+        "schema": {"version": 2},
         "sources": [
             {
                 "id": "public-upstream",

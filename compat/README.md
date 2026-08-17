@@ -34,6 +34,8 @@ Everything here exists to make that reproducible.
 | `harness/upstream_fixture_corpus.py` | Imports and verifies the pinned PDF paths and bytes without flattening directories |
 | `upstream-fixtures.toml` | Exact v0.11.10 PDF-corpus source, destination, file count, and tree fingerprint |
 | `fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/` | Committed 81-file upstream PDF tree, including malformed and OSS-Fuzz inputs |
+| `harness/corpus_index.py` | Validates and queries the deterministic, mutually exclusive fixture collections |
+| `fixture-provenance.toml` | Single index for every PDF's collection, immutable source, digest, and redistribution evidence |
 | `upstream-unsupported.toml` | Machine-readable temporary failure classifications |
 | `requirements-upstream-tests.txt` | Hash-pinned minimal pytest/xdist/pandas dependency closure |
 | `upstream-tests/` | Ignored materialized copy of the verified upstream tests and their external fixture |
@@ -81,6 +83,9 @@ bash scripts/setup_golden_venv.sh
 
 # Validate the target binding and complete schema of every approved delta.
 python3 scripts/check_approved_deltas.py
+
+# Validate and summarize the complete, single compatibility fixture index.
+python3 scripts/check_corpus_index.py
 
 # Pinned-upstream behavioral tests for page accounting, object order, and schemas.
 .venv-reference/bin/python -m unittest \
@@ -193,6 +198,17 @@ fixture. Both the source checkout and the committed copy must match the pinned
 commit's path-and-byte fingerprint; a missing, changed, extra, or flattened PDF
 fails verification. The provenance registry records every imported path and
 its MIT-licensed immutable source revision.
+
+`fixture-provenance.toml` is also the one indexed view of all 223 committed PDF
+fixtures. Every path belongs to exactly one primary collection:
+`upstream-v0.11.10` (81 exact upstream paths), `rust-regression` (88 fixtures
+selected for Rust issues and regressions), `external-parser` (28 licensed
+fixtures from PDF.js, PDFBox, and Poppler), or `project-generated` (26 fixtures
+created in this repository). The index is sorted when loaded and rejects
+duplicate paths, missing or unknown collections, unknown sources, unsafe paths,
+and stale or missing files. New PDF fixtures must be registered in exactly one
+of these collections; `scripts/check_corpus_index.py` enforces that contract in
+CI alongside the existing byte and license audit.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides
