@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Compare pdfplumber-rs output against Python pdfplumber, fixture by fixture.
 
-Reports, per PDF, how closely the Rust CLI matches Python pdfplumber on
-characters (text and bounding boxes), words, page text, and lattice tables.
+Reports, per page of every PDF, how closely the Rust CLI matches Python
+pdfplumber on characters (text and bounding boxes), words, page text, and
+lattice tables.
 Use it to pick the next parity gap to close and to confirm a change moved the
 numbers in the right direction.
 
@@ -31,11 +32,16 @@ sys.path.insert(0, REPO_ROOT)
 
 from compat.harness import environment  # noqa: E402
 
-FIXTURE_DIRS = ["tests/fixtures/generated", "tests/fixtures/downloaded", "crates/pdfplumber/tests/fixtures/pdfs"]
+FIXTURE_DIRS = [
+    "tests/fixtures/generated",
+    "tests/fixtures/downloaded",
+    "crates/pdfplumber/tests/fixtures/pdfs",
+]
 
 # Coordinates are compared at this tolerance, in points. Anything larger is a
 # real disagreement about where the object sits, not float noise.
 COORD_TOLERANCE = 0.05
+FIXTURE_COLUMN_WIDTH = 60
 
 
 def find_fixtures(fixture_root: str) -> list[str]:
@@ -50,8 +56,13 @@ def find_fixtures(fixture_root: str) -> list[str]:
     return paths
 
 
-def run_cli(repo: str, args: list[str]) -> Any:
-    """Run the pdfplumber CLI in `repo` and parse its JSON output."""
+def fixture_id(path: str, fixture_root: str) -> str:
+    """Return a stable corpus-relative ID without basename collisions."""
+    return os.path.relpath(path, fixture_root).replace(os.sep, "/")
+
+
+def run_cli_output(repo: str, args: list[str]) -> str:
+    """Run the pdfplumber CLI in `repo` and return its standard output."""
     result = subprocess.run(
         ["cargo", "run", "-q", "-p", "pdfplumber-cli", "--", *args],
         cwd=repo,
@@ -60,7 +71,18 @@ def run_cli(repo: str, args: list[str]) -> Any:
     )
     if result.returncode != 0:
         raise RuntimeError(result.stderr.strip()[-500:])
-    return json.loads(result.stdout) if result.stdout.strip() else []
+    return result.stdout
+
+
+def run_cli(repo: str, args: list[str]) -> Any:
+    """Run the pdfplumber CLI in `repo` and parse one JSON value."""
+    output = run_cli_output(repo, args)
+    return json.loads(output) if output.strip() else []
+
+
+def run_cli_json_lines(repo: str, args: list[str]) -> list[Any]:
+    """Run a CLI command that emits one JSON value per output line."""
+    return [json.loads(line) for line in run_cli_output(repo, args).splitlines() if line.strip()]
 
 
 def close(a: float, b: float) -> bool:
@@ -136,29 +158,154 @@ def compare_tables(expected: list, actual: list) -> dict:
     }
 
 
+def python_page(page: Any, page_number: int) -> dict:
+    return {
+        "page_number": page_number,
+        "chars": [
+            {k: char[k] for k in ("text", "x0", "top", "x1", "bottom")}
+            for char in page.chars
+        ],
+        "words": [
+            {k: word[k] for k in ("text", "x0", "top", "x1", "bottom")}
+            for word in page.extract_words()
+        ],
+        "text": page.extract_text() or "",
+        "tables": page.extract_tables(),
+    }
+
+
 def python_side(path: str) -> dict:
     with pdfplumber.open(path) as pdf:
-        page = pdf.pages[0]
-        return {
-            "chars": [
-                {k: c[k] for k in ("text", "x0", "top", "x1", "bottom")} for c in page.chars
-            ],
-            "words": [
-                {k: w[k] for k in ("text", "x0", "top", "x1", "bottom")}
-                for w in page.extract_words()
-            ],
-            "text": page.extract_text() or "",
-            "tables": page.extract_tables(),
-        }
+        pages = [python_page(page, number) for number, page in enumerate(pdf.pages, start=1)]
+        return {"page_count": len(pages), "pages": pages}
+
+
+def rust_page_number(item: Any, label: str, page_count: int) -> int:
+    if not isinstance(item, dict):
+        raise RuntimeError(f"Rust {label} output item is not an object: {item!r}")
+    page_number = item.get("page")
+    if isinstance(page_number, bool) or not isinstance(page_number, int):
+        raise RuntimeError(f"Rust {label} output has an invalid page number: {page_number!r}")
+    if not 1 <= page_number <= page_count:
+        raise RuntimeError(
+            f"Rust {label} output page {page_number} is outside document range 1-{page_count}"
+        )
+    return page_number
 
 
 def rust_side(repo: str, path: str) -> dict:
-    page_args = ["--pages", "1", "--format", "json"]
-    chars = run_cli(repo, ["chars", path, *page_args])
-    words = run_cli(repo, ["words", path, *page_args])
-    text = run_cli(repo, ["text", path, "--pages", "1", "--format", "json"])["text"]
-    tables = [table["rows"] for table in run_cli(repo, ["tables", path, *page_args])]
-    return {"chars": chars, "words": words, "text": text, "tables": tables}
+    info = run_cli(repo, ["info", path, "--format", "json"])
+    page_count = info.get("pages") if isinstance(info, dict) else None
+    if isinstance(page_count, bool) or not isinstance(page_count, int) or page_count < 0:
+        raise RuntimeError(f"Rust info output has an invalid page count: {page_count!r}")
+
+    pages = [
+        {
+            "page_number": page_number,
+            "chars": [],
+            "words": [],
+            "text": None,
+            "tables": [],
+        }
+        for page_number in range(1, page_count + 1)
+    ]
+
+    json_args = ["--format", "json"]
+    objects = {
+        "chars": run_cli(repo, ["chars", path, *json_args]),
+        "words": run_cli(repo, ["words", path, *json_args]),
+    }
+    for label, items in objects.items():
+        if not isinstance(items, list):
+            raise RuntimeError(f"Rust {label} output is not a list")
+        for item in items:
+            page_number = rust_page_number(item, label, page_count)
+            pages[page_number - 1][label].append(item)
+
+    text_items = run_cli_json_lines(repo, ["text", path, *json_args])
+    seen_text_pages = set()
+    for item in text_items:
+        page_number = rust_page_number(item, "text", page_count)
+        if page_number in seen_text_pages:
+            raise RuntimeError(f"Rust text output repeats page {page_number}")
+        if not isinstance(item.get("text"), str):
+            raise RuntimeError(f"Rust text output for page {page_number} is not a string")
+        pages[page_number - 1]["text"] = item["text"]
+        seen_text_pages.add(page_number)
+    missing_text_pages = sorted(set(range(1, page_count + 1)) - seen_text_pages)
+    if missing_text_pages:
+        raise RuntimeError(f"Rust text output omits pages: {missing_text_pages}")
+
+    tables = run_cli(repo, ["tables", path, *json_args])
+    if not isinstance(tables, list):
+        raise RuntimeError("Rust tables output is not a list")
+    for table in tables:
+        page_number = rust_page_number(table, "tables", page_count)
+        if "rows" not in table:
+            raise RuntimeError(f"Rust table output for page {page_number} has no rows")
+        pages[page_number - 1]["tables"].append(table["rows"])
+
+    return {"page_count": page_count, "pages": pages}
+
+
+def pages_by_number(document: dict, side: str) -> dict[int, dict]:
+    pages = document.get("pages")
+    page_count = document.get("page_count")
+    if (
+        not isinstance(pages, list)
+        or isinstance(page_count, bool)
+        or not isinstance(page_count, int)
+        or page_count < 0
+    ):
+        raise ValueError(f"{side} document has an invalid page collection")
+
+    indexed = {}
+    for page in pages:
+        page_number = page.get("page_number") if isinstance(page, dict) else None
+        if isinstance(page_number, bool) or not isinstance(page_number, int):
+            raise ValueError(f"{side} document has a page without an integer page_number")
+        if page_number in indexed:
+            raise ValueError(f"{side} document repeats page {page_number}")
+        indexed[page_number] = page
+    if len(indexed) != page_count:
+        raise ValueError(
+            f"{side} document declares {page_count} pages but supplies {len(indexed)}"
+        )
+    return indexed
+
+
+def compare_documents(expected: dict, actual: dict) -> dict:
+    expected_pages = pages_by_number(expected, "Python")
+    actual_pages = pages_by_number(actual, "Rust")
+    page_results = []
+    for page_number in sorted(expected_pages.keys() | actual_pages.keys()):
+        if page_number not in actual_pages:
+            page_results.append({"page_number": page_number, "status": "missing_in_rust"})
+            continue
+        if page_number not in expected_pages:
+            page_results.append({"page_number": page_number, "status": "missing_in_python"})
+            continue
+        python_page_result = expected_pages[page_number]
+        rust_page_result = actual_pages[page_number]
+        page_results.append(
+            {
+                "page_number": page_number,
+                "status": "compared",
+                "chars": compare_chars(python_page_result["chars"], rust_page_result["chars"]),
+                "words": compare_words(python_page_result["words"], rust_page_result["words"]),
+                "text": compare_text(python_page_result["text"], rust_page_result["text"]),
+                "tables": compare_tables(
+                    python_page_result["tables"], rust_page_result["tables"]
+                ),
+            }
+        )
+
+    return {
+        "page_count_expected": expected["page_count"],
+        "page_count_actual": actual["page_count"],
+        "page_count_equal": expected["page_count"] == actual["page_count"],
+        "pages": page_results,
+    }
 
 
 def main() -> int:
@@ -177,55 +324,79 @@ def main() -> int:
         return 1
 
     report = {}
-    print(f"{'fixture':<34} {'chars':>14} {'words':>8} {'text':>6} {'tables':>8}")
-    print("-" * 74)
+    compared_pages = []
+    had_failure = False
+    print(
+        f"{'fixture':<{FIXTURE_COLUMN_WIDTH}} {'page':>4} "
+        f"{'chars':>14} {'words':>8} {'text':>6} {'tables':>8}"
+    )
+    print("-" * (FIXTURE_COLUMN_WIDTH + 45))
 
     for path in find_fixtures(args.fixtures):
-        name = os.path.basename(path)
+        name = fixture_id(path, args.fixtures)
         if args.only and args.only not in name:
             continue
         try:
             expected = python_side(path)
         except Exception as exc:  # noqa: BLE001 - report and continue
-            print(f"{name:<34} python failed: {exc}")
+            print(f"{name:<{FIXTURE_COLUMN_WIDTH}} python failed: {exc}")
+            report[name] = {"status": "python_failed", "error": str(exc)}
+            had_failure = True
             continue
         try:
             actual = rust_side(args.repo, path)
         except Exception as exc:  # noqa: BLE001 - report and continue
-            print(f"{name:<34} rust failed: {exc}")
+            print(f"{name:<{FIXTURE_COLUMN_WIDTH}} rust failed: {exc}")
+            report[name] = {"status": "rust_failed", "error": str(exc)}
+            had_failure = True
             continue
 
-        entry = {
-            "chars": compare_chars(expected["chars"], actual["chars"]),
-            "words": compare_words(expected["words"], actual["words"]),
-            "text": compare_text(expected["text"], actual["text"]),
-            "tables": compare_tables(expected["tables"], actual["tables"]),
-        }
+        entry = compare_documents(expected, actual)
         report[name] = entry
-        print(
-            f"{name:<34} "
-            f"{entry['chars']['text_ratio']:>6.3f}/{entry['chars']['box_ratio']:<7.3f} "
-            f"{entry['words']['ratio']:>8.3f} "
-            f"{'yes' if entry['text']['equal'] else 'no':>6} "
-            f"{entry['tables']['cell_ratio']:>8.3f}"
-        )
+        if not entry["page_count_equal"]:
+            had_failure = True
+            print(
+                f"{name:<{FIXTURE_COLUMN_WIDTH}} page-count mismatch: "
+                f"Python {entry['page_count_expected']}, Rust {entry['page_count_actual']}"
+            )
+        for page in entry["pages"]:
+            if page["status"] != "compared":
+                had_failure = True
+                print(
+                    f"{name:<{FIXTURE_COLUMN_WIDTH}} "
+                    f"{page['page_number']:>4} {page['status']}"
+                )
+                continue
+            compared_pages.append(page)
+            print(
+                f"{name:<{FIXTURE_COLUMN_WIDTH}} "
+                f"{page['page_number']:>4} "
+                f"{page['chars']['text_ratio']:>6.3f}/{page['chars']['box_ratio']:<7.3f} "
+                f"{page['words']['ratio']:>8.3f} "
+                f"{'yes' if page['text']['equal'] else 'no':>6} "
+                f"{page['tables']['cell_ratio']:>8.3f}"
+            )
 
-    if report:
-        print("-" * 74)
+    if compared_pages:
+        print("-" * (FIXTURE_COLUMN_WIDTH + 45))
         print(
             "mean       "
-            f"chars(text/box) {sum(e['chars']['text_ratio'] for e in report.values()) / len(report):.3f}"
-            f"/{sum(e['chars']['box_ratio'] for e in report.values()) / len(report):.3f}  "
-            f"words {sum(e['words']['ratio'] for e in report.values()) / len(report):.3f}  "
-            f"text {sum(1 for e in report.values() if e['text']['equal'])}/{len(report)}  "
-            f"tables {sum(e['tables']['cell_ratio'] for e in report.values()) / len(report):.3f}"
+            f"chars(text/box) "
+            f"{sum(p['chars']['text_ratio'] for p in compared_pages) / len(compared_pages):.3f}"
+            f"/{sum(p['chars']['box_ratio'] for p in compared_pages) / len(compared_pages):.3f}  "
+            f"words "
+            f"{sum(p['words']['ratio'] for p in compared_pages) / len(compared_pages):.3f}  "
+            f"text {sum(1 for p in compared_pages if p['text']['equal'])}"
+            f"/{len(compared_pages)}  "
+            f"tables "
+            f"{sum(p['tables']['cell_ratio'] for p in compared_pages) / len(compared_pages):.3f}"
         )
 
     if args.json:
-        with open(args.json, "w") as handle:
+        with open(args.json, "w", encoding="utf-8") as handle:
             json.dump(report, handle, indent=1)
 
-    return 0
+    return 1 if had_failure else 0
 
 
 if __name__ == "__main__":
