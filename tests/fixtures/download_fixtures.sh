@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Download real-world PDF fixtures from pdfplumber's test suite.
 #
-# Sources: https://github.com/jsvine/pdfplumber (MIT License)
-# All government documents are US public domain.
+# The immutable source revision and MIT license evidence are recorded in
+# compat/fixture-provenance.toml.
 #
 # Usage:
 #   bash tests/fixtures/download_fixtures.sh
@@ -13,7 +13,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OUTDIR="$SCRIPT_DIR/downloaded"
 mkdir -p "$OUTDIR"
 
-BASE_URL="https://raw.githubusercontent.com/jsvine/pdfplumber/stable/tests/pdfs"
+PDFPLUMBER_REVISION="7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+BASE_URL="https://raw.githubusercontent.com/jsvine/pdfplumber/$PDFPLUMBER_REVISION/tests/pdfs"
 
 echo "Downloading PDF fixtures..."
 
@@ -68,3 +69,4 @@ fi
 
 echo ""
 echo "Done! Downloaded fixtures to $OUTDIR/"
+python3 "$SCRIPT_DIR/../../scripts/check_fixture_licenses.py"

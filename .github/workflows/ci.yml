@@ -77,6 +77,9 @@ jobs:
       - name: Validate the PRD checklist and evidence contract
         run: python scripts/check_prd.py
 
+      - name: Validate PDF fixture provenance and licenses
+        run: python scripts/check_fixture_licenses.py
+
       - name: Validate the approved-delta registry
         run: python scripts/check_approved_deltas.py
 
