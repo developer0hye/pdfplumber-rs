@@ -95,7 +95,10 @@ class SerializationContractTests(unittest.TestCase):
             },
         )
         self.assertEqual(contract["environment"]["lockfile_sha256"], lockfile.digest())
-        self.assertTrue(contract["environment"]["python_version"].startswith("3.13."))
+        self.assertEqual(
+            contract["environment"]["python_version"],
+            upstream.load_environment().python_version,
+        )
         for fixture_name in (FIXTURE, BASIC_FIXTURE):
             fixture = upstream.REPO_ROOT / fixture_name
             self.assertEqual(
