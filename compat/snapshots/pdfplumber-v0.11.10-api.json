@@ -1,7 +1,7 @@
 {
   "environment": {
     "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
-    "python_version": "3.13.12"
+    "python_version": "3.13"
   },
   "modules": {
     "pdfplumber": {
