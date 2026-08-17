@@ -13,7 +13,6 @@ import importlib
 import inspect
 import math
 import pkgutil
-import platform
 import re
 import types
 from collections.abc import ItemsView, KeysView, Mapping, Sequence, Set, ValuesView
@@ -58,6 +57,7 @@ def snapshot_path() -> Path:
 def build(root_package: types.ModuleType) -> dict[str, object]:
     """Reflect a complete importable package tree into JSON-safe data."""
     target: upstream.Target = upstream.load_target()
+    environment: upstream.Environment = upstream.load_environment()
     modules: dict[str, dict[str, object]] = {}
     for module_name in discover_module_names(root_package):
         module: types.ModuleType = importlib.import_module(module_name)
@@ -73,7 +73,7 @@ def build(root_package: types.ModuleType) -> dict[str, object]:
             "repository": target.repository,
         },
         "environment": {
-            "python_version": platform.python_version(),
+            "python_version": environment.python_version,
             "lockfile_sha256": lockfile.digest(),
         },
         "modules": modules,
