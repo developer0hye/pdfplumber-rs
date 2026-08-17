@@ -64,7 +64,10 @@ class CompleteApiSnapshotTest(unittest.TestCase):
 
         environment: dict[str, object] = snapshot["environment"]  # type: ignore[assignment]
         self.assertEqual(environment["lockfile_sha256"], lockfile.digest())
-        self.assertTrue(str(environment["python_version"]).startswith("3.13."))
+        self.assertEqual(
+            environment["python_version"],
+            upstream.load_environment().python_version,
+        )
 
         modules: dict[str, dict[str, object]] = snapshot["modules"]  # type: ignore[assignment]
         self.assertEqual(set(modules), EXPECTED_MODULES)
