@@ -32,6 +32,20 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertEqual(_native.PdfParseError.__module__, "pdfplumber._native")
         self.assertEqual(_native.PdfInvalidPassword.__module__, "pdfplumber._native")
 
+    def test_top_level_open_is_the_pdf_open_alias(self) -> None:
+        fixture = (
+            Path(__file__).resolve().parents[3]
+            / "tests"
+            / "fixtures"
+            / "generated"
+            / "basic_text.pdf"
+        )
+
+        self.assertEqual(pdfplumber.open, pdfplumber.PDF.open)
+        document = pdfplumber.open(str(fixture))
+        self.assertIsInstance(document, pdfplumber.PDF)
+        self.assertGreater(len(document.pages), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
