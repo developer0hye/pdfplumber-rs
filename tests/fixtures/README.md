@@ -29,8 +29,11 @@ bash tests/fixtures/download_fixtures.sh
   the workspace manifest.
 - Downloaded PDFs: See `downloaded/README.md` for attribution.
 - Every committed PDF in the repository has a SHA-256 digest, immutable source
-  revision (for external files), SPDX license, license evidence, public-source
-  assertion, and redistribution status in `compat/fixture-provenance.toml`.
+  revision (for external files), repository-reviewed SPDX license, license
+  evidence, public-source assertion, and redistribution status in
+  `compat/fixture-provenance.toml`. The offline gate currently permits the
+  reviewed `MIT`, `Apache-2.0`, and `GPL-2.0-only` expressions; adding another
+  expression requires an explicit policy review.
 
 Run `python3 scripts/check_fixture_licenses.py` from the repository root after
 adding or regenerating any PDF. The audit rejects unregistered, stale, changed,

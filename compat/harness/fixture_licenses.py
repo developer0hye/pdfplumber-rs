@@ -18,6 +18,16 @@ SPDX_EXPRESSION_PATTERN = re.compile(
     r"^[A-Za-z0-9][A-Za-z0-9.+-]*"
     r"(?:\s+(?:AND|OR|WITH)\s+[A-Za-z0-9][A-Za-z0-9.+-]*)*$"
 )
+# SPDX syntax alone also accepts invented identifiers and LicenseRef values.
+# Keep this policy deliberately review-bound: adding another fixture license
+# requires a maintainer to verify its redistribution terms and extend this set.
+APPROVED_REDISTRIBUTABLE_SPDX_EXPRESSIONS = frozenset(
+    {
+        "Apache-2.0",
+        "GPL-2.0-only",
+        "MIT",
+    }
+)
 
 
 class FixtureMetadataError(ValueError):
@@ -158,6 +168,8 @@ def _validate_source(
         or license_expression.lower() in {"unknown", "proprietary"}
     ):
         problems.append(f"source {source_id} needs a valid SPDX license")
+    elif license_expression not in APPROVED_REDISTRIBUTABLE_SPDX_EXPRESSIONS:
+        problems.append(f"source {source_id} needs an approved SPDX license")
     license_evidence = source.get("license_evidence")
     if not isinstance(license_evidence, str) or not license_evidence:
         problems.append(f"source {source_id} needs license evidence")
