@@ -293,16 +293,9 @@ def _api_status(api: str, comparison: object) -> str:
             f"{api} comparison has unknown status {comparison_status!r}"
         )
     if api == "chars":
-        dictionary = comparison.get("dictionary")
-        if not isinstance(dictionary, dict):
-            raise MachineReportError("chars comparison is missing dictionary result")
-        equal = (
-            comparison.get("count_expected") == comparison.get("count_actual")
-            and comparison.get("text_order_equal") is True
-            and comparison.get("box_order_equal") is True
-            and dictionary.get("structure_equal") is True
-        )
-        return "equal" if equal else "different"
+        if "equal" not in comparison:
+            raise MachineReportError("chars comparison is missing exact equality")
+        return "equal" if comparison.get("equal") is True else "different"
     if comparison.get("equal") is True:
         return "equal"
     if "equal" not in comparison:

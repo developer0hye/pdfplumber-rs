@@ -18,6 +18,7 @@ class MachineReportContractTests(unittest.TestCase):
             "page_number": 1,
             "status": "compared",
             "chars": {
+                "equal": False,
                 "count_expected": 1,
                 "count_actual": 1,
                 "text_order_equal": True,

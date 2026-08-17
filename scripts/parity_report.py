@@ -8,8 +8,10 @@ trees. Character and word ratios are position-sensitive: matching an object
 elsewhere in the sequence does not hide an ordering difference. Object
 dictionary structure is compared recursively without projecting away upstream
 keys, value types, nested containers, or explicit null placement.
-Use it to pick the next parity gap to close and to confirm a change moved the
-numbers in the right direction.
+Ratios and coordinate buckets are diagnostic only. The exit status compares
+every raw API result through a type-preserving canonical form and accepts a
+difference only when its exact digest pair has an approved-delta entry. Use the
+diagnostics to pick the next parity gap and the exact gate to decide readiness.
 
 Must run inside the pinned reference environment — see scripts/setup_golden_venv.sh.
 The interpreter is checked on startup, because a report generated against the
@@ -177,6 +179,18 @@ def structural_signature(value: Any) -> tuple:
     return ("scalar", type_name(value))
 
 
+def exact_values_equal(expected: Any, actual: Any) -> bool:
+    """Compare values through the type-preserving approved-delta encoding."""
+    try:
+        return approved_deltas.canonical_value(
+            expected
+        ) == approved_deltas.canonical_value(actual)
+    except approved_deltas.DeltaRegistryError:
+        # An unencodable value cannot silently satisfy an exact release gate.
+        # observed_document_deltas will report the concrete digest failure.
+        return False
+
+
 def compare_dictionary_sequence(expected: list[dict], actual: list[dict]) -> dict:
     """Compare complete dictionary structure at matching sequence positions."""
     expected_signatures = [structural_signature(obj) for obj in expected]
@@ -242,7 +256,7 @@ def display_value(value: Any) -> Any:
 
 def first_difference(expected: Any, actual: Any) -> dict[str, Any] | None:
     """Retain the first exact value difference for human diagnostics."""
-    if expected == actual:
+    if exact_values_equal(expected, actual):
         return None
     if isinstance(expected, str) and isinstance(actual, str):
         shared = min(len(expected), len(actual))
@@ -266,7 +280,11 @@ def first_difference(expected: Any, actual: Any) -> dict[str, Any] | None:
     if isinstance(expected, list) and isinstance(actual, list):
         shared = min(len(expected), len(actual))
         index = next(
-            (position for position in range(shared) if expected[position] != actual[position]),
+            (
+                position
+                for position in range(shared)
+                if not exact_values_equal(expected[position], actual[position])
+            ),
             shared,
         )
         return {
@@ -290,6 +308,7 @@ def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
     boxes = compare_object_sequence(expected, actual, with_box=True)
     dictionaries = compare_dictionary_sequence(expected, actual)
     result = {
+        "equal": exact_values_equal(expected, actual),
         "count_expected": len(expected),
         "count_actual": len(actual),
         "text_matched": text["matched"],
@@ -311,7 +330,7 @@ def compare_words(expected: list[dict], actual: list[dict]) -> dict:
     result = {
         "count_expected": len(expected),
         "count_actual": len(actual),
-        "equal": expected == actual,
+        "equal": exact_values_equal(expected, actual),
         **comparison,
         "dictionary": compare_dictionary_sequence(expected, actual),
     }
@@ -323,7 +342,7 @@ def compare_words(expected: list[dict], actual: list[dict]) -> dict:
 
 def compare_text(expected: str, actual: str) -> dict:
     result = {
-        "equal": expected == actual,
+        "equal": exact_values_equal(expected, actual),
         "len_expected": len(expected),
         "len_actual": len(actual),
     }
@@ -348,7 +367,7 @@ def compare_tables(expected: list, actual: list) -> dict:
         "tables_actual": len(actual),
         "cells_expected": expected_cells,
         "cells_actual": actual_cells,
-        "equal": expected == actual,
+        "equal": exact_values_equal(expected, actual),
         # Agreeing that a page holds no tables is a match, not a miss.
         "cell_ratio": 1.0 if total_cells == 0 else matching / total_cells,
         "structure_equal": structural_signature(expected) == structural_signature(actual),
@@ -380,7 +399,7 @@ def compare_api_value(expected: Any, actual: Any) -> dict:
 
     result = {
         "status": "compared",
-        "equal": expected == actual,
+        "equal": exact_values_equal(expected, actual),
         "structure_equal": structural_signature(expected)
         == structural_signature(actual),
     }
@@ -638,39 +657,21 @@ def observed_document_deltas(
             continue
         expected_page = expected_pages[page_number]
         actual_page = actual_pages[page_number]
-        differing_apis: list[str] = []
-        chars = page["chars"]
-        if not (
-            chars["count_expected"] == chars["count_actual"]
-            and chars["text_order_equal"]
-            and chars["box_order_equal"]
-            and chars["dictionary"]["structure_equal"]
-        ):
-            differing_apis.append("chars")
-        if not page["words"]["equal"]:
-            differing_apis.append("words")
-        for api in (
-            "page_text",
-            "layout_text",
-            "simple_text",
-            "text_lines",
-            "search",
-            "tables",
-            "annotations",
-            "hyperlinks",
-            "structure_tree",
-        ):
+        for api in machine_report.PAGE_APIS:
             result = page[api]
-            if result.get("status", "compared") == "compared" and not result["equal"]:
-                differing_apis.append(api)
-        for api in differing_apis:
+            if result.get("status", "compared") != "compared":
+                continue
+            upstream_sha256 = approved_deltas.value_digest(expected_page[api])
+            rust_sha256 = approved_deltas.value_digest(actual_page[api])
+            if upstream_sha256 == rust_sha256:
+                continue
             observations.append(
                 approved_deltas.ObservedDelta(
                     fixture=fixture,
                     page=page_number,
                     api=api,
-                    upstream_sha256=approved_deltas.value_digest(expected_page[api]),
-                    rust_sha256=approved_deltas.value_digest(actual_page[api]),
+                    upstream_sha256=upstream_sha256,
+                    rust_sha256=rust_sha256,
                 )
             )
     return observations

@@ -143,6 +143,15 @@ record both result summaries, its reason and compatibility risk, the approving
 maintainer, a regression test, and an expiration or review condition. The
 committed registry starts empty because no deviation has been approved.
 
+Release readiness never uses the character, word, table, or coordinate ratios
+printed for diagnostics. Every raw page-API result is compared through the same
+type-preserving canonical form used by the approved-delta registry; values such
+as `true`, `1`, and `1.0` remain distinct. A diagnostic can therefore display
+100% while the exact gate still fails. Only byte-identical canonical results or
+an exact, current approved-delta entry can satisfy the semantic gate. The
+release workflow reuses this semantic CI job; the Rust
+`compatibility_thresholds` test target cannot substitute for it.
+
 `--json` writes schema-versioned deterministic JSON rather than the legacy raw
 fixture dictionary. It records the pinned target and reference environment,
 then retains explicit outcomes for every fixture, page, and API plus all 161
