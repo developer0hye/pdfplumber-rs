@@ -8,7 +8,6 @@ import importlib
 import io
 import logging
 import os
-import platform
 import re
 import tempfile
 import warnings
@@ -131,6 +130,7 @@ def _resources() -> Resources:
 def build(package: ModuleType) -> dict[str, object]:
     resources: Resources = _resources()
     target: upstream.Target = upstream.load_target()
+    environment: upstream.Environment = upstream.load_environment()
     fixture_resources: dict[str, dict[str, str]] = {
         path.as_posix(): {
             "sha256": hashlib.sha256((resources.root / path).read_bytes()).hexdigest()
@@ -154,7 +154,7 @@ def build(package: ModuleType) -> dict[str, object]:
             "repository": target.repository,
         },
         "environment": {
-            "python_version": platform.python_version(),
+            "python_version": environment.python_version,
             "lockfile_sha256": lockfile.digest(),
         },
         "resources": fixture_resources,
