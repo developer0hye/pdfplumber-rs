@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from compat.harness import lockfile, option_matrix, upstream
+from scripts import generate_option_matrix
 
 
 SNAPSHOT_PATH: Path = (
@@ -241,6 +244,53 @@ class OptionMatrixSnapshotTests(unittest.TestCase):
                 option_matrix.file_sha256(fixture),
                 record["id"],
             )
+
+    def test_candidate_mode_writes_an_isolated_machine_snapshot(self) -> None:
+        snapshot = {
+            "schema_version": 1,
+            "target": {
+                "project": "pdfplumber",
+                "version": "0.11.10",
+                "commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+            },
+            "outputs": {},
+            "cases": [],
+        }
+        candidate_package = object()
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "candidate-options.json"
+            with (
+                mock.patch(
+                    "sys.argv",
+                    [
+                        "generate_option_matrix.py",
+                        "--candidate-output",
+                        str(output),
+                    ],
+                ),
+                mock.patch.object(
+                    generate_option_matrix.environment,
+                    "verify_candidate",
+                ) as verify_candidate,
+                mock.patch.object(
+                    generate_option_matrix.environment,
+                    "verify_reference",
+                ) as verify_reference,
+                mock.patch.object(
+                    generate_option_matrix.option_matrix,
+                    "build",
+                    return_value=snapshot,
+                ),
+                mock.patch("builtins.print"),
+            ):
+                status = generate_option_matrix.main(candidate_package)
+
+            payload = json.loads(output.read_text(encoding="utf-8"))
+
+        self.assertEqual(status, 0)
+        self.assertEqual(payload, snapshot)
+        verify_candidate.assert_called_once_with(candidate_package)
+        verify_reference.assert_not_called()
 
 
 if __name__ == "__main__":

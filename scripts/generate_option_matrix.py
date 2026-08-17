@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate or verify the pinned-upstream text/table option matrix."""
+"""Generate reference or isolated-candidate text/table option results."""
 
 from __future__ import annotations
 
@@ -9,8 +9,7 @@ import json
 import os
 import sys
 from pathlib import Path
-
-import pdfplumber
+from typing import Any
 
 SCRIPT_DIR: Path = Path(os.path.abspath(__file__)).parent
 REPO_ROOT: Path = SCRIPT_DIR.parent
@@ -25,30 +24,61 @@ def render(snapshot: dict[str, object]) -> str:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check",
         action="store_true",
         help="fail if the committed snapshot differs from pinned upstream",
     )
+    mode.add_argument(
+        "--candidate-output",
+        type=Path,
+        help="write results from an isolated candidate package for parity_report.py",
+    )
     return parser.parse_args()
 
 
-def main() -> int:
+def main(root_package: Any = None) -> int:
     args: argparse.Namespace = parse_args()
+    if root_package is None:
+        import pdfplumber as root_package
+
     try:
-        environment.verify_reference(pdfplumber)
+        if args.candidate_output is None:
+            environment.verify_reference(root_package)
+        else:
+            environment.verify_candidate(root_package)
     except environment.EnvironmentMismatch as mismatch:
         print(f"refusing to generate option matrix: {mismatch}", file=sys.stderr)
-        print("Run: bash scripts/setup_golden_venv.sh", file=sys.stderr)
+        if args.candidate_output is None:
+            print("Run: bash scripts/setup_golden_venv.sh", file=sys.stderr)
+        else:
+            print(
+                "Run this command with .venv-candidate/bin/python",
+                file=sys.stderr,
+            )
         return 1
 
     output_path: Path = option_matrix.snapshot_path()
-    snapshot: dict[str, object] = option_matrix.build(pdfplumber)
+    snapshot: dict[str, object] = option_matrix.build(root_package)
     generated: str = render(snapshot)
     records: list[dict[str, object]] = snapshot["cases"]  # type: ignore[assignment]
     errors: list[str] = [
         str(record["id"]) for record in records if record["status"] != "ok"
     ]
+
+    if args.candidate_output is not None:
+        candidate_output: Path = args.candidate_output
+        candidate_output.parent.mkdir(parents=True, exist_ok=True)
+        candidate_output.write_text(generated, encoding="utf-8")
+        print(
+            f"Wrote candidate option results: {candidate_output} "
+            f"({len(records)} cases)"
+        )
+        if errors:
+            print(f"Candidate option cases failed: {', '.join(errors)}")
+            return 1
+        return 0
 
     if args.check:
         if not output_path.is_file():

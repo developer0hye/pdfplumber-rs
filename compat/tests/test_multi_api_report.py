@@ -1,6 +1,9 @@
 """Behavioral coverage for the per-API differential report."""
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from scripts import parity_report
@@ -217,6 +220,51 @@ class MultiApiReportTests(unittest.TestCase):
             status = parity_report.main(object())
 
         self.assertEqual(status, 0)
+
+    def test_json_output_is_the_versioned_machine_report(self) -> None:
+        expected_page = self.empty_page()
+        expected = {"page_count": 1, "pages": [expected_page]}
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "parity.json"
+            with (
+                mock.patch.object(parity_report.environment, "verify_reference"),
+                mock.patch.object(
+                    parity_report,
+                    "find_fixtures",
+                    return_value=["/fixtures/a.pdf"],
+                ),
+                mock.patch.object(parity_report, "python_side", return_value=expected),
+                mock.patch.object(parity_report, "rust_side", return_value=expected),
+                mock.patch(
+                    "sys.argv",
+                    [
+                        "parity_report.py",
+                        "--fixtures",
+                        "/fixtures",
+                        "--json",
+                        str(output),
+                    ],
+                ),
+                mock.patch("builtins.print"),
+            ):
+                status = parity_report.main(object())
+
+            report = json.loads(output.read_text(encoding="utf-8"))
+
+        self.assertEqual(status, 1)
+        self.assertEqual(report["schema_version"], 1)
+        self.assertEqual(report["fixtures"][0]["fixture_id"], "a.pdf")
+        self.assertEqual(
+            set(report["fixtures"][0]["pages"][0]["apis"]),
+            set(parity_report.machine_report.PAGE_APIS),
+        )
+        self.assertEqual(report["summary"]["option_cases_total"], 161)
+        self.assertEqual(report["summary"]["option_cases_blocked"], 161)
+        self.assertEqual(
+            report["options"][0]["candidate"],
+            {"status": "blocked", "task_id": "PYAPI-002"},
+        )
 
     @staticmethod
     def empty_page() -> dict:
