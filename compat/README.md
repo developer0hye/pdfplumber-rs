@@ -59,8 +59,10 @@ bash scripts/setup_golden_venv.sh
 # Compare every page of every fixture and retain per-page JSON results.
 .venv-reference/bin/python scripts/parity_report.py --json parity-report.json
 
-# Pinned-upstream behavioral tests for page accounting.
-.venv-reference/bin/python -m unittest compat.tests.parity_report_pages_test -v
+# Pinned-upstream behavioral tests for page accounting and object order.
+.venv-reference/bin/python -m unittest \
+  compat.tests.parity_report_pages_test \
+  compat.tests.ordered_sequence_test -v
 
 # Harness's own tests (no network, no install).
 python3 -m unittest discover -s compat/tests -t .
@@ -84,6 +86,11 @@ The parity report identifies fixtures by their corpus-relative paths, so files
 with the same basename remain separate. It obtains the Python and Rust page
 counts independently, compares each corresponding page, and exits nonzero if a
 fixture cannot be processed or either side omits or adds a page.
+
+Parity-report character/word diagnostics and Rust cross-validation
+character/word/line/rectangle diagnostics compare objects at the same sequence
+positions. An identical object found elsewhere on the page does not count as a
+match, and extra objects on either side remain in the denominator.
 
 The harness needs Python 3.11+ for `tomllib`. The *reference* interpreter is
 pinned separately in `upstream.toml`; `PDFPLUMBER_RS_REFERENCE_PYTHON` overrides

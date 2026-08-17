@@ -3,7 +3,8 @@
 
 Reports, per page of every PDF, how closely the Rust CLI matches Python
 pdfplumber on characters (text and bounding boxes), words, page text, and
-lattice tables.
+lattice tables. Character and word ratios are position-sensitive: matching an
+object elsewhere in the sequence does not hide an ordering difference.
 Use it to pick the next parity gap to close and to confirm a change moved the
 numbers in the right direction.
 
@@ -22,7 +23,6 @@ import json
 import os
 import subprocess
 import sys
-from collections import Counter
 from typing import Any
 
 import pdfplumber
@@ -102,35 +102,42 @@ def key_of(obj: dict, with_box: bool = True) -> tuple:
     )
 
 
-def multiset_ratio(expected: list[dict], actual: list[dict], with_box: bool) -> float:
-    """Share of expected objects that also appear in actual, counting duplicates.
-
-    Compared as multisets so one extra object near the top of a page does not
-    shift every later object and read as a total mismatch.
-    """
+def compare_object_sequence(expected: list[dict], actual: list[dict], with_box: bool) -> dict:
+    """Compare object identities at the same sequence positions."""
+    expected_keys = [key_of(obj, with_box) for obj in expected]
+    actual_keys = [key_of(obj, with_box) for obj in actual]
     total = max(len(expected), len(actual))
-    if total == 0:
-        return 1.0
-    want = Counter(key_of(o, with_box) for o in expected)
-    got = Counter(key_of(o, with_box) for o in actual)
-    return sum((want & got).values()) / total
+    matched = sum(left == right for left, right in zip(expected_keys, actual_keys))
+    return {
+        "matched": matched,
+        "total": total,
+        "ratio": 1.0 if total == 0 else matched / total,
+        "order_equal": expected_keys == actual_keys,
+    }
 
 
 def compare_chars(expected: list[dict], actual: list[dict]) -> dict:
     """How far the characters agree, by text alone and by text plus position."""
+    text = compare_object_sequence(expected, actual, with_box=False)
+    boxes = compare_object_sequence(expected, actual, with_box=True)
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
-        "text_ratio": multiset_ratio(expected, actual, with_box=False),
-        "box_ratio": multiset_ratio(expected, actual, with_box=True),
+        "text_matched": text["matched"],
+        "text_ratio": text["ratio"],
+        "text_order_equal": text["order_equal"],
+        "box_matched": boxes["matched"],
+        "box_ratio": boxes["ratio"],
+        "box_order_equal": boxes["order_equal"],
     }
 
 
 def compare_words(expected: list[dict], actual: list[dict]) -> dict:
+    comparison = compare_object_sequence(expected, actual, with_box=True)
     return {
         "count_expected": len(expected),
         "count_actual": len(actual),
-        "ratio": multiset_ratio(expected, actual, with_box=True),
+        **comparison,
     }
 
 
