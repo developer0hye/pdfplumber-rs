@@ -151,3 +151,44 @@ jobs:
 
       - name: Verify the pinned upstream call contracts
         run: .venv-reference/bin/python compat/api_contract.py
+
+  semantic-compatibility:
+    name: Semantic compatibility (fail closed)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: semantic-compatibility
+
+      - name: Read the pinned reference interpreter
+        id: pinned
+        run: |
+          version=$(python3 -c "
+          import tomllib
+          with open('compat/upstream.toml', 'rb') as handle:
+              print(tomllib.load(handle)['environment']['python_version'])
+          ")
+          echo "python-version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ steps.pinned.outputs.python-version }}
+
+      - name: Build the pinned reference environment
+        run: bash scripts/setup_golden_venv.sh
+        env:
+          PDFPLUMBER_RS_REQUIRE_PINNED_PYTHON: "1"
+
+      # This command is intentionally independent of performance measurement and exits
+      # nonzero for every processing failure, unsupported API, unregistered
+      # semantic difference, stale approval, or incomplete option result.
+      - name: Run the all-page semantic compatibility gate
+        run: >-
+          .venv-reference/bin/python scripts/parity_report.py
+          --repo "$PWD"
+          --fixtures "$PWD"
+          --json "$RUNNER_TEMP/parity-report.json"
+          --summary "$RUNNER_TEMP/parity-summary.md"

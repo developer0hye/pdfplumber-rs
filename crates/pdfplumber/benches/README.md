@@ -2,6 +2,11 @@
 
 Performance benchmarks comparing pdfplumber-rs against Python pdfplumber.
 
+These Criterion measurements report runtime only. They are never used to pass
+or soften semantic compatibility: CI executes `scripts/parity_report.py` in a
+separate fail-closed job, and compatibility diagnostics remain ordinary Rust
+tests under `tests/`.
+
 ## Running Benchmarks
 
 ```bash
