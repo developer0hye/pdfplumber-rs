@@ -13,10 +13,10 @@ pip install pdfplumber-rs
 ## Quick Start
 
 ```python
-from pdfplumber import _native
+import pdfplumber
 
 # Open a PDF
-pdf = _native.PDF.open("document.pdf")
+pdf = pdfplumber.open("document.pdf")
 
 # Access pages
 for page in pdf.pages:
@@ -37,11 +37,13 @@ for page in pdf.pages:
             print(row)
 
 # Open from bytes
+from pdfplumber import _native
+
 with open("document.pdf", "rb") as f:
     pdf = _native.PDF.open_bytes(f.read())
 ```
 
-The top-level `pdfplumber` compatibility facade is not part of this low-level native package boundary yet. Until it lands, import the extension explicitly as shown above.
+The top-level `pdfplumber.open` alias is available for filesystem paths. Other compatibility-facade work remains in progress; use the private extension explicitly for the native-only API shown above.
 
 ## API Reference
 
