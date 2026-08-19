@@ -19,13 +19,13 @@ use pyo3::types::PyDict;
 // Python exception types for PdfError variants
 // ---------------------------------------------------------------------------
 
-pyo3::create_exception!(pdfplumber, PdfParseError, PyRuntimeError);
-pyo3::create_exception!(pdfplumber, PdfIoError, PyIOError);
-pyo3::create_exception!(pdfplumber, PdfFontError, PyRuntimeError);
-pyo3::create_exception!(pdfplumber, PdfInterpreterError, PyRuntimeError);
-pyo3::create_exception!(pdfplumber, PdfResourceLimitError, PyRuntimeError);
-pyo3::create_exception!(pdfplumber, PdfPasswordRequired, PyRuntimeError);
-pyo3::create_exception!(pdfplumber, PdfInvalidPassword, PyValueError);
+pyo3::create_exception!(pdfplumber._native, PdfParseError, PyRuntimeError);
+pyo3::create_exception!(pdfplumber._native, PdfIoError, PyIOError);
+pyo3::create_exception!(pdfplumber._native, PdfFontError, PyRuntimeError);
+pyo3::create_exception!(pdfplumber._native, PdfInterpreterError, PyRuntimeError);
+pyo3::create_exception!(pdfplumber._native, PdfResourceLimitError, PyRuntimeError);
+pyo3::create_exception!(pdfplumber._native, PdfPasswordRequired, PyRuntimeError);
+pyo3::create_exception!(pdfplumber._native, PdfInvalidPassword, PyValueError);
 
 /// Convert a PdfError to the appropriate Python exception.
 fn to_py_err(e: PdfError) -> PyErr {
@@ -640,7 +640,7 @@ impl PyPage {
 // ---------------------------------------------------------------------------
 
 /// The Python module definition.
-#[pymodule]
+#[pymodule(name = "_native")]
 fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
 
@@ -676,6 +676,15 @@ fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
     use lopdf::dictionary;
+
+    #[test]
+    fn native_extension_uses_private_submodule_identity() {
+        Python::with_gil(|py| {
+            let module = pyo3::wrap_pymodule!(super::pdfplumber)(py);
+            let name = module.bind(py).name().unwrap();
+            assert_eq!(name.to_str().unwrap(), "_native");
+        });
+    }
 
     /// Helper: create a minimal valid PDF in memory using lopdf.
     fn minimal_pdf_bytes() -> Vec<u8> {
@@ -1392,17 +1401,19 @@ mod tests {
     #[test]
     fn test_type_stubs_exist() {
         // The .pyi file should exist alongside the crate
-        let stubs_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("pdfplumber.pyi");
+        let stubs_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("python/pdfplumber/_native.pyi");
         assert!(
             stubs_path.exists(),
-            "Type stubs file pdfplumber.pyi should exist at {}",
+            "Type stubs file pdfplumber/_native.pyi should exist at {}",
             stubs_path.display()
         );
     }
 
     #[test]
     fn test_type_stubs_content() {
-        let stubs_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("pdfplumber.pyi");
+        let stubs_path =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("python/pdfplumber/_native.pyi");
         let content = std::fs::read_to_string(&stubs_path).expect("read .pyi file");
         // Must declare the main classes
         assert!(

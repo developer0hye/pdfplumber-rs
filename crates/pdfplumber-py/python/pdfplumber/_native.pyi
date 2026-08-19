@@ -1,4 +1,4 @@
-"""Type stubs for pdfplumber (pdfplumber-rs Python bindings)."""
+"""Type stubs for the private pdfplumber-rs native extension."""
 
 from __future__ import annotations
 

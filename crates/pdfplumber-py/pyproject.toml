@@ -39,3 +39,5 @@ Issues = "https://github.com/developer0hye/pdfplumber-rs/issues"
 
 [tool.maturin]
 features = ["extension-module"]
+python-source = "python"
+module-name = "pdfplumber._native"
