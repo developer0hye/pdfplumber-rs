@@ -554,7 +554,7 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false, unicode_norm=None))]
+    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false, unicode_norm=None, repair=false))]
     fn open(
         path_or_fp: &Bound<'_, PyAny>,
         pages: Option<PyObject>,
@@ -562,9 +562,17 @@ impl PyPdf {
         password: Option<String>,
         strict_metadata: bool,
         unicode_norm: Option<PyObject>,
+        repair: bool,
     ) -> PyResult<Self> {
         let laparams = validate_laparams(path_or_fp.py(), laparams)?;
-        let (stream, path, stream_is_external) =
+        let (stream, path, stream_is_external) = if repair {
+            let repaired = path_or_fp
+                .py()
+                .import("pdfplumber.repair")?
+                .getattr("_repair")?
+                .call1((path_or_fp, password.as_deref()))?;
+            (repaired, None, false)
+        } else {
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
                 let path: std::path::PathBuf = path_or_fp.extract()?;
                 let stream = path_or_fp
@@ -575,7 +583,8 @@ impl PyPdf {
                 (stream, Some(path), false)
             } else {
                 (path_or_fp.clone(), None, true)
-            };
+            }
+        };
         stream
             .call_method1("seek", (0,))
             .map_err(|error| map_stream_error(path_or_fp.py(), error))?;

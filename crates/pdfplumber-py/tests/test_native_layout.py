@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import io
 import importlib.machinery
+import os
 from pathlib import Path
+import tempfile
 from types import MappingProxyType
 import unittest
+from unittest import mock
 
 import pdfplumber
 from pdfplumber import _native
@@ -427,6 +430,85 @@ class NativeLayoutTests(unittest.TestCase):
                         _ = document.pages
                 finally:
                     document.close()
+
+    def test_open_repairs_through_ghostscript_with_upstream_ownership(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executable = Path(directory) / "gs"
+            executable.write_text(
+                "#!/usr/bin/env python3\n"
+                "import os\n"
+                "import pathlib\n"
+                "import sys\n"
+                "source = sys.argv[-1]\n"
+                "payload = (sys.stdin.buffer.read() if source == '-' "
+                "else pathlib.Path(source).read_bytes())\n"
+                "if not payload.startswith(b'%PDF-'):\n"
+                "    payload = b'%PDF-1.3\\n' + payload\n"
+                "output = os.environ.get('PDFPLUMBER_FAKE_GS_OUTPUT')\n"
+                "if output:\n"
+                "    payload = pathlib.Path(output).read_bytes()\n"
+                "sys.stdout.buffer.write(payload)\n"
+            )
+            executable.chmod(0o755)
+            path = os.pathsep.join((directory, os.environ.get("PATH", "")))
+
+            with mock.patch.dict(
+                os.environ,
+                {
+                    "PATH": path,
+                    "PDFPLUMBER_FAKE_GS_OUTPUT": str(self.fixture().resolve()),
+                },
+            ):
+                document = pdfplumber.open(self.fixture(), repair=True)
+                repaired_stream = document.stream
+                self.assertIsInstance(repaired_stream, io.BytesIO)
+                self.assertIsNone(document.path)
+                self.assertGreater(len(document.pages), 0)
+                document.close()
+                self.assertTrue(repaired_stream.closed)
+
+                payload = self.fixture().read_bytes()
+                external = io.BytesIO(payload)
+                external.seek(10)
+                document = pdfplumber.open(external, repair=True)
+                try:
+                    self.assertIsInstance(document.stream, io.BytesIO)
+                    self.assertIsNot(document.stream, external)
+                    self.assertIsNone(document.path)
+                    self.assertGreater(len(document.pages), 0)
+                    self.assertEqual(external.tell(), len(payload))
+                    self.assertFalse(external.closed)
+                finally:
+                    repaired_stream = document.stream
+                    document.close()
+                    external.close()
+                self.assertTrue(repaired_stream.closed)
+
+                encrypted = io.BytesIO(self.password_fixture().read_bytes())
+                with mock.patch.dict(
+                    os.environ,
+                    {
+                        "PDFPLUMBER_FAKE_GS_OUTPUT": str(
+                            self.password_fixture().resolve()
+                        )
+                    },
+                ):
+                    with pdfplumber.open(
+                        encrypted, password="test", repair=True
+                    ) as document:
+                        self.assertEqual(len(document.pages), 4)
+                        self.assertTrue(document.pages[0].extract_text())
+                self.assertFalse(encrypted.closed)
+                encrypted.close()
+
+        with mock.patch.dict(os.environ, {"PATH": ""}):
+            with pdfplumber.open(self.fixture(), repair=False) as document:
+                self.assertGreater(len(document.pages), 0)
+            with self.assertRaisesRegex(
+                Exception,
+                "^Cannot find Ghostscript, which is required for repairs\\.\\n",
+            ):
+                pdfplumber.open(self.fixture(), repair=True)
 
 
 if __name__ == "__main__":
