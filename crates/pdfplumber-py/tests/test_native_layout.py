@@ -98,6 +98,9 @@ class NativeLayoutTests(unittest.TestCase):
             "import os\n"
             "import pathlib\n"
             "import sys\n"
+            "arguments = os.environ.get('PDFPLUMBER_FAKE_GS_ARGS')\n"
+            "if arguments:\n"
+            "    pathlib.Path(arguments).write_text('\\n'.join(sys.argv[1:]))\n"
             "source = sys.argv[-1]\n"
             "payload = (sys.stdin.buffer.read() if source == '-' "
             "else pathlib.Path(source).read_bytes())\n"
@@ -548,6 +551,41 @@ class NativeLayoutTests(unittest.TestCase):
                     caught.exception.filename, native_missing.exception.filename
                 )
                 self.assertEqual(str(caught.exception), str(native_missing.exception))
+
+    def test_open_forwards_all_ghostscript_repair_presets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executable = self.fake_ghostscript(directory)
+            arguments = Path(directory) / "arguments.txt"
+            environment = {
+                "PATH": "",
+                "PDFPLUMBER_FAKE_GS_ARGS": str(arguments),
+                "PDFPLUMBER_FAKE_GS_OUTPUT": str(self.fixture().resolve()),
+            }
+            with mock.patch.dict(os.environ, environment):
+                for setting in (
+                    "default",
+                    "prepress",
+                    "printer",
+                    "ebook",
+                    "screen",
+                ):
+                    with self.subTest(repair_setting=setting):
+                        with pdfplumber.open(
+                            self.fixture(),
+                            repair=True,
+                            gs_path=executable,
+                            repair_setting=setting,
+                        ) as document:
+                            self.assertEqual(len(document.pages), 1)
+                        invocation = arguments.read_text().splitlines()
+                        self.assertEqual(
+                            invocation.count(f"-dPDFSETTINGS=/{setting}"), 1
+                        )
+
+                with pdfplumber.open(
+                    self.fixture(), repair=False, repair_setting=object()
+                ) as document:
+                    self.assertEqual(len(document.pages), 1)
 
 
 if __name__ == "__main__":

@@ -517,7 +517,7 @@ impl PyCroppedPage {
 // PyPdf
 // ---------------------------------------------------------------------------
 
-const PDF_OPEN_PARAMETER_NAMES: [&str; 8] = [
+const PDF_OPEN_PARAMETER_NAMES: [&str; 9] = [
     "path_or_fp",
     "pages",
     "laparams",
@@ -526,6 +526,7 @@ const PDF_OPEN_PARAMETER_NAMES: [&str; 8] = [
     "unicode_norm",
     "repair",
     "gs_path",
+    "repair_setting",
 ];
 
 struct PyPdfOpenArgs {
@@ -537,6 +538,7 @@ struct PyPdfOpenArgs {
     unicode_norm: Option<PyObject>,
     repair: bool,
     gs_path: Option<PyObject>,
+    repair_setting: PyObject,
 }
 
 fn optional_py_object(py: Python<'_>, value: Option<PyObject>) -> Option<PyObject> {
@@ -600,6 +602,9 @@ fn parse_pdf_open_args(
         None => false,
     };
     let gs_path = optional_py_object(py, values[7].take());
+    let repair_setting = values[8]
+        .take()
+        .unwrap_or_else(|| PyString::new(py, "default").into_any().unbind());
 
     Ok(PyPdfOpenArgs {
         path_or_fp,
@@ -610,6 +615,7 @@ fn parse_pdf_open_args(
         unicode_norm,
         repair,
         gs_path,
+        repair_setting,
     })
 }
 
@@ -652,7 +658,7 @@ impl PyPdf {
     #[staticmethod]
     #[pyo3(
         signature = (*args, **kwargs),
-        text_signature = "(path_or_fp, pages=None, laparams=None, password=None, strict_metadata=False, unicode_norm=None, repair=False, gs_path=None)"
+        text_signature = "(path_or_fp, pages=None, laparams=None, password=None, strict_metadata=False, unicode_norm=None, repair=False, gs_path=None, repair_setting='default')"
     )]
     fn open(
         py: Python<'_>,
@@ -668,6 +674,7 @@ impl PyPdf {
             unicode_norm,
             repair,
             gs_path,
+            repair_setting,
         } = parse_pdf_open_args(py, args, kwargs)?;
         let path_or_fp = path_or_fp.bind(py);
         let laparams = validate_laparams(py, laparams)?;
@@ -677,7 +684,7 @@ impl PyPdf {
                 .py()
                 .import("pdfplumber.repair")?
                 .getattr("_repair")?
-                .call1((path_or_fp, password.as_deref(), gs_path))?;
+                .call1((path_or_fp, password.as_deref(), gs_path, repair_setting))?;
             (repaired, None, false)
         } else {
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
