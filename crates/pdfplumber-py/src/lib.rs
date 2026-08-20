@@ -436,6 +436,7 @@ struct PyPdf {
     path: Option<std::path::PathBuf>,
     password: Option<String>,
     stream_is_external: bool,
+    selected_pages: Option<PyObject>,
 }
 
 #[cfg(test)]
@@ -447,6 +448,7 @@ impl PyPdf {
             path: None,
             password: None,
             stream_is_external: false,
+            selected_pages: None,
         }
     }
 }
@@ -455,7 +457,8 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    fn open(path_or_fp: &Bound<'_, PyAny>) -> PyResult<Self> {
+    #[pyo3(signature = (path_or_fp, pages=None))]
+    fn open(path_or_fp: &Bound<'_, PyAny>, pages: Option<PyObject>) -> PyResult<Self> {
         let (stream, path, stream_is_external) =
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
                 let path: std::path::PathBuf = path_or_fp.extract()?;
@@ -478,6 +481,7 @@ impl PyPdf {
             path,
             password: None,
             stream_is_external,
+            selected_pages: pages,
         })
     }
 
@@ -495,6 +499,7 @@ impl PyPdf {
             path: None,
             password: None,
             stream_is_external: false,
+            selected_pages: None,
         })
     }
 
@@ -545,9 +550,15 @@ impl PyPdf {
 
     /// The list of pages in the PDF.
     #[getter]
-    fn pages(&self) -> PyResult<Vec<PyPage>> {
+    fn pages(&self, py: Python<'_>) -> PyResult<Vec<PyPage>> {
         let mut pages = Vec::with_capacity(self.inner.page_count());
         for i in 0..self.inner.page_count() {
+            let page_number = (i + 1) as isize;
+            if let Some(selected) = &self.selected_pages {
+                if !selected.bind(py).contains(page_number)? {
+                    continue;
+                }
+            }
             let page = self.inner.page(i).map_err(to_py_err)?;
             pages.push(PyPage { inner: page });
         }
