@@ -22,6 +22,16 @@ class NativeLayoutTests(unittest.TestCase):
             / "basic_text.pdf"
         )
 
+    @staticmethod
+    def multipage_fixture() -> Path:
+        return (
+            Path(__file__).resolve().parents[3]
+            / "tests"
+            / "fixtures"
+            / "generated"
+            / "long_document.pdf"
+        )
+
     def test_pdfplumber_is_a_python_package(self) -> None:
         self.assertEqual(pdfplumber.__name__, "pdfplumber")
         self.assertEqual(Path(pdfplumber.__file__).name, "__init__.py")
@@ -137,6 +147,32 @@ class NativeLayoutTests(unittest.TestCase):
             with document:
                 raise RuntimeError("context sentinel")
         self.assertTrue(document.stream.closed)
+
+    def test_open_selects_one_based_pages_in_document_order(self) -> None:
+        fixture = self.multipage_fixture()
+        with pdfplumber.open(fixture) as complete:
+            all_text = [page.extract_text() for page in complete.pages]
+
+        with pdfplumber.open(fixture, pages=(5, 3, 5, 0, -1, 99)) as selected:
+            self.assertEqual(
+                [page.extract_text() for page in selected.pages],
+                [all_text[2], all_text[4]],
+            )
+
+        with pdfplumber.open(fixture, pages=[]) as selected:
+            self.assertEqual(selected.pages, [])
+
+        with pdfplumber.open(fixture, pages=["1"]) as selected:
+            self.assertEqual(selected.pages, [])
+
+        with pdfplumber.open(fixture, pages=[True]) as selected:
+            self.assertEqual(
+                [page.extract_text() for page in selected.pages], [all_text[0]]
+            )
+
+        with pdfplumber.open(fixture, pages=1) as selected:
+            with self.assertRaisesRegex(TypeError, "not iterable"):
+                _ = selected.pages
 
 
 if __name__ == "__main__":
