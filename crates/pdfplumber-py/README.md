@@ -58,13 +58,13 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.to_dict(object_types=None)` | Document metadata and selected-page dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of selected page objects |
-| `.bookmarks()` | Table of contents / outline entries |
+| `.rust` | Explicit namespace for Rust-native document extensions |
 
 ### Page
 
 | Method / Property | Description |
 |---|---|
-| `.page_number` | 0-based page index |
+| `.page_number` | 1-based compatibility page number |
 | `.width` / `.height` | Page dimensions in points |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
@@ -91,6 +91,23 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 ### CroppedPage
 
 Supports the same content methods as `Page`: `chars()`, `extract_text()`, `extract_words()`, `find_tables()`, `extract_tables()`, `lines()`, `rects()`, `curves()`, `images()`, plus further `crop()`, `within_bbox()`, `outside_bbox()`.
+
+## Rust-Native Extensions
+
+Python `pdfplumber` v0.11.10 does not define high-level document APIs for
+bookmarks, forms, signatures, structural validation, or image-byte extraction.
+`pdfplumber-rs` exposes these only through `document.rust`, so they cannot be
+mistaken for compatibility behavior or silently collide with future upstream
+methods. Page indexes and bookmark destinations in this namespace retain the
+Rust API's 0-based convention.
+
+| Method | Description |
+|---|---|
+| `document.rust.bookmarks()` | Outline entries and 0-based destinations |
+| `document.rust.form_fields()` | AcroForm fields and 0-based page indexes |
+| `document.rust.signatures()` | Signature-field metadata; no cryptographic verification |
+| `document.rust.validate()` | Native structural validation issues |
+| `document.rust.extract_images(page_index)` | Image metadata and raw bytes for a 0-based page index |
 
 ## Comparison with Python pdfplumber
 

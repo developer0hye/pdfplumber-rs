@@ -46,12 +46,25 @@ BookmarkDict = dict[str, object]
 MetadataDict = dict[str, object]
 AnnotDict = dict[str, object]
 StructElementDict = dict[str, object]
+FormFieldDict = dict[str, object]
+SignatureDict = dict[str, object]
+ValidationIssueDict = dict[str, object]
+ExtractedImageDict = dict[str, object]
 
 BBox = tuple[float, float, float, float]
 
 # ---------------------------------------------------------------------------
 # Classes
 # ---------------------------------------------------------------------------
+
+class RustPDF:
+    """Rust-native document capabilities outside the compatibility surface."""
+
+    def bookmarks(self) -> list[BookmarkDict]: ...
+    def form_fields(self) -> list[FormFieldDict]: ...
+    def signatures(self) -> list[SignatureDict]: ...
+    def validate(self) -> list[ValidationIssueDict]: ...
+    def extract_images(self, page_index: int) -> list[ExtractedImageDict]: ...
 
 class PDF:
     """A PDF document opened for extraction."""
@@ -76,6 +89,11 @@ class PDF:
     @property
     def stream_is_external(self) -> bool:
         """Whether the input stream remains owned by the caller."""
+        ...
+
+    @property
+    def rust(self) -> RustPDF:
+        """Rust-native document capabilities under an explicit namespace."""
         ...
 
     @property
@@ -137,10 +155,6 @@ class PDF:
         exclude_attrs: list[str] | None = None,
     ) -> str | None:
         """Serialize selected page objects as CSV."""
-        ...
-
-    def bookmarks(self) -> list[BookmarkDict]:
-        """Document bookmarks (outline / table of contents) as list[dict]."""
         ...
 
 class Page:
