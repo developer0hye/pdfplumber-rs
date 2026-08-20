@@ -62,6 +62,8 @@ impl ExactSizeIterator for PagesIter<'_> {}
 pub struct Pdf {
     doc: LopdfDocument,
     options: ExtractOptions,
+    /// Cached display widths for creating lazy page handles.
+    page_widths: Vec<f64>,
     /// Cached display heights for each page (for doctop calculation).
     page_heights: Vec<f64>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
@@ -277,6 +279,7 @@ impl Pdf {
             }
         }
 
+        let mut page_widths = Vec::with_capacity(page_count);
         let mut page_heights = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
@@ -287,6 +290,7 @@ impl Pdf {
             // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
             // CropBox is stored as page metadata but does not affect coordinate transforms.
             let geometry = PageGeometry::new(media_box, None, rotation);
+            page_widths.push(geometry.width());
             page_heights.push(geometry.height());
             // Compute the effective page height for the y-flip transform.
             //
@@ -314,6 +318,7 @@ impl Pdf {
         Ok(Self {
             doc,
             options,
+            page_widths,
             page_heights,
             raw_page_heights,
             metadata,
@@ -327,6 +332,14 @@ impl Pdf {
     /// Return the number of pages in the document.
     pub fn page_count(&self) -> usize {
         LopdfBackend::page_count(&self.doc)
+    }
+
+    /// Return a page's display dimensions without interpreting its content stream.
+    pub fn page_dimensions(&self, index: usize) -> Option<(f64, f64)> {
+        self.page_widths
+            .get(index)
+            .zip(self.page_heights.get(index))
+            .map(|(width, height)| (*width, *height))
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
@@ -1176,6 +1189,15 @@ mod tests {
         let bytes = create_two_page_pdf();
         let pdf = Pdf::open(&bytes, None).unwrap();
         assert_eq!(pdf.page_count(), 2);
+    }
+
+    #[test]
+    fn page_dimensions_are_available_without_content_interpretation() {
+        let bytes = create_pdf_with_content(b"not a valid content stream operator");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        assert_eq!(pdf.page_dimensions(0), Some((612.0, 792.0)));
+        assert_eq!(pdf.page_dimensions(1), None);
     }
 
     // --- page() tests ---

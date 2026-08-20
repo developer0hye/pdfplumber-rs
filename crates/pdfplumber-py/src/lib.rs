@@ -16,6 +16,7 @@ use pyo3::exceptions::{
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
+use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
 // Python exception types for PdfError variants
@@ -717,7 +718,7 @@ fn parse_pdf_open_args(
 /// Use `PDF.open(path_or_fp)` or `PDF.open_bytes(data)` to open a PDF.
 #[pyclass(name = "PDF")]
 struct PyPdf {
-    inner: Pdf,
+    inner: Arc<Pdf>,
     stream: Option<PyObject>,
     path: Option<std::path::PathBuf>,
     password: Option<String>,
@@ -727,13 +728,14 @@ struct PyPdf {
     _strict_metadata: bool,
     unicode_norm: Option<PyObject>,
     raise_unicode_errors: Option<PyObject>,
+    pages_cache: Mutex<Option<Py<PyList>>>,
 }
 
 #[cfg(test)]
 impl PyPdf {
     fn from_inner_for_test(inner: Pdf) -> Self {
         Self {
-            inner,
+            inner: Arc::new(inner),
             stream: None,
             path: None,
             password: None,
@@ -743,6 +745,7 @@ impl PyPdf {
             _strict_metadata: false,
             unicode_norm: None,
             raise_unicode_errors: None,
+            pages_cache: Mutex::new(None),
         }
     }
 }
@@ -827,7 +830,7 @@ impl PyPdf {
             log_metadata_warnings(py, &pdf)?;
         }
         Ok(PyPdf {
-            inner: pdf,
+            inner: Arc::new(pdf),
             stream: Some(stream.unbind()),
             path,
             password,
@@ -837,6 +840,7 @@ impl PyPdf {
             _strict_metadata: strict_metadata,
             unicode_norm,
             raise_unicode_errors,
+            pages_cache: Mutex::new(None),
         })
     }
 
@@ -850,7 +854,7 @@ impl PyPdf {
             .getattr("BytesIO")?
             .call1((PyBytes::new(py, data),))?;
         Ok(PyPdf {
-            inner: pdf,
+            inner: Arc::new(pdf),
             stream: Some(stream.unbind()),
             path: None,
             password: None,
@@ -860,6 +864,7 @@ impl PyPdf {
             _strict_metadata: false,
             unicode_norm: None,
             raise_unicode_errors: None,
+            pages_cache: Mutex::new(None),
         })
     }
 
@@ -928,9 +933,28 @@ impl PyPdf {
 
     /// The list of pages in the PDF.
     #[getter]
-    fn pages(&self, py: Python<'_>) -> PyResult<Vec<PyPage>> {
-        let unicode_norm = parse_unicode_norm(py, self.unicode_norm.as_ref())?;
-        let mut pages = Vec::with_capacity(self.inner.page_count());
+    fn pages(&self, py: Python<'_>) -> PyResult<Py<PyList>> {
+        if let Some(pages) = self
+            .pages_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
+            .as_ref()
+        {
+            return Ok(pages.clone_ref(py));
+        }
+
+        let pages = PyList::empty(py).unbind();
+        {
+            let mut cache = self
+                .pages_cache
+                .lock()
+                .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?;
+            if let Some(existing) = cache.as_ref() {
+                return Ok(existing.clone_ref(py));
+            }
+            *cache = Some(pages.clone_ref(py));
+        }
+
         let mut selected_doctop = 0.0;
         for i in 0..self.inner.page_count() {
             let page_number = (i + 1) as isize;
@@ -939,13 +963,27 @@ impl PyPdf {
                     continue;
                 }
             }
-            let mut page = self.inner.page(i).map_err(to_py_err)?;
-            page.apply_unicode_norm(&unicode_norm);
-            if self.selected_pages.is_some() {
-                page.rebase_doctop(selected_doctop);
-                selected_doctop += page.height();
-            }
-            pages.push(PyPage { inner: page });
+            let (width, height) = self.inner.page_dimensions(i).ok_or_else(|| {
+                PyRuntimeError::new_err(format!("missing geometry for page {}", i + 1))
+            })?;
+            let initial_doctop = if self.selected_pages.is_some() {
+                let initial_doctop = selected_doctop;
+                selected_doctop += height;
+                Some(initial_doctop)
+            } else {
+                None
+            };
+            pages.bind(py).append(Py::new(
+                py,
+                PyPage::new(
+                    Arc::clone(&self.inner),
+                    i,
+                    width,
+                    height,
+                    initial_doctop,
+                    self.unicode_norm.as_ref().map(|value| value.clone_ref(py)),
+                ),
+            )?)?;
         }
         Ok(pages)
     }
@@ -973,7 +1011,65 @@ impl PyPdf {
 /// A single page from a PDF document.
 #[pyclass(name = "Page")]
 struct PyPage {
-    inner: Page,
+    pdf: Arc<Pdf>,
+    page_index: usize,
+    width: f64,
+    height: f64,
+    selected_doctop: Option<f64>,
+    unicode_norm: Option<PyObject>,
+    page_cache: Mutex<Option<Page>>,
+}
+
+impl PyPage {
+    fn new(
+        pdf: Arc<Pdf>,
+        page_index: usize,
+        width: f64,
+        height: f64,
+        selected_doctop: Option<f64>,
+        unicode_norm: Option<PyObject>,
+    ) -> Self {
+        Self {
+            pdf,
+            page_index,
+            width,
+            height,
+            selected_doctop,
+            unicode_norm,
+            page_cache: Mutex::new(None),
+        }
+    }
+
+    #[cfg(test)]
+    fn from_pdf_for_test(pdf: Pdf, page_index: usize) -> Self {
+        let pdf = Arc::new(pdf);
+        let (width, height) = pdf.page_dimensions(page_index).expect("page dimensions");
+        Self::new(pdf, page_index, width, height, None, None)
+    }
+
+    fn with_page<T>(
+        &self,
+        py: Python<'_>,
+        operation: impl FnOnce(&Page) -> PyResult<T>,
+    ) -> PyResult<T> {
+        let unicode_norm = parse_unicode_norm(py, self.unicode_norm.as_ref())?;
+        let mut cache = self
+            .page_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?;
+        if cache.is_none() {
+            let mut page = self.pdf.page(self.page_index).map_err(to_py_err)?;
+            page.apply_unicode_norm(&unicode_norm);
+            if let Some(selected_doctop) = self.selected_doctop {
+                page.rebase_doctop(selected_doctop);
+            }
+            *cache = Some(page);
+        }
+        let page = cache
+            .as_ref()
+            .ok_or_else(|| PyRuntimeError::new_err("page cache was not initialized"))?;
+        operation(page)
+    }
 }
 
 #[pymethods]
@@ -981,36 +1077,36 @@ impl PyPage {
     /// The original 1-based document page number.
     #[getter]
     fn page_number(&self) -> usize {
-        self.inner.page_number() + 1
+        self.page_index + 1
     }
 
     /// Page width in points.
     #[getter]
     fn width(&self) -> f64 {
-        self.inner.width()
+        self.width
     }
 
     /// Page height in points.
     #[getter]
     fn height(&self) -> f64 {
-        self.inner.height()
+        self.height
     }
 
     /// Characters on this page as list[dict].
     fn chars(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .chars()
-            .iter()
-            .map(|ch| char_to_dict(py, ch))
-            .collect()
+        self.with_page(py, |page| {
+            page.chars().iter().map(|ch| char_to_dict(py, ch)).collect()
+        })
     }
 
     /// Extract text from this page.
     #[pyo3(signature = (layout=false))]
-    fn extract_text(&self, layout: bool) -> String {
-        self.inner.extract_text(&TextOptions {
-            layout,
-            ..TextOptions::default()
+    fn extract_text(&self, py: Python<'_>, layout: bool) -> PyResult<String> {
+        self.with_page(py, |page| {
+            Ok(page.extract_text(&TextOptions {
+                layout,
+                ..TextOptions::default()
+            }))
         })
     }
 
@@ -1022,83 +1118,100 @@ impl PyPage {
         x_tolerance: f64,
         y_tolerance: f64,
     ) -> PyResult<Vec<PyObject>> {
-        let words = self.inner.extract_words(&WordOptions {
-            x_tolerance,
-            y_tolerance,
-            ..WordOptions::default()
-        });
-        words.iter().map(|w| word_to_dict(py, w)).collect()
+        self.with_page(py, |page| {
+            let words = page.extract_words(&WordOptions {
+                x_tolerance,
+                y_tolerance,
+                ..WordOptions::default()
+            });
+            words.iter().map(|w| word_to_dict(py, w)).collect()
+        })
     }
 
     /// Find tables on this page.
-    fn find_tables(&self) -> Vec<PyTable> {
-        self.inner
-            .find_tables(&TableSettings::default())
-            .into_iter()
-            .map(|t| PyTable { inner: t })
-            .collect()
+    fn find_tables(&self, py: Python<'_>) -> PyResult<Vec<PyTable>> {
+        self.with_page(py, |page| {
+            Ok(page
+                .find_tables(&TableSettings::default())
+                .into_iter()
+                .map(|t| PyTable { inner: t })
+                .collect())
+        })
     }
 
     /// Extract table content as list[list[list[str|None]]].
-    fn extract_tables(&self) -> Vec<Vec<Vec<Option<String>>>> {
-        self.inner.extract_tables(&TableSettings::default())
+    fn extract_tables(&self, py: Python<'_>) -> PyResult<Vec<Vec<Vec<Option<String>>>>> {
+        self.with_page(
+            py,
+            |page| Ok(page.extract_tables(&TableSettings::default())),
+        )
     }
 
     /// Lines on this page as list[dict].
     fn lines(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .lines()
-            .iter()
-            .map(|l| line_to_dict(py, l))
-            .collect()
+        self.with_page(py, |page| {
+            page.lines()
+                .iter()
+                .map(|line| line_to_dict(py, line))
+                .collect()
+        })
     }
 
     /// Rectangles on this page as list[dict].
     fn rects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .rects()
-            .iter()
-            .map(|r| rect_to_dict(py, r))
-            .collect()
+        self.with_page(py, |page| {
+            page.rects()
+                .iter()
+                .map(|rect| rect_to_dict(py, rect))
+                .collect()
+        })
     }
 
     /// Curves on this page as list[dict].
     fn curves(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .curves()
-            .iter()
-            .map(|c| curve_to_dict(py, c))
-            .collect()
+        self.with_page(py, |page| {
+            page.curves()
+                .iter()
+                .map(|curve| curve_to_dict(py, curve))
+                .collect()
+        })
     }
 
     /// Images on this page as list[dict].
     fn images(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .images()
-            .iter()
-            .map(|i| image_to_dict(py, i))
-            .collect()
+        self.with_page(py, |page| {
+            page.images()
+                .iter()
+                .map(|image| image_to_dict(py, image))
+                .collect()
+        })
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
-    fn crop(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.crop(parse_bbox_tuple(bbox)),
-        }
+    fn crop(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
+        self.with_page(py, |page| {
+            Ok(PyCroppedPage {
+                inner: page.crop(parse_bbox_tuple(bbox)),
+            })
+        })
     }
 
     /// Filter to objects fully within the given bbox.
-    fn within_bbox(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.within_bbox(parse_bbox_tuple(bbox)),
-        }
+    fn within_bbox(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
+        self.with_page(py, |page| {
+            Ok(PyCroppedPage {
+                inner: page.within_bbox(parse_bbox_tuple(bbox)),
+            })
+        })
     }
 
     /// Filter to objects outside the given bbox.
-    fn outside_bbox(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.outside_bbox(parse_bbox_tuple(bbox)),
-        }
+    fn outside_bbox(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
+        self.with_page(py, |page| {
+            Ok(PyCroppedPage {
+                inner: page.outside_bbox(parse_bbox_tuple(bbox)),
+            })
+        })
     }
 
     /// Search for a text pattern on this page.
@@ -1110,17 +1223,19 @@ impl PyPage {
         regex: bool,
         case: bool,
     ) -> PyResult<Vec<PyObject>> {
-        let matches = self.inner.search(
-            pattern,
-            &SearchOptions {
-                regex,
-                case_sensitive: case,
-            },
-        );
-        matches
-            .iter()
-            .map(|m| search_match_to_dict(py, m))
-            .collect()
+        self.with_page(py, |page| {
+            let matches = page.search(
+                pattern,
+                &SearchOptions {
+                    regex,
+                    case_sensitive: case,
+                },
+            );
+            matches
+                .iter()
+                .map(|item| search_match_to_dict(py, item))
+                .collect()
+        })
     }
 }
 
@@ -1235,17 +1350,17 @@ mod tests {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypdf = PyPdf::from_inner_for_test(pdf);
-        let page = pypdf.inner.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        assert_eq!(pypage.page_number(), 1);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            assert_eq!(pages.bind(py).len(), 1);
+        });
     }
 
     #[test]
     fn test_pypage_dimensions() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         assert!((pypage.width() - 612.0).abs() < 0.1);
         assert!((pypage.height() - 792.0).abs() < 0.1);
     }
@@ -1264,8 +1379,7 @@ mod tests {
     fn test_pypage_chars_returns_list() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         // Empty page should return empty list
         Python::with_gil(|py| {
             let chars = pypage.chars(py).expect("chars");
@@ -1277,28 +1391,29 @@ mod tests {
     fn test_pypage_extract_text_empty_page() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let text = pypage.extract_text(false);
-        assert!(text.is_empty());
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let text = pypage.extract_text(py, false).expect("extract text");
+            assert!(text.is_empty());
+        });
     }
 
     #[test]
     fn test_pypage_extract_text_layout_mode() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let text = pypage.extract_text(true);
-        assert!(text.is_empty());
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let text = pypage.extract_text(py, true).expect("extract text");
+            assert!(text.is_empty());
+        });
     }
 
     #[test]
     fn test_pypage_extract_words_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let words = pypage.extract_words(py, 3.0, 3.0).expect("words");
             assert!(words.is_empty());
@@ -1309,8 +1424,7 @@ mod tests {
     fn test_pypage_lines_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let lines = pypage.lines(py).expect("lines");
             assert!(lines.is_empty());
@@ -1321,8 +1435,7 @@ mod tests {
     fn test_pypage_rects_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let rects = pypage.rects(py).expect("rects");
             assert!(rects.is_empty());
@@ -1333,8 +1446,7 @@ mod tests {
     fn test_pypage_curves_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let curves = pypage.curves(py).expect("curves");
             assert!(curves.is_empty());
@@ -1345,8 +1457,7 @@ mod tests {
     fn test_pypage_images_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let images = pypage.images(py).expect("images");
             assert!(images.is_empty());
@@ -1357,28 +1468,29 @@ mod tests {
     fn test_pypage_find_tables_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let tables = pypage.find_tables();
-        assert!(tables.is_empty());
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let tables = pypage.find_tables(py).expect("find tables");
+            assert!(tables.is_empty());
+        });
     }
 
     #[test]
     fn test_pypage_extract_tables_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let tables = pypage.extract_tables();
-        assert!(tables.is_empty());
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let tables = pypage.extract_tables(py).expect("extract tables");
+            assert!(tables.is_empty());
+        });
     }
 
     #[test]
     fn test_pypage_search_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
             let results = pypage.search(py, "test", true, true).expect("search");
             assert!(results.is_empty());
@@ -1389,34 +1501,41 @@ mod tests {
     fn test_pypage_crop() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let cropped = pypage.crop((0.0, 0.0, 306.0, 396.0));
-        assert!((cropped.width() - 306.0).abs() < 0.1);
-        assert!((cropped.height() - 396.0).abs() < 0.1);
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let cropped = pypage.crop(py, (0.0, 0.0, 306.0, 396.0)).expect("crop");
+            assert!((cropped.width() - 306.0).abs() < 0.1);
+            assert!((cropped.height() - 396.0).abs() < 0.1);
+        });
     }
 
     #[test]
     fn test_pypage_within_bbox() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let filtered = pypage.within_bbox((0.0, 0.0, 306.0, 396.0));
-        assert!((filtered.width() - 306.0).abs() < 0.1);
-        assert!((filtered.height() - 396.0).abs() < 0.1);
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let filtered = pypage
+                .within_bbox(py, (0.0, 0.0, 306.0, 396.0))
+                .expect("within bbox");
+            assert!((filtered.width() - 306.0).abs() < 0.1);
+            assert!((filtered.height() - 396.0).abs() < 0.1);
+        });
     }
 
     #[test]
     fn test_pypage_outside_bbox() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let filtered = pypage.outside_bbox((100.0, 100.0, 200.0, 200.0));
-        // outside_bbox uses the bbox dimensions (coordinate-adjusted region)
-        assert!((filtered.width() - 100.0).abs() < 0.1);
-        assert!((filtered.height() - 100.0).abs() < 0.1);
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let filtered = pypage
+                .outside_bbox(py, (100.0, 100.0, 200.0, 200.0))
+                .expect("outside bbox");
+            // outside_bbox uses the bbox dimensions (coordinate-adjusted region)
+            assert!((filtered.width() - 100.0).abs() < 0.1);
+            assert!((filtered.height() - 100.0).abs() < 0.1);
+        });
     }
 
     #[test]
@@ -1746,16 +1865,11 @@ mod tests {
     fn test_cropped_page_methods() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let cropped = pypage.crop((0.0, 0.0, 200.0, 300.0));
-
-        // Verify basic properties
-        assert!((cropped.width() - 200.0).abs() < 0.1);
-        assert!((cropped.height() - 300.0).abs() < 0.1);
-
-        // All content methods should work on cropped page
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
+            let cropped = pypage.crop(py, (0.0, 0.0, 200.0, 300.0)).expect("crop");
+            assert!((cropped.width() - 200.0).abs() < 0.1);
+            assert!((cropped.height() - 300.0).abs() < 0.1);
             assert!(cropped.chars(py).expect("chars").is_empty());
             assert!(cropped.lines(py).expect("lines").is_empty());
             assert!(cropped.rects(py).expect("rects").is_empty());
@@ -1767,34 +1881,36 @@ mod tests {
                     .expect("words")
                     .is_empty()
             );
+            assert!(cropped.extract_text(false).is_empty());
+            assert!(cropped.find_tables().is_empty());
+            assert!(cropped.extract_tables().is_empty());
         });
-        assert!(cropped.extract_text(false).is_empty());
-        assert!(cropped.find_tables().is_empty());
-        assert!(cropped.extract_tables().is_empty());
     }
 
     #[test]
     fn test_cropped_page_further_crop() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let cropped = pypage.crop((0.0, 0.0, 400.0, 500.0));
-        let further = cropped.crop((0.0, 0.0, 200.0, 250.0));
-        assert!((further.width() - 200.0).abs() < 0.1);
-        assert!((further.height() - 250.0).abs() < 0.1);
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let cropped = pypage.crop(py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
+            let further = cropped.crop((0.0, 0.0, 200.0, 250.0));
+            assert!((further.width() - 200.0).abs() < 0.1);
+            assert!((further.height() - 250.0).abs() < 0.1);
+        });
     }
 
     #[test]
     fn test_cropped_page_within_bbox() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let page = pdf.page(0).expect("page 0");
-        let pypage = PyPage { inner: page };
-        let cropped = pypage.crop((0.0, 0.0, 400.0, 500.0));
-        let within = cropped.within_bbox((50.0, 50.0, 150.0, 150.0));
-        assert!((within.width() - 100.0).abs() < 0.1);
-        assert!((within.height() - 100.0).abs() < 0.1);
+        let pypage = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let cropped = pypage.crop(py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
+            let within = cropped.within_bbox((50.0, 50.0, 150.0, 150.0));
+            assert!((within.width() - 100.0).abs() < 0.1);
+            assert!((within.height() - 100.0).abs() < 0.1);
+        });
     }
 
     #[test]
