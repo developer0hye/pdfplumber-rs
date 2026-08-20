@@ -359,6 +359,73 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def userunit_variants_pdf() -> bytes:
+        content = b"10 20 20 30 re S\n"
+        variants = (
+            (b"", 0),
+            (b"/UserUnit 2", 0),
+            (b"/UserUnit 0.5", 0),
+            (b"/UserUnit 4", 90),
+            (b"/UserUnit 0", 0),
+            (b"/UserUnit -2", 0),
+            (b"/UserUnit /Bogus", 0),
+            (b"/UserUnit (two)", 0),
+            (b"/UserUnit [2]", 0),
+            (b"/UserUnit << /V 2 >>", 0),
+            (b"/UserUnit null", 0),
+            (b"/UserUnit 27 0 R", 0),
+        )
+        page_ids = tuple(3 + index * 2 for index in range(len(variants)))
+        kids = b" ".join(f"{page_id} 0 R".encode() for page_id in page_ids)
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            (
+                b"<< /Type /Pages /Kids ["
+                + kids
+                + f"] /Count {len(variants)} /UserUnit 3 >>".encode()
+            ),
+        ]
+        for page_id, (userunit, rotation) in zip(page_ids, variants, strict=True):
+            content_id = page_id + 1
+            userunit_entry = b" " + userunit if userunit else b""
+            rotate = b"" if rotation == 0 else f" /Rotate {rotation}".encode()
+            objects.extend(
+                [
+                    (
+                        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 200]"
+                        + userunit_entry
+                        + rotate
+                        + f" /Contents {content_id} 0 R >>".encode()
+                    ),
+                    (
+                        f"<< /Length {len(content)} >>\nstream\n".encode()
+                        + content
+                        + b"endstream"
+                    ),
+                ]
+            )
+        objects.append(b"2")
+
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
         image = b"\x7f"
@@ -1316,6 +1383,58 @@ class NativeLayoutTests(unittest.TestCase):
                 (2, 90, (-200, 100, 200, 300), 400, 200, (-190, 110, -160, 130)),
                 (3, 180, (-100, 200, 100, 600), 200, 400, (70, 210, 90, 240)),
                 (4, 270, (-200, 100, 200, 300), 400, 200, (160, 270, 190, 290)),
+            ],
+        )
+
+    def test_userunit_is_ignored_without_public_or_serialized_state(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.userunit_variants_pdf())) as document:
+            snapshots = []
+            for page in document.pages:
+                rectangle = page.to_dict(["rect"])["rects"][0]
+                snapshots.append(
+                    (
+                        page.page_number,
+                        page.rotation,
+                        page.bbox,
+                        page.width,
+                        page.height,
+                        (
+                            rectangle["x0"],
+                            rectangle["top"],
+                            rectangle["x1"],
+                            rectangle["bottom"],
+                        ),
+                        hasattr(page, "userunit"),
+                        "userunit" in vars(page),
+                        "userunit" in page.to_dict([]),
+                    )
+                )
+
+        unrotated = (
+            0,
+            (0, 0, 100, 200),
+            100,
+            200,
+            (10, 150, 30, 180),
+            False,
+            False,
+            False,
+        )
+        rotated = (
+            90,
+            (0, 0, 200, 100),
+            200,
+            100,
+            (20, 10, 50, 30),
+            False,
+            False,
+            False,
+        )
+        self.assertEqual(
+            snapshots,
+            [
+                (page_number, *(rotated if page_number == 4 else unrotated))
+                for page_number in range(1, 13)
             ],
         )
 
