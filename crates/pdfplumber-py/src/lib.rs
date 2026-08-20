@@ -15,7 +15,7 @@ use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyString};
+use pyo3::types::{PyBytes, PyDict, PyString, PyTuple};
 
 // ---------------------------------------------------------------------------
 // Python exception types for PdfError variants
@@ -517,6 +517,102 @@ impl PyCroppedPage {
 // PyPdf
 // ---------------------------------------------------------------------------
 
+const PDF_OPEN_PARAMETER_NAMES: [&str; 8] = [
+    "path_or_fp",
+    "pages",
+    "laparams",
+    "password",
+    "strict_metadata",
+    "unicode_norm",
+    "repair",
+    "gs_path",
+];
+
+struct PyPdfOpenArgs {
+    path_or_fp: PyObject,
+    pages: Option<PyObject>,
+    laparams: Option<PyObject>,
+    password: Option<String>,
+    strict_metadata: bool,
+    unicode_norm: Option<PyObject>,
+    repair: bool,
+    gs_path: Option<PyObject>,
+}
+
+fn optional_py_object(py: Python<'_>, value: Option<PyObject>) -> Option<PyObject> {
+    value.filter(|value| !value.bind(py).is_none())
+}
+
+fn parse_pdf_open_args(
+    py: Python<'_>,
+    args: &Bound<'_, PyTuple>,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyPdfOpenArgs> {
+    if args.len() > PDF_OPEN_PARAMETER_NAMES.len() {
+        return Err(PyTypeError::new_err(format!(
+            "PDF.open() takes from 1 to {} positional arguments but {} were given",
+            PDF_OPEN_PARAMETER_NAMES.len(),
+            args.len()
+        )));
+    }
+
+    let mut values: [Option<PyObject>; PDF_OPEN_PARAMETER_NAMES.len()] =
+        std::array::from_fn(|_| None);
+    for (index, value) in args.iter().enumerate() {
+        values[index] = Some(value.unbind());
+    }
+    if let Some(kwargs) = kwargs {
+        for (key, value) in kwargs.iter() {
+            let key = key.extract::<String>()?;
+            let Some(index) = PDF_OPEN_PARAMETER_NAMES
+                .iter()
+                .position(|name| *name == key)
+            else {
+                return Err(PyTypeError::new_err(format!(
+                    "PDF.open() got an unexpected keyword argument '{key}'"
+                )));
+            };
+            if values[index].is_some() {
+                return Err(PyTypeError::new_err(format!(
+                    "PDF.open() got multiple values for argument '{key}'"
+                )));
+            }
+            values[index] = Some(value.unbind());
+        }
+    }
+
+    let path_or_fp = values[0].take().ok_or_else(|| {
+        PyTypeError::new_err("PDF.open() missing 1 required positional argument: 'path_or_fp'")
+    })?;
+    let pages = optional_py_object(py, values[1].take());
+    let laparams = optional_py_object(py, values[2].take());
+    let password = match values[3].take() {
+        Some(value) if !value.bind(py).is_none() => Some(value.bind(py).extract::<String>()?),
+        _ => None,
+    };
+    let strict_metadata = match values[4].take() {
+        Some(value) => value.bind(py).extract::<bool>()?,
+        None => false,
+    };
+    let unicode_norm = optional_py_object(py, values[5].take());
+    let repair = match values[6].take() {
+        Some(value) => value.bind(py).extract::<bool>()?,
+        None => false,
+    };
+    let gs_path = optional_py_object(py, values[7].take());
+
+    Ok(PyPdfOpenArgs {
+        path_or_fp,
+        pages,
+        laparams,
+        password,
+        strict_metadata,
+        unicode_norm,
+        repair,
+        gs_path,
+    })
+}
+
 /// A PDF document opened for extraction.
 ///
 /// Use `PDF.open(path_or_fp)` or `PDF.open_bytes(data)` to open a PDF.
@@ -554,23 +650,34 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false, unicode_norm=None, repair=false))]
+    #[pyo3(
+        signature = (*args, **kwargs),
+        text_signature = "(path_or_fp, pages=None, laparams=None, password=None, strict_metadata=False, unicode_norm=None, repair=False, gs_path=None)"
+    )]
     fn open(
-        path_or_fp: &Bound<'_, PyAny>,
-        pages: Option<PyObject>,
-        laparams: Option<PyObject>,
-        password: Option<String>,
-        strict_metadata: bool,
-        unicode_norm: Option<PyObject>,
-        repair: bool,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<Self> {
-        let laparams = validate_laparams(path_or_fp.py(), laparams)?;
+        let PyPdfOpenArgs {
+            path_or_fp,
+            pages,
+            laparams,
+            password,
+            strict_metadata,
+            unicode_norm,
+            repair,
+            gs_path,
+        } = parse_pdf_open_args(py, args, kwargs)?;
+        let path_or_fp = path_or_fp.bind(py);
+        let laparams = validate_laparams(py, laparams)?;
         let (stream, path, stream_is_external) = if repair {
+            let gs_path = gs_path.unwrap_or_else(|| py.None());
             let repaired = path_or_fp
                 .py()
                 .import("pdfplumber.repair")?
                 .getattr("_repair")?
-                .call1((path_or_fp, password.as_deref()))?;
+                .call1((path_or_fp, password.as_deref(), gs_path))?;
             (repaired, None, false)
         } else {
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
