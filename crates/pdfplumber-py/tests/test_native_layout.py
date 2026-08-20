@@ -279,6 +279,54 @@ class NativeLayoutTests(unittest.TestCase):
         finally:
             owned_stream.close()
 
+    def test_flush_cache_matches_container_property_selection(self) -> None:
+        document = pdfplumber.open(self.fixture())
+        owned_stream = document.stream
+        try:
+            first_pages = document.pages
+            first_page = first_pages[0]
+            first_chars = first_page.chars()
+            marker = object()
+            first_pages.append(marker)
+
+            for properties in ([], ["_missing"], "_pages"):
+                with self.subTest(properties=properties):
+                    self.assertIsNone(document.flush_cache(properties))
+                    self.assertIs(document.pages, first_pages)
+                    self.assertIn(marker, document.pages)
+
+            self.assertIsNone(document.flush_cache(["_pages"]))
+            second_pages = document.pages
+            self.assertIsNot(second_pages, first_pages)
+            self.assertIsNot(second_pages[0], first_page)
+            self.assertNotIn(marker, second_pages)
+            self.assertEqual(first_page.chars(), first_chars)
+            self.assertFalse(owned_stream.closed)
+
+            self.assertIsNone(document.flush_cache())
+            third_pages = document.pages
+            self.assertIsNot(third_pages, second_pages)
+            self.assertIsNot(third_pages[0], second_pages[0])
+
+            self.assertIsNone(document.flush_cache(None))
+            fourth_pages = document.pages
+            self.assertIsNot(fourth_pages, third_pages)
+
+            with self.assertRaisesRegex(TypeError, "^'int' object is not iterable$"):
+                document.flush_cache(1)
+            self.assertIs(document.pages, fourth_pages)
+
+            fourth_pages.append(marker)
+            with self.assertRaisesRegex(
+                TypeError, "^attribute name must be string, not 'int'$"
+            ):
+                document.flush_cache(["_pages", 1])
+            self.assertIsNot(document.pages, fourth_pages)
+            self.assertNotIn(marker, document.pages)
+            self.assertFalse(owned_stream.closed)
+        finally:
+            document.close()
+
     def test_context_manager_closes_only_owned_streams(self) -> None:
         document = pdfplumber.open(self.fixture())
         with document as entered:
