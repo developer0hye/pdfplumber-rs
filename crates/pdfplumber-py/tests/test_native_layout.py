@@ -552,10 +552,13 @@ class NativeLayoutTests(unittest.TestCase):
                 document = pdfplumber.open(self.fixture(), unicode_norm=value)
                 try:
                     self.assertEqual(document.unicode_norm, value)
+                    pages = document.pages
+                    self.assertEqual(pages[0].page_number, 1)
+                    self.assertGreater(pages[0].width, 0)
                     with self.assertRaisesRegex(
                         ValueError, "^invalid normalization form$"
                     ):
-                        _ = document.pages
+                        pages[0].chars()
                 finally:
                     document.close()
         for value, type_name in ((1, "int"), (True, "bool"), (b"NFC", "bytes")):
@@ -563,13 +566,51 @@ class NativeLayoutTests(unittest.TestCase):
                 document = pdfplumber.open(self.fixture(), unicode_norm=value)
                 try:
                     self.assertEqual(document.unicode_norm, value)
+                    pages = document.pages
+                    self.assertEqual(pages[0].page_number, 1)
+                    self.assertGreater(pages[0].width, 0)
                     with self.assertRaisesRegex(
                         TypeError,
                         rf"^normalize\(\) argument 1 must be str, not {type_name}$",
                     ):
-                        _ = document.pages
+                        pages[0].chars()
                 finally:
                     document.close()
+
+    def test_pages_reuses_the_mutable_page_list_and_page_instances(self) -> None:
+        with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
+            first_pages = document.pages
+            second_pages = document.pages
+
+            self.assertIs(first_pages, second_pages)
+            self.assertIs(first_pages[0], second_pages[0])
+            self.assertEqual([page.page_number for page in first_pages], [3, 5])
+
+            marker = object()
+            first_pages.append(marker)
+            self.assertIs(document.pages[-1], marker)
+            first_pages.pop()
+
+    def test_pages_retains_the_partial_cache_after_selection_failure(self) -> None:
+        class FailingSelection:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def __contains__(self, _page_number: object) -> bool:
+                self.calls += 1
+                if self.calls == 2:
+                    raise RuntimeError("selection failed")
+                return True
+
+        selection = FailingSelection()
+        with pdfplumber.open(self.multipage_fixture(), pages=selection) as document:
+            with self.assertRaisesRegex(RuntimeError, "^selection failed$"):
+                _ = document.pages
+
+            first_pages = document.pages
+            self.assertIs(first_pages, document.pages)
+            self.assertEqual([page.page_number for page in first_pages], [1])
+            self.assertEqual(selection.calls, 2)
 
     def test_open_repairs_through_ghostscript_with_upstream_ownership(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
