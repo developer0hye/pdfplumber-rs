@@ -530,6 +530,18 @@ fn compatible_geometry_number(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
 }
 
+fn initial_doctop_to_object(py: Python<'_>, value: f64) -> PyObject {
+    if value == 0.0 {
+        0_i64.into_pyobject(py).unwrap().into_any().unbind()
+    } else {
+        compatible_geometry_number(value)
+            .into_pyobject(py)
+            .unwrap()
+            .into_any()
+            .unbind()
+    }
+}
+
 fn container_to_json(
     py: Python<'_>,
     data: PyObject,
@@ -1777,7 +1789,10 @@ impl PyPage {
             let crop_box = page.crop_box().unwrap_or(media_box);
             let bbox = page.bbox();
             dict.set_item("page_number", self.page_number())?;
-            dict.set_item("initial_doctop", compatible_geometry_number(initial_doctop))?;
+            dict.set_item(
+                "initial_doctop",
+                initial_doctop_to_object(py, initial_doctop),
+            )?;
             dict.set_item("rotation", page.rotation())?;
             dict.set_item(
                 "cropbox",
@@ -1851,6 +1866,12 @@ impl PyPage {
     #[getter]
     fn height(&self) -> f64 {
         compatible_geometry_number(self.height)
+    }
+
+    /// Cumulative height of preceding pages in the current page view.
+    #[getter(initial_doctop)]
+    fn initial_doctop_property(&self, py: Python<'_>) -> PyObject {
+        initial_doctop_to_object(py, self.initial_doctop())
     }
 
     /// Characters on this page as list[dict].
@@ -2947,6 +2968,10 @@ mod tests {
         assert!(
             content.contains("def structure_tree(self) -> list[StructElementDict]:"),
             "stubs must declare document and page structure trees"
+        );
+        assert!(
+            content.contains("def initial_doctop(self) -> int | float:"),
+            "stubs must declare Page.initial_doctop"
         );
         assert_eq!(
             content

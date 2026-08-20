@@ -839,6 +839,41 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertAlmostEqual(offsets[0], 0.0)
             self.assertAlmostEqual(offsets[1], pages[0].height)
 
+    def test_page_initial_doctop_matches_full_and_selected_views(self) -> None:
+        def snapshot(page: object) -> tuple[object, ...]:
+            value = getattr(page, "initial_doctop", "MISSING")
+            serialized = page.to_dict([])["initial_doctop"]
+            return (
+                page.page_number,
+                value,
+                type(value).__name__,
+                serialized,
+                type(serialized).__name__,
+            )
+
+        with pdfplumber.open(self.multipage_fixture()) as document:
+            full = [snapshot(page) for page in document.pages]
+        with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
+            selected = [snapshot(page) for page in document.pages]
+
+        self.assertEqual(
+            full,
+            [
+                (1, 0, "int", 0, "int"),
+                (2, 841.89, "float", 841.89, "float"),
+                (3, 1683.78, "float", 1683.78, "float"),
+                (4, 2525.67, "float", 2525.67, "float"),
+                (5, 3367.56, "float", 3367.56, "float"),
+            ],
+        )
+        self.assertEqual(
+            selected,
+            [
+                (3, 0, "int", 0, "int"),
+                (5, 841.89, "float", 841.89, "float"),
+            ],
+        )
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:
@@ -1523,7 +1558,7 @@ class NativeLayoutTests(unittest.TestCase):
     ) -> None:
         compact = (
             '{"metadata": {"CreationDate": "D:20260228140604Z"}, "pages": '
-            '[{"page_number": 1, "initial_doctop": 0.0, "rotation": 0, '
+            '[{"page_number": 1, "initial_doctop": 0, "rotation": 0, '
             '"cropbox": [0.0, 0.0, 595.28, 841.89], "mediabox": '
             '[0.0, 0.0, 595.28, 841.89], "bbox": '
             '[0.0, 0.0, 595.28, 841.89], "width": 595.28, '
@@ -1531,7 +1566,7 @@ class NativeLayoutTests(unittest.TestCase):
         )
         pretty_page = """{
   "page_number": 1,
-  "initial_doctop": 0.0,
+  "initial_doctop": 0,
   "rotation": 0,
   "cropbox": [
     0.0,
