@@ -196,6 +196,11 @@ class Page:
         ...
 
     @property
+    def bleedbox(self) -> tuple[float, float, float, float]:
+        """Direct BleedBox in rotation-aware, top-origin coordinates when present."""
+        ...
+
+    @property
     def initial_doctop(self) -> int | float:
         """Cumulative height of preceding pages in the current page view."""
         ...
