@@ -46,6 +46,19 @@ class NativeLayoutTests(unittest.TestCase):
         )
 
     @staticmethod
+    def compatibility_ligature_fixture() -> Path:
+        return (
+            Path(__file__).resolve().parents[3]
+            / "compat"
+            / "fixtures"
+            / "upstream"
+            / "pdfplumber-v0.11.10"
+            / "tests"
+            / "pdfs"
+            / "line-char-render-example.pdf"
+        )
+
+    @staticmethod
     def cyclic_metadata_pdf() -> bytes:
         objects = (
             b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -359,6 +372,61 @@ class NativeLayoutTests(unittest.TestCase):
         ):
             pdfplumber.open(strict_stream, strict_metadata=True)
         self.assertFalse(strict_stream.closed)
+
+    def test_open_applies_and_exposes_unicode_normalization(self) -> None:
+        with pdfplumber.open(self.fixture()) as unchanged:
+            self.assertIsNone(unchanged.unicode_norm)
+            self.assertEqual(unchanged.pages[0].chars()[142]["text"], "é")
+
+        canonical = {
+            "NFC": "é",
+            "NFD": "e\N{COMBINING ACUTE ACCENT}",
+            "NFKC": "é",
+            "NFKD": "e\N{COMBINING ACUTE ACCENT}",
+        }
+        compatibility = {
+            "NFC": "ﬁ",
+            "NFD": "ﬁ",
+            "NFKC": "fi",
+            "NFKD": "fi",
+        }
+        for form in ("NFC", "NFD", "NFKC", "NFKD"):
+            with self.subTest(form=form):
+                with pdfplumber.open(self.fixture(), unicode_norm=form) as document:
+                    self.assertEqual(document.unicode_norm, form)
+                    self.assertEqual(
+                        document.pages[0].chars()[142]["text"], canonical[form]
+                    )
+                with pdfplumber.open(
+                    self.compatibility_ligature_fixture(), unicode_norm=form
+                ) as document:
+                    self.assertEqual(
+                        document.pages[0].chars()[0]["text"], compatibility[form]
+                    )
+
+        for value in ("nfc", ""):
+            with self.subTest(invalid_form=value):
+                document = pdfplumber.open(self.fixture(), unicode_norm=value)
+                try:
+                    self.assertEqual(document.unicode_norm, value)
+                    with self.assertRaisesRegex(
+                        ValueError, "^invalid normalization form$"
+                    ):
+                        _ = document.pages
+                finally:
+                    document.close()
+        for value, type_name in ((1, "int"), (True, "bool"), (b"NFC", "bytes")):
+            with self.subTest(invalid_type=type_name):
+                document = pdfplumber.open(self.fixture(), unicode_norm=value)
+                try:
+                    self.assertEqual(document.unicode_norm, value)
+                    with self.assertRaisesRegex(
+                        TypeError,
+                        rf"^normalize\(\) argument 1 must be str, not {type_name}$",
+                    ):
+                        _ = document.pages
+                finally:
+                    document.close()
 
 
 if __name__ == "__main__":

@@ -6,10 +6,10 @@ use pdfplumber_core::{
     Annotation, BBox, Char, ColumnMode, Curve, DedupeOptions, Edge, ExportedImage, ExtractWarning,
     FormField, HtmlOptions, HtmlRenderer, Hyperlink, Image, ImageExportOptions, Line, PageObject,
     PageRegions, Rect, SearchMatch, SearchOptions, StructElement, Table, TableFinder,
-    TableSettings, TextLine, TextOptions, Word, WordExtractor, WordOptions, blocks_to_text,
-    cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars, derive_edges,
-    detect_columns, duplicate_merged_content_in_table, export_image_set,
-    extract_text_for_cells_with_options, search_chars, sort_blocks_column_order,
+    TableSettings, TextLine, TextOptions, UnicodeNorm, Word, WordExtractor, WordOptions,
+    blocks_to_text, cluster_lines_into_blocks, cluster_words_into_lines, dedupe_chars,
+    derive_edges, detect_columns, duplicate_merged_content_in_table, export_image_set,
+    extract_text_for_cells_with_options, normalize_chars, search_chars, sort_blocks_column_order,
     sort_blocks_reading_order, split_lines_at_columns, words_to_text,
 };
 
@@ -219,6 +219,13 @@ impl Page {
     pub fn rebase_doctop(&mut self, initial_doctop: f64) {
         for ch in &mut self.chars {
             ch.doctop = ch.bbox.top + initial_doctop;
+        }
+    }
+
+    /// Apply Unicode normalization to every extracted character on this page.
+    pub fn apply_unicode_norm(&mut self, norm: &UnicodeNorm) {
+        if *norm != UnicodeNorm::None {
+            self.chars = normalize_chars(&self.chars, norm);
         }
     }
 
