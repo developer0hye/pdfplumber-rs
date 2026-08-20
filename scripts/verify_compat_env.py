@@ -56,7 +56,7 @@ def main() -> int:
         if arguments.reference:
             environment.verify_reference(module, expected_root=arguments.expect_root)
         else:
-            environment.verify_candidate(module)
+            environment.verify_candidate(module, expected_root=arguments.expect_root)
     except environment.EnvironmentMismatch as mismatch:
         print(f"environment check failed: {mismatch}", file=sys.stderr)
         return 1

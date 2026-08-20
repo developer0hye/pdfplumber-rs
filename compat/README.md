@@ -52,6 +52,16 @@ bash scripts/setup_golden_venv.sh
 # Confirm the interpreter has the upstream package, not this project's binding.
 .venv-reference/bin/python scripts/verify_compat_env.py --reference
 
+# Build and install the local wheel into a separate candidate environment.
+# The builder requires the same Python minor version as the pinned reference
+# and exactly maturin 1.14.1; --wheel can reuse a CI-built local wheel.
+python3 scripts/setup_candidate_venv.py \
+  --python "$(uv python find 3.13)"
+
+# Confirm both the Python package and private native extension came from it.
+.venv-candidate/bin/python scripts/verify_compat_env.py \
+  --candidate --expect-root "$PWD/.venv-candidate"
+
 # Regenerate golden data.
 .venv-reference/bin/python scripts/generate_golden.py
 
@@ -237,5 +247,6 @@ and `.venv-candidate`) rather than being separated by `sys.path` order.
 
 A runner that imports the wrong one compares an implementation against itself
 and reports flawless parity. `harness/environment.py` makes that a loud error:
-the reference must be the pinned pure-Python upstream release, and the candidate
-must not be.
+the reference must be the pinned pure-Python upstream release, while the
+candidate must be installed under the configured candidate environment and
+contain this project's private compiled `pdfplumber._native` extension.

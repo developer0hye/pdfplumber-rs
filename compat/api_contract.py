@@ -60,7 +60,9 @@ def main() -> int:
                 pdfplumber, expected_root=environment.REFERENCE_VENV
             )
         else:
-            environment.verify_candidate(pdfplumber)
+            environment.verify_candidate(
+                pdfplumber, expected_root=environment.CANDIDATE_VENV
+            )
     except environment.EnvironmentMismatch as mismatch:
         mode_name: str = "reference" if reference_mode else "candidate"
         print(f"refusing to run {mode_name} call contracts: {mismatch}", file=sys.stderr)
