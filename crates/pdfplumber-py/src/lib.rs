@@ -92,6 +92,7 @@ fn color_to_py(py: Python<'_>, color: &Color) -> PyObject {
 
 fn char_to_dict(py: Python<'_>, ch: &Char) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("object_type", "char")?;
     dict.set_item("text", &ch.text)?;
     dict.set_item("x0", ch.bbox.x0)?;
     dict.set_item("top", ch.bbox.top)?;
@@ -149,6 +150,7 @@ fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
 
 fn line_to_dict(py: Python<'_>, line: &Line) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("object_type", "line")?;
     dict.set_item("x0", line.x0)?;
     dict.set_item("top", line.top)?;
     dict.set_item("x1", line.x1)?;
@@ -168,6 +170,7 @@ fn line_to_dict(py: Python<'_>, line: &Line) -> PyResult<PyObject> {
 
 fn rect_to_dict(py: Python<'_>, rect: &Rect) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("object_type", "rect")?;
     dict.set_item("x0", rect.x0)?;
     dict.set_item("top", rect.top)?;
     dict.set_item("x1", rect.x1)?;
@@ -182,6 +185,7 @@ fn rect_to_dict(py: Python<'_>, rect: &Rect) -> PyResult<PyObject> {
 
 fn curve_to_dict(py: Python<'_>, curve: &Curve) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("object_type", "curve")?;
     dict.set_item("x0", curve.x0)?;
     dict.set_item("top", curve.top)?;
     dict.set_item("x1", curve.x1)?;
@@ -197,6 +201,7 @@ fn curve_to_dict(py: Python<'_>, curve: &Curve) -> PyResult<PyObject> {
 
 fn image_to_dict(py: Python<'_>, img: &Image) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("object_type", "image")?;
     dict.set_item("x0", img.x0)?;
     dict.set_item("top", img.top)?;
     dict.set_item("x1", img.x1)?;
@@ -409,6 +414,43 @@ fn parse_bbox_tuple(bbox: (f64, f64, f64, f64)) -> BBox {
 fn compatible_geometry_number(value: f64) -> f64 {
     let value = (value as f32).to_string().parse().unwrap_or(value);
     if value == 0.0 { 0.0 } else { value }
+}
+
+fn container_to_json(
+    py: Python<'_>,
+    data: PyObject,
+    stream: Option<&Bound<'_, PyAny>>,
+    include_attrs: Option<&Bound<'_, PyAny>>,
+    exclude_attrs: Option<&Bound<'_, PyAny>>,
+    precision: Option<&Bound<'_, PyAny>>,
+    indent: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    let serializer_kwargs = PyDict::new(py);
+    if let Some(include_attrs) = include_attrs {
+        serializer_kwargs.set_item("include_attrs", include_attrs)?;
+    }
+    if let Some(exclude_attrs) = exclude_attrs {
+        serializer_kwargs.set_item("exclude_attrs", exclude_attrs)?;
+    }
+    if let Some(precision) = precision {
+        serializer_kwargs.set_item("precision", precision)?;
+    }
+    let serializer = py
+        .import("pdfplumber.convert")?
+        .getattr("Serializer")?
+        .call((), Some(&serializer_kwargs))?;
+    let serialized = serializer.call_method1("serialize", (data,))?;
+
+    let json_kwargs = PyDict::new(py);
+    if let Some(indent) = indent {
+        json_kwargs.set_item("indent", indent)?;
+    }
+    let json = py.import("json")?;
+    let result = match stream {
+        Some(stream) => json.call_method("dump", (&serialized, stream), Some(&json_kwargs))?,
+        None => json.call_method("dumps", (&serialized,), Some(&json_kwargs))?,
+    };
+    Ok(result.unbind())
 }
 
 fn validate_laparams(py: Python<'_>, laparams: Option<PyObject>) -> PyResult<Option<PyObject>> {
@@ -695,6 +737,15 @@ const PDF_OPEN_PARAMETER_NAMES: [&str; 10] = [
     "raise_unicode_errors",
 ];
 
+const CONTAINER_TO_JSON_PARAMETER_NAMES: [&str; 6] = [
+    "stream",
+    "object_types",
+    "include_attrs",
+    "exclude_attrs",
+    "precision",
+    "indent",
+];
+
 struct PyPdfOpenArgs {
     path_or_fp: PyObject,
     pages: Option<PyObject>,
@@ -710,6 +761,62 @@ struct PyPdfOpenArgs {
 
 fn optional_py_object(py: Python<'_>, value: Option<PyObject>) -> Option<PyObject> {
     value.filter(|value| !value.bind(py).is_none())
+}
+
+struct PyContainerToJsonArgs {
+    stream: Option<PyObject>,
+    object_types: Option<PyObject>,
+    include_attrs: Option<PyObject>,
+    exclude_attrs: Option<PyObject>,
+    precision: Option<PyObject>,
+    indent: Option<PyObject>,
+}
+
+fn parse_container_to_json_args(
+    py: Python<'_>,
+    args: &Bound<'_, PyTuple>,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyContainerToJsonArgs> {
+    if args.len() > CONTAINER_TO_JSON_PARAMETER_NAMES.len() {
+        return Err(PyTypeError::new_err(format!(
+            "Container.to_json() takes from 1 to 7 positional arguments but {} were given",
+            args.len() + 1
+        )));
+    }
+
+    let mut values: [Option<PyObject>; CONTAINER_TO_JSON_PARAMETER_NAMES.len()] =
+        std::array::from_fn(|_| None);
+    for (index, value) in args.iter().enumerate() {
+        values[index] = Some(value.unbind());
+    }
+    if let Some(kwargs) = kwargs {
+        for (key, value) in kwargs.iter() {
+            let key = key.extract::<String>()?;
+            let Some(index) = CONTAINER_TO_JSON_PARAMETER_NAMES
+                .iter()
+                .position(|name| *name == key)
+            else {
+                return Err(PyTypeError::new_err(format!(
+                    "Container.to_json() got an unexpected keyword argument '{key}'"
+                )));
+            };
+            if values[index].is_some() {
+                return Err(PyTypeError::new_err(format!(
+                    "Container.to_json() got multiple values for argument '{key}'"
+                )));
+            }
+            values[index] = Some(value.unbind());
+        }
+    }
+
+    Ok(PyContainerToJsonArgs {
+        stream: optional_py_object(py, values[0].take()),
+        object_types: optional_py_object(py, values[1].take()),
+        include_attrs: optional_py_object(py, values[2].take()),
+        exclude_attrs: optional_py_object(py, values[3].take()),
+        precision: optional_py_object(py, values[4].take()),
+        indent: optional_py_object(py, values[5].take()),
+    })
 }
 
 fn parse_pdf_open_args(
@@ -1230,6 +1337,33 @@ impl PyPdf {
         Ok(dict.into_any().unbind())
     }
 
+    /// Serialize document metadata and selected pages as upstream JSON.
+    #[pyo3(
+        signature = (*args, **kwargs),
+        text_signature = "(stream=None, object_types=None, include_attrs=None, exclude_attrs=None, precision=None, indent=None)"
+    )]
+    fn to_json(
+        &self,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyObject> {
+        let options = parse_container_to_json_args(py, args, kwargs)?;
+        let data = self.to_dict(
+            py,
+            options.object_types.as_ref().map(|value| value.bind(py)),
+        )?;
+        container_to_json(
+            py,
+            data,
+            options.stream.as_ref().map(|value| value.bind(py)),
+            options.include_attrs.as_ref().map(|value| value.bind(py)),
+            options.exclude_attrs.as_ref().map(|value| value.bind(py)),
+            options.precision.as_ref().map(|value| value.bind(py)),
+            options.indent.as_ref().map(|value| value.bind(py)),
+        )
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1355,7 +1489,7 @@ impl PyPage {
             let crop_box = page.crop_box().unwrap_or(media_box);
             let bbox = page.bbox();
             dict.set_item("page_number", self.page_number())?;
-            dict.set_item("initial_doctop", initial_doctop)?;
+            dict.set_item("initial_doctop", compatible_geometry_number(initial_doctop))?;
             dict.set_item("rotation", page.rotation())?;
             dict.set_item(
                 "cropbox",
@@ -1591,6 +1725,33 @@ impl PyPage {
         object_types: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
         self.to_dict_impl(py, object_types)
+    }
+
+    /// Serialize page geometry and requested objects as upstream JSON.
+    #[pyo3(
+        signature = (*args, **kwargs),
+        text_signature = "(stream=None, object_types=None, include_attrs=None, exclude_attrs=None, precision=None, indent=None)"
+    )]
+    fn to_json(
+        &self,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyObject> {
+        let options = parse_container_to_json_args(py, args, kwargs)?;
+        let data = self.to_dict_impl(
+            py,
+            options.object_types.as_ref().map(|value| value.bind(py)),
+        )?;
+        container_to_json(
+            py,
+            data,
+            options.stream.as_ref().map(|value| value.bind(py)),
+            options.include_attrs.as_ref().map(|value| value.bind(py)),
+            options.exclude_attrs.as_ref().map(|value| value.bind(py)),
+            options.precision.as_ref().map(|value| value.bind(py)),
+            options.indent.as_ref().map(|value| value.bind(py)),
+        )
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
@@ -2478,6 +2639,11 @@ mod tests {
                 .count(),
             2,
             "stubs must declare document and page dictionary serialization"
+        );
+        assert_eq!(
+            content.matches("def to_json(").count(),
+            2,
+            "stubs must declare document and page JSON serialization"
         );
     }
 
