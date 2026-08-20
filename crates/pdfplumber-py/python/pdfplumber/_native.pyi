@@ -181,6 +181,11 @@ class Page:
         ...
 
     @property
+    def mediabox(self) -> tuple[float, float, float, float]:
+        """MediaBox in the page's rotation-aware, top-origin coordinates."""
+        ...
+
+    @property
     def initial_doctop(self) -> int | float:
         """Cumulative height of preceding pages in the current page view."""
         ...
