@@ -11,6 +11,16 @@ from pdfplumber import _native
 
 
 class NativeLayoutTests(unittest.TestCase):
+    @staticmethod
+    def fixture() -> Path:
+        return (
+            Path(__file__).resolve().parents[3]
+            / "tests"
+            / "fixtures"
+            / "generated"
+            / "basic_text.pdf"
+        )
+
     def test_pdfplumber_is_a_python_package(self) -> None:
         self.assertEqual(pdfplumber.__name__, "pdfplumber")
         self.assertEqual(Path(pdfplumber.__file__).name, "__init__.py")
@@ -33,16 +43,13 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertEqual(_native.PdfInvalidPassword.__module__, "pdfplumber._native")
 
     def test_top_level_open_is_the_pdf_open_alias(self) -> None:
-        fixture = (
-            Path(__file__).resolve().parents[3]
-            / "tests"
-            / "fixtures"
-            / "generated"
-            / "basic_text.pdf"
-        )
-
         self.assertEqual(pdfplumber.open, pdfplumber.PDF.open)
-        document = pdfplumber.open(str(fixture))
+        document = pdfplumber.open(str(self.fixture()))
+        self.assertIsInstance(document, pdfplumber.PDF)
+        self.assertGreater(len(document.pages), 0)
+
+    def test_open_accepts_pathlib_path(self) -> None:
+        document = pdfplumber.open(self.fixture())
         self.assertIsInstance(document, pdfplumber.PDF)
         self.assertGreater(len(document.pages), 0)
 
