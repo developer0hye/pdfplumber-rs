@@ -174,6 +174,23 @@ class NativeLayoutTests(unittest.TestCase):
             with self.assertRaisesRegex(TypeError, "not iterable"):
                 _ = selected.pages
 
+    def test_selected_pages_keep_original_numbers_and_selected_doctop(self) -> None:
+        with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
+            pages = document.pages
+
+        self.assertEqual([page.page_number for page in pages], [3, 5])
+
+        char_offsets = [
+            page.chars()[0]["doctop"] - page.chars()[0]["top"] for page in pages
+        ]
+        word_offsets = [
+            page.extract_words()[0]["doctop"] - page.extract_words()[0]["top"]
+            for page in pages
+        ]
+        for offsets in (char_offsets, word_offsets):
+            self.assertAlmostEqual(offsets[0], 0.0)
+            self.assertAlmostEqual(offsets[1], pages[0].height)
+
 
 if __name__ == "__main__":
     unittest.main()
