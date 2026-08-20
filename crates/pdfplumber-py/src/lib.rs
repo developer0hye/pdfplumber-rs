@@ -11,7 +11,9 @@ use ::pdfplumber::{
     PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, Word,
     WordOptions,
 };
-use pyo3::exceptions::{PyException, PyIOError, PyRuntimeError, PyTypeError, PyValueError};
+use pyo3::exceptions::{
+    PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
+};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
 
@@ -508,6 +510,7 @@ struct PyPdf {
     stream_is_external: bool,
     selected_pages: Option<PyObject>,
     _laparams: Option<PyObject>,
+    _strict_metadata: bool,
 }
 
 #[cfg(test)]
@@ -521,6 +524,7 @@ impl PyPdf {
             stream_is_external: false,
             selected_pages: None,
             _laparams: None,
+            _strict_metadata: false,
         }
     }
 }
@@ -529,12 +533,13 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None))]
+    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false))]
     fn open(
         path_or_fp: &Bound<'_, PyAny>,
         pages: Option<PyObject>,
         laparams: Option<PyObject>,
         password: Option<String>,
+        strict_metadata: bool,
     ) -> PyResult<Self> {
         let laparams = validate_laparams(path_or_fp.py(), laparams)?;
         let (stream, path, stream_is_external) =
@@ -569,6 +574,14 @@ impl PyPdf {
                 return Err(to_py_err(error));
             }
         };
+        if strict_metadata && pdf.validate_metadata().is_err() {
+            if !stream_is_external {
+                stream.call_method0("close")?;
+            }
+            return Err(PyRecursionError::new_err(
+                "maximum recursion depth exceeded",
+            ));
+        }
         Ok(PyPdf {
             inner: pdf,
             stream: Some(stream.unbind()),
@@ -577,6 +590,7 @@ impl PyPdf {
             stream_is_external,
             selected_pages: pages,
             _laparams: laparams,
+            _strict_metadata: strict_metadata,
         })
     }
 
@@ -596,6 +610,7 @@ impl PyPdf {
             stream_is_external: false,
             selected_pages: None,
             _laparams: None,
+            _strict_metadata: false,
         })
     }
 

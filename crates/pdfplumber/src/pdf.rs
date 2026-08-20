@@ -334,6 +334,12 @@ impl Pdf {
         &self.metadata
     }
 
+    /// Validate that the raw document information dictionary has no
+    /// indirect-reference cycles.
+    pub fn validate_metadata(&self) -> Result<(), PdfError> {
+        LopdfBackend::validate_document_metadata(&self.doc).map_err(PdfError::from)
+    }
+
     /// Return the document bookmarks (outline / table of contents).
     ///
     /// Returns a slice of [`Bookmark`]s representing the flattened outline
