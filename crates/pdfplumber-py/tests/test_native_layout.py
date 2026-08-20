@@ -238,13 +238,25 @@ class NativeLayoutTests(unittest.TestCase):
     def test_close_respects_stream_ownership_and_is_idempotent(self) -> None:
         document = pdfplumber.open(self.fixture())
         owned_stream = document.stream
-        first_page = document.pages[0]
+        first_pages = document.pages
+        first_page = first_pages[0]
+        marker = object()
+        first_pages.append(marker)
 
         self.assertIsNone(document.close())
         self.assertTrue(owned_stream.closed)
-        self.assertIsNone(document.close())
-        self.assertEqual(len(document.pages), 1)
+        second_pages = document.pages
+        self.assertIsNot(second_pages, first_pages)
+        self.assertIsNot(second_pages[0], first_page)
+        self.assertNotIn(marker, second_pages)
+        self.assertEqual(len(second_pages), 1)
         self.assertGreater(len(first_page.chars()), 0)
+
+        self.assertIsNone(document.close())
+        third_pages = document.pages
+        self.assertIsNot(third_pages, second_pages)
+        self.assertIsNot(third_pages[0], second_pages[0])
+        self.assertEqual(len(third_pages), 1)
 
         external = io.BytesIO(self.fixture().read_bytes())
         try:
@@ -254,6 +266,18 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertIsNone(document.close())
         finally:
             external.close()
+
+    def test_close_materializes_pages_before_closing_owned_stream(self) -> None:
+        document = pdfplumber.open(self.fixture(), pages=1)
+        owned_stream = document.stream
+        try:
+            with self.assertRaisesRegex(
+                TypeError, "^argument of type 'int' is not iterable$"
+            ):
+                document.close()
+            self.assertFalse(owned_stream.closed)
+        finally:
+            owned_stream.close()
 
     def test_context_manager_closes_only_owned_streams(self) -> None:
         document = pdfplumber.open(self.fixture())
@@ -300,9 +324,12 @@ class NativeLayoutTests(unittest.TestCase):
                 [page.extract_text() for page in selected.pages], [all_text[0]]
             )
 
-        with pdfplumber.open(fixture, pages=1) as selected:
+        selected = pdfplumber.open(fixture, pages=1)
+        try:
             with self.assertRaisesRegex(TypeError, "not iterable"):
                 _ = selected.pages
+        finally:
+            selected.stream.close()
 
     def test_selected_pages_keep_original_numbers_and_selected_doctop(self) -> None:
         with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
