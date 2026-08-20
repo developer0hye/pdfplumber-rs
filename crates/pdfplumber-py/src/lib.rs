@@ -438,7 +438,7 @@ struct PyPdf {
 impl PyPdf {
     /// Open a PDF file from a filesystem path.
     #[staticmethod]
-    fn open(path: &str) -> PyResult<Self> {
+    fn open(path: std::path::PathBuf) -> PyResult<Self> {
         let pdf = Pdf::open_file(path, None).map_err(to_py_err)?;
         Ok(PyPdf { inner: pdf })
     }
