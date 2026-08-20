@@ -1484,6 +1484,9 @@ impl PyPdf {
             let (width, height) = self.inner.page_dimensions(i).ok_or_else(|| {
                 PyRuntimeError::new_err(format!("missing geometry for page {}", i + 1))
             })?;
+            let rotation = self.inner.page_rotation(i).ok_or_else(|| {
+                PyRuntimeError::new_err(format!("missing rotation for page {}", i + 1))
+            })?;
             let initial_doctop = if self.selected_pages.is_some() {
                 let initial_doctop = selected_doctop;
                 selected_doctop += compatible_geometry_number(height);
@@ -1498,6 +1501,7 @@ impl PyPdf {
                     i,
                     width,
                     height,
+                    rotation,
                     initial_doctop,
                     self.unicode_norm.as_ref().map(|value| value.clone_ref(py)),
                 ),
@@ -1691,6 +1695,7 @@ struct PyPage {
     page_index: usize,
     width: f64,
     height: f64,
+    rotation: i32,
     selected_doctop: Option<f64>,
     unicode_norm: Option<PyObject>,
     page_cache: Mutex<Option<Page>>,
@@ -1702,6 +1707,7 @@ impl PyPage {
         page_index: usize,
         width: f64,
         height: f64,
+        rotation: i32,
         selected_doctop: Option<f64>,
         unicode_norm: Option<PyObject>,
     ) -> Self {
@@ -1710,6 +1716,7 @@ impl PyPage {
             page_index,
             width,
             height,
+            rotation,
             selected_doctop,
             unicode_norm,
             page_cache: Mutex::new(None),
@@ -1720,7 +1727,8 @@ impl PyPage {
     fn from_pdf_for_test(pdf: Pdf, page_index: usize) -> Self {
         let pdf = Arc::new(pdf);
         let (width, height) = pdf.page_dimensions(page_index).expect("page dimensions");
-        Self::new(pdf, page_index, width, height, None, None)
+        let rotation = pdf.page_rotation(page_index).expect("page rotation");
+        Self::new(pdf, page_index, width, height, rotation, None, None)
     }
 
     fn with_page<T>(
@@ -1793,7 +1801,7 @@ impl PyPage {
                 "initial_doctop",
                 initial_doctop_to_object(py, initial_doctop),
             )?;
-            dict.set_item("rotation", page.rotation())?;
+            dict.set_item("rotation", self.rotation)?;
             dict.set_item(
                 "cropbox",
                 (
@@ -1866,6 +1874,12 @@ impl PyPage {
     #[getter]
     fn height(&self) -> f64 {
         compatible_geometry_number(self.height)
+    }
+
+    /// Page rotation normalized to the range 0 through 359 degrees.
+    #[getter]
+    fn rotation(&self) -> i32 {
+        self.rotation
     }
 
     /// Cumulative height of preceding pages in the current page view.
@@ -2268,6 +2282,7 @@ mod tests {
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         assert!((pypage.width() - 612.0).abs() < 0.1);
         assert!((pypage.height() - 792.0).abs() < 0.1);
+        assert_eq!(pypage.rotation(), 0);
     }
 
     #[test]

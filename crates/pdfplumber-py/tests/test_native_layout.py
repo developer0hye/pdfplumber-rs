@@ -145,6 +145,43 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def normalized_rotation_pdf() -> bytes:
+        objects = (
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            (
+                b"<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 "
+                b"/Rotate -90 >>"
+            ),
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 200] >>",
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 200] "
+                b"/Rotate 450 >>"
+            ),
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 200] "
+                b"/Rotate 360 >>"
+            ),
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
         image = b"\x7f"
@@ -871,6 +908,28 @@ class NativeLayoutTests(unittest.TestCase):
             [
                 (3, 0, "int", 0, "int"),
                 (5, 841.89, "float", 841.89, "float"),
+            ],
+        )
+
+    def test_page_rotation_is_inherited_normalized_and_serialized(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.normalized_rotation_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    getattr(page, "rotation", "MISSING"),
+                    page.to_dict([])["rotation"],
+                    page.width,
+                    page.height,
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, 270, 270, 200, 100),
+                (2, 90, 90, 200, 100),
+                (3, 0, 0, 100, 200),
             ],
         )
 

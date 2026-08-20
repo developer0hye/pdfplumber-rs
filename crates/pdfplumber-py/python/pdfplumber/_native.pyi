@@ -176,6 +176,11 @@ class Page:
         ...
 
     @property
+    def rotation(self) -> int:
+        """Page rotation normalized to the range 0 through 359 degrees."""
+        ...
+
+    @property
     def initial_doctop(self) -> int | float:
         """Cumulative height of preceding pages in the current page view."""
         ...
