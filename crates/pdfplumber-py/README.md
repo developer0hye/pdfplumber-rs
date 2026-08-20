@@ -69,6 +69,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.rotation` | Inherited page rotation, normalized to 0 through 359 degrees |
 | `.mediabox` | Rotation-aware MediaBox in top-origin page coordinates |
 | `.cropbox` | Inherited rotation-aware CropBox, falling back to MediaBox |
+| `.trimbox` | Direct rotation-aware TrimBox when present; absent otherwise |
 | `.initial_doctop` | Cumulative height of preceding pages in the current page view |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
