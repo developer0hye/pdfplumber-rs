@@ -511,11 +511,12 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None, laparams=None))]
+    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None))]
     fn open(
         path_or_fp: &Bound<'_, PyAny>,
         pages: Option<PyObject>,
         laparams: Option<PyObject>,
+        password: Option<String>,
     ) -> PyResult<Self> {
         let laparams = validate_laparams(path_or_fp.py(), laparams)?;
         let (stream, path, stream_is_external) =
@@ -533,12 +534,24 @@ impl PyPdf {
         stream.call_method1("seek", (0,))?;
         let data = stream.call_method0("read")?;
         let bytes = data.downcast::<PyBytes>()?;
-        let pdf = Pdf::open(bytes.as_bytes(), None).map_err(to_py_err)?;
+        let pdf_result = match password.as_deref() {
+            Some(password) => Pdf::open_with_password(bytes.as_bytes(), password.as_bytes(), None),
+            None => Pdf::open(bytes.as_bytes(), None),
+        };
+        let pdf = match pdf_result {
+            Ok(pdf) => pdf,
+            Err(error) => {
+                if !stream_is_external {
+                    stream.call_method0("close")?;
+                }
+                return Err(to_py_err(error));
+            }
+        };
         Ok(PyPdf {
             inner: pdf,
             stream: Some(stream.unbind()),
             path,
-            password: None,
+            password,
             stream_is_external,
             selected_pages: pages,
             _laparams: laparams,

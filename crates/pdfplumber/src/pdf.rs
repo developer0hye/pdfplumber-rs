@@ -2416,6 +2416,23 @@ mod tests {
     }
 
     #[test]
+    fn pdf_open_with_nonempty_password_fixture() {
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/pdfs/password-example.pdf");
+        let bytes = std::fs::read(&fixture_path).unwrap();
+
+        let pdf = Pdf::open_with_password(&bytes, b"test", None).unwrap();
+
+        assert_eq!(pdf.page_count(), 4);
+        assert!(
+            !pdf.page(0)
+                .unwrap()
+                .extract_text(&TextOptions::default())
+                .is_empty()
+        );
+    }
+
+    #[test]
     fn pdf_open_with_password_wrong_returns_invalid_password() {
         let bytes = create_encrypted_pdf(b"testpass");
         let result = Pdf::open_with_password(&bytes, b"wrongpass", None);

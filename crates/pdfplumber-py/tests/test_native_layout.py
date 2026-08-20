@@ -33,6 +33,18 @@ class NativeLayoutTests(unittest.TestCase):
             / "long_document.pdf"
         )
 
+    @staticmethod
+    def password_fixture() -> Path:
+        return (
+            Path(__file__).resolve().parents[3]
+            / "crates"
+            / "pdfplumber"
+            / "tests"
+            / "fixtures"
+            / "pdfs"
+            / "password-example.pdf"
+        )
+
     def test_pdfplumber_is_a_python_package(self) -> None:
         self.assertEqual(pdfplumber.__name__, "pdfplumber")
         self.assertEqual(Path(pdfplumber.__file__).name, "__init__.py")
@@ -218,6 +230,32 @@ class NativeLayoutTests(unittest.TestCase):
             pdfplumber.open(fixture, laparams={"unknown": 1})
         with self.assertRaisesRegex(ValueError, r"between -1 and \+1"):
             pdfplumber.open(fixture, laparams={"boxes_flow": 2.0})
+
+    def test_open_uses_password_for_paths_and_external_streams(self) -> None:
+        fixture = self.password_fixture()
+        with pdfplumber.open(fixture, password="test") as document:
+            self.assertEqual(document.password, "test")
+            self.assertEqual(len(document.pages), 4)
+            self.assertTrue(document.pages[0].extract_text())
+
+        external = io.BytesIO(fixture.read_bytes())
+        external.seek(10)
+        with pdfplumber.open(external, password="test") as document:
+            self.assertIs(document.stream, external)
+            self.assertEqual(document.password, "test")
+            self.assertEqual(len(document.pages), 4)
+            self.assertEqual(external.tell(), len(external.getvalue()))
+        self.assertFalse(external.closed)
+
+        missing = io.BytesIO(fixture.read_bytes())
+        with self.assertRaises(_native.PdfPasswordRequired):
+            pdfplumber.open(missing)
+        self.assertFalse(missing.closed)
+
+        wrong = io.BytesIO(fixture.read_bytes())
+        with self.assertRaises(_native.PdfInvalidPassword):
+            pdfplumber.open(wrong, password="wrong")
+        self.assertFalse(wrong.closed)
 
 
 if __name__ == "__main__":
