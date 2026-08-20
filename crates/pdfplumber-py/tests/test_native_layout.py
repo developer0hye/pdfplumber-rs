@@ -6,6 +6,7 @@ import io
 import importlib.machinery
 import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 from types import MappingProxyType
@@ -538,14 +539,15 @@ class NativeLayoutTests(unittest.TestCase):
                     self.assertEqual(len(document.pages), 1)
 
                 missing = Path(directory) / "missing-gs"
+                with self.assertRaises(FileNotFoundError) as native_missing:
+                    subprocess.run([missing], check=True)
                 with self.assertRaises(FileNotFoundError) as caught:
                     pdfplumber.open(self.fixture(), repair=True, gs_path=missing)
-                self.assertEqual(caught.exception.errno, 2)
-                self.assertEqual(caught.exception.filename, missing)
+                self.assertEqual(caught.exception.errno, native_missing.exception.errno)
                 self.assertEqual(
-                    str(caught.exception),
-                    f"[Errno 2] No such file or directory: {missing!r}",
+                    caught.exception.filename, native_missing.exception.filename
                 )
+                self.assertEqual(str(caught.exception), str(native_missing.exception))
 
 
 if __name__ == "__main__":
