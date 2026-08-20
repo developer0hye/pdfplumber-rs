@@ -66,6 +66,8 @@ pub struct Pdf {
     page_widths: Vec<f64>,
     /// Cached display heights for each page (for doctop calculation).
     page_heights: Vec<f64>,
+    /// Cached normalized rotations for creating lazy page handles.
+    page_rotations: Vec<i32>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
@@ -283,6 +285,7 @@ impl Pdf {
 
         let mut page_widths = Vec::with_capacity(page_count);
         let mut page_heights = Vec::with_capacity(page_count);
+        let mut page_rotations = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
@@ -294,6 +297,7 @@ impl Pdf {
             let geometry = PageGeometry::new(media_box, None, rotation);
             page_widths.push(geometry.width());
             page_heights.push(geometry.height());
+            page_rotations.push(geometry.rotation());
             // Compute the effective page height for the y-flip transform.
             //
             // Python pdfplumber computes: top = (height - char.y1) + mb_top
@@ -325,6 +329,7 @@ impl Pdf {
             options,
             page_widths,
             page_heights,
+            page_rotations,
             raw_page_heights,
             metadata,
             raw_metadata,
@@ -346,6 +351,11 @@ impl Pdf {
             .get(index)
             .zip(self.page_heights.get(index))
             .map(|(width, height)| (*width, *height))
+    }
+
+    /// Return a page's normalized rotation without interpreting its content stream.
+    pub fn page_rotation(&self, index: usize) -> Option<i32> {
+        self.page_rotations.get(index).copied()
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
@@ -788,7 +798,7 @@ impl Pdf {
             index,
             geometry.width(),
             geometry.height(),
-            rotation,
+            geometry.rotation(),
             media_box,
             crop_box,
             trim_box,
@@ -1016,6 +1026,13 @@ mod tests {
 
     /// Helper: create a minimal single-page PDF with the given text content stream.
     fn create_pdf_with_content(content: &[u8]) -> Vec<u8> {
+        create_pdf_with_content_and_inherited_rotation(content, None)
+    }
+
+    fn create_pdf_with_content_and_inherited_rotation(
+        content: &[u8],
+        rotation: Option<i64>,
+    ) -> Vec<u8> {
         use lopdf::{Object, Stream, dictionary};
 
         let mut doc = lopdf::Document::with_version("1.5");
@@ -1054,11 +1071,14 @@ mod tests {
         let page_id = doc.add_object(page_dict);
 
         // Pages tree
-        let pages_dict = dictionary! {
+        let mut pages_dict = dictionary! {
             "Type" => "Pages",
             "Kids" => vec![Object::Reference(page_id)],
             "Count" => Object::Integer(1),
         };
+        if let Some(rotation) = rotation {
+            pages_dict.set("Rotate", rotation);
+        }
         let pages_id = doc.add_object(pages_dict);
 
         // Set page parent
@@ -1217,6 +1237,18 @@ mod tests {
         assert_eq!(pdf.page_dimensions(1), None);
     }
 
+    #[test]
+    fn page_rotation_is_inherited_normalized_and_available_without_content_interpretation() {
+        let bytes = create_pdf_with_content_and_inherited_rotation(
+            b"not a valid content stream operator",
+            Some(-90),
+        );
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        assert_eq!(pdf.page_rotation(0), Some(270));
+        assert_eq!(pdf.page_rotation(1), None);
+    }
+
     // --- page() tests ---
 
     #[test]
@@ -1252,6 +1284,14 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).unwrap();
         let page = pdf.page(0).unwrap();
         assert_eq!(page.rotation(), 0);
+    }
+
+    #[test]
+    fn page_rotation_is_normalized() {
+        let bytes = create_pdf_with_content_and_inherited_rotation(b"BT ET", Some(450));
+        let pdf = Pdf::open(&bytes, None).unwrap();
+        let page = pdf.page(0).unwrap();
+        assert_eq!(page.rotation(), 90);
     }
 
     #[test]

@@ -246,7 +246,7 @@ impl Page {
         self.height
     }
 
-    /// Returns the page rotation in degrees (0, 90, 180, or 270).
+    /// Returns the page rotation normalized to the range 0 through 359 degrees.
     pub fn rotation(&self) -> i32 {
         self.rotation
     }
