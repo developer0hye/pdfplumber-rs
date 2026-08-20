@@ -909,6 +909,12 @@ impl PyPdf {
 
     /// Release internally owned resources without closing caller-owned streams.
     fn close(&self, py: Python<'_>) -> PyResult<()> {
+        self.pages_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
+            .take();
+        self.pages(py)?;
+
         if !self.stream_is_external {
             if let Some(stream) = &self.stream {
                 stream.bind(py).call_method0("close")?;
