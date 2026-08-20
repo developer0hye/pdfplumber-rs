@@ -46,13 +46,19 @@ class NativeLayoutTests(unittest.TestCase):
     def test_top_level_open_is_the_pdf_open_alias(self) -> None:
         self.assertEqual(pdfplumber.open, pdfplumber.PDF.open)
         document = pdfplumber.open(str(self.fixture()))
-        self.assertIsInstance(document, pdfplumber.PDF)
-        self.assertGreater(len(document.pages), 0)
+        try:
+            self.assertIsInstance(document, pdfplumber.PDF)
+            self.assertGreater(len(document.pages), 0)
+        finally:
+            document.close()
 
     def test_open_accepts_pathlib_path(self) -> None:
         document = pdfplumber.open(self.fixture())
-        self.assertIsInstance(document, pdfplumber.PDF)
-        self.assertGreater(len(document.pages), 0)
+        try:
+            self.assertIsInstance(document, pdfplumber.PDF)
+            self.assertGreater(len(document.pages), 0)
+        finally:
+            document.close()
 
     def test_open_accepts_seekable_binary_streams(self) -> None:
         payload = self.fixture().read_bytes()
@@ -71,6 +77,66 @@ class NativeLayoutTests(unittest.TestCase):
                     self.assertEqual(stream.tell(), len(payload))
                 finally:
                     stream.close()
+
+    def test_open_exposes_upstream_resource_state(self) -> None:
+        document = pdfplumber.open(self.fixture())
+        self.assertEqual(document.path, self.fixture())
+        self.assertIsNone(document.password)
+        self.assertFalse(document.stream.closed)
+        document.close()
+        self.assertTrue(document.stream.closed)
+
+        external = io.BytesIO(self.fixture().read_bytes())
+        try:
+            document = pdfplumber.open(external)
+            self.assertIs(document.stream, external)
+            self.assertIsNone(document.path)
+            self.assertIsNone(document.password)
+        finally:
+            external.close()
+
+    def test_close_respects_stream_ownership_and_is_idempotent(self) -> None:
+        document = pdfplumber.open(self.fixture())
+        owned_stream = document.stream
+        first_page = document.pages[0]
+
+        self.assertIsNone(document.close())
+        self.assertTrue(owned_stream.closed)
+        self.assertIsNone(document.close())
+        self.assertEqual(len(document.pages), 1)
+        self.assertGreater(len(first_page.chars()), 0)
+
+        external = io.BytesIO(self.fixture().read_bytes())
+        try:
+            document = pdfplumber.open(external)
+            self.assertIsNone(document.close())
+            self.assertFalse(external.closed)
+            self.assertIsNone(document.close())
+        finally:
+            external.close()
+
+    def test_context_manager_closes_only_owned_streams(self) -> None:
+        document = pdfplumber.open(self.fixture())
+        with document as entered:
+            self.assertIs(entered, document)
+            self.assertFalse(document.stream.closed)
+        self.assertTrue(document.stream.closed)
+
+        external = io.BytesIO(self.fixture().read_bytes())
+        try:
+            document = pdfplumber.open(external)
+            with document as entered:
+                self.assertIs(entered, document)
+                self.assertIs(document.stream, external)
+            self.assertFalse(external.closed)
+        finally:
+            external.close()
+
+        document = pdfplumber.open(self.fixture())
+        with self.assertRaisesRegex(RuntimeError, "context sentinel"):
+            with document:
+                raise RuntimeError("context sentinel")
+        self.assertTrue(document.stream.closed)
 
 
 if __name__ == "__main__":
