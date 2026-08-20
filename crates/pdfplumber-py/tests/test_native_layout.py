@@ -45,6 +45,33 @@ class NativeLayoutTests(unittest.TestCase):
             / "password-example.pdf"
         )
 
+    @staticmethod
+    def cyclic_metadata_pdf() -> bytes:
+        objects = (
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+            b"<< /Loop 4 0 R >>",
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    "trailer\n<< /Root 1 0 R /Info 4 0 R /Size 5 >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
     def test_pdfplumber_is_a_python_package(self) -> None:
         self.assertEqual(pdfplumber.__name__, "pdfplumber")
         self.assertEqual(Path(pdfplumber.__file__).name, "__init__.py")
@@ -312,6 +339,26 @@ class NativeLayoutTests(unittest.TestCase):
                     pdfplumber.open(stream, password=password)
                 self.assertTrue(str(caught.exception))
                 self.assertFalse(stream.closed)
+
+    def test_open_accepts_strict_metadata_and_rejects_cycles(self) -> None:
+        with pdfplumber.open(self.fixture(), strict_metadata=False) as permissive:
+            permissive_metadata = permissive.metadata
+        with pdfplumber.open(self.fixture(), strict_metadata=True) as strict:
+            self.assertEqual(strict.metadata, permissive_metadata)
+
+        permissive_stream = io.BytesIO(self.cyclic_metadata_pdf())
+        with pdfplumber.open(
+            permissive_stream, strict_metadata=False
+        ) as permissive_cycle:
+            self.assertIsInstance(permissive_cycle.metadata, dict)
+        self.assertFalse(permissive_stream.closed)
+
+        strict_stream = io.BytesIO(self.cyclic_metadata_pdf())
+        with self.assertRaisesRegex(
+            RecursionError, r"^maximum recursion depth exceeded$"
+        ):
+            pdfplumber.open(strict_stream, strict_metadata=True)
+        self.assertFalse(strict_stream.closed)
 
 
 if __name__ == "__main__":

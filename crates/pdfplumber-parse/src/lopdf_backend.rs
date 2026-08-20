@@ -61,6 +61,18 @@ pub struct LopdfPage {
 /// ```
 pub struct LopdfBackend;
 
+impl LopdfBackend {
+    /// Validate that the document information dictionary can be traversed
+    /// without following an indirect-reference cycle.
+    pub fn validate_document_metadata(doc: &LopdfDocument) -> Result<(), BackendError> {
+        let info = match doc.inner.trailer.get(b"Info") {
+            Ok(info) => info,
+            Err(_) => return Ok(()),
+        };
+        validate_metadata_object(&doc.inner, info, &mut std::collections::HashSet::new())
+    }
+}
+
 /// Extract a [`BBox`] from a lopdf array of 4 numbers `[x0, y0, x1, y1]`.
 fn extract_bbox_from_array(array: &[lopdf::Object]) -> Result<BBox, BackendError> {
     if array.len() != 4 {
@@ -1357,6 +1369,47 @@ fn extract_document_metadata(doc: &lopdf::Document) -> Result<DocumentMetadata, 
         creation_date: extract_string_from_dict(doc, info_dict, b"CreationDate"),
         mod_date: extract_string_from_dict(doc, info_dict, b"ModDate"),
     })
+}
+
+fn validate_metadata_object(
+    doc: &lopdf::Document,
+    object: &lopdf::Object,
+    active_references: &mut std::collections::HashSet<lopdf::ObjectId>,
+) -> Result<(), BackendError> {
+    match object {
+        lopdf::Object::Reference(id) => {
+            if !active_references.insert(*id) {
+                return Err(BackendError::Parse(
+                    "cyclic reference in document metadata".to_string(),
+                ));
+            }
+            let resolved = doc
+                .get_object(*id)
+                .map_err(|error| BackendError::Parse(error.to_string()))?;
+            let result = validate_metadata_object(doc, resolved, active_references);
+            active_references.remove(id);
+            result
+        }
+        lopdf::Object::Array(values) => {
+            for value in values {
+                validate_metadata_object(doc, value, active_references)?;
+            }
+            Ok(())
+        }
+        lopdf::Object::Dictionary(dictionary) => {
+            for (_, value) in dictionary.iter() {
+                validate_metadata_object(doc, value, active_references)?;
+            }
+            Ok(())
+        }
+        lopdf::Object::Stream(stream) => {
+            for (_, value) in stream.dict.iter() {
+                validate_metadata_object(doc, value, active_references)?;
+            }
+            Ok(())
+        }
+        _ => Ok(()),
+    }
 }
 
 /// Extract the document outline (bookmarks / table of contents) from the PDF catalog.
@@ -4120,6 +4173,25 @@ mod tests {
         assert!(meta.is_empty());
         assert_eq!(meta.title, None);
         assert_eq!(meta.author, None);
+    }
+
+    #[test]
+    fn metadata_validation_rejects_indirect_reference_cycles() {
+        let mut inner = lopdf::Document::with_version("1.4");
+        let info_id = inner.new_object_id();
+        let mut info = lopdf::Dictionary::new();
+        info.set("Loop", lopdf::Object::Reference(info_id));
+        inner
+            .objects
+            .insert(info_id, lopdf::Object::Dictionary(info));
+        inner.trailer.set("Info", lopdf::Object::Reference(info_id));
+        let doc = LopdfDocument {
+            inner,
+            page_ids: Vec::new(),
+        };
+
+        let error = LopdfBackend::validate_document_metadata(&doc).unwrap_err();
+        assert!(error.to_string().contains("cyclic reference"));
     }
 
     // --- extract_image_content() tests ---
