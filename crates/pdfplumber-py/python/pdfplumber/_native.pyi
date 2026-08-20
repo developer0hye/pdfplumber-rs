@@ -56,6 +56,8 @@ BBox = tuple[float, float, float, float]
 class PDF:
     """A PDF document opened for extraction."""
 
+    cached_properties: list[str]
+
     @staticmethod
     def open(path: str) -> PDF:
         """Open a PDF file from a filesystem path."""
@@ -64,6 +66,16 @@ class PDF:
     @staticmethod
     def open_bytes(data: bytes) -> PDF:
         """Open a PDF from bytes in memory."""
+        ...
+
+    @property
+    def pages_to_parse(self) -> object | None:
+        """The page-number collection supplied while opening the document."""
+        ...
+
+    @property
+    def stream_is_external(self) -> bool:
+        """Whether the input stream remains owned by the caller."""
         ...
 
     @property

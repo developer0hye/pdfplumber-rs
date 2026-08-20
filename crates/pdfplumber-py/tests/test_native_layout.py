@@ -7,6 +7,7 @@ import importlib.machinery
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -239,6 +240,71 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertIsNone(document.password)
         finally:
             external.close()
+
+    def test_document_repr_and_diagnostic_attributes_match_upstream(self) -> None:
+        selected_pages = (1,)
+        document = pdfplumber.open(self.fixture(), pages=selected_pages)
+        try:
+            cached_properties = getattr(pdfplumber.PDF, "cached_properties", None)
+            actual = {
+                "module": type(document).__module__,
+                "qualname": type(document).__qualname__,
+                "repr": re.sub(r"0x[0-9a-fA-F]+", "0xADDR", repr(document)),
+                "str": re.sub(r"0x[0-9a-fA-F]+", "0xADDR", str(document)),
+                "cached_properties": cached_properties,
+                "cached_properties_class_identity": cached_properties
+                is getattr(pdfplumber.PDF, "cached_properties", None),
+                "cached_properties_instance_identity": cached_properties
+                is getattr(document, "cached_properties", None),
+                "pages_to_parse_identity": getattr(document, "pages_to_parse", None)
+                is selected_pages,
+                "stream_is_external": getattr(
+                    document, "stream_is_external", None
+                ),
+            }
+        finally:
+            document.close()
+
+        external = io.BytesIO(self.fixture().read_bytes())
+        try:
+            caller_owned = pdfplumber.open(external)
+            try:
+                actual["external_pages_to_parse"] = getattr(
+                    caller_owned, "pages_to_parse", object()
+                )
+                actual["external_stream_is_external"] = getattr(
+                    caller_owned, "stream_is_external", None
+                )
+            finally:
+                caller_owned.close()
+            actual["external_remains_open"] = not external.closed
+        finally:
+            external.close()
+
+        self.maxDiff = None
+        self.assertEqual(
+            actual,
+            {
+                "module": "pdfplumber.pdf",
+                "qualname": "PDF",
+                "repr": "<pdfplumber.pdf.PDF object at 0xADDR>",
+                "str": "<pdfplumber.pdf.PDF object at 0xADDR>",
+                "cached_properties": [
+                    "_rect_edges",
+                    "_curve_edges",
+                    "_edges",
+                    "_objects",
+                    "_pages",
+                ],
+                "cached_properties_class_identity": True,
+                "cached_properties_instance_identity": True,
+                "pages_to_parse_identity": True,
+                "stream_is_external": False,
+                "external_pages_to_parse": None,
+                "external_stream_is_external": True,
+                "external_remains_open": True,
+            },
+        )
 
     def test_document_properties_match_observable_identity_policy(self) -> None:
         fixture = self.fixture()
