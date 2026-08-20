@@ -11,7 +11,7 @@ use ::pdfplumber::{
     PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, Word,
     WordOptions,
 };
-use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
+use pyo3::exceptions::{PyIOError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
 
@@ -226,6 +226,58 @@ fn parse_bbox_tuple(bbox: (f64, f64, f64, f64)) -> BBox {
     BBox::new(bbox.0, bbox.1, bbox.2, bbox.3)
 }
 
+fn validate_laparams(py: Python<'_>, laparams: Option<PyObject>) -> PyResult<Option<PyObject>> {
+    let Some(laparams) = laparams else {
+        return Ok(None);
+    };
+    let raw = laparams.bind(py);
+    let builtins = py.import("builtins")?;
+    let mapping_type = py.import("collections.abc")?.getattr("Mapping")?;
+    let is_mapping = builtins
+        .getattr("isinstance")?
+        .call1((raw, mapping_type))?
+        .is_truthy()?;
+    if !is_mapping {
+        return Err(PyTypeError::new_err(
+            "pdfminer.layout.LAParams() argument after ** must be a mapping",
+        ));
+    }
+    let params_object = builtins.getattr("dict")?.call1((raw,))?;
+    let params = params_object.downcast::<PyDict>()?;
+    const SUPPORTED_KEYS: [&str; 7] = [
+        "line_overlap",
+        "char_margin",
+        "line_margin",
+        "word_margin",
+        "boxes_flow",
+        "detect_vertical",
+        "all_texts",
+    ];
+
+    for (key, value) in params.iter() {
+        let key: String = key.extract()?;
+        if !SUPPORTED_KEYS.contains(&key.as_str()) {
+            return Err(PyTypeError::new_err(format!(
+                "LAParams.__init__() got an unexpected keyword argument '{key}'"
+            )));
+        }
+        if key == "boxes_flow" && !value.is_none() {
+            let boxes_flow = value.extract::<f64>().map_err(|_| {
+                PyTypeError::new_err(
+                    "LAParam boxes_flow should be None, or a number between -1 and +1",
+                )
+            })?;
+            if !(-1.0..=1.0).contains(&boxes_flow) {
+                return Err(PyValueError::new_err(
+                    "LAParam boxes_flow should be None, or a number between -1 and +1",
+                ));
+            }
+        }
+    }
+
+    Ok(Some(params.copy()?.into_any().unbind()))
+}
+
 fn table_rows_to_py(rows: &[Vec<::pdfplumber::Cell>]) -> Vec<Vec<Option<String>>> {
     rows.iter()
         .map(|row| row.iter().map(|cell| cell.text.clone()).collect())
@@ -437,6 +489,7 @@ struct PyPdf {
     password: Option<String>,
     stream_is_external: bool,
     selected_pages: Option<PyObject>,
+    _laparams: Option<PyObject>,
 }
 
 #[cfg(test)]
@@ -449,6 +502,7 @@ impl PyPdf {
             password: None,
             stream_is_external: false,
             selected_pages: None,
+            _laparams: None,
         }
     }
 }
@@ -457,8 +511,13 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None))]
-    fn open(path_or_fp: &Bound<'_, PyAny>, pages: Option<PyObject>) -> PyResult<Self> {
+    #[pyo3(signature = (path_or_fp, pages=None, laparams=None))]
+    fn open(
+        path_or_fp: &Bound<'_, PyAny>,
+        pages: Option<PyObject>,
+        laparams: Option<PyObject>,
+    ) -> PyResult<Self> {
+        let laparams = validate_laparams(path_or_fp.py(), laparams)?;
         let (stream, path, stream_is_external) =
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
                 let path: std::path::PathBuf = path_or_fp.extract()?;
@@ -482,6 +541,7 @@ impl PyPdf {
             password: None,
             stream_is_external,
             selected_pages: pages,
+            _laparams: laparams,
         })
     }
 
@@ -500,6 +560,7 @@ impl PyPdf {
             password: None,
             stream_is_external: false,
             selected_pages: None,
+            _laparams: None,
         })
     }
 
