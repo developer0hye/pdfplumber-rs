@@ -48,6 +48,75 @@ impl DocumentMetadata {
     }
 }
 
+/// A recursively decoded value from the PDF document information dictionary.
+///
+/// Dictionary entries use a vector rather than a map so callers can retain the
+/// source order exposed by Python pdfplumber.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum MetadataValue {
+    /// The PDF `null` value.
+    Null,
+    /// A PDF boolean.
+    Boolean(bool),
+    /// A PDF integer.
+    Integer(i64),
+    /// A PDF real number.
+    Real(f64),
+    /// A decoded PDF string or name.
+    String(String),
+    /// A recursively decoded PDF array.
+    Array(Vec<MetadataValue>),
+    /// A recursively decoded PDF dictionary in source order.
+    Dictionary(Vec<(String, MetadataValue)>),
+    /// An indirect reference retained because its value could not be resolved.
+    Reference(MetadataReference),
+    /// A PDF stream value that is not decoded as document metadata text.
+    Stream {
+        /// The recursively decoded stream dictionary.
+        dictionary: Vec<(String, MetadataValue)>,
+        /// The raw stream bytes.
+        data: Vec<u8>,
+    },
+}
+
+/// The object identifier for an unresolved metadata reference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MetadataReference {
+    /// The indirect object's number.
+    pub object_number: u32,
+    /// The indirect object's generation number.
+    pub generation_number: u16,
+}
+
+/// One entry in the raw document information dictionary.
+#[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct MetadataEntry {
+    /// The decoded metadata key.
+    pub key: String,
+    /// The decoded value, or the original unresolved value after a failure.
+    pub value: MetadataValue,
+    /// The resolution failure reported for this entry, if any.
+    pub resolution_error: Option<String>,
+}
+
+/// The complete source-ordered document information dictionary.
+#[derive(Debug, Clone, Default, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct RawDocumentMetadata {
+    /// Information-dictionary entries in source order.
+    pub entries: Vec<MetadataEntry>,
+}
+
+impl RawDocumentMetadata {
+    /// Returns `true` if the information dictionary has no entries.
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

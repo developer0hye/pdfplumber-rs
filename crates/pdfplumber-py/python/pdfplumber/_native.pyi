@@ -17,6 +17,17 @@ class PdfPasswordRequired(RuntimeError): ...
 class PdfInvalidPassword(ValueError): ...
 class PdfminerException(Exception): ...
 
+class PDFObjRef:
+    """An unresolved metadata reference retained after permissive parsing."""
+
+    def resolve(self) -> object: ...
+
+class PDFStream:
+    """A raw PDF stream used as a metadata value."""
+
+    attrs: dict[str, object]
+    rawdata: bytes
+
 # ---------------------------------------------------------------------------
 # Type aliases for return dicts
 # ---------------------------------------------------------------------------
@@ -57,7 +68,7 @@ class PDF:
 
     @property
     def metadata(self) -> MetadataDict:
-        """Document metadata as a dict with keys: title, author, subject, keywords, creator, producer, creation_date, mod_date."""
+        """The decoded PDF information dictionary with source key spelling."""
         ...
 
     def bookmarks(self) -> list[BookmarkDict]:

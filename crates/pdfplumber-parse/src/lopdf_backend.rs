@@ -8,7 +8,8 @@ use crate::error::BackendError;
 use crate::handler::ContentHandler;
 use pdfplumber_core::{
     Annotation, AnnotationType, BBox, Bookmark, DocumentMetadata, ExtractOptions, FieldType,
-    FormField, Hyperlink, ImageContent, RepairOptions, RepairResult, SignatureInfo, StructElement,
+    FormField, Hyperlink, ImageContent, MetadataEntry, MetadataReference, MetadataValue,
+    RawDocumentMetadata, RepairOptions, RepairResult, SignatureInfo, StructElement,
     ValidationIssue,
 };
 
@@ -62,6 +63,12 @@ pub struct LopdfPage {
 pub struct LopdfBackend;
 
 impl LopdfBackend {
+    /// Decode every document information entry while retaining source order,
+    /// arbitrary keys, nested values, and per-entry resolution failures.
+    pub fn raw_document_metadata(doc: &LopdfDocument) -> RawDocumentMetadata {
+        extract_raw_document_metadata(&doc.inner)
+    }
+
     /// Validate that the document information dictionary can be traversed
     /// without following an indirect-reference cycle.
     pub fn validate_document_metadata(doc: &LopdfDocument) -> Result<(), BackendError> {
@@ -1369,6 +1376,205 @@ fn extract_document_metadata(doc: &lopdf::Document) -> Result<DocumentMetadata, 
         creation_date: extract_string_from_dict(doc, info_dict, b"CreationDate"),
         mod_date: extract_string_from_dict(doc, info_dict, b"ModDate"),
     })
+}
+
+fn extract_raw_document_metadata(doc: &lopdf::Document) -> RawDocumentMetadata {
+    let Ok(info_object) = doc.trailer.get(b"Info") else {
+        return RawDocumentMetadata::default();
+    };
+    let info_object = match info_object {
+        lopdf::Object::Reference(id) => match doc.get_object(*id) {
+            Ok(object) => object,
+            Err(_) => return RawDocumentMetadata::default(),
+        },
+        object => object,
+    };
+    let Ok(info_dictionary) = info_object.as_dict() else {
+        return RawDocumentMetadata::default();
+    };
+
+    let entries = info_dictionary
+        .iter()
+        .filter_map(|(key, object)| {
+            if matches!(object, lopdf::Object::Null) {
+                return None;
+            }
+            let key = decode_pdfdoc_bytes(key);
+            let mut active_references = std::collections::HashSet::new();
+            let (value, resolution_error) =
+                match decode_metadata_object(doc, object, &mut active_references) {
+                    Ok(value) => (value, None),
+                    Err(error) => (preserve_metadata_object(object), Some(error)),
+                };
+            Some(MetadataEntry {
+                key,
+                value,
+                resolution_error,
+            })
+        })
+        .collect();
+
+    RawDocumentMetadata { entries }
+}
+
+fn decode_metadata_object(
+    doc: &lopdf::Document,
+    object: &lopdf::Object,
+    active_references: &mut std::collections::HashSet<lopdf::ObjectId>,
+) -> Result<MetadataValue, String> {
+    match object {
+        lopdf::Object::Null => Ok(MetadataValue::Null),
+        lopdf::Object::Boolean(value) => Ok(MetadataValue::Boolean(*value)),
+        lopdf::Object::Integer(value) => Ok(MetadataValue::Integer(*value)),
+        lopdf::Object::Real(value) => Ok(MetadataValue::Real(f64::from(*value))),
+        lopdf::Object::Name(value) => Ok(MetadataValue::String(decode_pdfdoc_bytes(value))),
+        lopdf::Object::String(value, _) => Ok(MetadataValue::String(decode_metadata_string(value))),
+        lopdf::Object::Array(values) => values
+            .iter()
+            .map(|value| decode_metadata_object(doc, value, active_references))
+            .collect::<Result<Vec<_>, _>>()
+            .map(MetadataValue::Array),
+        lopdf::Object::Dictionary(dictionary) => {
+            decode_metadata_dictionary(doc, dictionary, active_references)
+                .map(MetadataValue::Dictionary)
+        }
+        lopdf::Object::Stream(stream) => {
+            let dictionary = decode_metadata_dictionary(doc, &stream.dict, active_references)?;
+            Ok(MetadataValue::Stream {
+                dictionary,
+                data: stream.content.clone(),
+            })
+        }
+        lopdf::Object::Reference(id) => {
+            if !active_references.insert(*id) {
+                return Err("maximum recursion depth exceeded".to_string());
+            }
+            let resolved = doc.get_object(*id).map_err(|error| error.to_string())?;
+            let result = decode_metadata_object(doc, resolved, active_references);
+            active_references.remove(id);
+            result
+        }
+    }
+}
+
+fn decode_metadata_dictionary(
+    doc: &lopdf::Document,
+    dictionary: &lopdf::Dictionary,
+    active_references: &mut std::collections::HashSet<lopdf::ObjectId>,
+) -> Result<Vec<(String, MetadataValue)>, String> {
+    dictionary
+        .iter()
+        .filter_map(|(key, value)| {
+            if matches!(value, lopdf::Object::Null) {
+                None
+            } else {
+                Some(
+                    decode_metadata_object(doc, value, active_references)
+                        .map(|value| (decode_pdfdoc_bytes(key), value)),
+                )
+            }
+        })
+        .collect()
+}
+
+fn preserve_metadata_object(object: &lopdf::Object) -> MetadataValue {
+    match object {
+        lopdf::Object::Null => MetadataValue::Null,
+        lopdf::Object::Boolean(value) => MetadataValue::Boolean(*value),
+        lopdf::Object::Integer(value) => MetadataValue::Integer(*value),
+        lopdf::Object::Real(value) => MetadataValue::Real(f64::from(*value)),
+        lopdf::Object::Name(value) => MetadataValue::String(decode_pdfdoc_bytes(value)),
+        lopdf::Object::String(value, _) => MetadataValue::String(decode_metadata_string(value)),
+        lopdf::Object::Array(values) => {
+            MetadataValue::Array(values.iter().map(preserve_metadata_object).collect())
+        }
+        lopdf::Object::Dictionary(dictionary) => MetadataValue::Dictionary(
+            dictionary
+                .iter()
+                .filter(|(_, value)| !matches!(value, lopdf::Object::Null))
+                .map(|(key, value)| (decode_pdfdoc_bytes(key), preserve_metadata_object(value)))
+                .collect(),
+        ),
+        lopdf::Object::Stream(stream) => MetadataValue::Stream {
+            dictionary: stream
+                .dict
+                .iter()
+                .filter(|(_, value)| !matches!(value, lopdf::Object::Null))
+                .map(|(key, value)| (decode_pdfdoc_bytes(key), preserve_metadata_object(value)))
+                .collect(),
+            data: stream.content.clone(),
+        },
+        lopdf::Object::Reference((object_number, generation_number)) => {
+            MetadataValue::Reference(MetadataReference {
+                object_number: *object_number,
+                generation_number: *generation_number,
+            })
+        }
+    }
+}
+
+fn decode_metadata_string(bytes: &[u8]) -> String {
+    if let Some(bytes) = bytes.strip_prefix(&[0xfe, 0xff]) {
+        let words = bytes
+            .chunks_exact(2)
+            .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]));
+        char::decode_utf16(words).filter_map(Result::ok).collect()
+    } else {
+        decode_pdfdoc_bytes(bytes)
+    }
+}
+
+fn decode_pdfdoc_bytes(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| pdfdoc_char(*byte)).collect()
+}
+
+fn pdfdoc_char(byte: u8) -> char {
+    let code_point = match byte {
+        0x16 | 0x17 => 0x0017,
+        0x18 => 0x02d8,
+        0x19 => 0x02c7,
+        0x1a => 0x02c6,
+        0x1b => 0x02d9,
+        0x1c => 0x02dd,
+        0x1d => 0x02db,
+        0x1e => 0x02da,
+        0x1f => 0x02dc,
+        0x7f | 0x9f | 0xad => 0,
+        0x80 => 0x2022,
+        0x81 => 0x2020,
+        0x82 => 0x2021,
+        0x83 => 0x2026,
+        0x84 => 0x2014,
+        0x85 => 0x2013,
+        0x86 => 0x0192,
+        0x87 => 0x2044,
+        0x88 => 0x2039,
+        0x89 => 0x203a,
+        0x8a => 0x2212,
+        0x8b => 0x2030,
+        0x8c => 0x201e,
+        0x8d => 0x201c,
+        0x8e => 0x201d,
+        0x8f => 0x2018,
+        0x90 => 0x2019,
+        0x91 => 0x201a,
+        0x92 => 0x2122,
+        0x93 => 0xfb01,
+        0x94 => 0xfb02,
+        0x95 => 0x0141,
+        0x96 => 0x0152,
+        0x97 => 0x0160,
+        0x98 => 0x0178,
+        0x99 => 0x017d,
+        0x9a => 0x0131,
+        0x9b => 0x0142,
+        0x9c => 0x0153,
+        0x9d => 0x0161,
+        0x9e => 0x017e,
+        0xa0 => 0x20ac,
+        value => u32::from(value),
+    };
+    char::from_u32(code_point).expect("PDFDocEncoding contains valid Unicode scalar values")
 }
 
 fn validate_metadata_object(
@@ -4192,6 +4398,118 @@ mod tests {
 
         let error = LopdfBackend::validate_document_metadata(&doc).unwrap_err();
         assert!(error.to_string().contains("cyclic reference"));
+    }
+
+    #[test]
+    fn raw_metadata_retains_keys_nested_values_and_pdfdoc_encoding() {
+        let mut inner = lopdf::Document::with_version("1.4");
+        let indirect_id = inner.add_object(lopdf::Object::string_literal("indirect"));
+        let info_id = inner.new_object_id();
+        let mut nested = lopdf::Dictionary::new();
+        nested.set("Name", lopdf::Object::Name(b"Blue".to_vec()));
+        nested.set(
+            "List",
+            lopdf::Object::Array(vec![
+                lopdf::Object::string_literal("inner"),
+                lopdf::Object::Integer(9),
+            ]),
+        );
+        let mut info = lopdf::Dictionary::new();
+        info.set(
+            "Encoded",
+            lopdf::Object::String(b"bullet \x80".to_vec(), lopdf::StringFormat::Literal),
+        );
+        info.set("Raw Key", lopdf::Object::string_literal("spaced"));
+        info.set(
+            "List",
+            lopdf::Object::Array(vec![
+                lopdf::Object::Boolean(true),
+                lopdf::Object::Null,
+                lopdf::Object::Reference(indirect_id),
+            ]),
+        );
+        info.set("Nested", lopdf::Object::Dictionary(nested));
+        info.set("Omitted", lopdf::Object::Null);
+        inner
+            .objects
+            .insert(info_id, lopdf::Object::Dictionary(info));
+        inner.trailer.set("Info", lopdf::Object::Reference(info_id));
+        let doc = LopdfDocument {
+            inner,
+            page_ids: Vec::new(),
+        };
+
+        let raw = LopdfBackend::raw_document_metadata(&doc);
+        assert_eq!(
+            raw.entries,
+            vec![
+                MetadataEntry {
+                    key: "Encoded".to_string(),
+                    value: MetadataValue::String("bullet •".to_string()),
+                    resolution_error: None,
+                },
+                MetadataEntry {
+                    key: "Raw Key".to_string(),
+                    value: MetadataValue::String("spaced".to_string()),
+                    resolution_error: None,
+                },
+                MetadataEntry {
+                    key: "List".to_string(),
+                    value: MetadataValue::Array(vec![
+                        MetadataValue::Boolean(true),
+                        MetadataValue::Null,
+                        MetadataValue::String("indirect".to_string()),
+                    ]),
+                    resolution_error: None,
+                },
+                MetadataEntry {
+                    key: "Nested".to_string(),
+                    value: MetadataValue::Dictionary(vec![
+                        (
+                            "Name".to_string(),
+                            MetadataValue::String("Blue".to_string()),
+                        ),
+                        (
+                            "List".to_string(),
+                            MetadataValue::Array(vec![
+                                MetadataValue::String("inner".to_string()),
+                                MetadataValue::Integer(9),
+                            ]),
+                        ),
+                    ]),
+                    resolution_error: None,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn raw_metadata_reports_cycle_and_retains_original_reference() {
+        let mut inner = lopdf::Document::with_version("1.4");
+        let info_id = inner.new_object_id();
+        let mut info = lopdf::Dictionary::new();
+        info.set("Loop", lopdf::Object::Reference(info_id));
+        inner
+            .objects
+            .insert(info_id, lopdf::Object::Dictionary(info));
+        inner.trailer.set("Info", lopdf::Object::Reference(info_id));
+        let doc = LopdfDocument {
+            inner,
+            page_ids: Vec::new(),
+        };
+
+        let raw = LopdfBackend::raw_document_metadata(&doc);
+        assert_eq!(
+            raw.entries,
+            vec![MetadataEntry {
+                key: "Loop".to_string(),
+                value: MetadataValue::Reference(MetadataReference {
+                    object_number: info_id.0,
+                    generation_number: info_id.1,
+                }),
+                resolution_error: Some("maximum recursion depth exceeded".to_string()),
+            }]
+        );
     }
 
     // --- extract_image_content() tests ---
