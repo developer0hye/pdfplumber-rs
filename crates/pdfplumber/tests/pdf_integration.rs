@@ -962,12 +962,24 @@ fn pdf_with_goto_link() -> Vec<u8> {
         },
     });
 
+    // A named destination can look like a URI scheme while still being an
+    // internal GoTo action.
+    let named_annot_id = doc.add_object(dictionary! {
+        "Type" => "Annot",
+        "Subtype" => "Link",
+        "Rect" => vec![Object::Integer(220), Object::Integer(710), Object::Integer(320), Object::Integer(730)],
+        "A" => dictionary! {
+            "S" => "GoTo",
+            "D" => Object::string_literal("glo:CNN"),
+        },
+    });
+
     let page_dict = dictionary! {
         "Type" => "Page",
         "MediaBox" => vec![Object::Integer(0), Object::Integer(0), Object::Integer(612), Object::Integer(792)],
         "Contents" => Object::Reference(content_id),
         "Resources" => resources,
-        "Annots" => vec![Object::Reference(annot_id)],
+        "Annots" => vec![Object::Reference(annot_id), Object::Reference(named_annot_id)],
     };
     let page_id = doc.add_object(page_dict);
 
@@ -1006,6 +1018,7 @@ fn hyperlink_uri_link() {
 
     let links = page.hyperlinks();
     assert_eq!(links.len(), 1);
+    assert_eq!(page.uri_hyperlinks(), links);
 
     let link = &links[0];
     assert_eq!(link.uri, "https://example.com");
@@ -1022,11 +1035,12 @@ fn hyperlink_goto_link() {
     let page = pdf.page(0).unwrap();
 
     let links = page.hyperlinks();
-    assert_eq!(links.len(), 1);
+    assert_eq!(links.len(), 2);
+    assert!(page.uri_hyperlinks().is_empty());
 
     // GoTo links should have a destination string
-    let link = &links[0];
-    assert!(!link.uri.is_empty());
+    assert!(links.iter().all(|link| !link.uri.is_empty()));
+    assert_eq!(links[1].uri, "glo:CNN");
 }
 
 #[test]
@@ -1037,6 +1051,7 @@ fn hyperlink_page_with_no_links() {
     let page = pdf.page(0).unwrap();
 
     assert!(page.hyperlinks().is_empty());
+    assert!(page.uri_hyperlinks().is_empty());
 }
 
 // --- Bookmark tests (US-062) ---

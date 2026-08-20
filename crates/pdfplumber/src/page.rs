@@ -52,6 +52,8 @@ pub struct Page {
     annotations: Vec<Annotation>,
     /// Hyperlinks extracted from Link annotations with resolved URIs.
     hyperlinks: Vec<Hyperlink>,
+    /// Link annotations whose action type is explicitly `/URI`.
+    uri_hyperlinks: Vec<Hyperlink>,
     /// Form fields belonging to this page (from document AcroForm, filtered by page).
     form_fields: Vec<FormField>,
     /// Structure tree elements for this page (from document StructTreeRoot, filtered by page).
@@ -81,6 +83,7 @@ impl Page {
             images: Vec::new(),
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            uri_hyperlinks: Vec::new(),
             form_fields: Vec::new(),
             structure_tree: None,
             warnings: Vec::new(),
@@ -115,6 +118,7 @@ impl Page {
             images: Vec::new(),
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            uri_hyperlinks: Vec::new(),
             form_fields: Vec::new(),
             structure_tree: None,
             warnings: Vec::new(),
@@ -151,6 +155,7 @@ impl Page {
             images,
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
+            uri_hyperlinks: Vec::new(),
             form_fields: Vec::new(),
             structure_tree: None,
             warnings: Vec::new(),
@@ -179,6 +184,7 @@ impl Page {
         images: Vec<Image>,
         annotations: Vec<Annotation>,
         hyperlinks: Vec<Hyperlink>,
+        uri_hyperlinks: Vec<Hyperlink>,
         form_fields: Vec<FormField>,
         structure_tree: Option<Vec<StructElement>>,
         warnings: Vec<ExtractWarning>,
@@ -200,6 +206,7 @@ impl Page {
             images,
             annotations,
             hyperlinks,
+            uri_hyperlinks,
             form_fields,
             structure_tree,
             warnings,
@@ -333,6 +340,11 @@ impl Page {
     /// Each hyperlink has a bounding box and a URI string.
     pub fn hyperlinks(&self) -> &[Hyperlink] {
         &self.hyperlinks
+    }
+
+    /// Returns Link annotations whose action type is explicitly `/URI`.
+    pub fn uri_hyperlinks(&self) -> &[Hyperlink] {
+        &self.uri_hyperlinks
     }
 
     /// Returns the form fields belonging to this page.

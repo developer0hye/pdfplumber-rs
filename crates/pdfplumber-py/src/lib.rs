@@ -1142,6 +1142,19 @@ impl PyPdf {
         Ok(annots)
     }
 
+    /// URI annotation dictionaries from all selected pages in document order.
+    #[getter]
+    fn hyperlinks(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let mut hyperlinks = Vec::new();
+        for page in self.pages(py)?.bind(py).iter() {
+            let page_hyperlinks = page.getattr("hyperlinks")?;
+            for hyperlink in page_hyperlinks.downcast::<PyList>()?.iter() {
+                hyperlinks.push(hyperlink.unbind());
+            }
+        }
+        Ok(hyperlinks)
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1352,7 +1365,7 @@ impl PyPage {
                 .iter()
                 .map(|annotation| {
                     let uri = page
-                        .hyperlinks()
+                        .uri_hyperlinks()
                         .iter()
                         .find(|hyperlink| hyperlink.bbox == annotation.bbox)
                         .map(|hyperlink| hyperlink.uri.as_str());
@@ -1367,6 +1380,23 @@ impl PyPage {
                 })
                 .collect()
         })
+    }
+
+    /// Annotation dictionaries whose URI is not null.
+    #[getter]
+    fn hyperlinks(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let mut hyperlinks = Vec::new();
+        for annotation in self.annots(py)? {
+            let uri = annotation
+                .bind(py)
+                .downcast::<PyDict>()?
+                .get_item("uri")?
+                .ok_or_else(|| PyRuntimeError::new_err("annotation is missing uri"))?;
+            if !uri.is_none() {
+                hyperlinks.push(annotation);
+            }
+        }
+        Ok(hyperlinks)
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
@@ -2237,6 +2267,10 @@ mod tests {
         assert!(
             content.contains("def annots(self) -> list[AnnotDict]:"),
             "stubs must declare document and page annotations"
+        );
+        assert!(
+            content.contains("def hyperlinks(self) -> list[AnnotDict]:"),
+            "stubs must declare document and page hyperlinks"
         );
     }
 
