@@ -787,6 +787,7 @@ struct PyPdfOpenArgs {
     pages: Option<PyObject>,
     laparams: Option<PyObject>,
     password: Option<String>,
+    password_object: Option<PyObject>,
     strict_metadata: bool,
     unicode_norm: Option<PyObject>,
     repair: bool,
@@ -952,10 +953,11 @@ fn parse_pdf_open_args(
     })?;
     let pages = optional_py_object(py, values[1].take());
     let laparams = optional_py_object(py, values[2].take());
-    let password = match values[3].take() {
-        Some(value) if !value.bind(py).is_none() => Some(value.bind(py).extract::<String>()?),
-        _ => None,
-    };
+    let password_object = optional_py_object(py, values[3].take());
+    let password = password_object
+        .as_ref()
+        .map(|value| value.bind(py).extract::<String>())
+        .transpose()?;
     let strict_metadata = match values[4].take() {
         Some(value) => value.bind(py).extract::<bool>()?,
         None => false,
@@ -976,6 +978,7 @@ fn parse_pdf_open_args(
         pages,
         laparams,
         password,
+        password_object,
         strict_metadata,
         unicode_norm,
         repair,
@@ -992,8 +995,8 @@ fn parse_pdf_open_args(
 struct PyPdf {
     inner: Arc<Pdf>,
     stream: Option<PyObject>,
-    path: Option<std::path::PathBuf>,
-    password: Option<String>,
+    path: Option<PyObject>,
+    password: Option<PyObject>,
     stream_is_external: bool,
     selected_pages: Option<PyObject>,
     _laparams: Option<PyObject>,
@@ -1002,6 +1005,7 @@ struct PyPdf {
     raise_unicode_errors: Option<PyObject>,
     pages_cache: Mutex<Option<Py<PyList>>>,
     objects_cache: Mutex<Option<Py<PyDict>>>,
+    metadata_cache: Mutex<Option<PyObject>>,
 }
 
 impl PyPdf {
@@ -1025,6 +1029,20 @@ impl PyPdf {
         self.clear_objects_cache()?;
         self.clear_pages_cache()
     }
+
+    fn metadata_object(&self, py: Python<'_>) -> PyResult<PyObject> {
+        let mut cache = self
+            .metadata_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("metadata cache lock poisoned"))?;
+        if let Some(metadata) = cache.as_ref() {
+            return Ok(metadata.clone_ref(py));
+        }
+
+        let metadata = raw_metadata_to_dict(py, self.inner.raw_metadata())?;
+        *cache = Some(metadata.clone_ref(py));
+        Ok(metadata)
+    }
 }
 
 #[cfg(test)]
@@ -1043,6 +1061,7 @@ impl PyPdf {
             raise_unicode_errors: None,
             pages_cache: Mutex::new(None),
             objects_cache: Mutex::new(None),
+            metadata_cache: Mutex::new(None),
         }
     }
 }
@@ -1065,6 +1084,7 @@ impl PyPdf {
             pages,
             laparams,
             password,
+            password_object,
             strict_metadata,
             unicode_norm,
             repair,
@@ -1084,13 +1104,17 @@ impl PyPdf {
             (repaired, None, false)
         } else {
             if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
-                let path: std::path::PathBuf = path_or_fp.extract()?;
+                let path = path_or_fp
+                    .py()
+                    .import("pathlib")?
+                    .getattr("Path")?
+                    .call1((path_or_fp,))?;
                 let stream = path_or_fp
                     .py()
                     .import("builtins")?
                     .getattr("open")?
                     .call1((&path, "rb"))?;
-                (stream, Some(path), false)
+                (stream, Some(path.unbind()), false)
             } else {
                 (path_or_fp.clone(), None, true)
             }
@@ -1130,7 +1154,7 @@ impl PyPdf {
             inner: Arc::new(pdf),
             stream: Some(stream.unbind()),
             path,
-            password,
+            password: password_object,
             stream_is_external,
             selected_pages: pages,
             _laparams: laparams,
@@ -1139,6 +1163,7 @@ impl PyPdf {
             raise_unicode_errors,
             pages_cache: Mutex::new(None),
             objects_cache: Mutex::new(None),
+            metadata_cache: Mutex::new(None),
         })
     }
 
@@ -1164,6 +1189,7 @@ impl PyPdf {
             raise_unicode_errors: None,
             pages_cache: Mutex::new(None),
             objects_cache: Mutex::new(None),
+            metadata_cache: Mutex::new(None),
         })
     }
 
@@ -1178,14 +1204,20 @@ impl PyPdf {
 
     /// The filesystem path for internally opened documents, otherwise `None`.
     #[getter]
-    fn path(&self) -> Option<std::path::PathBuf> {
-        self.path.clone()
+    fn path(&self, py: Python<'_>) -> PyObject {
+        self.path
+            .as_ref()
+            .map(|path| path.clone_ref(py))
+            .unwrap_or_else(|| py.None())
     }
 
-    /// The password supplied while opening the document, currently `None`.
+    /// The password supplied while opening the document, otherwise `None`.
     #[getter]
-    fn password(&self) -> Option<String> {
-        self.password.clone()
+    fn password(&self, py: Python<'_>) -> PyObject {
+        self.password
+            .as_ref()
+            .map(|password| password.clone_ref(py))
+            .unwrap_or_else(|| py.None())
     }
 
     /// The Unicode normalization form applied during extraction, if any.
@@ -1411,10 +1443,7 @@ impl PyPdf {
         object_types: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
-        dict.set_item(
-            "metadata",
-            raw_metadata_to_dict(py, self.inner.raw_metadata())?,
-        )?;
+        dict.set_item("metadata", self.metadata_object(py)?)?;
         let serialized_pages = PyList::empty(py);
         for page in self.pages(py)?.bind(py).iter() {
             let serialized = match object_types {
@@ -1487,7 +1516,7 @@ impl PyPdf {
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
-        raw_metadata_to_dict(py, self.inner.raw_metadata())
+        self.metadata_object(py)
     }
 
     /// Document bookmarks (outline / table of contents) as list[dict].

@@ -240,6 +240,43 @@ class NativeLayoutTests(unittest.TestCase):
         finally:
             external.close()
 
+    def test_document_properties_match_observable_identity_policy(self) -> None:
+        fixture = self.fixture()
+        password = "".join(("identity-", "password-", "x" * 40))
+        document = pdfplumber.open(fixture, password=password)
+        metadata = document.metadata
+        marker = object()
+        metadata["__identity_marker__"] = marker
+        serialized = document.to_dict(object_types=[])
+        identity = {
+            "stream": document.stream is document.stream,
+            "path": document.path is document.path,
+            "password": document.password is password,
+            "metadata": document.metadata is metadata,
+            "to_dict_metadata": serialized["metadata"] is metadata,
+            "to_dict_mutation": serialized["metadata"].get("__identity_marker__")
+            is marker,
+            "pages": document.pages is document.pages,
+            "objects": document.objects is document.objects,
+            "annots_fresh": document.annots is not document.annots,
+            "hyperlinks_fresh": document.hyperlinks is not document.hyperlinks,
+            "structure_tree_fresh": document.structure_tree
+            is not document.structure_tree,
+        }
+        document.flush_cache()
+        identity["metadata_after_flush"] = document.metadata is metadata
+        identity["mutation_after_flush"] = (
+            document.metadata.get("__identity_marker__") is marker
+        )
+        document.close()
+        identity["metadata_after_close"] = document.metadata is metadata
+        identity["mutation_after_close"] = (
+            document.metadata.get("__identity_marker__") is marker
+        )
+
+        self.maxDiff = None
+        self.assertEqual(identity, dict.fromkeys(identity, True))
+
     def test_close_respects_stream_ownership_and_is_idempotent(self) -> None:
         document = pdfplumber.open(self.fixture())
         owned_stream = document.stream
