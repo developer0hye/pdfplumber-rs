@@ -71,6 +71,10 @@ class PDF:
         """The decoded PDF information dictionary with source key spelling."""
         ...
 
+    def flush_cache(self, properties: list[str] | None = None) -> None:
+        """Discard selected cached document properties."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...

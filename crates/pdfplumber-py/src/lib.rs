@@ -731,6 +731,16 @@ struct PyPdf {
     pages_cache: Mutex<Option<Py<PyList>>>,
 }
 
+impl PyPdf {
+    fn clear_pages_cache(&self) -> PyResult<()> {
+        self.pages_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
+            .take();
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 impl PyPdf {
     fn from_inner_for_test(inner: Pdf) -> Self {
@@ -909,15 +919,34 @@ impl PyPdf {
 
     /// Release internally owned resources without closing caller-owned streams.
     fn close(&self, py: Python<'_>) -> PyResult<()> {
-        self.pages_cache
-            .lock()
-            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
-            .take();
+        self.clear_pages_cache()?;
         self.pages(py)?;
 
         if !self.stream_is_external {
             if let Some(stream) = &self.stream {
                 stream.bind(py).call_method0("close")?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Discard selected cached document properties without closing resources.
+    #[pyo3(signature = (properties=None))]
+    fn flush_cache(&self, properties: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
+        let Some(properties) = properties else {
+            return self.clear_pages_cache();
+        };
+
+        for property in properties.try_iter()? {
+            let property = property?;
+            if !property.is_instance_of::<PyString>() {
+                let type_name = property.get_type().name()?.to_string_lossy().into_owned();
+                return Err(PyTypeError::new_err(format!(
+                    "attribute name must be string, not '{type_name}'"
+                )));
+            }
+            if property.extract::<String>()? == "_pages" {
+                self.clear_pages_cache()?;
             }
         }
         Ok(())
@@ -2049,6 +2078,10 @@ mod tests {
         assert!(
             content.contains("__version__"),
             "stubs must declare __version__"
+        );
+        assert!(
+            content.contains("def flush_cache(self, properties: list[str] | None = None) -> None:"),
+            "stubs must declare PDF.flush_cache"
         );
     }
 
