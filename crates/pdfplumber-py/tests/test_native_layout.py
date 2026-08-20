@@ -933,6 +933,26 @@ class NativeLayoutTests(unittest.TestCase):
             ],
         )
 
+    def test_page_mediabox_matches_rotation_aware_serialized_geometry(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.normalized_rotation_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    getattr(page, "mediabox", "MISSING"),
+                    page.to_dict([])["mediabox"],
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, (0, 0, 200, 100), (0, 0, 200, 100)),
+                (2, (0, 0, 200, 100), (0, 0, 200, 100)),
+                (3, (0, 0, 100, 200), (0, 0, 100, 200)),
+            ],
+        )
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:

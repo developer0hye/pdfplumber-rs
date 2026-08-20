@@ -68,6 +68,8 @@ pub struct Pdf {
     page_heights: Vec<f64>,
     /// Cached normalized rotations for creating lazy page handles.
     page_rotations: Vec<i32>,
+    /// Cached source MediaBoxes for creating lazy page handles.
+    page_media_boxes: Vec<BBox>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
@@ -286,6 +288,7 @@ impl Pdf {
         let mut page_widths = Vec::with_capacity(page_count);
         let mut page_heights = Vec::with_capacity(page_count);
         let mut page_rotations = Vec::with_capacity(page_count);
+        let mut page_media_boxes = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
@@ -298,6 +301,7 @@ impl Pdf {
             page_widths.push(geometry.width());
             page_heights.push(geometry.height());
             page_rotations.push(geometry.rotation());
+            page_media_boxes.push(media_box);
             // Compute the effective page height for the y-flip transform.
             //
             // Python pdfplumber computes: top = (height - char.y1) + mb_top
@@ -330,6 +334,7 @@ impl Pdf {
             page_widths,
             page_heights,
             page_rotations,
+            page_media_boxes,
             raw_page_heights,
             metadata,
             raw_metadata,
@@ -356,6 +361,11 @@ impl Pdf {
     /// Return a page's normalized rotation without interpreting its content stream.
     pub fn page_rotation(&self, index: usize) -> Option<i32> {
         self.page_rotations.get(index).copied()
+    }
+
+    /// Return a page's source MediaBox without interpreting its content stream.
+    pub fn page_media_box(&self, index: usize) -> Option<BBox> {
+        self.page_media_boxes.get(index).copied()
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
@@ -1247,6 +1257,18 @@ mod tests {
 
         assert_eq!(pdf.page_rotation(0), Some(270));
         assert_eq!(pdf.page_rotation(1), None);
+    }
+
+    #[test]
+    fn page_media_box_is_available_without_content_interpretation() {
+        let bytes = create_pdf_with_content(b"not a valid content stream operator");
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        assert_eq!(
+            pdf.page_media_box(0),
+            Some(BBox::new(0.0, 0.0, 612.0, 792.0))
+        );
+        assert_eq!(pdf.page_media_box(1), None);
     }
 
     // --- page() tests ---
