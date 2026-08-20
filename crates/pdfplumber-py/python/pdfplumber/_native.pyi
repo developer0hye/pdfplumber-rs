@@ -181,6 +181,11 @@ class Page:
         ...
 
     @property
+    def bbox(self) -> tuple[float, float, float, float]:
+        """Original-page bounding box in rotation-aware, top-origin coordinates."""
+        ...
+
+    @property
     def mediabox(self) -> tuple[float, float, float, float]:
         """MediaBox in the page's rotation-aware, top-origin coordinates."""
         ...
