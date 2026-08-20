@@ -520,6 +520,13 @@ impl PdfBackend for LopdfBackend {
         extract_page_hyperlinks(&doc.inner, page.object_id)
     }
 
+    fn page_uri_hyperlinks(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Vec<Hyperlink>, Self::Error> {
+        extract_page_uri_hyperlinks(&doc.inner, page.object_id)
+    }
+
     fn interpret_page(
         doc: &Self::Document,
         page: &Self::Page,
@@ -3005,6 +3012,22 @@ fn extract_page_hyperlinks(
     doc: &lopdf::Document,
     page_id: lopdf::ObjectId,
 ) -> Result<Vec<Hyperlink>, BackendError> {
+    extract_page_hyperlinks_with(doc, page_id, resolve_link_uri)
+}
+
+/// Extract only Link annotations backed by a `/URI` action.
+fn extract_page_uri_hyperlinks(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+) -> Result<Vec<Hyperlink>, BackendError> {
+    extract_page_hyperlinks_with(doc, page_id, resolve_uri_action)
+}
+
+fn extract_page_hyperlinks_with(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+    resolve_target: fn(&lopdf::Document, &lopdf::Dictionary) -> Option<String>,
+) -> Result<Vec<Hyperlink>, BackendError> {
     let page_dict = doc
         .get_object(page_id)
         .and_then(|o| o.as_dict())
@@ -3076,7 +3099,7 @@ fn extract_page_hyperlinks(
         };
 
         // Try to resolve URI from /A (action) dictionary
-        let uri = resolve_link_uri(doc, annot_dict);
+        let uri = resolve_target(doc, annot_dict);
 
         // Skip links without a resolvable URI
         if let Some(uri) = uri {
@@ -3087,6 +3110,21 @@ fn extract_page_hyperlinks(
     }
 
     Ok(hyperlinks)
+}
+
+/// Resolve only an explicit `/A << /S /URI /URI (...) >>` action.
+fn resolve_uri_action(doc: &lopdf::Document, annot_dict: &lopdf::Dictionary) -> Option<String> {
+    let action_obj = annot_dict.get(b"A").ok()?;
+    let action_obj = match action_obj {
+        lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+        other => other,
+    };
+    let action_dict = action_obj.as_dict().ok()?;
+    let action_type = action_dict.get(b"S").ok()?.as_name().ok()?;
+    if action_type != b"URI" {
+        return None;
+    }
+    extract_string_from_dict(doc, action_dict, b"URI")
 }
 
 /// Resolve the URI target of a Link annotation.

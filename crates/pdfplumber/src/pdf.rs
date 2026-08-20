@@ -710,6 +710,11 @@ impl Pdf {
         let hyperlinks =
             LopdfBackend::page_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
 
+        // Preserve action type so callers can distinguish external URI actions
+        // from internal and remote destinations.
+        let uri_hyperlinks =
+            LopdfBackend::page_uri_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+
         // Extract form fields for this page (filtered from document AcroForm)
         let all_form_fields =
             LopdfBackend::document_form_fields(&self.doc).map_err(PdfError::from)?;
@@ -785,6 +790,7 @@ impl Pdf {
             images,
             annotations,
             hyperlinks,
+            uri_hyperlinks,
             form_fields,
             structure_tree,
             handler.warnings,

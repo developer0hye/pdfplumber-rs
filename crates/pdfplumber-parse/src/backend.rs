@@ -188,6 +188,23 @@ pub trait PdfBackend {
         page: &Self::Page,
     ) -> Result<Vec<Hyperlink>, Self::Error>;
 
+    /// Extract URI-action hyperlinks from a page.
+    ///
+    /// Unlike [`Self::page_hyperlinks`], this excludes internal and remote
+    /// destination actions and returns only Link annotations whose action type
+    /// is `/URI`. Backends that cannot preserve the action type may fall back
+    /// to their complete hyperlink result.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the annotations exist but are malformed.
+    fn page_uri_hyperlinks(
+        doc: &Self::Document,
+        page: &Self::Page,
+    ) -> Result<Vec<Hyperlink>, Self::Error> {
+        Self::page_hyperlinks(doc, page)
+    }
+
     /// Interpret the page's content stream, calling back into the handler.
     ///
     /// The interpreter processes PDF content stream operators (text, path,

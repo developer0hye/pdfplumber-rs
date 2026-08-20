@@ -86,6 +86,11 @@ class PDF:
         """Annotation dictionaries from all selected pages."""
         ...
 
+    @property
+    def hyperlinks(self) -> list[AnnotDict]:
+        """URI annotation dictionaries from all selected pages."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...
@@ -151,6 +156,11 @@ class Page:
     @property
     def annots(self) -> list[AnnotDict]:
         """Annotation dictionaries on this page."""
+        ...
+
+    @property
+    def hyperlinks(self) -> list[AnnotDict]:
+        """Annotation dictionaries whose URI is not null."""
         ...
 
     def crop(self, bbox: BBox) -> CroppedPage:

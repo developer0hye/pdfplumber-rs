@@ -961,6 +961,53 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertTrue(all(annot["page_number"] == 2 for annot in annots))
             self.assertTrue(all(annot["doctop"] == annot["top"] for annot in annots))
 
+    def test_hyperlinks_filter_and_aggregate_fresh_annotation_dicts(self) -> None:
+        fixture = self.annotation_fixture("issue-982-example.pdf")
+        with pdfplumber.open(fixture) as document:
+            page_links = [page.hyperlinks for page in document.pages]
+            self.assertEqual(
+                [len(values) for values in page_links], [0, 0, 0, 0, 34, 0, 0, 0]
+            )
+            expected = [link for values in page_links for link in values]
+            first = document.hyperlinks
+            self.assertEqual(first, expected)
+            self.assertEqual(len(first), 34)
+            self.assertTrue(all(link["page_number"] == 5 for link in first))
+            self.assertTrue(all(link["uri"] is not None for link in first))
+
+            second = document.hyperlinks
+            self.assertIsNot(second, first)
+            self.assertIsNot(second[0], first[0])
+            self.assertEqual(second, first)
+
+        with pdfplumber.open(fixture, pages=(2, 5)) as document:
+            self.assertEqual([page.page_number for page in document.pages], [2, 5])
+            self.assertEqual([len(page.hyperlinks) for page in document.pages], [0, 34])
+            self.assertEqual(len(document.hyperlinks), 34)
+            self.assertTrue(
+                all(link["page_number"] == 5 for link in document.hyperlinks)
+            )
+
+    def test_hyperlinks_preserve_multipage_counts_and_empty_results(self) -> None:
+        with pdfplumber.open(
+            self.annotation_fixture("pdffill-demo.pdf")
+        ) as document:
+            self.assertEqual(
+                [len(page.hyperlinks) for page in document.pages],
+                [1, 1, 1, 4, 2, 7, 1],
+            )
+            self.assertEqual(
+                [link["page_number"] for link in document.hyperlinks],
+                [1, 2, 3, 4, 4, 4, 4, 5, 5, 6, 6, 6, 6, 6, 6, 6, 7],
+            )
+
+        with pdfplumber.open(
+            self.annotation_fixture("issue-463-example.pdf")
+        ) as document:
+            first = document.hyperlinks
+            self.assertEqual(first, [])
+            self.assertIsNot(document.hyperlinks, first)
+
 
 if __name__ == "__main__":
     unittest.main()
