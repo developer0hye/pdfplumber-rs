@@ -75,6 +75,11 @@ class PDF:
         """Discard selected cached document properties."""
         ...
 
+    @property
+    def objects(self) -> dict[str, list[dict[str, object]]]:
+        """Objects from all selected pages grouped by type."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...

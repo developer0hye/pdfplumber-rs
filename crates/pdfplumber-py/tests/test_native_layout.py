@@ -327,6 +327,77 @@ class NativeLayoutTests(unittest.TestCase):
         finally:
             document.close()
 
+    def test_objects_aggregates_present_types_from_real_fixtures(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        cases = (
+            (
+                repository / "tests/fixtures/generated/basic_text.pdf",
+                {"char": 258},
+            ),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf",
+                {"char": 1992, "rect": 208, "curve": 33},
+            ),
+            (
+                repository / "tests/fixtures/real-world/images/inline-image.pdf",
+                {"char": 22, "image": 1},
+            ),
+            (
+                repository / "tests/fixtures/real-world/edge-cases/empty-page.pdf",
+                {},
+            ),
+        )
+        for fixture, expected_counts in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    objects = document.objects
+                    self.assertEqual(list(objects), list(expected_counts))
+                    self.assertEqual(
+                        {kind: len(values) for kind, values in objects.items()},
+                        expected_counts,
+                    )
+                    self.assertIs(document.objects, objects)
+
+    def test_objects_cache_and_page_cache_invalidate_independently(self) -> None:
+        document = pdfplumber.open(self.multipage_fixture(), pages=(3, 5))
+        try:
+            first_pages = document.pages
+            expected_chars = [char for page in first_pages for char in page.chars()]
+            expected_lines = [line for page in first_pages for line in page.lines()]
+            first_objects = document.objects
+
+            self.assertEqual(list(first_objects), ["char", "line"])
+            self.assertEqual(first_objects["char"], expected_chars)
+            self.assertEqual(first_objects["line"], expected_lines)
+            self.assertEqual(
+                {kind: len(values) for kind, values in first_objects.items()},
+                {"char": 1386, "line": 2},
+            )
+            self.assertIs(document.objects["char"], first_objects["char"])
+
+            marker = object()
+            first_objects["char"].append(marker)
+            document.flush_cache(["_pages"])
+            self.assertIsNot(document.pages, first_pages)
+            self.assertIs(document.objects, first_objects)
+            self.assertIn(marker, document.objects["char"])
+
+            second_pages = document.pages
+            document.flush_cache(["_objects"])
+            second_objects = document.objects
+            self.assertIs(document.pages, second_pages)
+            self.assertIsNot(second_objects, first_objects)
+            self.assertNotIn(marker, second_objects["char"])
+            self.assertEqual(second_objects["char"], expected_chars)
+            self.assertEqual(second_objects["line"], expected_lines)
+
+            document.flush_cache()
+            self.assertIsNot(document.pages, second_pages)
+            self.assertIsNot(document.objects, second_objects)
+        finally:
+            document.close()
+
     def test_context_manager_closes_only_owned_streams(self) -> None:
         document = pdfplumber.open(self.fixture())
         with document as entered:
