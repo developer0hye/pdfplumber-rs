@@ -729,6 +729,7 @@ struct PyPdf {
     unicode_norm: Option<PyObject>,
     raise_unicode_errors: Option<PyObject>,
     pages_cache: Mutex<Option<Py<PyList>>>,
+    objects_cache: Mutex<Option<Py<PyDict>>>,
 }
 
 impl PyPdf {
@@ -738,6 +739,19 @@ impl PyPdf {
             .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
             .take();
         Ok(())
+    }
+
+    fn clear_objects_cache(&self) -> PyResult<()> {
+        self.objects_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("object cache lock poisoned"))?
+            .take();
+        Ok(())
+    }
+
+    fn clear_document_caches(&self) -> PyResult<()> {
+        self.clear_objects_cache()?;
+        self.clear_pages_cache()
     }
 }
 
@@ -756,6 +770,7 @@ impl PyPdf {
             unicode_norm: None,
             raise_unicode_errors: None,
             pages_cache: Mutex::new(None),
+            objects_cache: Mutex::new(None),
         }
     }
 }
@@ -851,6 +866,7 @@ impl PyPdf {
             unicode_norm,
             raise_unicode_errors,
             pages_cache: Mutex::new(None),
+            objects_cache: Mutex::new(None),
         })
     }
 
@@ -875,6 +891,7 @@ impl PyPdf {
             unicode_norm: None,
             raise_unicode_errors: None,
             pages_cache: Mutex::new(None),
+            objects_cache: Mutex::new(None),
         })
     }
 
@@ -919,7 +936,7 @@ impl PyPdf {
 
     /// Release internally owned resources without closing caller-owned streams.
     fn close(&self, py: Python<'_>) -> PyResult<()> {
-        self.clear_pages_cache()?;
+        self.clear_document_caches()?;
         self.pages(py)?;
 
         if !self.stream_is_external {
@@ -934,7 +951,7 @@ impl PyPdf {
     #[pyo3(signature = (properties=None))]
     fn flush_cache(&self, properties: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
         let Some(properties) = properties else {
-            return self.clear_pages_cache();
+            return self.clear_document_caches();
         };
 
         for property in properties.try_iter()? {
@@ -945,8 +962,10 @@ impl PyPdf {
                     "attribute name must be string, not '{type_name}'"
                 )));
             }
-            if property.extract::<String>()? == "_pages" {
-                self.clear_pages_cache()?;
+            match property.extract::<String>()?.as_str() {
+                "_objects" => self.clear_objects_cache()?,
+                "_pages" => self.clear_pages_cache()?,
+                _ => {}
             }
         }
         Ok(())
@@ -1021,6 +1040,59 @@ impl PyPdf {
             )?)?;
         }
         Ok(pages)
+    }
+
+    /// Objects from all selected pages grouped by their upstream type name.
+    #[getter]
+    fn objects(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        if let Some(objects) = self
+            .objects_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("object cache lock poisoned"))?
+            .as_ref()
+        {
+            return Ok(objects.clone_ref(py));
+        }
+
+        let objects = PyDict::new(py);
+        let pages = self.pages(py)?;
+        for page in pages.bind(py).iter() {
+            for (kind, accessor) in [
+                ("char", "chars"),
+                ("line", "lines"),
+                ("rect", "rects"),
+                ("curve", "curves"),
+                ("image", "images"),
+            ] {
+                let page_values = page.call_method0(accessor)?;
+                let page_values = page_values.downcast::<PyList>()?;
+                if page_values.is_empty() {
+                    continue;
+                }
+                let aggregate = match objects.get_item(kind)? {
+                    Some(existing) => existing.downcast_into::<PyList>()?,
+                    None => {
+                        let aggregate = PyList::empty(py);
+                        objects.set_item(kind, &aggregate)?;
+                        aggregate
+                    }
+                };
+                for value in page_values.iter() {
+                    aggregate.append(value)?;
+                }
+            }
+        }
+
+        let objects = objects.unbind();
+        let mut cache = self
+            .objects_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("object cache lock poisoned"))?;
+        if let Some(existing) = cache.as_ref() {
+            return Ok(existing.clone_ref(py));
+        }
+        *cache = Some(objects.clone_ref(py));
+        Ok(objects)
     }
 
     /// Document metadata as a dict.
@@ -2082,6 +2154,10 @@ mod tests {
         assert!(
             content.contains("def flush_cache(self, properties: list[str] | None = None) -> None:"),
             "stubs must declare PDF.flush_cache"
+        );
+        assert!(
+            content.contains("def objects(self) -> dict[str, list[dict[str, object]]]:"),
+            "stubs must declare PDF.objects"
         );
     }
 
