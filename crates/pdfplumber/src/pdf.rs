@@ -625,6 +625,7 @@ impl Pdf {
         let page_height = self.raw_page_heights[index];
         let doctop_offset: f64 = self.page_heights[..index].iter().sum();
         let needs_rotation = geometry.rotation() != 0;
+        let page_origin = rotated_page_origin(media_box, geometry.rotation());
 
         let mut chars: Vec<Char> = handler
             .chars
@@ -637,8 +638,10 @@ impl Pdf {
                     // rotation + y-flip transform via PageGeometry.
                     let native_min_y = page_height - ch.bbox.bottom;
                     let native_max_y = page_height - ch.bbox.top;
-                    ch.bbox =
-                        geometry.normalize_bbox(ch.bbox.x0, native_min_y, ch.bbox.x1, native_max_y);
+                    ch.bbox = offset_bbox(
+                        geometry.normalize_bbox(ch.bbox.x0, native_min_y, ch.bbox.x1, native_max_y),
+                        page_origin,
+                    );
                     ch.doctop = ch.bbox.top;
                     ch.direction = rotate_direction(ch.direction, rotation);
                     // 90°/270° rotation turns upright text non-upright and vice versa
@@ -681,6 +684,7 @@ impl Pdf {
                         line.bottom,
                         page_height,
                         &geometry,
+                        page_origin,
                     );
                     line.x0 = bbox.x0;
                     line.top = bbox.top;
@@ -696,6 +700,7 @@ impl Pdf {
                         rect.bottom,
                         page_height,
                         &geometry,
+                        page_origin,
                     );
                     rect.x0 = bbox.x0;
                     rect.top = bbox.top;
@@ -710,6 +715,7 @@ impl Pdf {
                         curve.bottom,
                         page_height,
                         &geometry,
+                        page_origin,
                     );
                     curve.x0 = bbox.x0;
                     curve.top = bbox.top;
@@ -720,7 +726,7 @@ impl Pdf {
                         .iter()
                         .map(|&(x, y)| {
                             let native_y = page_height - y;
-                            geometry.normalize_point(x, native_y)
+                            offset_point(geometry.normalize_point(x, native_y), page_origin)
                         })
                         .collect();
                 }
@@ -768,8 +774,15 @@ impl Pdf {
                 }
 
                 if needs_rotation {
-                    let bbox =
-                        rotate_bbox(img.x0, img.top, img.x1, img.bottom, page_height, &geometry);
+                    let bbox = rotate_bbox(
+                        img.x0,
+                        img.top,
+                        img.x1,
+                        img.bottom,
+                        page_height,
+                        &geometry,
+                        page_origin,
+                    );
                     img.x0 = bbox.x0;
                     img.top = bbox.top;
                     img.x1 = bbox.x1;
@@ -1057,10 +1070,39 @@ fn rotate_bbox(
     bottom: f64,
     page_height: f64,
     geometry: &PageGeometry,
+    page_origin: (f64, f64),
 ) -> BBox {
     let native_min_y = page_height - bottom;
     let native_max_y = page_height - top;
-    geometry.normalize_bbox(x0, native_min_y, x1, native_max_y)
+    offset_bbox(
+        geometry.normalize_bbox(x0, native_min_y, x1, native_max_y),
+        page_origin,
+    )
+}
+
+fn rotated_page_origin(media_box: BBox, rotation: i32) -> (f64, f64) {
+    // PageGeometry returns viewport-relative coordinates, while pdfplumber keeps
+    // the normalized MediaBox's absolute top-left origin on page objects.
+    let x0 = media_box.x0.min(media_box.x1);
+    let y0 = media_box.top.min(media_box.bottom);
+    if matches!(rotation, 90 | 270) {
+        (y0, -x0)
+    } else {
+        (x0, -y0)
+    }
+}
+
+fn offset_bbox(bbox: BBox, origin: (f64, f64)) -> BBox {
+    BBox::new(
+        bbox.x0 + origin.0,
+        bbox.top + origin.1,
+        bbox.x1 + origin.0,
+        bbox.bottom + origin.1,
+    )
+}
+
+fn offset_point(point: (f64, f64), origin: (f64, f64)) -> (f64, f64) {
+    (point.0 + origin.0, point.1 + origin.1)
 }
 
 /// Re-classify line orientation after rotation.

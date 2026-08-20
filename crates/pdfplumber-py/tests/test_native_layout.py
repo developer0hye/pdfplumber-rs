@@ -313,6 +313,52 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def negative_origin_rotated_rect_pdf() -> bytes:
+        content = b"-90 -190 20 30 re S\n"
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R] /Count 4 >>",
+        ]
+        for index, rotation in enumerate((0, 90, 180, 270)):
+            page_id = 3 + index * 2
+            content_id = page_id + 1
+            rotate = b"" if rotation == 0 else f" /Rotate {rotation}".encode()
+            objects.extend(
+                [
+                    (
+                        b"<< /Type /Page /Parent 2 0 R "
+                        b"/MediaBox [-100 -200 100 200]"
+                        + rotate
+                        + f" /Contents {content_id} 0 R >>".encode()
+                    ),
+                    (
+                        f"<< /Length {len(content)} >>\nstream\n".encode()
+                        + content
+                        + b"endstream"
+                    ),
+                ]
+            )
+
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
         image = b"\x7f"
@@ -1239,6 +1285,37 @@ class NativeLayoutTests(unittest.TestCase):
                     200,
                     100,
                 ),
+            ],
+        )
+
+    def test_negative_mediabox_origin_is_retained_for_rotated_content(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.negative_origin_rotated_rect_pdf())) as document:
+            snapshots = []
+            for page in document.pages:
+                rectangle = page.to_dict(["rect"])["rects"][0]
+                snapshots.append(
+                    (
+                        page.page_number,
+                        page.rotation,
+                        page.bbox,
+                        page.width,
+                        page.height,
+                        (
+                            rectangle["x0"],
+                            rectangle["top"],
+                            rectangle["x1"],
+                            rectangle["bottom"],
+                        ),
+                    )
+                )
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, 0, (-100, 200, 100, 600), 200, 400, (-90, 560, -70, 590)),
+                (2, 90, (-200, 100, 200, 300), 400, 200, (-190, 110, -160, 130)),
+                (3, 180, (-100, 200, 100, 600), 200, 400, (70, 210, 90, 240)),
+                (4, 270, (-200, 100, 200, 300), 400, 200, (160, 270, 190, 290)),
             ],
         )
 
