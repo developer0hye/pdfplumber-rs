@@ -297,10 +297,21 @@ impl PdfBackend for LopdfBackend {
         // Many PDFs use owner-only encryption (restricting print/copy) with an
         // empty user password, which still allows reading. This matches Python
         // pdfplumber behavior.
-        if inner.is_encrypted() && inner.decrypt("").is_err() {
-            return Err(BackendError::Core(
-                pdfplumber_core::PdfError::PasswordRequired,
-            ));
+        if inner.is_encrypted() {
+            match inner.decrypt("") {
+                Ok(()) => {}
+                Err(
+                    lopdf::Error::InvalidPassword
+                    | lopdf::Error::Decryption(lopdf::encryption::DecryptionError::IncorrectPassword),
+                ) => {
+                    return Err(BackendError::Core(
+                        pdfplumber_core::PdfError::PasswordRequired,
+                    ));
+                }
+                Err(error) => {
+                    return Err(BackendError::Parse(format!("decryption failed: {error}")));
+                }
+            }
         }
 
         // Cache page IDs in order (get_pages returns BTreeMap<u32, ObjectId> with 1-based keys)
@@ -312,7 +323,17 @@ impl PdfBackend for LopdfBackend {
 
     fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error> {
         let inner = match std::str::from_utf8(password) {
-            Ok(password) => lopdf::Document::load_mem_with_password(bytes, password),
+            Ok(password) => (|| {
+                // Probe authentication separately so unsupported encryption is not
+                // collapsed into lopdf's loader-level InvalidPassword result. The
+                // password-aware load is still required afterwards because it
+                // materializes the decrypted object graph used for page lookup.
+                let probe = lopdf::Document::load_mem(bytes)?;
+                if probe.is_encrypted() {
+                    probe.authenticate_password(password)?;
+                }
+                lopdf::Document::load_mem_with_password(bytes, password)
+            })(),
             Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
                 if inner.is_encrypted() {
                     inner.decrypt_raw(password)?;
@@ -320,12 +341,17 @@ impl PdfBackend for LopdfBackend {
                 Ok(inner)
             }),
         }
-        .map_err(|e| {
-            let msg = e.to_string();
-            if msg.contains("incorrect") || msg.contains("password") {
+        .map_err(|error| {
+            if matches!(
+                error,
+                lopdf::Error::InvalidPassword
+                    | lopdf::Error::Decryption(
+                        lopdf::encryption::DecryptionError::IncorrectPassword
+                    )
+            ) {
                 BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
             } else {
-                BackendError::Parse(format!("decryption failed: {e}"))
+                BackendError::Parse(format!("decryption failed: {error}"))
             }
         })?;
 
@@ -4393,6 +4419,33 @@ mod tests {
         assert!(result.is_err());
         let err: pdfplumber_core::PdfError = result.unwrap_err().into();
         assert_eq!(err, pdfplumber_core::PdfError::PasswordRequired);
+    }
+
+    #[test]
+    fn open_reports_unsupported_encryption_as_parse_error() {
+        let fixture_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .join("pdfplumber/tests/fixtures/pdfs/password-example.pdf");
+        let pdf_bytes = std::fs::read(fixture_path).unwrap();
+        let marker = b"/V 2";
+        let offset = pdf_bytes
+            .windows(marker.len())
+            .position(|window| window == marker)
+            .expect("encryption version marker");
+        let mut unsupported = pdf_bytes;
+        unsupported[offset + 3] = b'9';
+
+        for result in [
+            LopdfBackend::open(&unsupported),
+            LopdfBackend::open_with_password(&unsupported, b"test"),
+        ] {
+            let error: pdfplumber_core::PdfError = result.unwrap_err().into();
+            assert!(
+                matches!(error, pdfplumber_core::PdfError::ParseError(_)),
+                "expected unsupported encryption to remain distinct from password failure: {error}"
+            );
+        }
     }
 
     // --- Form field extraction tests ---
