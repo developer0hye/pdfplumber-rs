@@ -1278,6 +1278,96 @@ class NativeLayoutTests(unittest.TestCase):
                         "Container.to_json() got multiple values for argument 'stream'",
                     )
 
+    def test_to_csv_serializes_objects_empty_selection_and_stream_forms(
+        self,
+    ) -> None:
+        empty = (
+            "object_type,page_number,x0,x1,y0,y1,doctop,top,bottom,"
+            "width,height\r\n"
+        )
+        with pdfplumber.open(self.fixture()) as document:
+            self.assertEqual(document.to_csv(object_types=[]), empty)
+            self.assertEqual(document.pages[0].to_csv(object_types=[]), empty)
+
+            included = document.to_csv(
+                object_types=["char"],
+                include_attrs=["page_number", "text", "x0"],
+            )
+            assert included is not None
+            lines = included.splitlines()
+            self.assertEqual(lines[0], "object_type,page_number,x0,text")
+            self.assertEqual(lines[1], "char,1,31.18,T")
+            self.assertEqual(len(lines), 259)
+
+            positional = document.pages[0].to_csv(
+                None, ["char"], 1, ["text", "x0"]
+            )
+            assert positional is not None
+            self.assertEqual(
+                positional.splitlines()[:2],
+                ["object_type,x0,text", "char,31.2,T"],
+            )
+
+            stream = io.StringIO()
+            self.assertIsNone(document.to_csv(stream, object_types=[]))
+            self.assertEqual(stream.getvalue(), empty)
+            self.assertEqual(stream.tell(), len(empty))
+
+    def test_to_csv_matches_filter_and_call_shape_failures(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            cases = (
+                (
+                    {"object_types": [], "include_attrs": [], "exclude_attrs": []},
+                    ValueError,
+                    "Cannot specify `include_attrs` and `exclude_attrs` at the same time.",
+                ),
+                (
+                    {"object_types": [], "exclude_attrs": ["object_type"]},
+                    ValueError,
+                    "Cannot exclude these required properties: ['object_type']",
+                ),
+                (
+                    {"object_types": [], "include_attrs": ("text",)},
+                    TypeError,
+                    'can only concatenate list (not "tuple") to list',
+                ),
+                (
+                    {"object_types": ["char"], "precision": "1"},
+                    TypeError,
+                    "'str' object cannot be interpreted as an integer",
+                ),
+            )
+            for kwargs, error_type, message in cases:
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaises(error_type) as raised:
+                        document.to_csv(**kwargs)
+                    self.assertEqual(str(raised.exception), message)
+
+            for target in (document, document.pages[0]):
+                with self.subTest(target=type(target).__name__, call="too-many"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_csv(None, None, None, None, None, None)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_csv() takes from 1 to 6 positional "
+                        "arguments but 7 were given",
+                    )
+                with self.subTest(target=type(target).__name__, call="unexpected"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_csv(nope=1)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_csv() got an unexpected keyword argument "
+                        "'nope'",
+                    )
+                with self.subTest(target=type(target).__name__, call="duplicate"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_csv(None, stream=None)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_csv() got multiple values for argument 'stream'",
+                    )
+
     def test_json_serializer_matches_recursive_compatibility_values(self) -> None:
         from pdfplumber.convert import Serializer
 
