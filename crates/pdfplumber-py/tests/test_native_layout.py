@@ -64,6 +64,19 @@ class NativeLayoutTests(unittest.TestCase):
         )
 
     @staticmethod
+    def annotation_unicode_fixture() -> Path:
+        return (
+            Path(__file__).resolve().parents[3]
+            / "compat"
+            / "fixtures"
+            / "upstream"
+            / "pdfplumber-v0.11.10"
+            / "tests"
+            / "pdfs"
+            / "annotations-unicode-issues.pdf"
+        )
+
+    @staticmethod
     def cyclic_metadata_pdf() -> bytes:
         objects = (
             b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -586,6 +599,19 @@ class NativeLayoutTests(unittest.TestCase):
                     self.fixture(), repair=False, repair_setting=object()
                 ) as document:
                     self.assertEqual(len(document.pages), 1)
+
+    def test_open_retains_raise_unicode_errors_exactly(self) -> None:
+        marker = object()
+        for value in (True, False, None, 0, 1, "", "false", marker):
+            with self.subTest(value=repr(value)):
+                with pdfplumber.open(
+                    self.annotation_unicode_fixture(), raise_unicode_errors=value
+                ) as document:
+                    self.assertIs(document.raise_unicode_errors, value)
+                    self.assertEqual(len(document.pages), 1)
+
+        with pdfplumber.open(self.annotation_unicode_fixture()) as document:
+            self.assertIs(document.raise_unicode_errors, True)
 
 
 if __name__ == "__main__":
