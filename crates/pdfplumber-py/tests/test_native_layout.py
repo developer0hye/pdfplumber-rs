@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import importlib.machinery
 from pathlib import Path
 import unittest
@@ -52,6 +53,24 @@ class NativeLayoutTests(unittest.TestCase):
         document = pdfplumber.open(self.fixture())
         self.assertIsInstance(document, pdfplumber.PDF)
         self.assertGreater(len(document.pages), 0)
+
+    def test_open_accepts_seekable_binary_streams(self) -> None:
+        payload = self.fixture().read_bytes()
+        streams = (
+            ("BytesIO", io.BytesIO(payload)),
+            ("binary file", self.fixture().open("rb")),
+        )
+        for label, stream in streams:
+            with self.subTest(stream=label):
+                try:
+                    stream.seek(7)
+                    document = pdfplumber.open(stream)
+                    self.assertIsInstance(document, pdfplumber.PDF)
+                    self.assertGreater(len(document.pages), 0)
+                    self.assertFalse(stream.closed)
+                    self.assertEqual(stream.tell(), len(payload))
+                finally:
+                    stream.close()
 
 
 if __name__ == "__main__":

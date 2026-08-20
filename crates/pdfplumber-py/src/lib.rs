@@ -13,7 +13,7 @@ use ::pdfplumber::{
 };
 use pyo3::exceptions::{PyIOError, PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyBytes, PyDict, PyString};
 
 // ---------------------------------------------------------------------------
 // Python exception types for PdfError variants
@@ -428,7 +428,7 @@ impl PyCroppedPage {
 
 /// A PDF document opened for extraction.
 ///
-/// Use `PDF.open(path)` or `PDF.open_bytes(data)` to open a PDF.
+/// Use `PDF.open(path_or_fp)` or `PDF.open_bytes(data)` to open a PDF.
 #[pyclass(name = "PDF")]
 struct PyPdf {
     inner: Pdf,
@@ -436,10 +436,19 @@ struct PyPdf {
 
 #[pymethods]
 impl PyPdf {
-    /// Open a PDF file from a filesystem path.
+    /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    fn open(path: std::path::PathBuf) -> PyResult<Self> {
-        let pdf = Pdf::open_file(path, None).map_err(to_py_err)?;
+    fn open(path_or_fp: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let pdf = if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
+            let path: std::path::PathBuf = path_or_fp.extract()?;
+            Pdf::open_file(path, None)
+        } else {
+            path_or_fp.call_method1("seek", (0,))?;
+            let data = path_or_fp.call_method0("read")?;
+            let bytes = data.downcast::<PyBytes>()?;
+            Pdf::open(bytes.as_bytes(), None)
+        }
+        .map_err(to_py_err)?;
         Ok(PyPdf { inner: pdf })
     }
 
