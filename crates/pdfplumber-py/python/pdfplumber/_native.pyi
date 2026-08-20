@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from typing import TextIO
 
 __version__: str
 
@@ -103,6 +104,18 @@ class PDF:
         """Return document metadata and selected page dictionaries."""
         ...
 
+    def to_json(
+        self,
+        stream: TextIO | None = None,
+        object_types: Iterable[str] | None = None,
+        include_attrs: list[str] | None = None,
+        exclude_attrs: list[str] | None = None,
+        precision: int | None = None,
+        indent: int | None = None,
+    ) -> str | None:
+        """Serialize document metadata and selected pages as JSON."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...
@@ -127,6 +140,18 @@ class Page:
 
     def to_dict(self, object_types: Iterable[str] | None = None) -> dict[str, object]:
         """Return page geometry and requested object dictionaries."""
+        ...
+
+    def to_json(
+        self,
+        stream: TextIO | None = None,
+        object_types: Iterable[str] | None = None,
+        include_attrs: list[str] | None = None,
+        exclude_attrs: list[str] | None = None,
+        precision: int | None = None,
+        indent: int | None = None,
+    ) -> str | None:
+        """Serialize page geometry and requested objects as JSON."""
         ...
 
     def chars(self) -> list[CharDict]:

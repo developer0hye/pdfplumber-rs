@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import importlib.machinery
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -1149,6 +1150,186 @@ class NativeLayoutTests(unittest.TestCase):
                     with self.assertRaises(error_type) as raised:
                         document.to_dict(value)
                     self.assertEqual(str(raised.exception), message)
+
+    def test_to_json_serializes_to_dict_in_compact_pretty_and_stream_forms(
+        self,
+    ) -> None:
+        compact = (
+            '{"metadata": {"CreationDate": "D:20260228140604Z"}, "pages": '
+            '[{"page_number": 1, "initial_doctop": 0.0, "rotation": 0, '
+            '"cropbox": [0.0, 0.0, 595.28, 841.89], "mediabox": '
+            '[0.0, 0.0, 595.28, 841.89], "bbox": '
+            '[0.0, 0.0, 595.28, 841.89], "width": 595.28, '
+            '"height": 841.89}]}'
+        )
+        pretty_page = """{
+  "page_number": 1,
+  "initial_doctop": 0.0,
+  "rotation": 0,
+  "cropbox": [
+    0.0,
+    0.0,
+    595.3,
+    841.9
+  ],
+  "mediabox": [
+    0.0,
+    0.0,
+    595.3,
+    841.9
+  ],
+  "bbox": [
+    0.0,
+    0.0,
+    595.3,
+    841.9
+  ],
+  "width": 595.3,
+  "height": 841.9
+}"""
+        with pdfplumber.open(self.fixture()) as document:
+            self.assertEqual(document.to_json(object_types=[]), compact)
+            self.assertEqual(
+                document.pages[0].to_json(
+                    object_types=[], precision=1, indent=2
+                ),
+                pretty_page,
+            )
+
+            stream = io.StringIO()
+            self.assertIsNone(document.to_json(stream, object_types=[]))
+            self.assertEqual(stream.getvalue(), compact)
+
+    def test_to_json_filters_object_attrs_and_matches_validation_failures(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            included = json.loads(
+                document.to_json(
+                    object_types=["char"], include_attrs=["text", "x0"]
+                )
+            )
+            self.assertEqual(
+                included["pages"][0]["chars"][0],
+                {"text": "T", "x0": 31.18, "object_type": "char"},
+            )
+
+            excluded = json.loads(
+                document.to_json(
+                    object_types=["char"],
+                    exclude_attrs=["fontname", "size"],
+                    precision=2,
+                )
+            )["pages"][0]["chars"][0]
+            self.assertEqual(excluded["object_type"], "char")
+            self.assertEqual(excluded["upright"], 1)
+            self.assertEqual(excluded["top"], 30.93)
+            self.assertNotIn("fontname", excluded)
+            self.assertNotIn("size", excluded)
+
+            cases = (
+                (
+                    {"object_types": [], "include_attrs": [], "exclude_attrs": []},
+                    ValueError,
+                    "Cannot specify `include_attrs` and `exclude_attrs` at the same time.",
+                ),
+                (
+                    {"object_types": [], "exclude_attrs": ["object_type"]},
+                    ValueError,
+                    "Cannot exclude these required properties: ['object_type']",
+                ),
+                (
+                    {"object_types": [], "include_attrs": ("text",)},
+                    TypeError,
+                    'can only concatenate list (not "tuple") to list',
+                ),
+                (
+                    {"object_types": [], "precision": "1"},
+                    TypeError,
+                    "'str' object cannot be interpreted as an integer",
+                ),
+            )
+            for kwargs, error_type, message in cases:
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaises(error_type) as raised:
+                        document.to_json(**kwargs)
+                    self.assertEqual(str(raised.exception), message)
+
+            for target in (document, document.pages[0]):
+                with self.subTest(target=type(target).__name__, call="too-many"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_json(None, None, None, None, None, None, None)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_json() takes from 1 to 7 positional "
+                        "arguments but 8 were given",
+                    )
+                with self.subTest(target=type(target).__name__, call="unexpected"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_json(nope=1)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_json() got an unexpected keyword argument "
+                        "'nope'",
+                    )
+                with self.subTest(target=type(target).__name__, call="duplicate"):
+                    with self.assertRaises(TypeError) as raised:
+                        target.to_json(None, stream=None)
+                    self.assertEqual(
+                        str(raised.exception),
+                        "Container.to_json() got multiple values for argument 'stream'",
+                    )
+
+    def test_json_serializer_matches_recursive_compatibility_values(self) -> None:
+        from pdfplumber.convert import Serializer
+
+        class PDFStream:
+            def __init__(self, rawdata: bytes | None) -> None:
+                self.rawdata = rawdata
+
+        serializer = Serializer(
+            precision=2,
+            include_attrs=["value", "nested", "stream", "bytes"],
+        )
+        serialized = serializer.serialize(
+            {
+                "metadata": {"unicode": "한", "bytes": b"plain"},
+                "objects": [
+                    {
+                        "object_type": "char",
+                        "value": 1.235,
+                        "nested": (True, [2.345, None]),
+                        "stream": PDFStream(b"\x00\xff"),
+                        "bytes": b"\xff",
+                        "ignored": "excluded",
+                    },
+                    {
+                        "object_type": "image",
+                        "stream": PDFStream(None),
+                    },
+                ],
+            }
+        )
+
+        self.assertEqual(
+            serialized,
+            {
+                "metadata": {"unicode": "한", "bytes": "plain"},
+                "objects": [
+                    {
+                        "object_type": "char",
+                        "value": 1.24,
+                        "nested": (1, [2.35, None]),
+                        "stream": {"rawdata": "AP8="},
+                        "bytes": None,
+                    },
+                    {"object_type": "image", "stream": {"rawdata": None}},
+                ],
+            },
+        )
+        self.assertIs(type(serialized["objects"][0]["nested"][0]), int)
+        self.assertEqual(
+            json.dumps(serialized["metadata"]),
+            r'{"unicode": "\ud55c", "bytes": "plain"}',
+        )
 
 
 if __name__ == "__main__":
