@@ -991,7 +991,7 @@ fn parse_pdf_open_args(
 /// A PDF document opened for extraction.
 ///
 /// Use `PDF.open(path_or_fp)` or `PDF.open_bytes(data)` to open a PDF.
-#[pyclass(name = "PDF")]
+#[pyclass(name = "PDF", module = "pdfplumber.pdf")]
 struct PyPdf {
     inner: Arc<Pdf>,
     stream: Option<PyObject>,
@@ -1068,6 +1068,17 @@ impl PyPdf {
 
 #[pymethods]
 impl PyPdf {
+    #[classattr]
+    fn cached_properties() -> Vec<&'static str> {
+        vec![
+            "_rect_edges",
+            "_curve_edges",
+            "_edges",
+            "_objects",
+            "_pages",
+        ]
+    }
+
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
     #[pyo3(
@@ -1218,6 +1229,21 @@ impl PyPdf {
             .as_ref()
             .map(|password| password.clone_ref(py))
             .unwrap_or_else(|| py.None())
+    }
+
+    /// The exact page-number collection supplied while opening the document.
+    #[getter]
+    fn pages_to_parse(&self, py: Python<'_>) -> PyObject {
+        self.selected_pages
+            .as_ref()
+            .map(|pages| pages.clone_ref(py))
+            .unwrap_or_else(|| py.None())
+    }
+
+    /// Whether the input stream remains owned by the caller.
+    #[getter]
+    fn stream_is_external(&self) -> bool {
+        self.stream_is_external
     }
 
     /// The Unicode normalization form applied during extraction, if any.
