@@ -8,8 +8,8 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use ::pdfplumber::{
     BBox, Bookmark, Char, Color, CroppedPage, Curve, DocumentMetadata, Image, Line, Page, Pdf,
-    PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, Word,
-    WordOptions,
+    PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, UnicodeNorm,
+    Word, WordOptions,
 };
 use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
@@ -298,6 +298,25 @@ fn validate_laparams(py: Python<'_>, laparams: Option<PyObject>) -> PyResult<Opt
     Ok(Some(params.copy()?.into_any().unbind()))
 }
 
+fn parse_unicode_norm(py: Python<'_>, unicode_norm: Option<&PyObject>) -> PyResult<UnicodeNorm> {
+    let Some(unicode_norm) = unicode_norm else {
+        return Ok(UnicodeNorm::None);
+    };
+    let raw = unicode_norm.bind(py);
+    py.import("unicodedata")?
+        .getattr("normalize")?
+        .call1((raw, "a"))?;
+    let form = raw.extract::<String>()?;
+    let norm = match form.as_str() {
+        "NFC" => UnicodeNorm::Nfc,
+        "NFD" => UnicodeNorm::Nfd,
+        "NFKC" => UnicodeNorm::Nfkc,
+        "NFKD" => UnicodeNorm::Nfkd,
+        _ => return Err(PyValueError::new_err("invalid normalization form")),
+    };
+    Ok(norm)
+}
+
 fn table_rows_to_py(rows: &[Vec<::pdfplumber::Cell>]) -> Vec<Vec<Option<String>>> {
     rows.iter()
         .map(|row| row.iter().map(|cell| cell.text.clone()).collect())
@@ -511,6 +530,7 @@ struct PyPdf {
     selected_pages: Option<PyObject>,
     _laparams: Option<PyObject>,
     _strict_metadata: bool,
+    unicode_norm: Option<PyObject>,
 }
 
 #[cfg(test)]
@@ -525,6 +545,7 @@ impl PyPdf {
             selected_pages: None,
             _laparams: None,
             _strict_metadata: false,
+            unicode_norm: None,
         }
     }
 }
@@ -533,13 +554,14 @@ impl PyPdf {
 impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
-    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false))]
+    #[pyo3(signature = (path_or_fp, pages=None, laparams=None, password=None, strict_metadata=false, unicode_norm=None))]
     fn open(
         path_or_fp: &Bound<'_, PyAny>,
         pages: Option<PyObject>,
         laparams: Option<PyObject>,
         password: Option<String>,
         strict_metadata: bool,
+        unicode_norm: Option<PyObject>,
     ) -> PyResult<Self> {
         let laparams = validate_laparams(path_or_fp.py(), laparams)?;
         let (stream, path, stream_is_external) =
@@ -591,6 +613,7 @@ impl PyPdf {
             selected_pages: pages,
             _laparams: laparams,
             _strict_metadata: strict_metadata,
+            unicode_norm,
         })
     }
 
@@ -611,6 +634,7 @@ impl PyPdf {
             selected_pages: None,
             _laparams: None,
             _strict_metadata: false,
+            unicode_norm: None,
         })
     }
 
@@ -633,6 +657,15 @@ impl PyPdf {
     #[getter]
     fn password(&self) -> Option<String> {
         self.password.clone()
+    }
+
+    /// The Unicode normalization form applied during extraction, if any.
+    #[getter]
+    fn unicode_norm(&self, py: Python<'_>) -> PyObject {
+        self.unicode_norm
+            .as_ref()
+            .map(|value| value.clone_ref(py))
+            .unwrap_or_else(|| py.None())
     }
 
     /// Release internally owned resources without closing caller-owned streams.
@@ -662,6 +695,7 @@ impl PyPdf {
     /// The list of pages in the PDF.
     #[getter]
     fn pages(&self, py: Python<'_>) -> PyResult<Vec<PyPage>> {
+        let unicode_norm = parse_unicode_norm(py, self.unicode_norm.as_ref())?;
         let mut pages = Vec::with_capacity(self.inner.page_count());
         let mut selected_doctop = 0.0;
         for i in 0..self.inner.page_count() {
@@ -672,6 +706,7 @@ impl PyPdf {
                 }
             }
             let mut page = self.inner.page(i).map_err(to_py_err)?;
+            page.apply_unicode_norm(&unicode_norm);
             if self.selected_pages.is_some() {
                 page.rebase_doctop(selected_doctop);
                 selected_doctop += page.height();
