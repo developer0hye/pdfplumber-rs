@@ -562,6 +562,16 @@ fn compatible_page_boxes(media_box: BBox, crop_box: Option<BBox>, rotation: i32)
     )
 }
 
+fn compatible_optional_page_box(
+    media_box: BBox,
+    page_box: Option<BBox>,
+    rotation: i32,
+) -> Option<BBox> {
+    let media_box = normalized_page_box(media_box, rotation);
+    let media_height = media_box.bottom - media_box.top;
+    page_box.map(|page_box| invert_page_box(normalized_page_box(page_box, rotation), media_height))
+}
+
 fn compatible_bbox_tuple(bbox: BBox) -> (f64, f64, f64, f64) {
     (
         compatible_geometry_number(bbox.x0),
@@ -1531,6 +1541,8 @@ impl PyPdf {
             let media_box = self.inner.page_media_box(i).ok_or_else(|| {
                 PyRuntimeError::new_err(format!("missing MediaBox for page {}", i + 1))
             })?;
+            let trim_box =
+                compatible_optional_page_box(media_box, self.inner.page_trim_box(i), rotation);
             let (media_box, crop_box) =
                 compatible_page_boxes(media_box, self.inner.page_crop_box(i), rotation);
             let initial_doctop = if self.selected_pages.is_some() {
@@ -1540,7 +1552,7 @@ impl PyPdf {
             } else {
                 None
             };
-            pages.bind(py).append(Py::new(
+            let page = Py::new(
                 py,
                 PyPage::new(
                     Arc::clone(&self.inner),
@@ -1555,7 +1567,12 @@ impl PyPdf {
                     initial_doctop,
                     self.unicode_norm.as_ref().map(|value| value.clone_ref(py)),
                 ),
-            )?)?;
+            )?;
+            if let Some(trim_box) = trim_box {
+                page.bind(py)
+                    .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
+            }
+            pages.bind(py).append(page)?;
         }
         Ok(pages)
     }
@@ -1748,7 +1765,7 @@ struct PyPageGeometry {
     crop_box: BBox,
 }
 
-#[pyclass(name = "Page")]
+#[pyclass(name = "Page", dict)]
 struct PyPage {
     pdf: Arc<Pdf>,
     page_index: usize,
@@ -1781,11 +1798,9 @@ impl PyPage {
         let pdf = Arc::new(pdf);
         let (width, height) = pdf.page_dimensions(page_index).expect("page dimensions");
         let rotation = pdf.page_rotation(page_index).expect("page rotation");
-        let (media_box, crop_box) = compatible_page_boxes(
-            pdf.page_media_box(page_index).expect("page MediaBox"),
-            pdf.page_crop_box(page_index),
-            rotation,
-        );
+        let source_media_box = pdf.page_media_box(page_index).expect("page MediaBox");
+        let (media_box, crop_box) =
+            compatible_page_boxes(source_media_box, pdf.page_crop_box(page_index), rotation);
         Self::new(
             pdf,
             page_index,
@@ -2278,6 +2293,10 @@ mod tests {
 
     /// Helper: create a minimal valid PDF in memory using lopdf.
     fn minimal_pdf_bytes() -> Vec<u8> {
+        minimal_pdf_bytes_with_trim_box(None)
+    }
+
+    fn minimal_pdf_bytes_with_trim_box(trim_box: Option<[i64; 4]>) -> Vec<u8> {
         use std::io::Cursor;
 
         let mut doc = lopdf::Document::with_version("1.7");
@@ -2288,13 +2307,16 @@ mod tests {
         let content = lopdf::Stream::new(dictionary! {}, Vec::new());
         let content_id = doc.add_object(content);
 
-        let page = dictionary! {
+        let mut page = dictionary! {
             "Type" => "Page",
             "Parent" => pages_id,
             "MediaBox" => vec![0.into(), 0.into(), 612.into(), 792.into()],
             "Resources" => resources,
             "Contents" => content_id,
         };
+        if let Some([x0, y0, x1, y1]) = trim_box {
+            page.set("TrimBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
+        }
         doc.objects.insert(page_id, lopdf::Object::Dictionary(page));
 
         let pages = dictionary! {
@@ -2349,6 +2371,51 @@ mod tests {
         assert_eq!(pypage.rotation(), 0);
         assert_eq!(pypage.mediabox(), (0.0, 0.0, 612.0, 792.0));
         assert_eq!(pypage.cropbox(), (0.0, 0.0, 612.0, 792.0));
+    }
+
+    #[test]
+    fn test_pypage_trimbox_is_explicit_and_optional() {
+        let bytes = minimal_pdf_bytes_with_trim_box(Some([40, 50, 560, 740]));
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            assert_eq!(
+                page.getattr("trimbox")
+                    .unwrap()
+                    .extract::<(f64, f64, f64, f64)>()
+                    .unwrap(),
+                (40.0, 52.0, 560.0, 742.0)
+            );
+            assert!(
+                page.getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("trimbox")
+                    .unwrap()
+            );
+        });
+
+        let bytes = minimal_pdf_bytes();
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            let error = page.getattr("trimbox").unwrap_err();
+            assert!(error.is_instance_of::<PyAttributeError>(py));
+            assert!(
+                !page
+                    .getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("trimbox")
+                    .unwrap()
+            );
+        });
     }
 
     #[test]

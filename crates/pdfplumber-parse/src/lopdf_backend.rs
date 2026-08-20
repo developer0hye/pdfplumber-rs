@@ -78,6 +78,22 @@ impl LopdfBackend {
         };
         validate_metadata_object(&doc.inner, info, &mut std::collections::HashSet::new())
     }
+
+    /// Return the TrimBox defined directly on a page, without page-tree inheritance.
+    pub fn page_explicit_trim_box(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<BBox>, BackendError> {
+        match resolve_direct(&doc.inner, page.object_id, b"TrimBox")? {
+            Some(obj) => {
+                let array = obj
+                    .as_array()
+                    .map_err(|e| BackendError::Parse(format!("TrimBox is not an array: {e}")))?;
+                Ok(Some(extract_bbox_from_array(array)?))
+            }
+            None => Ok(None),
+        }
+    }
 }
 
 /// Extract a [`BBox`] from a lopdf array of 4 numbers `[x0, y0, x1, y1]`.
@@ -101,6 +117,30 @@ pub(crate) fn object_to_f64(obj: &lopdf::Object) -> Result<f64, BackendError> {
         lopdf::Object::Integer(i) => Ok(*i as f64),
         lopdf::Object::Real(f) => Ok(*f as f64),
         _ => Err(BackendError::Parse(format!("expected number, got {obj:?}"))),
+    }
+}
+
+/// Look up a key only in the page dictionary, dereferencing one indirect value.
+fn resolve_direct<'a>(
+    doc: &'a lopdf::Document,
+    page_id: lopdf::ObjectId,
+    key: &[u8],
+) -> Result<Option<&'a lopdf::Object>, BackendError> {
+    let dict = doc
+        .get_object(page_id)
+        .and_then(|object| object.as_dict())
+        .map_err(|e| BackendError::Parse(format!("failed to get page dictionary: {e}")))?;
+    let Ok(value) = dict.get(key) else {
+        return Ok(None);
+    };
+    match value {
+        lopdf::Object::Reference(id) => doc.get_object(*id).map(Some).map_err(|e| {
+            BackendError::Parse(format!(
+                "failed to resolve indirect reference for /{}: {e}",
+                String::from_utf8_lossy(key)
+            ))
+        }),
+        other => Ok(Some(other)),
     }
 }
 
@@ -3371,6 +3411,7 @@ fn create_test_pdf_inherited_media_box() -> Vec<u8> {
             "Count" => 1i64,
             "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
             "CropBox" => vec![10.into(), 20.into(), 585.into(), 822.into()],
+            "TrimBox" => vec![25.into(), 25.into(), 570.into(), 817.into()],
         }),
     );
 
@@ -3402,6 +3443,12 @@ fn create_test_pdf_with_crop_box() -> Vec<u8> {
             Object::Real(36.0),
             Object::Real(576.0),
             Object::Real(756.0),
+        ],
+        "TrimBox" => vec![
+            Object::Real(40.0),
+            Object::Real(50.0),
+            Object::Real(560.0),
+            Object::Real(740.0),
         ],
     });
 
@@ -4213,6 +4260,31 @@ mod tests {
         let page = LopdfBackend::get_page(&doc, 0).unwrap();
         let crop_box = LopdfBackend::page_crop_box(&doc, &page).unwrap();
         assert_eq!(crop_box, None);
+    }
+
+    #[test]
+    fn explicit_trim_box_is_read_from_the_page_only() {
+        let pdf_bytes = create_test_pdf_with_crop_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let trim_box = LopdfBackend::page_explicit_trim_box(&doc, &page).unwrap();
+        assert_eq!(trim_box, Some(BBox::new(40.0, 50.0, 560.0, 740.0)));
+    }
+
+    #[test]
+    fn inherited_trim_box_is_not_explicit() {
+        let pdf_bytes = create_test_pdf_inherited_media_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        assert_eq!(
+            LopdfBackend::page_trim_box(&doc, &page).unwrap(),
+            Some(BBox::new(25.0, 25.0, 570.0, 817.0))
+        );
+        assert_eq!(
+            LopdfBackend::page_explicit_trim_box(&doc, &page).unwrap(),
+            None
+        );
     }
 
     // --- page_rotate() tests ---

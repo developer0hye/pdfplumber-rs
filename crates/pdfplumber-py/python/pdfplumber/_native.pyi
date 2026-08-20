@@ -191,6 +191,11 @@ class Page:
         ...
 
     @property
+    def trimbox(self) -> tuple[float, float, float, float]:
+        """Direct TrimBox in rotation-aware, top-origin coordinates when present."""
+        ...
+
+    @property
     def initial_doctop(self) -> int | float:
         """Cumulative height of preceding pages in the current page view."""
         ...

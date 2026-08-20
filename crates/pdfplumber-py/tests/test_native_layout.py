@@ -221,6 +221,45 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def trimbox_pdf() -> bytes:
+        objects = (
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            (
+                b"<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 3 "
+                b"/MediaBox [0 0 100 200] /Rotate 360 >>"
+            ),
+            (
+                b"<< /Type /Pages /Parent 2 0 R /Kids [4 0 R 5 0 R] /Count 2 "
+                b"/MediaBox [0 0 100 200] /TrimBox [10 20 90 180] "
+                b"/Rotate -90 >>"
+            ),
+            b"<< /Type /Page /Parent 3 0 R >>",
+            (
+                b"<< /Type /Page /Parent 3 0 R /TrimBox [90 180 10 20] "
+                b"/Rotate 450 >>"
+            ),
+            b"<< /Type /Page /Parent 2 0 R >>",
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
         image = b"\x7f"
@@ -1009,6 +1048,28 @@ class NativeLayoutTests(unittest.TestCase):
                 (1, (20, 10, 180, 90), (20, 10, 180, 90)),
                 (2, (20, 10, 180, 90), (20, 10, 180, 90)),
                 (3, (0, 0, 100, 200), (0, 0, 100, 200)),
+            ],
+        )
+
+    def test_page_trimbox_matches_direct_presence_rotation_and_absence(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.trimbox_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    hasattr(page, "trimbox"),
+                    getattr(page, "trimbox", "MISSING"),
+                    "trimbox" in vars(page),
+                    "trimbox" in page.to_dict([]),
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, False, "MISSING", False, False),
+                (2, True, (20, 10, 180, 90), True, False),
+                (3, False, "MISSING", False, False),
             ],
         )
 
