@@ -634,6 +634,8 @@ Reasons:
 - [ ] **PAGE-002** Preserve the idiomatic zero-based Rust page index without leaking it into compatibility mode.
   - `pdfplumber::Page::page_number()` and PDF extraction remain 0-based; only the Python compatibility getter translates it. Focused core/binding tests and the installed artifact cover both sides. This stays unchecked for the strict section 10 gates.
 - [ ] **PAGE-003** Implement `.initial_doctop`.
+  - Pinned v0.11.10 exposes full-document values `[0, 841.89, 1683.78, 2525.67, 3367.56]` and selected-view values `[0, 841.89]` for original pages 3 and 5. The first value is an exact Python `int`; later values are `float` for the real-valued `long_document.pdf` page boxes.
+  - Red: the exact PDF-035 wheel had no public property and serialized the first value as `0.0`. Green: fresh exact-Maturin 1.14.1 CPython 3.13 wheel and isolated-target sdist runs each passed all forty-eight artifact tests with `ResourceWarning` promoted to error; binding tests were 50/50 and compatibility-harness tests were 103/103. The task stays unchecked because raw PDF numeric provenance for later integer-valued page heights and strict `CI-001`–`CI-003` remain open; no numeric type was guessed from an integer-looking `f64`.
 - [ ] **PAGE-004** Match `.rotation`, including normalization and inherited rotation.
 - [ ] **PAGE-005** Match `.mediabox`.
 - [ ] **PAGE-006** Match `.cropbox`.

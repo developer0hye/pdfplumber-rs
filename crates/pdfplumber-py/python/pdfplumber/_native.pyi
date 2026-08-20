@@ -175,6 +175,11 @@ class Page:
         """Page height in points."""
         ...
 
+    @property
+    def initial_doctop(self) -> int | float:
+        """Cumulative height of preceding pages in the current page view."""
+        ...
+
     def to_dict(self, object_types: Iterable[str] | None = None) -> dict[str, object]:
         """Return page geometry and requested object dictionaries."""
         ...
