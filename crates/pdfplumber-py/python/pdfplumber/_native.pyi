@@ -116,6 +116,17 @@ class PDF:
         """Serialize document metadata and selected pages as JSON."""
         ...
 
+    def to_csv(
+        self,
+        stream: TextIO | None = None,
+        object_types: Iterable[str] | None = None,
+        precision: int | None = None,
+        include_attrs: list[str] | None = None,
+        exclude_attrs: list[str] | None = None,
+    ) -> str | None:
+        """Serialize selected page objects as CSV."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...
@@ -152,6 +163,17 @@ class Page:
         indent: int | None = None,
     ) -> str | None:
         """Serialize page geometry and requested objects as JSON."""
+        ...
+
+    def to_csv(
+        self,
+        stream: TextIO | None = None,
+        object_types: Iterable[str] | None = None,
+        precision: int | None = None,
+        include_attrs: list[str] | None = None,
+        exclude_attrs: list[str] | None = None,
+    ) -> str | None:
+        """Serialize page objects as CSV."""
         ...
 
     def chars(self) -> list[CharDict]:

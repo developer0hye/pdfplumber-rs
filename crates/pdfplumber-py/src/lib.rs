@@ -453,6 +453,34 @@ fn container_to_json(
     Ok(result.unbind())
 }
 
+fn container_to_csv(
+    py: Python<'_>,
+    pages: PyObject,
+    stream: Option<&Bound<'_, PyAny>>,
+    include_attrs: Option<&Bound<'_, PyAny>>,
+    exclude_attrs: Option<&Bound<'_, PyAny>>,
+    precision: Option<&Bound<'_, PyAny>>,
+) -> PyResult<PyObject> {
+    let kwargs = PyDict::new(py);
+    if let Some(stream) = stream {
+        kwargs.set_item("stream", stream)?;
+    }
+    if let Some(precision) = precision {
+        kwargs.set_item("precision", precision)?;
+    }
+    if let Some(include_attrs) = include_attrs {
+        kwargs.set_item("include_attrs", include_attrs)?;
+    }
+    if let Some(exclude_attrs) = exclude_attrs {
+        kwargs.set_item("exclude_attrs", exclude_attrs)?;
+    }
+    let result = py
+        .import("pdfplumber.convert")?
+        .getattr("serialize_csv")?
+        .call((pages,), Some(&kwargs))?;
+    Ok(result.unbind())
+}
+
 fn validate_laparams(py: Python<'_>, laparams: Option<PyObject>) -> PyResult<Option<PyObject>> {
     let Some(laparams) = laparams else {
         return Ok(None);
@@ -746,6 +774,14 @@ const CONTAINER_TO_JSON_PARAMETER_NAMES: [&str; 6] = [
     "indent",
 ];
 
+const CONTAINER_TO_CSV_PARAMETER_NAMES: [&str; 5] = [
+    "stream",
+    "object_types",
+    "precision",
+    "include_attrs",
+    "exclude_attrs",
+];
+
 struct PyPdfOpenArgs {
     path_or_fp: PyObject,
     pages: Option<PyObject>,
@@ -770,6 +806,14 @@ struct PyContainerToJsonArgs {
     exclude_attrs: Option<PyObject>,
     precision: Option<PyObject>,
     indent: Option<PyObject>,
+}
+
+struct PyContainerToCsvArgs {
+    stream: Option<PyObject>,
+    object_types: Option<PyObject>,
+    precision: Option<PyObject>,
+    include_attrs: Option<PyObject>,
+    exclude_attrs: Option<PyObject>,
 }
 
 fn parse_container_to_json_args(
@@ -816,6 +860,52 @@ fn parse_container_to_json_args(
         exclude_attrs: optional_py_object(py, values[3].take()),
         precision: optional_py_object(py, values[4].take()),
         indent: optional_py_object(py, values[5].take()),
+    })
+}
+
+fn parse_container_to_csv_args(
+    py: Python<'_>,
+    args: &Bound<'_, PyTuple>,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyContainerToCsvArgs> {
+    if args.len() > CONTAINER_TO_CSV_PARAMETER_NAMES.len() {
+        return Err(PyTypeError::new_err(format!(
+            "Container.to_csv() takes from 1 to 6 positional arguments but {} were given",
+            args.len() + 1
+        )));
+    }
+
+    let mut values: [Option<PyObject>; CONTAINER_TO_CSV_PARAMETER_NAMES.len()] =
+        std::array::from_fn(|_| None);
+    for (index, value) in args.iter().enumerate() {
+        values[index] = Some(value.unbind());
+    }
+    if let Some(kwargs) = kwargs {
+        for (key, value) in kwargs.iter() {
+            let key = key.extract::<String>()?;
+            let Some(index) = CONTAINER_TO_CSV_PARAMETER_NAMES
+                .iter()
+                .position(|name| *name == key)
+            else {
+                return Err(PyTypeError::new_err(format!(
+                    "Container.to_csv() got an unexpected keyword argument '{key}'"
+                )));
+            };
+            if values[index].is_some() {
+                return Err(PyTypeError::new_err(format!(
+                    "Container.to_csv() got multiple values for argument '{key}'"
+                )));
+            }
+            values[index] = Some(value.unbind());
+        }
+    }
+
+    Ok(PyContainerToCsvArgs {
+        stream: optional_py_object(py, values[0].take()),
+        object_types: optional_py_object(py, values[1].take()),
+        precision: optional_py_object(py, values[2].take()),
+        include_attrs: optional_py_object(py, values[3].take()),
+        exclude_attrs: optional_py_object(py, values[4].take()),
     })
 }
 
@@ -1364,6 +1454,36 @@ impl PyPdf {
         )
     }
 
+    /// Serialize selected page objects as upstream CSV.
+    #[pyo3(
+        signature = (*args, **kwargs),
+        text_signature = "(stream=None, object_types=None, precision=None, include_attrs=None, exclude_attrs=None)"
+    )]
+    fn to_csv(
+        &self,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyObject> {
+        let options = parse_container_to_csv_args(py, args, kwargs)?;
+        let page_dicts = PyList::empty(py);
+        for page in self.pages(py)?.bind(py).iter() {
+            let data = match options.object_types.as_ref() {
+                Some(object_types) => page.call_method1("to_dict", (object_types.bind(py),))?,
+                None => page.call_method1("to_dict", (py.None(),))?,
+            };
+            page_dicts.append(data)?;
+        }
+        container_to_csv(
+            py,
+            page_dicts.into_any().unbind(),
+            options.stream.as_ref().map(|value| value.bind(py)),
+            options.include_attrs.as_ref().map(|value| value.bind(py)),
+            options.exclude_attrs.as_ref().map(|value| value.bind(py)),
+            options.precision.as_ref().map(|value| value.bind(py)),
+        )
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1751,6 +1871,34 @@ impl PyPage {
             options.exclude_attrs.as_ref().map(|value| value.bind(py)),
             options.precision.as_ref().map(|value| value.bind(py)),
             options.indent.as_ref().map(|value| value.bind(py)),
+        )
+    }
+
+    /// Serialize page objects as upstream CSV.
+    #[pyo3(
+        signature = (*args, **kwargs),
+        text_signature = "(stream=None, object_types=None, precision=None, include_attrs=None, exclude_attrs=None)"
+    )]
+    fn to_csv(
+        &self,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyObject> {
+        let options = parse_container_to_csv_args(py, args, kwargs)?;
+        let data = self.to_dict_impl(
+            py,
+            options.object_types.as_ref().map(|value| value.bind(py)),
+        )?;
+        let page_dicts = PyList::empty(py);
+        page_dicts.append(data)?;
+        container_to_csv(
+            py,
+            page_dicts.into_any().unbind(),
+            options.stream.as_ref().map(|value| value.bind(py)),
+            options.include_attrs.as_ref().map(|value| value.bind(py)),
+            options.exclude_attrs.as_ref().map(|value| value.bind(py)),
+            options.precision.as_ref().map(|value| value.bind(py)),
         )
     }
 
@@ -2644,6 +2792,11 @@ mod tests {
             content.matches("def to_json(").count(),
             2,
             "stubs must declare document and page JSON serialization"
+        );
+        assert_eq!(
+            content.matches("def to_csv(").count(),
+            2,
+            "stubs must declare document and page CSV serialization"
         );
     }
 

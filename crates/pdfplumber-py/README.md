@@ -57,6 +57,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.metadata` | Document metadata dict (title, author, etc.) |
 | `.to_dict(object_types=None)` | Document metadata and selected-page dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
+| `.to_csv(...)` | CSV string or text-stream serialization of selected page objects |
 | `.bookmarks()` | Table of contents / outline entries |
 
 ### Page
@@ -67,6 +68,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.width` / `.height` | Page dimensions in points |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
+| `.to_csv(...)` | CSV string or text-stream serialization of page objects |
 | `.extract_text(layout=False)` | Extract all text |
 | `.extract_words(x_tolerance=3.0, y_tolerance=3.0)` | Extract words with bounding boxes |
 | `.chars()` | Character-level data with font info |
