@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import importlib.machinery
 from pathlib import Path
+from types import MappingProxyType
 import unittest
 
 import pdfplumber
@@ -190,6 +191,33 @@ class NativeLayoutTests(unittest.TestCase):
         for offsets in (char_offsets, word_offsets):
             self.assertAlmostEqual(offsets[0], 0.0)
             self.assertAlmostEqual(offsets[1], pages[0].height)
+
+    def test_open_accepts_and_validates_laparams(self) -> None:
+        fixture = self.fixture()
+        with pdfplumber.open(fixture, laparams={}) as defaults:
+            default_text = defaults.pages[0].extract_text()
+        all_options = {
+            "line_overlap": 0.4,
+            "char_margin": 1.5,
+            "line_margin": 0.75,
+            "word_margin": 0.2,
+            "boxes_flow": None,
+            "detect_vertical": True,
+            "all_texts": True,
+        }
+        with pdfplumber.open(fixture, laparams=all_options) as tuned:
+            self.assertEqual(tuned.pages[0].extract_text(), default_text)
+        with pdfplumber.open(
+            fixture, laparams=MappingProxyType({"line_margin": 0.75})
+        ) as mapped:
+            self.assertEqual(mapped.pages[0].extract_text(), default_text)
+
+        with self.assertRaisesRegex(TypeError, "must be a mapping"):
+            pdfplumber.open(fixture, laparams=1)
+        with self.assertRaisesRegex(TypeError, "unexpected keyword argument 'unknown'"):
+            pdfplumber.open(fixture, laparams={"unknown": 1})
+        with self.assertRaisesRegex(ValueError, r"between -1 and \+1"):
+            pdfplumber.open(fixture, laparams={"boxes_flow": 2.0})
 
 
 if __name__ == "__main__":
