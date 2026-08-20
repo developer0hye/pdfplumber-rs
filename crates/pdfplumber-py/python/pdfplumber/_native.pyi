@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
 __version__: str
 
 # ---------------------------------------------------------------------------
@@ -97,6 +99,10 @@ class PDF:
         """Compact document structure-tree dictionaries."""
         ...
 
+    def to_dict(self, object_types: Iterable[str] | None = None) -> dict[str, object]:
+        """Return document metadata and selected page dictionaries."""
+        ...
+
     def bookmarks(self) -> list[BookmarkDict]:
         """Document bookmarks (outline / table of contents) as list[dict]."""
         ...
@@ -117,6 +123,10 @@ class Page:
     @property
     def height(self) -> float:
         """Page height in points."""
+        ...
+
+    def to_dict(self, object_types: Iterable[str] | None = None) -> dict[str, object]:
+        """Return page geometry and requested object dictionaries."""
         ...
 
     def chars(self) -> list[CharDict]:

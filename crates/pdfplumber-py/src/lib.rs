@@ -12,7 +12,8 @@ use ::pdfplumber::{
     StructElement, Table, TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
 };
 use pyo3::exceptions::{
-    PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
+    PyAttributeError, PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError,
+    PyValueError,
 };
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
@@ -403,6 +404,11 @@ fn log_metadata_warnings(py: Python<'_>, pdf: &Pdf) -> PyResult<()> {
 
 fn parse_bbox_tuple(bbox: (f64, f64, f64, f64)) -> BBox {
     BBox::new(bbox.0, bbox.1, bbox.2, bbox.3)
+}
+
+fn compatible_geometry_number(value: f64) -> f64 {
+    let value = (value as f32).to_string().parse().unwrap_or(value);
+    if value == 0.0 { 0.0 } else { value }
 }
 
 fn validate_laparams(py: Python<'_>, laparams: Option<PyObject>) -> PyResult<Option<PyObject>> {
@@ -1091,7 +1097,7 @@ impl PyPdf {
             })?;
             let initial_doctop = if self.selected_pages.is_some() {
                 let initial_doctop = selected_doctop;
-                selected_doctop += height;
+                selected_doctop += compatible_geometry_number(height);
                 Some(initial_doctop)
             } else {
                 None
@@ -1200,6 +1206,30 @@ impl PyPdf {
             .collect()
     }
 
+    /// Document metadata and selected pages in upstream dictionary form.
+    #[pyo3(signature = (object_types=None))]
+    fn to_dict(
+        &self,
+        py: Python<'_>,
+        object_types: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyObject> {
+        let dict = PyDict::new(py);
+        dict.set_item(
+            "metadata",
+            raw_metadata_to_dict(py, self.inner.raw_metadata())?,
+        )?;
+        let serialized_pages = PyList::empty(py);
+        for page in self.pages(py)?.bind(py).iter() {
+            let serialized = match object_types {
+                Some(object_types) => page.call_method1("to_dict", (object_types,))?,
+                None => page.call_method1("to_dict", (py.None(),))?,
+            };
+            serialized_pages.append(serialized)?;
+        }
+        dict.set_item("pages", serialized_pages)?;
+        Ok(dict.into_any().unbind())
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1282,6 +1312,103 @@ impl PyPage {
             .ok_or_else(|| PyRuntimeError::new_err("page cache was not initialized"))?;
         operation(page)
     }
+
+    fn initial_doctop(&self) -> f64 {
+        self.selected_doctop.unwrap_or_else(|| {
+            (0..self.page_index)
+                .filter_map(|index| {
+                    self.pdf
+                        .page_dimensions(index)
+                        .map(|(_, height)| compatible_geometry_number(height))
+                })
+                .sum()
+        })
+    }
+
+    fn object_list(&self, py: Python<'_>, attribute: &str) -> PyResult<PyObject> {
+        let values = match attribute {
+            "chars" => PyList::new(py, self.chars(py)?)?,
+            "lines" => PyList::new(py, self.lines(py)?)?,
+            "rects" => PyList::new(py, self.rects(py)?)?,
+            "curves" => PyList::new(py, self.curves(py)?)?,
+            "images" => PyList::new(py, self.images(py)?)?,
+            "annots" => PyList::new(py, self.annots(py)?)?,
+            "hyperlinks" => PyList::new(py, self.hyperlinks(py)?)?,
+            _ => {
+                return Err(PyAttributeError::new_err(format!(
+                    "'Page' object has no attribute '{attribute}'"
+                )));
+            }
+        };
+        Ok(values.into_any().unbind())
+    }
+
+    fn to_dict_impl(
+        &self,
+        py: Python<'_>,
+        object_types: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyObject> {
+        let dict = PyDict::new(py);
+        let initial_doctop = self.initial_doctop();
+        self.with_page(py, |page| {
+            let media_box = page.media_box();
+            let crop_box = page.crop_box().unwrap_or(media_box);
+            let bbox = page.bbox();
+            dict.set_item("page_number", self.page_number())?;
+            dict.set_item("initial_doctop", initial_doctop)?;
+            dict.set_item("rotation", page.rotation())?;
+            dict.set_item(
+                "cropbox",
+                (
+                    compatible_geometry_number(crop_box.x0),
+                    compatible_geometry_number(crop_box.top),
+                    compatible_geometry_number(crop_box.x1),
+                    compatible_geometry_number(crop_box.bottom),
+                ),
+            )?;
+            dict.set_item(
+                "mediabox",
+                (
+                    compatible_geometry_number(media_box.x0),
+                    compatible_geometry_number(media_box.top),
+                    compatible_geometry_number(media_box.x1),
+                    compatible_geometry_number(media_box.bottom),
+                ),
+            )?;
+            dict.set_item(
+                "bbox",
+                (
+                    compatible_geometry_number(bbox.x0),
+                    compatible_geometry_number(bbox.top),
+                    compatible_geometry_number(bbox.x1),
+                    compatible_geometry_number(bbox.bottom),
+                ),
+            )?;
+            dict.set_item("width", compatible_geometry_number(page.width()))?;
+            dict.set_item("height", compatible_geometry_number(page.height()))?;
+            Ok(())
+        })?;
+
+        if let Some(object_types) = object_types {
+            let add = py.import("operator")?.getattr("add")?;
+            for object_type in object_types.try_iter()? {
+                let object_type = object_type?;
+                let attribute = add.call1((&object_type, "s"))?;
+                let attribute = attribute.extract::<String>()?;
+                dict.set_item(&attribute, self.object_list(py, &attribute)?)?;
+            }
+        } else {
+            for attribute in ["chars", "lines", "rects", "curves", "images"] {
+                let values = self.object_list(py, attribute)?;
+                if !values.bind(py).downcast::<PyList>()?.is_empty() {
+                    dict.set_item(attribute, values)?;
+                }
+            }
+            dict.set_item("annots", self.object_list(py, "annots")?)?;
+        }
+
+        Ok(dict.into_any().unbind())
+    }
 }
 
 #[pymethods]
@@ -1295,13 +1422,13 @@ impl PyPage {
     /// Page width in points.
     #[getter]
     fn width(&self) -> f64 {
-        self.width
+        compatible_geometry_number(self.width)
     }
 
     /// Page height in points.
     #[getter]
     fn height(&self) -> f64 {
-        self.height
+        compatible_geometry_number(self.height)
     }
 
     /// Characters on this page as list[dict].
@@ -1454,6 +1581,16 @@ impl PyPage {
                 .map(|element| struct_element_to_dict(py, element, false))
                 .collect()
         })
+    }
+
+    /// Page geometry and requested object lists in upstream dictionary form.
+    #[pyo3(signature = (object_types=None))]
+    fn to_dict(
+        &self,
+        py: Python<'_>,
+        object_types: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<PyObject> {
+        self.to_dict_impl(py, object_types)
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
@@ -2332,6 +2469,15 @@ mod tests {
         assert!(
             content.contains("def structure_tree(self) -> list[StructElementDict]:"),
             "stubs must declare document and page structure trees"
+        );
+        assert_eq!(
+            content
+                .matches(
+                    "def to_dict(self, object_types: Iterable[str] | None = None) -> dict[str, object]:"
+                )
+                .count(),
+            2,
+            "stubs must declare document and page dictionary serialization"
         );
     }
 
