@@ -1064,6 +1064,92 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertIsNot(document.structure_tree, first)
             self.assertIsNot(document.pages[0].structure_tree, page_first)
 
+    def test_to_dict_matches_default_and_filtered_document_shape(self) -> None:
+        geometry = {
+            "page_number": 1,
+            "initial_doctop": 0,
+            "rotation": 0,
+            "cropbox": (0, 0.0, 595.28, 841.89),
+            "mediabox": (0, 0.0, 595.28, 841.89),
+            "bbox": (0, 0.0, 595.28, 841.89),
+            "width": 595.28,
+            "height": 841.89,
+        }
+        with pdfplumber.open(self.fixture()) as document:
+            self.assertEqual(document.pages[0].to_dict([]), geometry)
+            page_annots = document.pages[0].to_dict(("annot",))
+            self.assertEqual(list(page_annots), [*geometry, "annots"])
+            self.assertEqual(page_annots["annots"], [])
+
+            empty = document.to_dict([])
+            self.assertEqual(list(empty), ["metadata", "pages"])
+            self.assertEqual(
+                empty,
+                {
+                    "metadata": {"CreationDate": "D:20260228140604Z"},
+                    "pages": [geometry],
+                },
+            )
+
+            filtered = document.to_dict(["char"])
+            self.assertEqual(list(filtered["pages"][0]), [*geometry, "chars"])
+            self.assertEqual(filtered["pages"][0]["chars"], document.pages[0].chars())
+            self.assertEqual(len(filtered["pages"][0]["chars"]), 258)
+
+            default = document.to_dict()
+            self.assertEqual(
+                list(default["pages"][0]), [*geometry, "chars", "annots"]
+            )
+            self.assertEqual(len(default["pages"][0]["chars"]), 258)
+            self.assertEqual(default["pages"][0]["annots"], [])
+
+    def test_to_dict_preserves_selected_geometry_and_invalid_input_failures(self) -> None:
+        with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
+            pages = document.to_dict([])["pages"]
+            self.assertEqual([page["page_number"] for page in pages], [3, 5])
+            self.assertEqual([page["initial_doctop"] for page in pages], [0, 841.89])
+            self.assertEqual(
+                [list(page) for page in pages],
+                [
+                    [
+                        "page_number",
+                        "initial_doctop",
+                        "rotation",
+                        "cropbox",
+                        "mediabox",
+                        "bbox",
+                        "width",
+                        "height",
+                    ],
+                    [
+                        "page_number",
+                        "initial_doctop",
+                        "rotation",
+                        "cropbox",
+                        "mediabox",
+                        "bbox",
+                        "width",
+                        "height",
+                    ],
+                ],
+            )
+
+            generator_pages = document.to_dict(iter(["char"]))["pages"]
+            self.assertEqual(len(generator_pages[0]["chars"]), 693)
+            self.assertNotIn("chars", generator_pages[1])
+
+            cases = (
+                ("char", AttributeError, "'Page' object has no attribute 'cs'"),
+                (["bogus"], AttributeError, "'Page' object has no attribute 'boguss'"),
+                ((1,), TypeError, "unsupported operand type(s) for +: 'int' and 'str'"),
+                (1, TypeError, "'int' object is not iterable"),
+            )
+            for value, error_type, message in cases:
+                with self.subTest(value=value):
+                    with self.assertRaises(error_type) as raised:
+                        document.to_dict(value)
+                    self.assertEqual(str(raised.exception), message)
+
 
 if __name__ == "__main__":
     unittest.main()
