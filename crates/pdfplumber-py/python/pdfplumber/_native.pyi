@@ -41,6 +41,7 @@ ImageDict = dict[str, object]
 SearchMatchDict = dict[str, object]
 BookmarkDict = dict[str, object]
 MetadataDict = dict[str, object]
+AnnotDict = dict[str, object]
 
 BBox = tuple[float, float, float, float]
 
@@ -78,6 +79,11 @@ class PDF:
     @property
     def objects(self) -> dict[str, list[dict[str, object]]]:
         """Objects from all selected pages grouped by type."""
+        ...
+
+    @property
+    def annots(self) -> list[AnnotDict]:
+        """Annotation dictionaries from all selected pages."""
         ...
 
     def bookmarks(self) -> list[BookmarkDict]:
@@ -140,6 +146,11 @@ class Page:
 
     def images(self) -> list[ImageDict]:
         """Images on this page as list[dict]."""
+        ...
+
+    @property
+    def annots(self) -> list[AnnotDict]:
+        """Annotation dictionaries on this page."""
         ...
 
     def crop(self, bbox: BBox) -> CroppedPage:
