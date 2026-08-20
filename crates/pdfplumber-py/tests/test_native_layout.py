@@ -232,6 +232,8 @@ class NativeLayoutTests(unittest.TestCase):
             pdfplumber.open(fixture, laparams={"boxes_flow": 2.0})
 
     def test_open_uses_password_for_paths_and_external_streams(self) -> None:
+        from pdfplumber.utils.exceptions import PdfminerException
+
         fixture = self.password_fixture()
         with pdfplumber.open(fixture, password="test") as document:
             self.assertEqual(document.password, "test")
@@ -248,14 +250,68 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertFalse(external.closed)
 
         missing = io.BytesIO(fixture.read_bytes())
-        with self.assertRaises(_native.PdfPasswordRequired):
+        with self.assertRaises(PdfminerException):
             pdfplumber.open(missing)
         self.assertFalse(missing.closed)
 
         wrong = io.BytesIO(fixture.read_bytes())
-        with self.assertRaises(_native.PdfInvalidPassword):
+        with self.assertRaises(PdfminerException):
             pdfplumber.open(wrong, password="wrong")
         self.assertFalse(wrong.closed)
+
+    def test_open_uses_upstream_exception_taxonomy(self) -> None:
+        from pdfplumber.utils.exceptions import PdfminerException
+
+        self.assertEqual(
+            PdfminerException.__module__, "pdfplumber.utils.exceptions"
+        )
+        self.assertTrue(issubclass(PdfminerException, Exception))
+        self.assertFalse(issubclass(PdfminerException, RuntimeError))
+
+        missing = self.fixture().with_name("does-not-exist.pdf")
+        with self.assertRaises(FileNotFoundError):
+            pdfplumber.open(missing)
+        with self.assertRaises(IsADirectoryError):
+            pdfplumber.open(self.fixture().parent)
+
+        malformed_inputs = (
+            ("empty stream", io.BytesIO(b"")),
+            ("garbage stream", io.BytesIO(b"not a pdf")),
+        )
+        for label, stream in malformed_inputs:
+            with self.subTest(input=label):
+                with self.assertRaisesRegex(
+                    PdfminerException,
+                    r"^No /Root object! - Is this really a PDF\?$",
+                ):
+                    pdfplumber.open(stream)
+                self.assertFalse(stream.closed)
+
+        closed = io.BytesIO(self.fixture().read_bytes())
+        closed.close()
+        with self.assertRaisesRegex(
+            PdfminerException, r"^I/O operation on closed file\.$"
+        ):
+            pdfplumber.open(closed)
+
+        encrypted = self.password_fixture().read_bytes()
+        for password in (None, "", "wrong"):
+            with self.subTest(password=password):
+                stream = io.BytesIO(encrypted)
+                with self.assertRaises(PdfminerException) as caught:
+                    pdfplumber.open(stream, password=password)
+                self.assertEqual(str(caught.exception), "")
+                self.assertFalse(stream.closed)
+
+        unsupported = encrypted.replace(b"/V 2", b"/V 9", 1)
+        self.assertNotEqual(unsupported, encrypted)
+        for password in (None, "test"):
+            with self.subTest(unsupported_password=password):
+                stream = io.BytesIO(unsupported)
+                with self.assertRaises(PdfminerException) as caught:
+                    pdfplumber.open(stream, password=password)
+                self.assertTrue(str(caught.exception))
+                self.assertFalse(stream.closed)
 
 
 if __name__ == "__main__":

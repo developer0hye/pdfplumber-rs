@@ -11,7 +11,7 @@ use ::pdfplumber::{
     PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, Word,
     WordOptions,
 };
-use pyo3::exceptions::{PyIOError, PyRuntimeError, PyTypeError, PyValueError};
+use pyo3::exceptions::{PyException, PyIOError, PyRuntimeError, PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
 
@@ -26,11 +26,34 @@ pyo3::create_exception!(pdfplumber._native, PdfInterpreterError, PyRuntimeError)
 pyo3::create_exception!(pdfplumber._native, PdfResourceLimitError, PyRuntimeError);
 pyo3::create_exception!(pdfplumber._native, PdfPasswordRequired, PyRuntimeError);
 pyo3::create_exception!(pdfplumber._native, PdfInvalidPassword, PyValueError);
+pyo3::create_exception!(pdfplumber.utils.exceptions, PdfminerException, PyException);
+
+fn pdfminer_parse_message(message: String) -> String {
+    if message.contains("invalid file header") {
+        "No /Root object! - Is this really a PDF?".to_string()
+    } else {
+        message
+    }
+}
+
+fn map_stream_error(py: Python<'_>, error: PyErr) -> PyErr {
+    if error.is_instance_of::<PyValueError>(py) {
+        let message = error
+            .value(py)
+            .str()
+            .map(|value| value.to_string_lossy().into_owned())
+            .unwrap_or_else(|_| error.to_string());
+        if message.contains("closed file") {
+            return PdfminerException::new_err(message);
+        }
+    }
+    error
+}
 
 /// Convert a PdfError to the appropriate Python exception.
 fn to_py_err(e: PdfError) -> PyErr {
     match e {
-        PdfError::ParseError(msg) => PdfParseError::new_err(msg),
+        PdfError::ParseError(msg) => PdfminerException::new_err(pdfminer_parse_message(msg)),
         PdfError::IoError(msg) => PdfIoError::new_err(msg),
         PdfError::FontError(msg) => PdfFontError::new_err(msg),
         PdfError::InterpreterError(msg) => PdfInterpreterError::new_err(msg),
@@ -41,12 +64,7 @@ fn to_py_err(e: PdfError) -> PyErr {
         } => PdfResourceLimitError::new_err(format!(
             "{limit_name} (limit: {limit_value}, actual: {actual_value})"
         )),
-        PdfError::PasswordRequired => {
-            PdfPasswordRequired::new_err("PDF is encrypted and requires a password")
-        }
-        PdfError::InvalidPassword => {
-            PdfInvalidPassword::new_err("the supplied password is incorrect")
-        }
+        PdfError::PasswordRequired | PdfError::InvalidPassword => PdfminerException::new_err(()),
         PdfError::Other(msg) => PyRuntimeError::new_err(msg),
     }
 }
@@ -531,8 +549,12 @@ impl PyPdf {
             } else {
                 (path_or_fp.clone(), None, true)
             };
-        stream.call_method1("seek", (0,))?;
-        let data = stream.call_method0("read")?;
+        stream
+            .call_method1("seek", (0,))
+            .map_err(|error| map_stream_error(path_or_fp.py(), error))?;
+        let data = stream
+            .call_method0("read")
+            .map_err(|error| map_stream_error(path_or_fp.py(), error))?;
         let bytes = data.downcast::<PyBytes>()?;
         let pdf_result = match password.as_deref() {
             Some(password) => Pdf::open_with_password(bytes.as_bytes(), password.as_bytes(), None),
@@ -852,6 +874,7 @@ fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
         "PdfInvalidPassword",
         m.py().get_type::<PdfInvalidPassword>(),
     )?;
+    m.add("PdfminerException", m.py().get_type::<PdfminerException>())?;
     Ok(())
 }
 
@@ -1145,7 +1168,7 @@ mod tests {
     fn test_to_py_err_parse_error() {
         let err = to_py_err(PdfError::ParseError("bad xref".to_string()));
         Python::with_gil(|py| {
-            assert!(err.is_instance_of::<PdfParseError>(py));
+            assert!(err.is_instance_of::<PdfminerException>(py));
         });
     }
 
@@ -1189,7 +1212,7 @@ mod tests {
     fn test_to_py_err_password_required() {
         let err = to_py_err(PdfError::PasswordRequired);
         Python::with_gil(|py| {
-            assert!(err.is_instance_of::<PdfPasswordRequired>(py));
+            assert!(err.is_instance_of::<PdfminerException>(py));
         });
     }
 
@@ -1197,7 +1220,7 @@ mod tests {
     fn test_to_py_err_invalid_password() {
         let err = to_py_err(PdfError::InvalidPassword);
         Python::with_gil(|py| {
-            assert!(err.is_instance_of::<PdfInvalidPassword>(py));
+            assert!(err.is_instance_of::<PdfminerException>(py));
         });
     }
 
