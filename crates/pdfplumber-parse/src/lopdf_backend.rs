@@ -84,15 +84,34 @@ impl LopdfBackend {
         doc: &LopdfDocument,
         page: &LopdfPage,
     ) -> Result<Option<BBox>, BackendError> {
-        match resolve_direct(&doc.inner, page.object_id, b"TrimBox")? {
-            Some(obj) => {
-                let array = obj
-                    .as_array()
-                    .map_err(|e| BackendError::Parse(format!("TrimBox is not an array: {e}")))?;
-                Ok(Some(extract_bbox_from_array(array)?))
-            }
-            None => Ok(None),
+        page_explicit_box(&doc.inner, page.object_id, b"TrimBox")
+    }
+
+    /// Return the BleedBox defined directly on a page, without page-tree inheritance.
+    pub fn page_explicit_bleed_box(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<BBox>, BackendError> {
+        page_explicit_box(&doc.inner, page.object_id, b"BleedBox")
+    }
+}
+
+fn page_explicit_box(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+    key: &[u8],
+) -> Result<Option<BBox>, BackendError> {
+    match resolve_direct(doc, page_id, key)? {
+        Some(object) => {
+            let array = object.as_array().map_err(|error| {
+                BackendError::Parse(format!(
+                    "{} is not an array: {error}",
+                    String::from_utf8_lossy(key)
+                ))
+            })?;
+            Ok(Some(extract_bbox_from_array(array)?))
         }
+        None => Ok(None),
     }
 }
 
@@ -3412,6 +3431,7 @@ fn create_test_pdf_inherited_media_box() -> Vec<u8> {
             "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
             "CropBox" => vec![10.into(), 20.into(), 585.into(), 822.into()],
             "TrimBox" => vec![25.into(), 25.into(), 570.into(), 817.into()],
+            "BleedBox" => vec![30.into(), 35.into(), 565.into(), 807.into()],
         }),
     );
 
@@ -3449,6 +3469,12 @@ fn create_test_pdf_with_crop_box() -> Vec<u8> {
             Object::Real(50.0),
             Object::Real(560.0),
             Object::Real(740.0),
+        ],
+        "BleedBox" => vec![
+            Object::Real(45.0),
+            Object::Real(55.0),
+            Object::Real(555.0),
+            Object::Real(735.0),
         ],
     });
 
@@ -4283,6 +4309,31 @@ mod tests {
         );
         assert_eq!(
             LopdfBackend::page_explicit_trim_box(&doc, &page).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn explicit_bleed_box_is_read_from_the_page_only() {
+        let pdf_bytes = create_test_pdf_with_crop_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let bleed_box = LopdfBackend::page_explicit_bleed_box(&doc, &page).unwrap();
+        assert_eq!(bleed_box, Some(BBox::new(45.0, 55.0, 555.0, 735.0)));
+    }
+
+    #[test]
+    fn inherited_bleed_box_is_not_explicit() {
+        let pdf_bytes = create_test_pdf_inherited_media_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        assert_eq!(
+            LopdfBackend::page_bleed_box(&doc, &page).unwrap(),
+            Some(BBox::new(30.0, 35.0, 565.0, 807.0))
+        );
+        assert_eq!(
+            LopdfBackend::page_explicit_bleed_box(&doc, &page).unwrap(),
             None
         );
     }

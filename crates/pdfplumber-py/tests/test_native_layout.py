@@ -221,7 +221,7 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
-    def trimbox_pdf() -> bytes:
+    def optional_page_box_pdf(box_name: bytes) -> bytes:
         objects = (
             b"<< /Type /Catalog /Pages 2 0 R >>",
             (
@@ -230,13 +230,16 @@ class NativeLayoutTests(unittest.TestCase):
             ),
             (
                 b"<< /Type /Pages /Parent 2 0 R /Kids [4 0 R 5 0 R] /Count 2 "
-                b"/MediaBox [0 0 100 200] /TrimBox [10 20 90 180] "
+                b"/MediaBox [0 0 100 200] /"
+                + box_name
+                + b" [10 20 90 180] "
                 b"/Rotate -90 >>"
             ),
             b"<< /Type /Page /Parent 3 0 R >>",
             (
-                b"<< /Type /Page /Parent 3 0 R /TrimBox [90 180 10 20] "
-                b"/Rotate 450 >>"
+                b"<< /Type /Page /Parent 3 0 R /"
+                + box_name
+                + b" [90 180 10 20] /Rotate 450 >>"
             ),
             b"<< /Type /Page /Parent 2 0 R >>",
         )
@@ -258,6 +261,14 @@ class NativeLayoutTests(unittest.TestCase):
             ]
         )
         return b"".join(parts)
+
+    @classmethod
+    def trimbox_pdf(cls) -> bytes:
+        return cls.optional_page_box_pdf(b"TrimBox")
+
+    @classmethod
+    def bleedbox_pdf(cls) -> bytes:
+        return cls.optional_page_box_pdf(b"BleedBox")
 
     @staticmethod
     def rust_extension_pdf() -> bytes:
@@ -1060,6 +1071,28 @@ class NativeLayoutTests(unittest.TestCase):
                     getattr(page, "trimbox", "MISSING"),
                     "trimbox" in vars(page),
                     "trimbox" in page.to_dict([]),
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, False, "MISSING", False, False),
+                (2, True, (20, 10, 180, 90), True, False),
+                (3, False, "MISSING", False, False),
+            ],
+        )
+
+    def test_page_bleedbox_matches_direct_presence_rotation_and_absence(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.bleedbox_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    hasattr(page, "bleedbox"),
+                    getattr(page, "bleedbox", "MISSING"),
+                    "bleedbox" in vars(page),
+                    "bleedbox" in page.to_dict([]),
                 )
                 for page in document.pages
             ]

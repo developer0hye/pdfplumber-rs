@@ -1543,6 +1543,8 @@ impl PyPdf {
             })?;
             let trim_box =
                 compatible_optional_page_box(media_box, self.inner.page_trim_box(i), rotation);
+            let bleed_box =
+                compatible_optional_page_box(media_box, self.inner.page_bleed_box(i), rotation);
             let (media_box, crop_box) =
                 compatible_page_boxes(media_box, self.inner.page_crop_box(i), rotation);
             let initial_doctop = if self.selected_pages.is_some() {
@@ -1571,6 +1573,10 @@ impl PyPdf {
             if let Some(trim_box) = trim_box {
                 page.bind(py)
                     .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
+            }
+            if let Some(bleed_box) = bleed_box {
+                page.bind(py)
+                    .setattr("bleedbox", compatible_bbox_tuple(bleed_box))?;
             }
             pages.bind(py).append(page)?;
         }
@@ -2293,10 +2299,13 @@ mod tests {
 
     /// Helper: create a minimal valid PDF in memory using lopdf.
     fn minimal_pdf_bytes() -> Vec<u8> {
-        minimal_pdf_bytes_with_trim_box(None)
+        minimal_pdf_bytes_with_optional_boxes(None, None)
     }
 
-    fn minimal_pdf_bytes_with_trim_box(trim_box: Option<[i64; 4]>) -> Vec<u8> {
+    fn minimal_pdf_bytes_with_optional_boxes(
+        trim_box: Option<[i64; 4]>,
+        bleed_box: Option<[i64; 4]>,
+    ) -> Vec<u8> {
         use std::io::Cursor;
 
         let mut doc = lopdf::Document::with_version("1.7");
@@ -2316,6 +2325,9 @@ mod tests {
         };
         if let Some([x0, y0, x1, y1]) = trim_box {
             page.set("TrimBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
+        }
+        if let Some([x0, y0, x1, y1]) = bleed_box {
+            page.set("BleedBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
         }
         doc.objects.insert(page_id, lopdf::Object::Dictionary(page));
 
@@ -2375,7 +2387,7 @@ mod tests {
 
     #[test]
     fn test_pypage_trimbox_is_explicit_and_optional() {
-        let bytes = minimal_pdf_bytes_with_trim_box(Some([40, 50, 560, 740]));
+        let bytes = minimal_pdf_bytes_with_optional_boxes(Some([40, 50, 560, 740]), None);
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
@@ -2413,6 +2425,51 @@ mod tests {
                     .downcast::<PyDict>()
                     .unwrap()
                     .contains("trimbox")
+                    .unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn test_pypage_bleedbox_is_explicit_and_optional() {
+        let bytes = minimal_pdf_bytes_with_optional_boxes(None, Some([45, 55, 555, 735]));
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            assert_eq!(
+                page.getattr("bleedbox")
+                    .unwrap()
+                    .extract::<(f64, f64, f64, f64)>()
+                    .unwrap(),
+                (45.0, 57.0, 555.0, 737.0)
+            );
+            assert!(
+                page.getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("bleedbox")
+                    .unwrap()
+            );
+        });
+
+        let bytes = minimal_pdf_bytes();
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            let error = page.getattr("bleedbox").unwrap_err();
+            assert!(error.is_instance_of::<PyAttributeError>(py));
+            assert!(
+                !page
+                    .getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("bleedbox")
                     .unwrap()
             );
         });
