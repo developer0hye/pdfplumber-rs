@@ -42,6 +42,7 @@ SearchMatchDict = dict[str, object]
 BookmarkDict = dict[str, object]
 MetadataDict = dict[str, object]
 AnnotDict = dict[str, object]
+StructElementDict = dict[str, object]
 
 BBox = tuple[float, float, float, float]
 
@@ -89,6 +90,11 @@ class PDF:
     @property
     def hyperlinks(self) -> list[AnnotDict]:
         """URI annotation dictionaries from all selected pages."""
+        ...
+
+    @property
+    def structure_tree(self) -> list[StructElementDict]:
+        """Compact document structure-tree dictionaries."""
         ...
 
     def bookmarks(self) -> list[BookmarkDict]:
@@ -161,6 +167,11 @@ class Page:
     @property
     def hyperlinks(self) -> list[AnnotDict]:
         """Annotation dictionaries whose URI is not null."""
+        ...
+
+    @property
+    def structure_tree(self) -> list[StructElementDict]:
+        """Compact structure-tree dictionaries for this page."""
         ...
 
     def crop(self, bbox: BBox) -> CroppedPage:

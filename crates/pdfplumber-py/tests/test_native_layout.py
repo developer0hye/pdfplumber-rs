@@ -1008,6 +1008,62 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertEqual(first, [])
             self.assertIsNot(document.hyperlinks, first)
 
+    def test_structure_tree_matches_compact_document_and_page_hierarchy(self) -> None:
+        fixture = self.annotation_fixture("image_structure.pdf")
+        page_tree = [
+            {
+                "type": "Document",
+                "children": [
+                    {"type": "P", "mcids": [0]},
+                    {"type": "P", "mcids": [1]},
+                    {
+                        "type": "Figure",
+                        "alt_text": (
+                            "pdfplumber on github\n\n"
+                            "a screen capture of the github page for pdfplumber"
+                        ),
+                        "mcids": [2],
+                    },
+                ],
+            }
+        ]
+        document_tree = [
+            {
+                "type": "Document",
+                "children": [
+                    {"type": "P", "page_number": 1, "mcids": [0]},
+                    {"type": "P", "page_number": 1, "mcids": [1]},
+                    {
+                        "type": "Figure",
+                        "alt_text": (
+                            "pdfplumber on github\n\n"
+                            "a screen capture of the github page for pdfplumber"
+                        ),
+                        "page_number": 1,
+                        "mcids": [2],
+                    },
+                ],
+            }
+        ]
+
+        with pdfplumber.open(fixture) as document:
+            first = document.structure_tree
+            self.assertEqual(first, document_tree)
+            self.assertEqual(document.pages[0].structure_tree, page_tree)
+            second = document.structure_tree
+            self.assertIsNot(second, first)
+            self.assertIsNot(second[0], first[0])
+            self.assertEqual(second, first)
+
+    def test_structure_tree_returns_fresh_empty_lists_for_untagged_pdf(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            first = document.structure_tree
+            page_first = document.pages[0].structure_tree
+            self.assertEqual(first, [])
+            self.assertEqual(page_first, [])
+            self.assertIsNot(document.structure_tree, first)
+            self.assertIsNot(document.pages[0].structure_tree, page_first)
+
 
 if __name__ == "__main__":
     unittest.main()

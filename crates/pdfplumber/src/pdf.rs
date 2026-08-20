@@ -74,6 +74,8 @@ pub struct Pdf {
     raw_metadata: RawDocumentMetadata,
     /// Cached document bookmarks (outline / table of contents).
     bookmarks: Vec<Bookmark>,
+    /// Cached document structure tree from /StructTreeRoot.
+    structure_tree: Vec<StructElement>,
     /// Accumulated total objects extracted across all pages (for max_total_objects budget).
     total_objects: AtomicUsize,
     /// Accumulated total image bytes extracted across all pages (for max_total_image_bytes budget).
@@ -315,6 +317,9 @@ impl Pdf {
         // Extract document bookmarks (outline / table of contents)
         let bookmarks = LopdfBackend::document_bookmarks(&doc).map_err(PdfError::from)?;
 
+        // Extract the document structure tree once for document and page views.
+        let structure_tree = LopdfBackend::document_structure_tree(&doc).map_err(PdfError::from)?;
+
         Ok(Self {
             doc,
             options,
@@ -324,6 +329,7 @@ impl Pdf {
             metadata,
             raw_metadata,
             bookmarks,
+            structure_tree,
             total_objects: AtomicUsize::new(0),
             total_image_bytes: AtomicUsize::new(0),
         })
@@ -372,6 +378,13 @@ impl Pdf {
     /// Returns an empty slice if the document has no outlines.
     pub fn bookmarks(&self) -> &[Bookmark] {
         &self.bookmarks
+    }
+
+    /// Return the cached document structure tree.
+    ///
+    /// Returns an empty slice when the PDF has no `/StructTreeRoot`.
+    pub fn structure_tree(&self) -> &[StructElement] {
+        &self.structure_tree
     }
 
     /// Extract all form fields from the document's AcroForm dictionary.
@@ -723,14 +736,12 @@ impl Pdf {
             .filter(|f| f.page_index == Some(index))
             .collect();
 
-        // Extract structure tree for this page (filtered from document StructTreeRoot)
-        let all_struct_elements =
-            LopdfBackend::document_structure_tree(&self.doc).map_err(PdfError::from)?;
-        let structure_tree = if all_struct_elements.is_empty() {
+        // Filter the cached document structure tree for this page.
+        let structure_tree = if self.structure_tree.is_empty() {
             None
         } else {
             let page_elements: Vec<StructElement> =
-                filter_struct_elements_for_page(&all_struct_elements, index);
+                filter_struct_elements_for_page(&self.structure_tree, index);
             if page_elements.is_empty() {
                 None
             } else {
