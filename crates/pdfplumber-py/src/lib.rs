@@ -7,15 +7,15 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use ::pdfplumber::{
-    BBox, Bookmark, Char, Color, CroppedPage, Curve, DocumentMetadata, Image, Line, Page, Pdf,
-    PdfError, Rect, SearchMatch, SearchOptions, Table, TableSettings, TextOptions, UnicodeNorm,
-    Word, WordOptions,
+    BBox, Bookmark, Char, Color, CroppedPage, Curve, Image, Line, MetadataReference, MetadataValue,
+    Page, Pdf, PdfError, RawDocumentMetadata, Rect, SearchMatch, SearchOptions, Table,
+    TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
 };
 use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyBytes, PyDict, PyString, PyTuple};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
 
 // ---------------------------------------------------------------------------
 // Python exception types for PdfError variants
@@ -229,17 +229,106 @@ fn bookmark_to_dict(py: Python<'_>, bm: &Bookmark) -> PyResult<PyObject> {
     Ok(dict.into_any().unbind())
 }
 
-fn metadata_to_dict(py: Python<'_>, meta: &DocumentMetadata) -> PyResult<PyObject> {
+#[pyclass(name = "PDFObjRef", module = "pdfminer.pdftypes")]
+struct PyMetadataReference {
+    object_number: u32,
+    _generation_number: u16,
+}
+
+#[pymethods]
+impl PyMetadataReference {
+    fn __repr__(&self) -> String {
+        format!("<PDFObjRef:{}>", self.object_number)
+    }
+
+    fn resolve(&self) -> PyResult<PyObject> {
+        Err(PyRecursionError::new_err(
+            "maximum recursion depth exceeded",
+        ))
+    }
+}
+
+#[pyclass(name = "PDFStream", module = "pdfminer.pdftypes")]
+struct PyMetadataStream {
+    #[pyo3(get)]
+    attrs: PyObject,
+    #[pyo3(get)]
+    rawdata: PyObject,
+}
+
+fn metadata_reference_to_object(
+    py: Python<'_>,
+    reference: &MetadataReference,
+) -> PyResult<PyObject> {
+    Ok(Py::new(
+        py,
+        PyMetadataReference {
+            object_number: reference.object_number,
+            _generation_number: reference.generation_number,
+        },
+    )?
+    .into_any())
+}
+
+fn metadata_dictionary_to_object(
+    py: Python<'_>,
+    entries: &[(String, MetadataValue)],
+) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
-    dict.set_item("title", meta.title.as_deref())?;
-    dict.set_item("author", meta.author.as_deref())?;
-    dict.set_item("subject", meta.subject.as_deref())?;
-    dict.set_item("keywords", meta.keywords.as_deref())?;
-    dict.set_item("creator", meta.creator.as_deref())?;
-    dict.set_item("producer", meta.producer.as_deref())?;
-    dict.set_item("creation_date", meta.creation_date.as_deref())?;
-    dict.set_item("mod_date", meta.mod_date.as_deref())?;
+    for (key, value) in entries {
+        dict.set_item(key, metadata_value_to_object(py, value)?)?;
+    }
     Ok(dict.into_any().unbind())
+}
+
+fn metadata_value_to_object(py: Python<'_>, value: &MetadataValue) -> PyResult<PyObject> {
+    match value {
+        MetadataValue::Null => Ok(py.None()),
+        MetadataValue::Boolean(value) => Ok(PyBool::new(py, *value).to_owned().into_any().unbind()),
+        MetadataValue::Integer(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
+        MetadataValue::Real(value) => Ok(value.into_pyobject(py)?.into_any().unbind()),
+        MetadataValue::String(value) => Ok(PyString::new(py, value).into_any().unbind()),
+        MetadataValue::Array(values) => {
+            let values = values
+                .iter()
+                .map(|value| metadata_value_to_object(py, value))
+                .collect::<PyResult<Vec<_>>>()?;
+            Ok(PyList::new(py, values)?.into_any().unbind())
+        }
+        MetadataValue::Dictionary(entries) => metadata_dictionary_to_object(py, entries),
+        MetadataValue::Reference(reference) => metadata_reference_to_object(py, reference),
+        MetadataValue::Stream { dictionary, data } => {
+            let attrs = metadata_dictionary_to_object(py, dictionary)?;
+            let rawdata = PyBytes::new(py, data).into_any().unbind();
+            Ok(Py::new(py, PyMetadataStream { attrs, rawdata })?.into_any())
+        }
+    }
+}
+
+fn raw_metadata_to_dict(py: Python<'_>, metadata: &RawDocumentMetadata) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    for entry in &metadata.entries {
+        dict.set_item(&entry.key, metadata_value_to_object(py, &entry.value)?)?;
+    }
+    Ok(dict.into_any().unbind())
+}
+
+fn log_metadata_warnings(py: Python<'_>, pdf: &Pdf) -> PyResult<()> {
+    let logger = py
+        .import("logging")?
+        .call_method1("getLogger", ("pdfplumber.pdf",))?;
+    for entry in &pdf.raw_metadata().entries {
+        if let Some(error) = &entry.resolution_error {
+            logger.call_method1(
+                "warning",
+                (format!(
+                    "[WARNING] Metadata key \"{}\" could not be parsed due to exception: {}",
+                    entry.key, error
+                ),),
+            )?;
+        }
+    }
+    Ok(())
 }
 
 fn parse_bbox_tuple(bbox: (f64, f64, f64, f64)) -> BBox {
@@ -734,6 +823,9 @@ impl PyPdf {
                 "maximum recursion depth exceeded",
             ));
         }
+        if !strict_metadata {
+            log_metadata_warnings(py, &pdf)?;
+        }
         Ok(PyPdf {
             inner: pdf,
             stream: Some(stream.unbind()),
@@ -752,6 +844,7 @@ impl PyPdf {
     #[staticmethod]
     fn open_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
         let pdf = Pdf::open(data, None).map_err(to_py_err)?;
+        log_metadata_warnings(py, &pdf)?;
         let stream = py
             .import("io")?
             .getattr("BytesIO")?
@@ -860,7 +953,7 @@ impl PyPdf {
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
-        metadata_to_dict(py, self.inner.metadata())
+        raw_metadata_to_dict(py, self.inner.raw_metadata())
     }
 
     /// Document bookmarks (outline / table of contents) as list[dict].
@@ -1044,6 +1137,8 @@ fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyPage>()?;
     m.add_class::<PyTable>()?;
     m.add_class::<PyCroppedPage>()?;
+    m.add_class::<PyMetadataReference>()?;
+    m.add_class::<PyMetadataStream>()?;
 
     // Register exception types
     m.add("PdfParseError", m.py().get_type::<PdfParseError>())?;
@@ -1331,16 +1426,8 @@ mod tests {
         let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
             let meta = pypdf.metadata(py).expect("metadata");
-            // Should be a dict with standard keys
             let dict = meta.downcast_bound::<PyDict>(py).expect("dict");
-            assert!(dict.contains("title").unwrap());
-            assert!(dict.contains("author").unwrap());
-            assert!(dict.contains("subject").unwrap());
-            assert!(dict.contains("keywords").unwrap());
-            assert!(dict.contains("creator").unwrap());
-            assert!(dict.contains("producer").unwrap());
-            assert!(dict.contains("creation_date").unwrap());
-            assert!(dict.contains("mod_date").unwrap());
+            assert!(dict.is_empty());
         });
     }
 
@@ -1631,25 +1718,27 @@ mod tests {
 
     #[test]
     fn test_metadata_to_dict_conversion() {
-        let meta = DocumentMetadata {
-            title: Some("Test Doc".to_string()),
-            author: Some("Author".to_string()),
-            subject: None,
-            keywords: None,
-            creator: None,
-            producer: None,
-            creation_date: None,
-            mod_date: None,
+        let metadata = RawDocumentMetadata {
+            entries: vec![
+                ::pdfplumber::MetadataEntry {
+                    key: "Title".to_string(),
+                    value: MetadataValue::String("Test Doc".to_string()),
+                    resolution_error: None,
+                },
+                ::pdfplumber::MetadataEntry {
+                    key: "Count".to_string(),
+                    value: MetadataValue::Integer(2),
+                    resolution_error: None,
+                },
+            ],
         };
         Python::with_gil(|py| {
-            let dict_obj = metadata_to_dict(py, &meta).expect("metadata_to_dict");
+            let dict_obj = raw_metadata_to_dict(py, &metadata).expect("raw_metadata_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
-            let title: String = dict.get_item("title").unwrap().unwrap().extract().unwrap();
+            let title: String = dict.get_item("Title").unwrap().unwrap().extract().unwrap();
             assert_eq!(title, "Test Doc");
-            let author: String = dict.get_item("author").unwrap().unwrap().extract().unwrap();
-            assert_eq!(author, "Author");
-            // None fields should be Python None
-            assert!(dict.get_item("subject").unwrap().unwrap().is_none());
+            let count: i64 = dict.get_item("Count").unwrap().unwrap().extract().unwrap();
+            assert_eq!(count, 2);
         });
     }
 

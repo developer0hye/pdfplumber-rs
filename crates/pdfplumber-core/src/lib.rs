@@ -107,7 +107,9 @@ pub use layout::{
     cluster_words_into_lines, detect_columns, sort_blocks_column_order, sort_blocks_reading_order,
     split_lines_at_columns, words_to_text, words_to_text_by_band,
 };
-pub use metadata::DocumentMetadata;
+pub use metadata::{
+    DocumentMetadata, MetadataEntry, MetadataReference, MetadataValue, RawDocumentMetadata,
+};
 pub use page_object::PageObject;
 pub use page_regions::{
     PageRegionOptions, PageRegions, detect_page_regions, mask_variable_elements,

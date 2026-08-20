@@ -104,6 +104,41 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def rich_metadata_pdf() -> bytes:
+        objects = (
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+            (
+                b"<< /Title (Hello) /Custom (custom) "
+                b"/Encoded (bullet \\200) /Utf16 <FEFF004100E9> "
+                b"/Named /Blue /Integer 7 /Real 2.5 /Boolean true "
+                b"/Null null /List [(one) /Two 3 4.5 false null 5 0 R] "
+                b"/Nested << /Inner (value) /Name /NameValue "
+                b"/List [(inner) 9] >> /Raw#20Key (spaced) >>"
+            ),
+            b"(indirect)",
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    "trailer\n<< /Root 1 0 R /Info 4 0 R /Size 6 >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def fake_ghostscript(directory: str) -> Path:
         executable = Path(directory) / "gs"
         executable.write_text(
@@ -414,6 +449,72 @@ class NativeLayoutTests(unittest.TestCase):
         ):
             pdfplumber.open(strict_stream, strict_metadata=True)
         self.assertFalse(strict_stream.closed)
+
+    def test_metadata_preserves_keys_decoded_values_and_nested_lists(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.rich_metadata_pdf())) as document:
+            self.assertEqual(
+                document.metadata,
+                {
+                    "Title": "Hello",
+                    "Custom": "custom",
+                    "Encoded": "bullet \N{BULLET}",
+                    "Utf16": "A\N{LATIN SMALL LETTER E WITH ACUTE}",
+                    "Named": "Blue",
+                    "Integer": 7,
+                    "Real": 2.5,
+                    "Boolean": True,
+                    "List": ["one", "Two", 3, 4.5, False, None, "indirect"],
+                    "Nested": {
+                        "Inner": "value",
+                        "Name": "NameValue",
+                        "List": ["inner", 9],
+                    },
+                    "Raw Key": "spaced",
+                },
+            )
+
+        fixture = (
+            Path(__file__).resolve().parents[3]
+            / "compat"
+            / "fixtures"
+            / "upstream"
+            / "pdfplumber-v0.11.10"
+            / "tests"
+            / "pdfs"
+            / "issue-316-example.pdf"
+        )
+        with pdfplumber.open(fixture) as document:
+            self.assertEqual(document.metadata["SPDF"], 1082)
+            self.assertEqual(
+                document.metadata["Changes"][1],
+                {
+                    "ModDate": "D:20061211145545-00'00'",
+                    "Product": "APStripFiles",
+                    "Version": "1.8",
+                    "Vendor": "Appligent",
+                    "Comments": (
+                        "SPDF Build Number 1082 for Linux 7, "
+                        "Application Build Date: Mar 26 2003"
+                    ),
+                },
+            )
+
+    def test_permissive_metadata_cycle_logs_and_retains_reference(self) -> None:
+        stream = io.BytesIO(self.cyclic_metadata_pdf())
+        with self.assertLogs("pdfplumber.pdf", level="WARNING") as logs:
+            with pdfplumber.open(stream, strict_metadata=False) as document:
+                self.assertEqual(list(document.metadata), ["Loop"])
+                loop_type = type(document.metadata["Loop"])
+                self.assertEqual(loop_type.__module__, "pdfminer.pdftypes")
+                self.assertEqual(loop_type.__qualname__, "PDFObjRef")
+        self.assertEqual(
+            logs.output,
+            [
+                "WARNING:pdfplumber.pdf:[WARNING] Metadata key \"Loop\" "
+                "could not be parsed due to exception: maximum recursion depth exceeded"
+            ],
+        )
+        self.assertFalse(stream.closed)
 
     def test_open_applies_and_exposes_unicode_normalization(self) -> None:
         with pdfplumber.open(self.fixture()) as unchanged:

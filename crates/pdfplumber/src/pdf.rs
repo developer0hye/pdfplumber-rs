@@ -5,10 +5,10 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
-    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, Rect, RepairOptions, RepairResult,
-    SearchMatch, SearchOptions, SignatureInfo, StructElement, TextDirection, TextOptions,
-    UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars, detect_page_regions,
-    extract_shapes, image_from_ctm, normalize_chars,
+    PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, RawDocumentMetadata, Rect,
+    RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo, StructElement,
+    TextDirection, TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
+    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
@@ -68,6 +68,8 @@ pub struct Pdf {
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
     metadata: DocumentMetadata,
+    /// Cached source-ordered document information dictionary.
+    raw_metadata: RawDocumentMetadata,
     /// Cached document bookmarks (outline / table of contents).
     bookmarks: Vec<Bookmark>,
     /// Accumulated total objects extracted across all pages (for max_total_objects budget).
@@ -304,6 +306,7 @@ impl Pdf {
 
         // Extract document metadata
         let metadata = LopdfBackend::document_metadata(&doc).map_err(PdfError::from)?;
+        let raw_metadata = LopdfBackend::raw_document_metadata(&doc);
 
         // Extract document bookmarks (outline / table of contents)
         let bookmarks = LopdfBackend::document_bookmarks(&doc).map_err(PdfError::from)?;
@@ -314,6 +317,7 @@ impl Pdf {
             page_heights,
             raw_page_heights,
             metadata,
+            raw_metadata,
             bookmarks,
             total_objects: AtomicUsize::new(0),
             total_image_bytes: AtomicUsize::new(0),
@@ -332,6 +336,14 @@ impl Pdf {
     /// Fields not present in the PDF are `None`.
     pub fn metadata(&self) -> &DocumentMetadata {
         &self.metadata
+    }
+
+    /// Return the complete source-ordered document information dictionary.
+    ///
+    /// Unlike [`Pdf::metadata`], this retains arbitrary keys, recursively
+    /// decoded arrays and dictionaries, and per-entry resolution failures.
+    pub fn raw_metadata(&self) -> &RawDocumentMetadata {
+        &self.raw_metadata
     }
 
     /// Validate that the raw document information dictionary has no
