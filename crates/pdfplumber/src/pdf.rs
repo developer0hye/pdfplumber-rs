@@ -70,6 +70,8 @@ pub struct Pdf {
     page_rotations: Vec<i32>,
     /// Cached source MediaBoxes for creating lazy page handles.
     page_media_boxes: Vec<BBox>,
+    /// Cached inherited source CropBoxes for creating lazy page handles.
+    page_crop_boxes: Vec<Option<BBox>>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
@@ -289,11 +291,13 @@ impl Pdf {
         let mut page_heights = Vec::with_capacity(page_count);
         let mut page_rotations = Vec::with_capacity(page_count);
         let mut page_media_boxes = Vec::with_capacity(page_count);
+        let mut page_crop_boxes = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
             let page = LopdfBackend::get_page(&doc, i).map_err(PdfError::from)?;
             let media_box = LopdfBackend::page_media_box(&doc, &page).map_err(PdfError::from)?;
+            let crop_box = LopdfBackend::page_crop_box(&doc, &page).map_err(PdfError::from)?;
             let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
             // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
             // CropBox is stored as page metadata but does not affect coordinate transforms.
@@ -302,6 +306,7 @@ impl Pdf {
             page_heights.push(geometry.height());
             page_rotations.push(geometry.rotation());
             page_media_boxes.push(media_box);
+            page_crop_boxes.push(crop_box);
             // Compute the effective page height for the y-flip transform.
             //
             // Python pdfplumber computes: top = (height - char.y1) + mb_top
@@ -335,6 +340,7 @@ impl Pdf {
             page_heights,
             page_rotations,
             page_media_boxes,
+            page_crop_boxes,
             raw_page_heights,
             metadata,
             raw_metadata,
@@ -366,6 +372,11 @@ impl Pdf {
     /// Return a page's source MediaBox without interpreting its content stream.
     pub fn page_media_box(&self, index: usize) -> Option<BBox> {
         self.page_media_boxes.get(index).copied()
+    }
+
+    /// Return a page's inherited source CropBox without interpreting its content stream.
+    pub fn page_crop_box(&self, index: usize) -> Option<BBox> {
+        self.page_crop_boxes.get(index).copied().flatten()
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
@@ -1036,12 +1047,20 @@ mod tests {
 
     /// Helper: create a minimal single-page PDF with the given text content stream.
     fn create_pdf_with_content(content: &[u8]) -> Vec<u8> {
-        create_pdf_with_content_and_inherited_rotation(content, None)
+        create_pdf_with_content_and_inherited_properties(content, None, None)
     }
 
     fn create_pdf_with_content_and_inherited_rotation(
         content: &[u8],
         rotation: Option<i64>,
+    ) -> Vec<u8> {
+        create_pdf_with_content_and_inherited_properties(content, rotation, None)
+    }
+
+    fn create_pdf_with_content_and_inherited_properties(
+        content: &[u8],
+        rotation: Option<i64>,
+        crop_box: Option<[i64; 4]>,
     ) -> Vec<u8> {
         use lopdf::{Object, Stream, dictionary};
 
@@ -1088,6 +1107,9 @@ mod tests {
         };
         if let Some(rotation) = rotation {
             pages_dict.set("Rotate", rotation);
+        }
+        if let Some([x0, y0, x1, y1]) = crop_box {
+            pages_dict.set("CropBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
         }
         let pages_id = doc.add_object(pages_dict);
 
@@ -1269,6 +1291,22 @@ mod tests {
             Some(BBox::new(0.0, 0.0, 612.0, 792.0))
         );
         assert_eq!(pdf.page_media_box(1), None);
+    }
+
+    #[test]
+    fn page_crop_box_is_inherited_and_available_without_content_interpretation() {
+        let bytes = create_pdf_with_content_and_inherited_properties(
+            b"not a valid content stream operator",
+            None,
+            Some([36, 36, 576, 756]),
+        );
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        assert_eq!(
+            pdf.page_crop_box(0),
+            Some(BBox::new(36.0, 36.0, 576.0, 756.0))
+        );
+        assert_eq!(pdf.page_crop_box(1), None);
     }
 
     // --- page() tests ---

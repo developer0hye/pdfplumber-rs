@@ -497,30 +497,14 @@ impl PdfBackend for LopdfBackend {
     }
 
     fn page_crop_box(doc: &Self::Document, page: &Self::Page) -> Result<Option<BBox>, Self::Error> {
-        // CropBox is optional — only look at the page itself, not inherited
-        let dict = doc
-            .inner
-            .get_object(page.object_id)
-            .and_then(|o| o.as_dict())
-            .map_err(|e| BackendError::Parse(format!("failed to get page dictionary: {e}")))?;
-
-        match dict.get(b"CropBox") {
-            Ok(obj) => {
-                // Dereference indirect references
-                let obj = match obj {
-                    lopdf::Object::Reference(id) => doc.inner.get_object(*id).map_err(|e| {
-                        BackendError::Parse(format!(
-                            "failed to resolve indirect reference for /CropBox: {e}"
-                        ))
-                    })?,
-                    other => other,
-                };
+        match resolve_inherited(&doc.inner, page.object_id, b"CropBox")? {
+            Some(obj) => {
                 let array = obj
                     .as_array()
                     .map_err(|e| BackendError::Parse(format!("CropBox is not an array: {e}")))?;
                 Ok(Some(extract_bbox_from_array(array)?))
             }
-            Err(_) => Ok(None),
+            None => Ok(None),
         }
     }
 
@@ -3386,6 +3370,7 @@ fn create_test_pdf_inherited_media_box() -> Vec<u8> {
             "Kids" => vec![Object::from(page_id)],
             "Count" => 1i64,
             "MediaBox" => vec![0.into(), 0.into(), 595.into(), 842.into()],
+            "CropBox" => vec![10.into(), 20.into(), 585.into(), 822.into()],
         }),
     );
 
@@ -4210,6 +4195,15 @@ mod tests {
         let page = LopdfBackend::get_page(&doc, 0).unwrap();
         let crop_box = LopdfBackend::page_crop_box(&doc, &page).unwrap();
         assert_eq!(crop_box, Some(BBox::new(36.0, 36.0, 576.0, 756.0)));
+    }
+
+    #[test]
+    fn crop_box_inherited_from_parent() {
+        let pdf_bytes = create_test_pdf_inherited_media_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let crop_box = LopdfBackend::page_crop_box(&doc, &page).unwrap();
+        assert_eq!(crop_box, Some(BBox::new(10.0, 20.0, 585.0, 822.0)));
     }
 
     #[test]
