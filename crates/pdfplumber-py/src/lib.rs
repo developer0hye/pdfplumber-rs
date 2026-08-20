@@ -15,7 +15,7 @@ use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
 };
 use pyo3::prelude::*;
-use pyo3::types::{PyBytes, PyDict, PyString, PyTuple};
+use pyo3::types::{PyBool, PyBytes, PyDict, PyString, PyTuple};
 
 // ---------------------------------------------------------------------------
 // Python exception types for PdfError variants
@@ -517,7 +517,7 @@ impl PyCroppedPage {
 // PyPdf
 // ---------------------------------------------------------------------------
 
-const PDF_OPEN_PARAMETER_NAMES: [&str; 9] = [
+const PDF_OPEN_PARAMETER_NAMES: [&str; 10] = [
     "path_or_fp",
     "pages",
     "laparams",
@@ -527,6 +527,7 @@ const PDF_OPEN_PARAMETER_NAMES: [&str; 9] = [
     "repair",
     "gs_path",
     "repair_setting",
+    "raise_unicode_errors",
 ];
 
 struct PyPdfOpenArgs {
@@ -539,6 +540,7 @@ struct PyPdfOpenArgs {
     repair: bool,
     gs_path: Option<PyObject>,
     repair_setting: PyObject,
+    raise_unicode_errors: Option<PyObject>,
 }
 
 fn optional_py_object(py: Python<'_>, value: Option<PyObject>) -> Option<PyObject> {
@@ -605,6 +607,7 @@ fn parse_pdf_open_args(
     let repair_setting = values[8]
         .take()
         .unwrap_or_else(|| PyString::new(py, "default").into_any().unbind());
+    let raise_unicode_errors = values[9].take();
 
     Ok(PyPdfOpenArgs {
         path_or_fp,
@@ -616,6 +619,7 @@ fn parse_pdf_open_args(
         repair,
         gs_path,
         repair_setting,
+        raise_unicode_errors,
     })
 }
 
@@ -633,6 +637,7 @@ struct PyPdf {
     _laparams: Option<PyObject>,
     _strict_metadata: bool,
     unicode_norm: Option<PyObject>,
+    raise_unicode_errors: Option<PyObject>,
 }
 
 #[cfg(test)]
@@ -648,6 +653,7 @@ impl PyPdf {
             _laparams: None,
             _strict_metadata: false,
             unicode_norm: None,
+            raise_unicode_errors: None,
         }
     }
 }
@@ -658,7 +664,7 @@ impl PyPdf {
     #[staticmethod]
     #[pyo3(
         signature = (*args, **kwargs),
-        text_signature = "(path_or_fp, pages=None, laparams=None, password=None, strict_metadata=False, unicode_norm=None, repair=False, gs_path=None, repair_setting='default')"
+        text_signature = "(path_or_fp, pages=None, laparams=None, password=None, strict_metadata=False, unicode_norm=None, repair=False, gs_path=None, repair_setting='default', raise_unicode_errors=True)"
     )]
     fn open(
         py: Python<'_>,
@@ -675,6 +681,7 @@ impl PyPdf {
             repair,
             gs_path,
             repair_setting,
+            raise_unicode_errors,
         } = parse_pdf_open_args(py, args, kwargs)?;
         let path_or_fp = path_or_fp.bind(py);
         let laparams = validate_laparams(py, laparams)?;
@@ -737,6 +744,7 @@ impl PyPdf {
             _laparams: laparams,
             _strict_metadata: strict_metadata,
             unicode_norm,
+            raise_unicode_errors,
         })
     }
 
@@ -758,6 +766,7 @@ impl PyPdf {
             _laparams: None,
             _strict_metadata: false,
             unicode_norm: None,
+            raise_unicode_errors: None,
         })
     }
 
@@ -789,6 +798,15 @@ impl PyPdf {
             .as_ref()
             .map(|value| value.clone_ref(py))
             .unwrap_or_else(|| py.None())
+    }
+
+    /// Whether malformed annotation text should raise a Unicode decoding error.
+    #[getter]
+    fn raise_unicode_errors(&self, py: Python<'_>) -> PyObject {
+        self.raise_unicode_errors
+            .as_ref()
+            .map(|value| value.clone_ref(py))
+            .unwrap_or_else(|| PyBool::new(py, true).to_owned().into_any().unbind())
     }
 
     /// Release internally owned resources without closing caller-owned streams.
