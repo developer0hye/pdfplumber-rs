@@ -7,9 +7,9 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use ::pdfplumber::{
-    BBox, Bookmark, Char, Color, CroppedPage, Curve, Image, Line, MetadataReference, MetadataValue,
-    Page, Pdf, PdfError, RawDocumentMetadata, Rect, SearchMatch, SearchOptions, Table,
-    TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
+    Annotation, BBox, Bookmark, Char, Color, CroppedPage, Curve, Image, Line, MetadataReference,
+    MetadataValue, Page, Pdf, PdfError, RawDocumentMetadata, Rect, SearchMatch, SearchOptions,
+    Table, TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
 };
 use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
@@ -207,6 +207,40 @@ fn image_to_dict(py: Python<'_>, img: &Image) -> PyResult<PyObject> {
     dict.set_item("src_height", img.src_height)?;
     dict.set_item("bits_per_component", img.bits_per_component)?;
     dict.set_item("color_space", img.color_space.as_deref())?;
+    Ok(dict.into_any().unbind())
+}
+
+fn annotation_to_dict(
+    py: Python<'_>,
+    annotation: &Annotation,
+    page_number: usize,
+    page_height: f64,
+    initial_doctop: f64,
+    uri: Option<&str>,
+) -> PyResult<PyObject> {
+    let x0 = annotation.bbox.x0;
+    let y0 = annotation.bbox.top;
+    let x1 = annotation.bbox.x1;
+    let y1 = annotation.bbox.bottom;
+    let top = page_height - y1;
+    let bottom = page_height - y0;
+
+    let dict = PyDict::new(py);
+    dict.set_item("page_number", page_number)?;
+    dict.set_item("object_type", "annot")?;
+    dict.set_item("x0", x0)?;
+    dict.set_item("y0", y0)?;
+    dict.set_item("x1", x1)?;
+    dict.set_item("y1", y1)?;
+    dict.set_item("doctop", initial_doctop + top)?;
+    dict.set_item("top", top)?;
+    dict.set_item("bottom", bottom)?;
+    dict.set_item("width", x1 - x0)?;
+    dict.set_item("height", bottom - top)?;
+    dict.set_item("uri", uri)?;
+    dict.set_item("title", annotation.author.as_deref())?;
+    dict.set_item("contents", annotation.contents.as_deref())?;
+    dict.set_item("data", PyDict::new(py))?;
     Ok(dict.into_any().unbind())
 }
 
@@ -1095,6 +1129,19 @@ impl PyPdf {
         Ok(objects)
     }
 
+    /// Annotation dictionaries from all selected pages in document order.
+    #[getter]
+    fn annots(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let mut annots = Vec::new();
+        for page in self.pages(py)?.bind(py).iter() {
+            let page_annots = page.getattr("annots")?;
+            for annotation in page_annots.downcast::<PyList>()?.iter() {
+                annots.push(annotation.unbind());
+            }
+        }
+        Ok(annots)
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1290,6 +1337,34 @@ impl PyPage {
             page.images()
                 .iter()
                 .map(|image| image_to_dict(py, image))
+                .collect()
+        })
+    }
+
+    /// Annotation dictionaries on this page.
+    #[getter]
+    fn annots(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let page_number = self.page_number();
+        let page_height = self.height;
+        let initial_doctop = self.selected_doctop.unwrap_or(0.0);
+        self.with_page(py, |page| {
+            page.annots()
+                .iter()
+                .map(|annotation| {
+                    let uri = page
+                        .hyperlinks()
+                        .iter()
+                        .find(|hyperlink| hyperlink.bbox == annotation.bbox)
+                        .map(|hyperlink| hyperlink.uri.as_str());
+                    annotation_to_dict(
+                        py,
+                        annotation,
+                        page_number,
+                        page_height,
+                        initial_doctop,
+                        uri,
+                    )
+                })
                 .collect()
         })
     }
@@ -2158,6 +2233,10 @@ mod tests {
         assert!(
             content.contains("def objects(self) -> dict[str, list[dict[str, object]]]:"),
             "stubs must declare PDF.objects"
+        );
+        assert!(
+            content.contains("def annots(self) -> list[AnnotDict]:"),
+            "stubs must declare document and page annotations"
         );
     }
 

@@ -65,6 +65,10 @@ class NativeLayoutTests(unittest.TestCase):
 
     @staticmethod
     def annotation_unicode_fixture() -> Path:
+        return NativeLayoutTests.annotation_fixture("annotations-unicode-issues.pdf")
+
+    @staticmethod
+    def annotation_fixture(name: str) -> Path:
         return (
             Path(__file__).resolve().parents[3]
             / "compat"
@@ -73,7 +77,7 @@ class NativeLayoutTests(unittest.TestCase):
             / "pdfplumber-v0.11.10"
             / "tests"
             / "pdfs"
-            / "annotations-unicode-issues.pdf"
+            / name
         )
 
     @staticmethod
@@ -900,6 +904,62 @@ class NativeLayoutTests(unittest.TestCase):
 
         with pdfplumber.open(self.annotation_unicode_fixture()) as document:
             self.assertIs(document.raise_unicode_errors, True)
+
+    def test_annots_aggregate_real_multipage_fixture_in_page_order(self) -> None:
+        fixture = self.annotation_fixture("issue-463-example.pdf")
+        expected_keys = [
+            "page_number",
+            "object_type",
+            "x0",
+            "y0",
+            "x1",
+            "y1",
+            "doctop",
+            "top",
+            "bottom",
+            "width",
+            "height",
+            "uri",
+            "title",
+            "contents",
+            "data",
+        ]
+        with pdfplumber.open(fixture) as document:
+            page_annots = [page.annots for page in document.pages]
+            self.assertEqual([len(values) for values in page_annots], [2, 4, 0])
+
+            first = document.annots
+            expected = [annot for values in page_annots for annot in values]
+            self.assertEqual(first, expected)
+            self.assertEqual(
+                [annot["page_number"] for annot in first], [1, 1, 2, 2, 2, 2]
+            )
+            self.assertTrue(all(annot["object_type"] == "annot" for annot in first))
+            self.assertTrue(all(list(annot) == expected_keys for annot in first))
+
+            marker = {"marker": True}
+            first.append(marker)
+            second = document.annots
+            self.assertIsNot(second, first)
+            self.assertIsNot(second[0], first[0])
+            self.assertNotIn(marker, second)
+            self.assertEqual(second, expected)
+
+        with pdfplumber.open(self.annotation_fixture("issue-598-example.pdf")) as document:
+            self.assertEqual(
+                [annot["uri"] for annot in document.annots],
+                ["http://www.ck12.org"],
+            )
+
+    def test_annots_respect_selected_pages_and_selected_doctop(self) -> None:
+        fixture = self.annotation_fixture("issue-463-example.pdf")
+        with pdfplumber.open(fixture, pages=(2,)) as document:
+            self.assertEqual([page.page_number for page in document.pages], [2])
+            self.assertEqual([len(page.annots) for page in document.pages], [4])
+            annots = document.annots
+            self.assertEqual(len(annots), 4)
+            self.assertTrue(all(annot["page_number"] == 2 for annot in annots))
+            self.assertTrue(all(annot["doctop"] == annot["top"] for annot in annots))
 
 
 if __name__ == "__main__":
