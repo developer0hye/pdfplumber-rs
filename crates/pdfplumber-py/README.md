@@ -67,6 +67,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.page_number` | 1-based compatibility page number |
 | `.width` / `.height` | Page dimensions in points |
 | `.rotation` | Inherited page rotation, normalized to 0 through 359 degrees |
+| `.bbox` | Original-page bounding box in rotation-aware, top-origin coordinates |
 | `.mediabox` | Rotation-aware MediaBox in top-origin page coordinates |
 | `.cropbox` | Inherited rotation-aware CropBox, falling back to MediaBox |
 | `.trimbox` | Direct rotation-aware TrimBox when present; absent otherwise |

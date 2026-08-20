@@ -1572,6 +1572,8 @@ impl PyPdf {
                     self.unicode_norm.as_ref().map(|value| value.clone_ref(py)),
                 ),
             )?;
+            page.bind(py)
+                .setattr("bbox", compatible_bbox_tuple(media_box))?;
             if let Some(trim_box) = trim_box {
                 page.bind(py)
                     .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
@@ -1889,8 +1891,7 @@ impl PyPage {
     ) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
         let initial_doctop = self.initial_doctop();
-        self.with_page(py, |page| {
-            let bbox = page.bbox();
+        self.with_page(py, |_| {
             dict.set_item("page_number", self.page_number())?;
             dict.set_item(
                 "initial_doctop",
@@ -1899,17 +1900,9 @@ impl PyPage {
             dict.set_item("rotation", self.geometry.rotation)?;
             dict.set_item("cropbox", compatible_bbox_tuple(self.geometry.crop_box))?;
             dict.set_item("mediabox", compatible_bbox_tuple(self.geometry.media_box))?;
-            dict.set_item(
-                "bbox",
-                (
-                    compatible_geometry_number(bbox.x0),
-                    compatible_geometry_number(bbox.top),
-                    compatible_geometry_number(bbox.x1),
-                    compatible_geometry_number(bbox.bottom),
-                ),
-            )?;
-            dict.set_item("width", compatible_geometry_number(page.width()))?;
-            dict.set_item("height", compatible_geometry_number(page.height()))?;
+            dict.set_item("bbox", compatible_bbox_tuple(self.geometry.media_box))?;
+            dict.set_item("width", self.width())?;
+            dict.set_item("height", self.height())?;
             Ok(())
         })?;
 

@@ -275,6 +275,44 @@ class NativeLayoutTests(unittest.TestCase):
         return cls.optional_page_box_pdf(b"ArtBox")
 
     @staticmethod
+    def nonzero_origin_rotated_pdf() -> bytes:
+        objects = (
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>",
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [10 20 110 220] >>",
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [10 20 110 220] "
+                b"/Rotate 90 >>"
+            ),
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [10 20 110 220] "
+                b"/Rotate 180 >>"
+            ),
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [10 20 110 220] "
+                b"/Rotate 270 >>"
+            ),
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
         image = b"\x7f"
@@ -1129,6 +1167,78 @@ class NativeLayoutTests(unittest.TestCase):
                 (1, False, "MISSING", False, False),
                 (2, True, (20, 10, 180, 90), True, False),
                 (3, False, "MISSING", False, False),
+            ],
+        )
+
+    def test_page_bbox_dimensions_match_nonzero_origin_across_rotations(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.nonzero_origin_rotated_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    page.rotation,
+                    hasattr(page, "bbox"),
+                    getattr(page, "bbox", "MISSING"),
+                    "bbox" in vars(page),
+                    page.width,
+                    page.height,
+                    page.to_dict([])["bbox"],
+                    page.to_dict([])["width"],
+                    page.to_dict([])["height"],
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    1,
+                    0,
+                    True,
+                    (10, -20, 110, 180),
+                    True,
+                    100,
+                    200,
+                    (10, -20, 110, 180),
+                    100,
+                    200,
+                ),
+                (
+                    2,
+                    90,
+                    True,
+                    (20, -10, 220, 90),
+                    True,
+                    200,
+                    100,
+                    (20, -10, 220, 90),
+                    200,
+                    100,
+                ),
+                (
+                    3,
+                    180,
+                    True,
+                    (10, -20, 110, 180),
+                    True,
+                    100,
+                    200,
+                    (10, -20, 110, 180),
+                    100,
+                    200,
+                ),
+                (
+                    4,
+                    270,
+                    True,
+                    (20, -10, 220, 90),
+                    True,
+                    200,
+                    100,
+                    (20, -10, 220, 90),
+                    200,
+                    100,
+                ),
             ],
         )
 
