@@ -65,6 +65,9 @@ jobs:
           maturin build --manifest-path crates/pdfplumber-py/Cargo.toml --interpreter python --out dist
           maturin sdist --manifest-path crates/pdfplumber-py/Cargo.toml --out dist
 
+      - name: Build and verify isolated candidate environment
+        run: python scripts/setup_candidate_venv.py --python python --wheel dist/*.whl
+
       - name: Test installed wheel layout
         run: |
           python -m venv .venv-native-wheel

@@ -47,7 +47,9 @@ def main(root_package: Any = None) -> int:
         if args.candidate_output is None:
             environment.verify_reference(root_package)
         else:
-            environment.verify_candidate(root_package)
+            environment.verify_candidate(
+                root_package, expected_root=environment.CANDIDATE_VENV
+            )
     except environment.EnvironmentMismatch as mismatch:
         print(f"refusing to generate option matrix: {mismatch}", file=sys.stderr)
         if args.candidate_output is None:

@@ -24,9 +24,10 @@ _environment: upstream.Environment = upstream.load_environment()
 REFERENCE_VENV: Path = _environment.reference_venv
 CANDIDATE_VENV: Path = _environment.candidate_venv
 
-# Upstream ships pure Python; the candidate ships a compiled module. Listed
-# explicitly rather than read from `importlib.machinery` so the check gives the
-# same answer regardless of which platform is running it.
+# Upstream ships only pure Python; the candidate ships a pure-Python package
+# containing a private compiled extension. Listed explicitly rather than read
+# from `importlib.machinery` so the check gives the same answer regardless of
+# which platform is running it.
 NATIVE_SUFFIXES: tuple[str, ...] = (".so", ".pyd", ".dylib")
 
 
@@ -83,15 +84,39 @@ def verify_reference(module: ModuleType, expected_root: Path | None = None) -> N
         )
 
 
-def verify_candidate(module: ModuleType) -> None:
-    """Raise if `module` is the upstream package rather than this project's."""
-    try:
-        verify_reference(module)
-    except EnvironmentMismatch:
+def verify_candidate(module: ModuleType, expected_root: Path | None = None) -> None:
+    """Raise unless `module` is this project's mixed Python/native package."""
+    location: Path = _module_path(module)
+    native: ModuleType | None = getattr(module, "_native", None)
+    if not isinstance(native, ModuleType):
+        target: upstream.Target = upstream.load_target()
+        raise EnvironmentMismatch(
+            f"candidate environment imported {location} without "
+            f"{target.project}._native; this is not the Rust candidate package"
+        )
+
+    native_location: Path = _module_path(native)
+    expected_native_name = f"{module.__name__}._native"
+    if native.__name__ != expected_native_name:
+        raise EnvironmentMismatch(
+            f"candidate native module is {native.__name__}, expected "
+            f"{expected_native_name}"
+        )
+    if not _is_native_extension(native_location):
+        raise EnvironmentMismatch(
+            f"candidate {expected_native_name} at {native_location} is not a "
+            "compiled extension"
+        )
+
+    if expected_root is None:
         return
-    target: upstream.Target = upstream.load_target()
-    raise EnvironmentMismatch(
-        f"candidate environment imported upstream {target.project} "
-        f"{target.version} at {_module_path(module)}; a parity run would "
-        "compare upstream against itself"
-    )
+    root: Path = expected_root.resolve()
+    for role, module_location in (
+        ("package", location),
+        ("native extension", native_location),
+    ):
+        if root not in module_location.resolve().parents:
+            raise EnvironmentMismatch(
+                f"candidate {role} was imported from {module_location}, "
+                f"outside the candidate environment at {root}"
+            )

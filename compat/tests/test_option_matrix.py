@@ -289,7 +289,10 @@ class OptionMatrixSnapshotTests(unittest.TestCase):
 
         self.assertEqual(status, 0)
         self.assertEqual(payload, snapshot)
-        verify_candidate.assert_called_once_with(candidate_package)
+        verify_candidate.assert_called_once_with(
+            candidate_package,
+            expected_root=generate_option_matrix.environment.CANDIDATE_VENV,
+        )
         verify_reference.assert_not_called()
 
 

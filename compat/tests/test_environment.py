@@ -7,6 +7,7 @@ make that failure loud instead of silent.
 """
 
 import unittest
+from importlib.machinery import ModuleSpec
 from pathlib import Path
 from types import ModuleType
 
@@ -24,7 +25,26 @@ def fake_module(version: str, path: str) -> ModuleType:
 
 
 REFERENCE_PATH: str = "/repo/.venv-reference/lib/python3.13/site-packages/pdfplumber/__init__.py"
-CANDIDATE_PATH: str = "/repo/.venv-candidate/lib/python3.13/site-packages/pdfplumber.abi3.so"
+CANDIDATE_ROOT: Path = Path("/repo/.venv-candidate")
+CANDIDATE_PATH: str = "/repo/.venv-candidate/lib/python3.13/site-packages/pdfplumber/__init__.py"
+CANDIDATE_NATIVE_PATH: str = (
+    "/repo/.venv-candidate/lib/python3.13/site-packages/"
+    "pdfplumber/_native.abi3.so"
+)
+
+
+def fake_candidate(
+    package_path: str = CANDIDATE_PATH,
+    native_path: str = CANDIDATE_NATIVE_PATH,
+) -> ModuleType:
+    """Model the mixed Python-package/private-extension layout shipped by the wheel."""
+    package = fake_module("0.2.0", package_path)
+    native = ModuleType("pdfplumber._native")
+    native.__file__ = native_path
+    native.__package__ = "pdfplumber"
+    native.__spec__ = ModuleSpec("pdfplumber._native", loader=None)
+    package._native = native
+    return package
 
 
 class ReferenceGuardTest(unittest.TestCase):
@@ -39,7 +59,7 @@ class ReferenceGuardTest(unittest.TestCase):
 
     def test_native_extension_is_rejected_as_reference(self) -> None:
         """The candidate ships as a compiled module; upstream never does."""
-        module: ModuleType = fake_module(TARGET.version, CANDIDATE_PATH)
+        module: ModuleType = fake_module(TARGET.version, CANDIDATE_NATIVE_PATH)
         with self.assertRaises(environment.EnvironmentMismatch):
             environment.verify_reference(module)
 
@@ -68,15 +88,29 @@ class ReferenceGuardTest(unittest.TestCase):
 
 
 class CandidateGuardTest(unittest.TestCase):
-    def test_native_candidate_is_accepted(self) -> None:
-        module: ModuleType = fake_module("0.1.0", CANDIDATE_PATH)
-        environment.verify_candidate(module)
+    def test_python_package_with_private_native_extension_is_accepted(self) -> None:
+        environment.verify_candidate(
+            fake_candidate(), expected_root=CANDIDATE_ROOT
+        )
+
+    def test_candidate_without_private_native_extension_is_rejected(self) -> None:
+        module: ModuleType = fake_module("0.2.0", CANDIDATE_PATH)
+        with self.assertRaises(environment.EnvironmentMismatch):
+            environment.verify_candidate(module, expected_root=CANDIDATE_ROOT)
+
+    def test_candidate_outside_expected_root_is_rejected(self) -> None:
+        module = fake_candidate(
+            package_path="/tmp/pdfplumber/__init__.py",
+            native_path="/tmp/pdfplumber/_native.abi3.so",
+        )
+        with self.assertRaises(environment.EnvironmentMismatch):
+            environment.verify_candidate(module, expected_root=CANDIDATE_ROOT)
 
     def test_upstream_package_is_rejected_as_candidate(self) -> None:
         """Catches the case where the reference venv leaked into a candidate run."""
         module: ModuleType = fake_module(TARGET.version, REFERENCE_PATH)
         with self.assertRaises(environment.EnvironmentMismatch):
-            environment.verify_candidate(module)
+            environment.verify_candidate(module, expected_root=CANDIDATE_ROOT)
 
 
 class EnvironmentLayoutTest(unittest.TestCase):
