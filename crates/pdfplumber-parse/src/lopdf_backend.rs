@@ -311,20 +311,23 @@ impl PdfBackend for LopdfBackend {
     }
 
     fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error> {
-        let mut inner = lopdf::Document::load_mem(bytes)
-            .map_err(|e| BackendError::Parse(format!("failed to parse PDF: {e}")))?;
-
-        // Decrypt if encrypted; ignore password if not encrypted
-        if inner.is_encrypted() {
-            inner.decrypt_raw(password).map_err(|e| {
-                let msg = e.to_string();
-                if msg.contains("incorrect") || msg.contains("password") {
-                    BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
-                } else {
-                    BackendError::Parse(format!("decryption failed: {e}"))
+        let inner = match std::str::from_utf8(password) {
+            Ok(password) => lopdf::Document::load_mem_with_password(bytes, password),
+            Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
+                if inner.is_encrypted() {
+                    inner.decrypt_raw(password)?;
                 }
-            })?;
+                Ok(inner)
+            }),
         }
+        .map_err(|e| {
+            let msg = e.to_string();
+            if msg.contains("incorrect") || msg.contains("password") {
+                BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
+            } else {
+                BackendError::Parse(format!("decryption failed: {e}"))
+            }
+        })?;
 
         // Cache page IDs in order
         let pages_map = inner.get_pages();
