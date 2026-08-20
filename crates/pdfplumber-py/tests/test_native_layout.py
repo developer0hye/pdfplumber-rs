@@ -270,6 +270,10 @@ class NativeLayoutTests(unittest.TestCase):
     def bleedbox_pdf(cls) -> bytes:
         return cls.optional_page_box_pdf(b"BleedBox")
 
+    @classmethod
+    def artbox_pdf(cls) -> bytes:
+        return cls.optional_page_box_pdf(b"ArtBox")
+
     @staticmethod
     def rust_extension_pdf() -> bytes:
         content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
@@ -1093,6 +1097,28 @@ class NativeLayoutTests(unittest.TestCase):
                     getattr(page, "bleedbox", "MISSING"),
                     "bleedbox" in vars(page),
                     "bleedbox" in page.to_dict([]),
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (1, False, "MISSING", False, False),
+                (2, True, (20, 10, 180, 90), True, False),
+                (3, False, "MISSING", False, False),
+            ],
+        )
+
+    def test_page_artbox_matches_direct_presence_rotation_and_absence(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.artbox_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    hasattr(page, "artbox"),
+                    getattr(page, "artbox", "MISSING"),
+                    "artbox" in vars(page),
+                    "artbox" in page.to_dict([]),
                 )
                 for page in document.pages
             ]

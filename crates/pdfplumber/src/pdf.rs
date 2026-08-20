@@ -76,6 +76,8 @@ pub struct Pdf {
     page_trim_boxes: Vec<Option<BBox>>,
     /// Cached source BleedBoxes defined directly on each page.
     page_bleed_boxes: Vec<Option<BBox>>,
+    /// Cached source ArtBoxes defined directly on each page.
+    page_art_boxes: Vec<Option<BBox>>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
@@ -298,6 +300,7 @@ impl Pdf {
         let mut page_crop_boxes = Vec::with_capacity(page_count);
         let mut page_trim_boxes = Vec::with_capacity(page_count);
         let mut page_bleed_boxes = Vec::with_capacity(page_count);
+        let mut page_art_boxes = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
@@ -308,6 +311,8 @@ impl Pdf {
                 LopdfBackend::page_explicit_trim_box(&doc, &page).map_err(PdfError::from)?;
             let bleed_box =
                 LopdfBackend::page_explicit_bleed_box(&doc, &page).map_err(PdfError::from)?;
+            let art_box =
+                LopdfBackend::page_explicit_art_box(&doc, &page).map_err(PdfError::from)?;
             let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
             // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
             // CropBox is stored as page metadata but does not affect coordinate transforms.
@@ -319,6 +324,7 @@ impl Pdf {
             page_crop_boxes.push(crop_box);
             page_trim_boxes.push(trim_box);
             page_bleed_boxes.push(bleed_box);
+            page_art_boxes.push(art_box);
             // Compute the effective page height for the y-flip transform.
             //
             // Python pdfplumber computes: top = (height - char.y1) + mb_top
@@ -355,6 +361,7 @@ impl Pdf {
             page_crop_boxes,
             page_trim_boxes,
             page_bleed_boxes,
+            page_art_boxes,
             raw_page_heights,
             metadata,
             raw_metadata,
@@ -401,6 +408,11 @@ impl Pdf {
     /// Return a page's explicit source BleedBox without interpreting its content stream.
     pub fn page_bleed_box(&self, index: usize) -> Option<BBox> {
         self.page_bleed_boxes.get(index).copied().flatten()
+    }
+
+    /// Return a page's explicit source ArtBox without interpreting its content stream.
+    pub fn page_art_box(&self, index: usize) -> Option<BBox> {
+        self.page_art_boxes.get(index).copied().flatten()
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
@@ -1071,14 +1083,14 @@ mod tests {
 
     /// Helper: create a minimal single-page PDF with the given text content stream.
     fn create_pdf_with_content(content: &[u8]) -> Vec<u8> {
-        create_pdf_with_content_and_page_properties(content, None, None, None, None)
+        create_pdf_with_content_and_page_properties(content, None, None, None, None, None)
     }
 
     fn create_pdf_with_content_and_inherited_rotation(
         content: &[u8],
         rotation: Option<i64>,
     ) -> Vec<u8> {
-        create_pdf_with_content_and_page_properties(content, rotation, None, None, None)
+        create_pdf_with_content_and_page_properties(content, rotation, None, None, None, None)
     }
 
     fn create_pdf_with_content_and_page_properties(
@@ -1087,6 +1099,7 @@ mod tests {
         crop_box: Option<[i64; 4]>,
         trim_box: Option<[i64; 4]>,
         bleed_box: Option<[i64; 4]>,
+        art_box: Option<[i64; 4]>,
     ) -> Vec<u8> {
         use lopdf::{Object, Stream, dictionary};
 
@@ -1128,6 +1141,9 @@ mod tests {
         }
         if let Some([x0, y0, x1, y1]) = bleed_box {
             page_dict.set("BleedBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
+        }
+        if let Some([x0, y0, x1, y1]) = art_box {
+            page_dict.set("ArtBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
         }
         let page_id = doc.add_object(page_dict);
 
@@ -1333,6 +1349,7 @@ mod tests {
             Some([36, 36, 576, 756]),
             None,
             None,
+            None,
         );
         let pdf = Pdf::open(&bytes, None).unwrap();
 
@@ -1350,6 +1367,7 @@ mod tests {
             None,
             None,
             Some([40, 50, 560, 740]),
+            None,
             None,
         );
         let pdf = Pdf::open(&bytes, None).unwrap();
@@ -1369,6 +1387,7 @@ mod tests {
             None,
             None,
             Some([45, 55, 555, 735]),
+            None,
         );
         let pdf = Pdf::open(&bytes, None).unwrap();
 
@@ -1377,6 +1396,25 @@ mod tests {
             Some(BBox::new(45.0, 55.0, 555.0, 735.0))
         );
         assert_eq!(pdf.page_bleed_box(1), None);
+    }
+
+    #[test]
+    fn page_art_box_is_explicit_and_available_without_content_interpretation() {
+        let bytes = create_pdf_with_content_and_page_properties(
+            b"not a valid content stream operator",
+            None,
+            None,
+            None,
+            None,
+            Some([50, 60, 550, 730]),
+        );
+        let pdf = Pdf::open(&bytes, None).unwrap();
+
+        assert_eq!(
+            pdf.page_art_box(0),
+            Some(BBox::new(50.0, 60.0, 550.0, 730.0))
+        );
+        assert_eq!(pdf.page_art_box(1), None);
     }
 
     // --- page() tests ---

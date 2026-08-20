@@ -1545,6 +1545,8 @@ impl PyPdf {
                 compatible_optional_page_box(media_box, self.inner.page_trim_box(i), rotation);
             let bleed_box =
                 compatible_optional_page_box(media_box, self.inner.page_bleed_box(i), rotation);
+            let art_box =
+                compatible_optional_page_box(media_box, self.inner.page_art_box(i), rotation);
             let (media_box, crop_box) =
                 compatible_page_boxes(media_box, self.inner.page_crop_box(i), rotation);
             let initial_doctop = if self.selected_pages.is_some() {
@@ -1577,6 +1579,10 @@ impl PyPdf {
             if let Some(bleed_box) = bleed_box {
                 page.bind(py)
                     .setattr("bleedbox", compatible_bbox_tuple(bleed_box))?;
+            }
+            if let Some(art_box) = art_box {
+                page.bind(py)
+                    .setattr("artbox", compatible_bbox_tuple(art_box))?;
             }
             pages.bind(py).append(page)?;
         }
@@ -2299,12 +2305,13 @@ mod tests {
 
     /// Helper: create a minimal valid PDF in memory using lopdf.
     fn minimal_pdf_bytes() -> Vec<u8> {
-        minimal_pdf_bytes_with_optional_boxes(None, None)
+        minimal_pdf_bytes_with_optional_boxes(None, None, None)
     }
 
     fn minimal_pdf_bytes_with_optional_boxes(
         trim_box: Option<[i64; 4]>,
         bleed_box: Option<[i64; 4]>,
+        art_box: Option<[i64; 4]>,
     ) -> Vec<u8> {
         use std::io::Cursor;
 
@@ -2328,6 +2335,9 @@ mod tests {
         }
         if let Some([x0, y0, x1, y1]) = bleed_box {
             page.set("BleedBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
+        }
+        if let Some([x0, y0, x1, y1]) = art_box {
+            page.set("ArtBox", vec![x0.into(), y0.into(), x1.into(), y1.into()]);
         }
         doc.objects.insert(page_id, lopdf::Object::Dictionary(page));
 
@@ -2387,7 +2397,7 @@ mod tests {
 
     #[test]
     fn test_pypage_trimbox_is_explicit_and_optional() {
-        let bytes = minimal_pdf_bytes_with_optional_boxes(Some([40, 50, 560, 740]), None);
+        let bytes = minimal_pdf_bytes_with_optional_boxes(Some([40, 50, 560, 740]), None, None);
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
@@ -2432,7 +2442,7 @@ mod tests {
 
     #[test]
     fn test_pypage_bleedbox_is_explicit_and_optional() {
-        let bytes = minimal_pdf_bytes_with_optional_boxes(None, Some([45, 55, 555, 735]));
+        let bytes = minimal_pdf_bytes_with_optional_boxes(None, Some([45, 55, 555, 735]), None);
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
@@ -2470,6 +2480,51 @@ mod tests {
                     .downcast::<PyDict>()
                     .unwrap()
                     .contains("bleedbox")
+                    .unwrap()
+            );
+        });
+    }
+
+    #[test]
+    fn test_pypage_artbox_is_explicit_and_optional() {
+        let bytes = minimal_pdf_bytes_with_optional_boxes(None, None, Some([50, 60, 550, 730]));
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            assert_eq!(
+                page.getattr("artbox")
+                    .unwrap()
+                    .extract::<(f64, f64, f64, f64)>()
+                    .unwrap(),
+                (50.0, 62.0, 550.0, 732.0)
+            );
+            assert!(
+                page.getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("artbox")
+                    .unwrap()
+            );
+        });
+
+        let bytes = minimal_pdf_bytes();
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            let error = page.getattr("artbox").unwrap_err();
+            assert!(error.is_instance_of::<PyAttributeError>(py));
+            assert!(
+                !page
+                    .getattr("__dict__")
+                    .unwrap()
+                    .downcast::<PyDict>()
+                    .unwrap()
+                    .contains("artbox")
                     .unwrap()
             );
         });
