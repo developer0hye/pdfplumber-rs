@@ -6,6 +6,7 @@ import io
 import importlib.machinery
 import os
 from pathlib import Path
+import sys
 import tempfile
 from types import MappingProxyType
 import unittest
@@ -87,6 +88,27 @@ class NativeLayoutTests(unittest.TestCase):
             ]
         )
         return b"".join(parts)
+
+    @staticmethod
+    def fake_ghostscript(directory: str) -> Path:
+        executable = Path(directory) / "gs"
+        executable.write_text(
+            f"#!{sys.executable}\n"
+            "import os\n"
+            "import pathlib\n"
+            "import sys\n"
+            "source = sys.argv[-1]\n"
+            "payload = (sys.stdin.buffer.read() if source == '-' "
+            "else pathlib.Path(source).read_bytes())\n"
+            "if not payload.startswith(b'%PDF-'):\n"
+            "    payload = b'%PDF-1.3\\n' + payload\n"
+            "output = os.environ.get('PDFPLUMBER_FAKE_GS_OUTPUT')\n"
+            "if output:\n"
+            "    payload = pathlib.Path(output).read_bytes()\n"
+            "sys.stdout.buffer.write(payload)\n"
+        )
+        executable.chmod(0o755)
+        return executable
 
     def test_pdfplumber_is_a_python_package(self) -> None:
         self.assertEqual(pdfplumber.__name__, "pdfplumber")
@@ -433,23 +455,7 @@ class NativeLayoutTests(unittest.TestCase):
 
     def test_open_repairs_through_ghostscript_with_upstream_ownership(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            executable = Path(directory) / "gs"
-            executable.write_text(
-                "#!/usr/bin/env python3\n"
-                "import os\n"
-                "import pathlib\n"
-                "import sys\n"
-                "source = sys.argv[-1]\n"
-                "payload = (sys.stdin.buffer.read() if source == '-' "
-                "else pathlib.Path(source).read_bytes())\n"
-                "if not payload.startswith(b'%PDF-'):\n"
-                "    payload = b'%PDF-1.3\\n' + payload\n"
-                "output = os.environ.get('PDFPLUMBER_FAKE_GS_OUTPUT')\n"
-                "if output:\n"
-                "    payload = pathlib.Path(output).read_bytes()\n"
-                "sys.stdout.buffer.write(payload)\n"
-            )
-            executable.chmod(0o755)
+            executable = self.fake_ghostscript(directory)
             path = os.pathsep.join((directory, os.environ.get("PATH", "")))
 
             with mock.patch.dict(
@@ -509,6 +515,37 @@ class NativeLayoutTests(unittest.TestCase):
                 "^Cannot find Ghostscript, which is required for repairs\\.\\n",
             ):
                 pdfplumber.open(self.fixture(), repair=True)
+
+    def test_open_accepts_explicit_ghostscript_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            executable = self.fake_ghostscript(directory)
+            environment = {
+                "PATH": "",
+                "PDFPLUMBER_FAKE_GS_OUTPUT": str(self.fixture().resolve()),
+            }
+            with mock.patch.dict(os.environ, environment):
+                for gs_path in (str(executable), executable):
+                    with self.subTest(gs_path_type=type(gs_path).__name__):
+                        with pdfplumber.open(
+                            self.fixture(), repair=True, gs_path=gs_path
+                        ) as document:
+                            self.assertEqual(len(document.pages), 1)
+                            self.assertTrue(document.pages[0].extract_text())
+
+                with pdfplumber.open(
+                    self.fixture(), repair=False, gs_path=object()
+                ) as document:
+                    self.assertEqual(len(document.pages), 1)
+
+                missing = Path(directory) / "missing-gs"
+                with self.assertRaises(FileNotFoundError) as caught:
+                    pdfplumber.open(self.fixture(), repair=True, gs_path=missing)
+                self.assertEqual(caught.exception.errno, 2)
+                self.assertEqual(caught.exception.filename, missing)
+                self.assertEqual(
+                    str(caught.exception),
+                    f"[Errno 2] No such file or directory: {missing!r}",
+                )
 
 
 if __name__ == "__main__":
