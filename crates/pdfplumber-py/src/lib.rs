@@ -9,7 +9,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 use ::pdfplumber::{
     Annotation, BBox, Bookmark, Char, Color, CroppedPage, Curve, Image, Line, MetadataReference,
     MetadataValue, Page, Pdf, PdfError, RawDocumentMetadata, Rect, SearchMatch, SearchOptions,
-    Table, TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
+    StructElement, Table, TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
 };
 use pyo3::exceptions::{
     PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError, PyValueError,
@@ -241,6 +241,41 @@ fn annotation_to_dict(
     dict.set_item("title", annotation.author.as_deref())?;
     dict.set_item("contents", annotation.contents.as_deref())?;
     dict.set_item("data", PyDict::new(py))?;
+    Ok(dict.into_any().unbind())
+}
+
+fn struct_element_to_dict(
+    py: Python<'_>,
+    element: &StructElement,
+    include_page_number: bool,
+) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("type", &element.element_type)?;
+    if let Some(lang) = &element.lang {
+        dict.set_item("lang", lang)?;
+    }
+    if let Some(alt_text) = &element.alt_text {
+        dict.set_item("alt_text", alt_text)?;
+    }
+    if let Some(actual_text) = &element.actual_text {
+        dict.set_item("actual_text", actual_text)?;
+    }
+    if include_page_number {
+        if let Some(page_index) = element.page_index {
+            dict.set_item("page_number", page_index + 1)?;
+        }
+    }
+    if !element.mcids.is_empty() {
+        dict.set_item("mcids", &element.mcids)?;
+    }
+    if !element.children.is_empty() {
+        let children = element
+            .children
+            .iter()
+            .map(|child| struct_element_to_dict(py, child, include_page_number))
+            .collect::<PyResult<Vec<_>>>()?;
+        dict.set_item("children", PyList::new(py, children)?)?;
+    }
     Ok(dict.into_any().unbind())
 }
 
@@ -1155,6 +1190,16 @@ impl PyPdf {
         Ok(hyperlinks)
     }
 
+    /// Compact document structure-tree dictionaries in depth-first order.
+    #[getter]
+    fn structure_tree(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .structure_tree()
+            .iter()
+            .map(|element| struct_element_to_dict(py, element, true))
+            .collect()
+    }
+
     /// Document metadata as a dict.
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
@@ -1397,6 +1442,18 @@ impl PyPage {
             }
         }
         Ok(hyperlinks)
+    }
+
+    /// Compact structure-tree dictionaries for this page.
+    #[getter]
+    fn structure_tree(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.structure_tree()
+                .unwrap_or(&[])
+                .iter()
+                .map(|element| struct_element_to_dict(py, element, false))
+                .collect()
+        })
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
@@ -2271,6 +2328,10 @@ mod tests {
         assert!(
             content.contains("def hyperlinks(self) -> list[AnnotDict]:"),
             "stubs must declare document and page hyperlinks"
+        );
+        assert!(
+            content.contains("def structure_tree(self) -> list[StructElementDict]:"),
+            "stubs must declare document and page structure trees"
         );
     }
 
