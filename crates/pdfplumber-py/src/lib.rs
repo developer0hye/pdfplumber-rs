@@ -432,6 +432,23 @@ impl PyCroppedPage {
 #[pyclass(name = "PDF")]
 struct PyPdf {
     inner: Pdf,
+    stream: Option<PyObject>,
+    path: Option<std::path::PathBuf>,
+    password: Option<String>,
+    stream_is_external: bool,
+}
+
+#[cfg(test)]
+impl PyPdf {
+    fn from_inner_for_test(inner: Pdf) -> Self {
+        Self {
+            inner,
+            stream: None,
+            path: None,
+            password: None,
+            stream_is_external: false,
+        }
+    }
 }
 
 #[pymethods]
@@ -439,24 +456,91 @@ impl PyPdf {
     /// Open a PDF from a filesystem path or seekable binary stream.
     #[staticmethod]
     fn open(path_or_fp: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let pdf = if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
-            let path: std::path::PathBuf = path_or_fp.extract()?;
-            Pdf::open_file(path, None)
-        } else {
-            path_or_fp.call_method1("seek", (0,))?;
-            let data = path_or_fp.call_method0("read")?;
-            let bytes = data.downcast::<PyBytes>()?;
-            Pdf::open(bytes.as_bytes(), None)
-        }
-        .map_err(to_py_err)?;
-        Ok(PyPdf { inner: pdf })
+        let (stream, path, stream_is_external) =
+            if path_or_fp.is_instance_of::<PyString>() || path_or_fp.hasattr("__fspath__")? {
+                let path: std::path::PathBuf = path_or_fp.extract()?;
+                let stream = path_or_fp
+                    .py()
+                    .import("builtins")?
+                    .getattr("open")?
+                    .call1((&path, "rb"))?;
+                (stream, Some(path), false)
+            } else {
+                (path_or_fp.clone(), None, true)
+            };
+        stream.call_method1("seek", (0,))?;
+        let data = stream.call_method0("read")?;
+        let bytes = data.downcast::<PyBytes>()?;
+        let pdf = Pdf::open(bytes.as_bytes(), None).map_err(to_py_err)?;
+        Ok(PyPdf {
+            inner: pdf,
+            stream: Some(stream.unbind()),
+            path,
+            password: None,
+            stream_is_external,
+        })
     }
 
     /// Open a PDF from bytes in memory.
     #[staticmethod]
-    fn open_bytes(data: &[u8]) -> PyResult<Self> {
+    fn open_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
         let pdf = Pdf::open(data, None).map_err(to_py_err)?;
-        Ok(PyPdf { inner: pdf })
+        let stream = py
+            .import("io")?
+            .getattr("BytesIO")?
+            .call1((PyBytes::new(py, data),))?;
+        Ok(PyPdf {
+            inner: pdf,
+            stream: Some(stream.unbind()),
+            path: None,
+            password: None,
+            stream_is_external: false,
+        })
+    }
+
+    /// The owned or caller-provided binary stream used to open the document.
+    #[getter]
+    fn stream(&self, py: Python<'_>) -> PyObject {
+        self.stream
+            .as_ref()
+            .map(|stream| stream.clone_ref(py))
+            .unwrap_or_else(|| py.None())
+    }
+
+    /// The filesystem path for internally opened documents, otherwise `None`.
+    #[getter]
+    fn path(&self) -> Option<std::path::PathBuf> {
+        self.path.clone()
+    }
+
+    /// The password supplied while opening the document, currently `None`.
+    #[getter]
+    fn password(&self) -> Option<String> {
+        self.password.clone()
+    }
+
+    /// Release internally owned resources without closing caller-owned streams.
+    fn close(&self, py: Python<'_>) -> PyResult<()> {
+        if !self.stream_is_external {
+            if let Some(stream) = &self.stream {
+                stream.bind(py).call_method0("close")?;
+            }
+        }
+        Ok(())
+    }
+
+    fn __enter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
+        slf
+    }
+
+    fn __exit__(
+        &self,
+        py: Python<'_>,
+        _exc_type: &Bound<'_, PyAny>,
+        _exc_value: &Bound<'_, PyAny>,
+        _traceback: &Bound<'_, PyAny>,
+    ) -> PyResult<()> {
+        self.close(py)
     }
 
     /// The list of pages in the PDF.
@@ -743,7 +827,7 @@ mod tests {
     fn test_open_bytes_creates_pypdf() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let pypdf = PyPdf { inner: pdf };
+        let pypdf = PyPdf::from_inner_for_test(pdf);
         assert_eq!(pypdf.inner.page_count(), 1);
     }
 
@@ -751,7 +835,7 @@ mod tests {
     fn test_pypdf_pages_returns_correct_count() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let pypdf = PyPdf { inner: pdf };
+        let pypdf = PyPdf::from_inner_for_test(pdf);
         let page = pypdf.inner.page(0).expect("page 0");
         let pypage = PyPage { inner: page };
         assert_eq!(pypage.page_number(), 0);
@@ -940,7 +1024,7 @@ mod tests {
     fn test_pypdf_metadata() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let pypdf = PyPdf { inner: pdf };
+        let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
             let meta = pypdf.metadata(py).expect("metadata");
             // Should be a dict with standard keys
@@ -960,7 +1044,7 @@ mod tests {
     fn test_pypdf_bookmarks_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let pypdf = PyPdf { inner: pdf };
+        let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
             let bookmarks = pypdf.bookmarks(py).expect("bookmarks");
             assert!(bookmarks.is_empty());
