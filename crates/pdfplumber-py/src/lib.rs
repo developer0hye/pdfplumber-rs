@@ -530,18 +530,36 @@ fn compatible_geometry_number(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
 }
 
-fn compatible_page_box(media_box: BBox, rotation: i32) -> BBox {
-    let x0 = media_box.x0.min(media_box.x1);
-    let y0 = media_box.top.min(media_box.bottom);
-    let x1 = media_box.x0.max(media_box.x1);
-    let y1 = media_box.top.max(media_box.bottom);
+fn normalized_page_box(page_box: BBox, rotation: i32) -> BBox {
+    let x0 = page_box.x0.min(page_box.x1);
+    let y0 = page_box.top.min(page_box.bottom);
+    let x1 = page_box.x0.max(page_box.x1);
+    let y1 = page_box.top.max(page_box.bottom);
     let (x0, y0, x1, y1) = if matches!(rotation, 90 | 270) {
         (y0, x0, y1, x1)
     } else {
         (x0, y0, x1, y1)
     };
-    let media_height = y1 - y0;
-    BBox::new(x0, media_height - y1, x1, media_height - y0)
+    BBox::new(x0, y0, x1, y1)
+}
+
+fn invert_page_box(page_box: BBox, media_height: f64) -> BBox {
+    BBox::new(
+        page_box.x0,
+        media_height - page_box.bottom,
+        page_box.x1,
+        media_height - page_box.top,
+    )
+}
+
+fn compatible_page_boxes(media_box: BBox, crop_box: Option<BBox>, rotation: i32) -> (BBox, BBox) {
+    let normalized_media_box = normalized_page_box(media_box, rotation);
+    let media_height = normalized_media_box.bottom - normalized_media_box.top;
+    let normalized_crop_box = normalized_page_box(crop_box.unwrap_or(media_box), rotation);
+    (
+        invert_page_box(normalized_media_box, media_height),
+        invert_page_box(normalized_crop_box, media_height),
+    )
 }
 
 fn compatible_bbox_tuple(bbox: BBox) -> (f64, f64, f64, f64) {
@@ -1513,6 +1531,8 @@ impl PyPdf {
             let media_box = self.inner.page_media_box(i).ok_or_else(|| {
                 PyRuntimeError::new_err(format!("missing MediaBox for page {}", i + 1))
             })?;
+            let (media_box, crop_box) =
+                compatible_page_boxes(media_box, self.inner.page_crop_box(i), rotation);
             let initial_doctop = if self.selected_pages.is_some() {
                 let initial_doctop = selected_doctop;
                 selected_doctop += compatible_geometry_number(height);
@@ -1529,7 +1549,8 @@ impl PyPdf {
                         width,
                         height,
                         rotation,
-                        media_box: compatible_page_box(media_box, rotation),
+                        media_box,
+                        crop_box,
                     },
                     initial_doctop,
                     self.unicode_norm.as_ref().map(|value| value.clone_ref(py)),
@@ -1724,6 +1745,7 @@ struct PyPageGeometry {
     height: f64,
     rotation: i32,
     media_box: BBox,
+    crop_box: BBox,
 }
 
 #[pyclass(name = "Page")]
@@ -1759,8 +1781,9 @@ impl PyPage {
         let pdf = Arc::new(pdf);
         let (width, height) = pdf.page_dimensions(page_index).expect("page dimensions");
         let rotation = pdf.page_rotation(page_index).expect("page rotation");
-        let media_box = compatible_page_box(
+        let (media_box, crop_box) = compatible_page_boxes(
             pdf.page_media_box(page_index).expect("page MediaBox"),
+            pdf.page_crop_box(page_index),
             rotation,
         );
         Self::new(
@@ -1771,6 +1794,7 @@ impl PyPage {
                 height,
                 rotation,
                 media_box,
+                crop_box,
             },
             None,
             None,
@@ -1839,7 +1863,6 @@ impl PyPage {
         let dict = PyDict::new(py);
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
-            let crop_box = page.crop_box().unwrap_or_else(|| page.media_box());
             let bbox = page.bbox();
             dict.set_item("page_number", self.page_number())?;
             dict.set_item(
@@ -1847,15 +1870,7 @@ impl PyPage {
                 initial_doctop_to_object(py, initial_doctop),
             )?;
             dict.set_item("rotation", self.geometry.rotation)?;
-            dict.set_item(
-                "cropbox",
-                (
-                    compatible_geometry_number(crop_box.x0),
-                    compatible_geometry_number(crop_box.top),
-                    compatible_geometry_number(crop_box.x1),
-                    compatible_geometry_number(crop_box.bottom),
-                ),
-            )?;
+            dict.set_item("cropbox", compatible_bbox_tuple(self.geometry.crop_box))?;
             dict.set_item("mediabox", compatible_bbox_tuple(self.geometry.media_box))?;
             dict.set_item(
                 "bbox",
@@ -1923,6 +1938,12 @@ impl PyPage {
     #[getter]
     fn mediabox(&self) -> (f64, f64, f64, f64) {
         compatible_bbox_tuple(self.geometry.media_box)
+    }
+
+    /// CropBox in the page's rotation-aware, top-origin coordinate space.
+    #[getter]
+    fn cropbox(&self) -> (f64, f64, f64, f64) {
+        compatible_bbox_tuple(self.geometry.crop_box)
     }
 
     /// Cumulative height of preceding pages in the current page view.
@@ -2327,6 +2348,7 @@ mod tests {
         assert!((pypage.height() - 792.0).abs() < 0.1);
         assert_eq!(pypage.rotation(), 0);
         assert_eq!(pypage.mediabox(), (0.0, 0.0, 612.0, 792.0));
+        assert_eq!(pypage.cropbox(), (0.0, 0.0, 612.0, 792.0));
     }
 
     #[test]
