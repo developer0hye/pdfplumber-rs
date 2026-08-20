@@ -94,6 +94,14 @@ impl LopdfBackend {
     ) -> Result<Option<BBox>, BackendError> {
         page_explicit_box(&doc.inner, page.object_id, b"BleedBox")
     }
+
+    /// Return the ArtBox defined directly on a page, without page-tree inheritance.
+    pub fn page_explicit_art_box(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<BBox>, BackendError> {
+        page_explicit_box(&doc.inner, page.object_id, b"ArtBox")
+    }
 }
 
 fn page_explicit_box(
@@ -3432,6 +3440,7 @@ fn create_test_pdf_inherited_media_box() -> Vec<u8> {
             "CropBox" => vec![10.into(), 20.into(), 585.into(), 822.into()],
             "TrimBox" => vec![25.into(), 25.into(), 570.into(), 817.into()],
             "BleedBox" => vec![30.into(), 35.into(), 565.into(), 807.into()],
+            "ArtBox" => vec![35.into(), 40.into(), 560.into(), 802.into()],
         }),
     );
 
@@ -3475,6 +3484,12 @@ fn create_test_pdf_with_crop_box() -> Vec<u8> {
             Object::Real(55.0),
             Object::Real(555.0),
             Object::Real(735.0),
+        ],
+        "ArtBox" => vec![
+            Object::Real(50.0),
+            Object::Real(60.0),
+            Object::Real(550.0),
+            Object::Real(730.0),
         ],
     });
 
@@ -4334,6 +4349,31 @@ mod tests {
         );
         assert_eq!(
             LopdfBackend::page_explicit_bleed_box(&doc, &page).unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn explicit_art_box_is_read_from_the_page_only() {
+        let pdf_bytes = create_test_pdf_with_crop_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+        let art_box = LopdfBackend::page_explicit_art_box(&doc, &page).unwrap();
+        assert_eq!(art_box, Some(BBox::new(50.0, 60.0, 550.0, 730.0)));
+    }
+
+    #[test]
+    fn inherited_art_box_is_not_explicit() {
+        let pdf_bytes = create_test_pdf_inherited_media_box();
+        let doc = LopdfBackend::open(&pdf_bytes).unwrap();
+        let page = LopdfBackend::get_page(&doc, 0).unwrap();
+
+        assert_eq!(
+            LopdfBackend::page_art_box(&doc, &page).unwrap(),
+            Some(BBox::new(35.0, 40.0, 560.0, 802.0))
+        );
+        assert_eq!(
+            LopdfBackend::page_explicit_art_box(&doc, &page).unwrap(),
             None
         );
     }

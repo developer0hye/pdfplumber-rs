@@ -201,6 +201,11 @@ class Page:
         ...
 
     @property
+    def artbox(self) -> tuple[float, float, float, float]:
+        """Direct ArtBox in rotation-aware, top-origin coordinates when present."""
+        ...
+
+    @property
     def initial_doctop(self) -> int | float:
         """Cumulative height of preceding pages in the current page view."""
         ...
