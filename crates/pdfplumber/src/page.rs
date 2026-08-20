@@ -211,6 +211,17 @@ impl Page {
         self.page_number
     }
 
+    /// Rebase character document-top coordinates for a filtered document view.
+    ///
+    /// The page-local `top` coordinates remain unchanged while `doctop` starts at
+    /// `initial_doctop`. Word and search geometry derived from these characters
+    /// therefore observes the same filtered-page offset.
+    pub fn rebase_doctop(&mut self, initial_doctop: f64) {
+        for ch in &mut self.chars {
+            ch.doctop = ch.bbox.top + initial_doctop;
+        }
+    }
+
     /// Returns the page width in points.
     pub fn width(&self) -> f64 {
         self.width
@@ -877,6 +888,22 @@ mod tests {
             stroke_color: Color::black(),
             orientation: orient,
         }
+    }
+
+    #[test]
+    fn rebase_doctop_preserves_page_local_coordinates() {
+        let mut page = Page::new(
+            4,
+            100.0,
+            200.0,
+            vec![make_char("A", 10.0, 20.0, 15.0, 30.0)],
+        );
+
+        page.rebase_doctop(400.0);
+
+        assert_eq!(page.page_number(), 4);
+        assert_eq!(page.chars()[0].bbox.top, 20.0);
+        assert_eq!(page.chars()[0].doctop, 420.0);
     }
 
     fn make_rect(x0: f64, top: f64, x1: f64, bottom: f64) -> Rect {

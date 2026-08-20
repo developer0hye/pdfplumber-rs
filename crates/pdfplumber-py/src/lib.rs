@@ -552,6 +552,7 @@ impl PyPdf {
     #[getter]
     fn pages(&self, py: Python<'_>) -> PyResult<Vec<PyPage>> {
         let mut pages = Vec::with_capacity(self.inner.page_count());
+        let mut selected_doctop = 0.0;
         for i in 0..self.inner.page_count() {
             let page_number = (i + 1) as isize;
             if let Some(selected) = &self.selected_pages {
@@ -559,7 +560,11 @@ impl PyPdf {
                     continue;
                 }
             }
-            let page = self.inner.page(i).map_err(to_py_err)?;
+            let mut page = self.inner.page(i).map_err(to_py_err)?;
+            if self.selected_pages.is_some() {
+                page.rebase_doctop(selected_doctop);
+                selected_doctop += page.height();
+            }
             pages.push(PyPage { inner: page });
         }
         Ok(pages)
@@ -593,10 +598,10 @@ struct PyPage {
 
 #[pymethods]
 impl PyPage {
-    /// The 0-based page index.
+    /// The original 1-based document page number.
     #[getter]
     fn page_number(&self) -> usize {
-        self.inner.page_number()
+        self.inner.page_number() + 1
     }
 
     /// Page width in points.
@@ -849,7 +854,7 @@ mod tests {
         let pypdf = PyPdf::from_inner_for_test(pdf);
         let page = pypdf.inner.page(0).expect("page 0");
         let pypage = PyPage { inner: page };
-        assert_eq!(pypage.page_number(), 0);
+        assert_eq!(pypage.page_number(), 1);
     }
 
     #[test]
