@@ -145,6 +145,71 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def rust_extension_pdf() -> bytes:
+        content = b"q 10 0 0 10 0 0 cm /Im0 Do Q\n"
+        image = b"\x7f"
+        objects = (
+            (
+                b"<< /Type /WrongCatalog /Pages 2 0 R /Outlines 5 0 R "
+                b"/AcroForm 7 0 R >>"
+            ),
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            (
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] "
+                b"/Resources << /XObject << /Im0 10 0 R >> >> "
+                b"/Contents 4 0 R /Annots [8 0 R 9 0 R] >>"
+            ),
+            b"<< /Length %d >>\nstream\n" % len(content)
+            + content
+            + b"endstream",
+            b"<< /Type /Outlines /First 6 0 R /Last 6 0 R /Count 1 >>",
+            (
+                b"<< /Title (Chapter 1) /Parent 5 0 R "
+                b"/Dest [3 0 R /XYZ 0 100 null] >>"
+            ),
+            b"<< /Fields [8 0 R 9 0 R] >>",
+            (
+                b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (name) "
+                b"/V (Alice) /DV (Default) /Rect [10 20 80 40] "
+                b"/P 3 0 R /Ff 1 >>"
+            ),
+            (
+                b"<< /Type /Annot /Subtype /Widget /FT /Sig /T (approval) "
+                b"/Rect [10 50 80 70] /P 3 0 R /V 11 0 R >>"
+            ),
+            (
+                b"<< /Type /XObject /Subtype /Image /Width 1 /Height 1 "
+                b"/ColorSpace /DeviceGray /BitsPerComponent 8 /Length %d >>\n"
+                b"stream\n" % len(image)
+                + image
+                + b"\nendstream"
+            ),
+            (
+                b"<< /Type /Sig /Name (Signer) /M (D:20260820) "
+                b"/Reason (Approval) /Location (Seoul) "
+                b"/ContactInfo (signer@example.com) >>"
+            ),
+        )
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @staticmethod
     def fake_ghostscript(directory: str) -> Path:
         executable = Path(directory) / "gs"
         executable.write_text(
@@ -305,6 +370,105 @@ class NativeLayoutTests(unittest.TestCase):
                 "external_remains_open": True,
             },
         )
+
+    def test_rust_document_extensions_are_explicitly_namespaced(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.rust_extension_pdf())) as document:
+            self.assertFalse(hasattr(pdfplumber.PDF, "bookmarks"))
+            self.assertFalse(hasattr(document, "bookmarks"))
+            self.assertIsInstance(document.rust, _native.RustPDF)
+            self.assertEqual(type(document.rust).__module__, "pdfplumber._native")
+            self.assertEqual(type(document.rust).__qualname__, "RustPDF")
+
+    def test_rust_document_extensions_return_native_data(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.rust_extension_pdf())) as document:
+            extensions = document.rust
+            self.assertEqual(
+                extensions.bookmarks(),
+                [
+                    {
+                        "title": "Chapter 1",
+                        "level": 0,
+                        "page_number": 0,
+                        "dest_top": 100.0,
+                    }
+                ],
+            )
+            self.assertEqual(
+                extensions.form_fields(),
+                [
+                    {
+                        "name": "name",
+                        "field_type": "Text",
+                        "value": "Alice",
+                        "default_value": "Default",
+                        "bbox": (10.0, 20.0, 80.0, 40.0),
+                        "options": [],
+                        "flags": 1,
+                        "page_index": 0,
+                    },
+                    {
+                        "name": "approval",
+                        "field_type": "Signature",
+                        "value": None,
+                        "default_value": None,
+                        "bbox": (10.0, 50.0, 80.0, 70.0),
+                        "options": [],
+                        "flags": 0,
+                        "page_index": 0,
+                    },
+                ],
+            )
+            self.assertEqual(
+                extensions.signatures(),
+                [
+                    {
+                        "signer_name": "Signer",
+                        "sign_date": "D:20260820",
+                        "reason": "Approval",
+                        "location": "Seoul",
+                        "contact_info": "signer@example.com",
+                        "is_signed": True,
+                    }
+                ],
+            )
+            self.assertEqual(
+                extensions.validate(),
+                [
+                    {
+                        "severity": "warning",
+                        "code": "WRONG_CATALOG_TYPE",
+                        "message": (
+                            "catalog /Type is 'WrongCatalog' instead of 'Catalog'"
+                        ),
+                        "location": "object 1 0",
+                    }
+                ],
+            )
+            self.assertEqual(
+                extensions.extract_images(0),
+                [
+                    {
+                        "image": {
+                            "object_type": "image",
+                            "x0": 0.0,
+                            "top": 90.0,
+                            "x1": 10.0,
+                            "bottom": 100.0,
+                            "width": 10.0,
+                            "height": 10.0,
+                            "name": "Im0",
+                            "src_width": 1,
+                            "src_height": 1,
+                            "bits_per_component": 8,
+                            "color_space": "DeviceGray",
+                        },
+                        "data": b"\x7f",
+                        "format": "raw",
+                        "width": 1,
+                        "height": 1,
+                    }
+                ],
+            )
 
     def test_document_properties_match_observable_identity_policy(self) -> None:
         fixture = self.fixture()

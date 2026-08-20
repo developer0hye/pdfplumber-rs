@@ -7,9 +7,10 @@
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use ::pdfplumber::{
-    Annotation, BBox, Bookmark, Char, Color, CroppedPage, Curve, Image, Line, MetadataReference,
-    MetadataValue, Page, Pdf, PdfError, RawDocumentMetadata, Rect, SearchMatch, SearchOptions,
-    StructElement, Table, TableSettings, TextOptions, UnicodeNorm, Word, WordOptions,
+    Annotation, BBox, Bookmark, Char, Color, CroppedPage, Curve, FormField, Image, ImageContent,
+    Line, MetadataReference, MetadataValue, Page, Pdf, PdfError, RawDocumentMetadata, Rect,
+    SearchMatch, SearchOptions, SignatureInfo, StructElement, Table, TableSettings, TextOptions,
+    UnicodeNorm, ValidationIssue, Word, WordOptions,
 };
 use pyo3::exceptions::{
     PyAttributeError, PyException, PyIOError, PyRecursionError, PyRuntimeError, PyTypeError,
@@ -303,6 +304,119 @@ fn bookmark_to_dict(py: Python<'_>, bm: &Bookmark) -> PyResult<PyObject> {
     dict.set_item("page_number", bm.page_number)?;
     dict.set_item("dest_top", bm.dest_top)?;
     Ok(dict.into_any().unbind())
+}
+
+fn form_field_to_dict(py: Python<'_>, field: &FormField) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("name", &field.name)?;
+    dict.set_item("field_type", field.field_type.to_string())?;
+    dict.set_item("value", field.value.as_deref())?;
+    dict.set_item("default_value", field.default_value.as_deref())?;
+    dict.set_item(
+        "bbox",
+        (
+            field.bbox.x0,
+            field.bbox.top,
+            field.bbox.x1,
+            field.bbox.bottom,
+        ),
+    )?;
+    dict.set_item("options", &field.options)?;
+    dict.set_item("flags", field.flags)?;
+    dict.set_item("page_index", field.page_index)?;
+    Ok(dict.into_any().unbind())
+}
+
+fn signature_to_dict(py: Python<'_>, signature: &SignatureInfo) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("signer_name", signature.signer_name.as_deref())?;
+    dict.set_item("sign_date", signature.sign_date.as_deref())?;
+    dict.set_item("reason", signature.reason.as_deref())?;
+    dict.set_item("location", signature.location.as_deref())?;
+    dict.set_item("contact_info", signature.contact_info.as_deref())?;
+    dict.set_item("is_signed", signature.is_signed)?;
+    Ok(dict.into_any().unbind())
+}
+
+fn validation_issue_to_dict(py: Python<'_>, issue: &ValidationIssue) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("severity", issue.severity.to_string())?;
+    dict.set_item("code", &issue.code)?;
+    dict.set_item("message", &issue.message)?;
+    dict.set_item("location", issue.location.as_deref())?;
+    Ok(dict.into_any().unbind())
+}
+
+fn extracted_image_to_dict(
+    py: Python<'_>,
+    image: &Image,
+    content: &ImageContent,
+) -> PyResult<PyObject> {
+    let dict = PyDict::new(py);
+    dict.set_item("image", image_to_dict(py, image)?)?;
+    dict.set_item("data", PyBytes::new(py, &content.data))?;
+    dict.set_item("format", content.format.extension())?;
+    dict.set_item("width", content.width)?;
+    dict.set_item("height", content.height)?;
+    Ok(dict.into_any().unbind())
+}
+
+/// Rust-native document capabilities isolated from the compatibility surface.
+#[pyclass(name = "RustPDF", module = "pdfplumber._native")]
+struct PyRustPdf {
+    inner: Arc<Pdf>,
+}
+
+#[pymethods]
+impl PyRustPdf {
+    /// Document bookmarks using Rust-native zero-based page numbers.
+    fn bookmarks(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .bookmarks()
+            .iter()
+            .map(|bookmark| bookmark_to_dict(py, bookmark))
+            .collect()
+    }
+
+    /// AcroForm fields using Rust-native field and page-index semantics.
+    fn form_fields(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .form_fields()
+            .map_err(to_py_err)?
+            .iter()
+            .map(|field| form_field_to_dict(py, field))
+            .collect()
+    }
+
+    /// Digital-signature metadata. This does not verify signatures.
+    fn signatures(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .signatures()
+            .map_err(to_py_err)?
+            .iter()
+            .map(|signature| signature_to_dict(py, signature))
+            .collect()
+    }
+
+    /// Validate the native PDF structure and return all detected issues.
+    fn validate(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .validate()
+            .map_err(to_py_err)?
+            .iter()
+            .map(|issue| validation_issue_to_dict(py, issue))
+            .collect()
+    }
+
+    /// Extract image metadata and bytes from a zero-based native page index.
+    fn extract_images(&self, py: Python<'_>, page_index: usize) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .extract_images_with_content(page_index)
+            .map_err(to_py_err)?
+            .iter()
+            .map(|(image, content)| extracted_image_to_dict(py, image, content))
+            .collect()
+    }
 }
 
 #[pyclass(name = "PDFObjRef", module = "pdfminer.pdftypes")]
@@ -1246,6 +1360,14 @@ impl PyPdf {
         self.stream_is_external
     }
 
+    /// Explicit namespace for Rust-only document capabilities.
+    #[getter]
+    fn rust(&self) -> PyRustPdf {
+        PyRustPdf {
+            inner: Arc::clone(&self.inner),
+        }
+    }
+
     /// The Unicode normalization form applied during extraction, if any.
     #[getter]
     fn unicode_norm(&self, py: Python<'_>) -> PyObject {
@@ -1543,15 +1665,6 @@ impl PyPdf {
     #[getter]
     fn metadata(&self, py: Python<'_>) -> PyResult<PyObject> {
         self.metadata_object(py)
-    }
-
-    /// Document bookmarks (outline / table of contents) as list[dict].
-    fn bookmarks(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .bookmarks()
-            .iter()
-            .map(|bm| bookmark_to_dict(py, bm))
-            .collect()
     }
 }
 
@@ -2019,6 +2132,7 @@ fn pdfplumber(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", VERSION)?;
 
     m.add_class::<PyPdf>()?;
+    m.add_class::<PyRustPdf>()?;
     m.add_class::<PyPage>()?;
     m.add_class::<PyTable>()?;
     m.add_class::<PyCroppedPage>()?;
@@ -2321,12 +2435,12 @@ mod tests {
     }
 
     #[test]
-    fn test_pypdf_bookmarks_empty() {
+    fn test_pypdf_rust_bookmarks_empty() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypdf = PyPdf::from_inner_for_test(pdf);
         Python::with_gil(|py| {
-            let bookmarks = pypdf.bookmarks(py).expect("bookmarks");
+            let bookmarks = pypdf.rust().bookmarks(py).expect("bookmarks");
             assert!(bookmarks.is_empty());
         });
     }
