@@ -558,6 +558,106 @@ class NativeLayoutTests(unittest.TestCase):
         finally:
             selected.stream.close()
 
+    def test_empty_zero_page_and_invalid_selection_edges(self) -> None:
+        from pdfplumber.utils.exceptions import PdfminerException
+
+        empty = io.BytesIO(b"")
+        try:
+            with self.assertRaisesRegex(
+                PdfminerException,
+                r"^No /Root object! - Is this really a PDF\?$",
+            ):
+                pdfplumber.open(empty)
+            self.assertEqual(empty.tell(), 0)
+            self.assertFalse(empty.closed)
+        finally:
+            empty.close()
+
+        repository = Path(__file__).resolve().parents[3]
+        zero_page = (
+            repository
+            / "crates/pdfplumber/tests/fixtures/pdfs/issue-297-example.pdf"
+        )
+        with pdfplumber.open(zero_page) as document:
+            pages = document.pages
+            self.assertEqual(pages, [])
+            self.assertIs(document.pages, pages)
+            self.assertEqual(document.objects, {})
+            self.assertEqual(document.annots, [])
+            self.assertEqual(document.hyperlinks, [])
+            self.assertEqual(document.structure_tree, [])
+            self.assertEqual(
+                document.to_dict(),
+                {
+                    "metadata": {
+                        "Producer": "PyPDF2",
+                        "Title": "IntMetadata",
+                        "Copies": 0,
+                    },
+                    "pages": [],
+                },
+            )
+            self.assertEqual(
+                document.to_json(),
+                '{"metadata": {"Producer": "PyPDF2", '
+                '"Title": "IntMetadata", "Copies": 0}, "pages": []}',
+            )
+            self.assertEqual(
+                document.to_csv(),
+                "object_type,page_number,x0,x1,y0,y1,doctop,top,bottom,"
+                "width,height\r\n",
+            )
+
+        with pdfplumber.open(
+            self.multipage_fixture(), pages=(0, -1, 99, "1")
+        ) as selected:
+            self.assertEqual(selected.pages, [])
+
+        scalar = pdfplumber.open(self.multipage_fixture(), pages=1)
+        try:
+            with self.assertRaisesRegex(
+                TypeError, r"^argument of type 'int' is not iterable$"
+            ):
+                _ = scalar.pages
+        finally:
+            scalar.stream.close()
+
+    def test_truncated_document_recovery_matches_upstream_boundary(self) -> None:
+        from pdfplumber.utils.exceptions import PdfminerException
+
+        complete = self.fixture().read_bytes()
+        with pdfplumber.open(io.BytesIO(complete)) as baseline:
+            expected_metadata = dict(baseline.metadata)
+            expected_text = [page.extract_text() for page in baseline.pages]
+
+        for removed_bytes in (1, 5, 10, 11, 20, 21):
+            with self.subTest(recoverable_removed_bytes=removed_bytes):
+                payload = complete[:-removed_bytes]
+                stream = io.BytesIO(payload)
+                try:
+                    with pdfplumber.open(stream) as document:
+                        self.assertEqual(dict(document.metadata), expected_metadata)
+                        self.assertEqual(
+                            [page.extract_text() for page in document.pages],
+                            expected_text,
+                        )
+                    self.assertEqual(stream.tell(), len(payload))
+                    self.assertFalse(stream.closed)
+                finally:
+                    stream.close()
+
+        for removed_bytes in (12, 15, 19, 50, 500, len(complete) // 2):
+            with self.subTest(rejected_removed_bytes=removed_bytes):
+                payload = complete[:-removed_bytes]
+                stream = io.BytesIO(payload)
+                try:
+                    with self.assertRaises(PdfminerException):
+                        pdfplumber.open(stream)
+                    self.assertEqual(stream.tell(), len(payload))
+                    self.assertFalse(stream.closed)
+                finally:
+                    stream.close()
+
     def test_selected_pages_keep_original_numbers_and_selected_doctop(self) -> None:
         with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
             pages = document.pages

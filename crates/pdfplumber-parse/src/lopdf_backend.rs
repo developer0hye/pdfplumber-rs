@@ -282,6 +282,95 @@ fn try_fix_startxref(bytes: &[u8]) -> Option<Vec<u8>> {
     Some(repaired)
 }
 
+fn trim_ascii_whitespace(mut bytes: &[u8]) -> &[u8] {
+    while bytes.first().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[1..];
+    }
+    while bytes.last().is_some_and(u8::is_ascii_whitespace) {
+        bytes = &bytes[..bytes.len() - 1];
+    }
+    bytes
+}
+
+fn has_complete_eof(bytes: &[u8]) -> bool {
+    trim_ascii_whitespace(bytes).ends_with(b"%%EOF")
+}
+
+fn is_truncated_terminal_suffix(bytes: &[u8]) -> bool {
+    let suffix = trim_ascii_whitespace(bytes);
+    let marker = b"startxref";
+    if suffix.len() < marker.len() {
+        return suffix.is_empty();
+    }
+    if !suffix.starts_with(marker) {
+        return false;
+    }
+
+    let mut remainder = &suffix[marker.len()..];
+    while remainder.first().is_some_and(u8::is_ascii_whitespace) {
+        remainder = &remainder[1..];
+    }
+    let digit_count = remainder
+        .iter()
+        .take_while(|byte| byte.is_ascii_digit())
+        .count();
+    remainder = &remainder[digit_count..];
+    while remainder.first().is_some_and(u8::is_ascii_whitespace) {
+        remainder = &remainder[1..];
+    }
+    b"%%EOF".starts_with(remainder)
+}
+
+/// Reconstruct a missing terminal `startxref`/EOF suffix when the traditional
+/// xref table and complete trailer dictionary are still present.
+fn try_restore_truncated_xref_suffix(bytes: &[u8]) -> Option<Vec<u8>> {
+    if has_complete_eof(bytes) {
+        return None;
+    }
+
+    let xref_marker = b"xref";
+    let xref_pos = bytes.windows(xref_marker.len()).rposition(|window| {
+        if window != xref_marker {
+            return false;
+        }
+        let position = window.as_ptr() as usize - bytes.as_ptr() as usize;
+        position < 5 || &bytes[position - 5..position] != b"start"
+    })?;
+    let trailer_marker = b"trailer";
+    let trailer_pos = bytes[xref_pos + xref_marker.len()..]
+        .windows(trailer_marker.len())
+        .position(|window| window == trailer_marker)?
+        + xref_pos
+        + xref_marker.len();
+    let startxref_pos = bytes[trailer_pos + trailer_marker.len()..]
+        .windows(b"startxref".len())
+        .position(|window| window == b"startxref")
+        .map(|position| position + trailer_pos + trailer_marker.len());
+    let trailer_search_end = startxref_pos.unwrap_or(bytes.len());
+    let trailer_body_start = trailer_pos + trailer_marker.len();
+    let trailer_end = bytes[trailer_body_start..trailer_search_end]
+        .windows(2)
+        .rposition(|window| window == b">>")?
+        + trailer_body_start
+        + 2;
+    if !is_truncated_terminal_suffix(&bytes[trailer_end..]) {
+        return None;
+    }
+
+    let mut repaired = Vec::with_capacity(trailer_end + 32);
+    repaired.extend_from_slice(&bytes[..trailer_end]);
+    repaired.extend_from_slice(b"\nstartxref\n");
+    repaired.extend_from_slice(xref_pos.to_string().as_bytes());
+    repaired.extend_from_slice(b"\n%%EOF\n");
+    Some(repaired)
+}
+
+fn try_repair_xref(bytes: &[u8]) -> Option<Vec<u8>> {
+    let startxref_fixed = try_fix_startxref(bytes);
+    let candidate = startxref_fixed.as_deref().unwrap_or(bytes);
+    try_restore_truncated_xref_suffix(candidate).or(startxref_fixed)
+}
+
 impl PdfBackend for LopdfBackend {
     type Document = LopdfDocument;
     type Page = LopdfPage;
@@ -300,7 +389,7 @@ impl PdfBackend for LopdfBackend {
                 // and fix the startxref offset if it's wrong. This handles
                 // malformed PDFs like issue-297-example.pdf where the
                 // startxref offset is incorrect.
-                if let Some(repaired) = try_fix_startxref(bytes) {
+                if let Some(repaired) = try_repair_xref(bytes) {
                     lopdf::Document::load_mem(&repaired).map_err(|_| {
                         BackendError::Parse(format!("failed to parse PDF: {original_err}"))
                     })?
@@ -5604,6 +5693,41 @@ mod tests {
         // Should have 0 pages (empty /Kids)
         let doc = result.unwrap();
         assert_eq!(LopdfBackend::page_count(&doc), 0);
+    }
+
+    #[test]
+    fn open_pdf_with_complete_trailer_and_truncated_suffix_recovers() {
+        let complete = create_pdf_with_broken_startxref();
+        let startxref = complete
+            .windows(b"startxref".len())
+            .rposition(|window| window == b"startxref")
+            .expect("fixture must contain startxref");
+        let cuts = [complete.len() - 5, complete.len() - 10, startxref];
+
+        for end in cuts {
+            let truncated = &complete[..end];
+            assert!(
+                lopdf::Document::load_mem(truncated).is_err(),
+                "lopdf should reject fixture truncated at byte {end}"
+            );
+            let document = LopdfBackend::open(truncated).unwrap_or_else(|error| {
+                panic!("complete trailer truncated at byte {end} should recover: {error}")
+            });
+            assert_eq!(LopdfBackend::page_count(&document), 0);
+        }
+
+        let trailer = complete
+            .windows(b"trailer".len())
+            .rposition(|window| window == b"trailer")
+            .expect("fixture must contain trailer");
+        assert!(
+            LopdfBackend::open(&complete[..trailer + b"trailer".len() + 5]).is_err(),
+            "an incomplete trailer dictionary must not be reconstructed"
+        );
+        assert!(
+            LopdfBackend::open(&complete[..startxref + 5]).is_err(),
+            "a partial startxref token must remain rejected"
+        );
     }
 
     #[test]
