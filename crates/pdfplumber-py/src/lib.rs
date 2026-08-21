@@ -1177,10 +1177,96 @@ impl PyTable {
 // PyCroppedPage
 // ---------------------------------------------------------------------------
 
+#[derive(Clone, Copy)]
+enum DerivedObjectTransform {
+    Crop(BBox),
+    Within(BBox),
+    Outside(BBox),
+}
+
+fn bbox_overlap(left: BBox, right: BBox) -> Option<BBox> {
+    let overlap = BBox::new(
+        left.x0.max(right.x0),
+        left.top.max(right.top),
+        left.x1.min(right.x1),
+        left.bottom.min(right.bottom),
+    );
+    let width = overlap.width();
+    let height = overlap.height();
+    (height >= 0.0 && width >= 0.0 && height + width > 0.0).then_some(overlap)
+}
+
+fn python_object_bbox(object: &Bound<'_, PyAny>) -> PyResult<BBox> {
+    Ok(BBox::new(
+        object.get_item("x0")?.extract()?,
+        object.get_item("top")?.extract()?,
+        object.get_item("x1")?.extract()?,
+        object.get_item("bottom")?.extract()?,
+    ))
+}
+
+fn transform_derived_objects<'py>(
+    py: Python<'py>,
+    values: &Bound<'py, PyAny>,
+    transform: DerivedObjectTransform,
+) -> PyResult<Bound<'py, PyList>> {
+    let transformed = PyList::empty(py);
+    let dict_constructor = if matches!(transform, DerivedObjectTransform::Crop(_)) {
+        Some(py.import("builtins")?.getattr("dict")?)
+    } else {
+        None
+    };
+
+    for object in values.try_iter()? {
+        let object = object?;
+        let object_bbox = python_object_bbox(&object)?;
+        let filter_bbox = match transform {
+            DerivedObjectTransform::Crop(bbox)
+            | DerivedObjectTransform::Within(bbox)
+            | DerivedObjectTransform::Outside(bbox) => bbox,
+        };
+        let overlap = bbox_overlap(object_bbox, filter_bbox);
+
+        match transform {
+            DerivedObjectTransform::Crop(_) => {
+                let Some(overlap) = overlap else {
+                    continue;
+                };
+                let copied = dict_constructor
+                    .as_ref()
+                    .expect("crop transform has a dict constructor")
+                    .call1((&object,))?
+                    .downcast_into::<PyDict>()?;
+                copied.set_item("x0", overlap.x0)?;
+                copied.set_item("top", overlap.top)?;
+                copied.set_item("x1", overlap.x1)?;
+                copied.set_item("bottom", overlap.bottom)?;
+                if copied.contains("doctop")? {
+                    let doctop = object.get_item("doctop")?.extract::<f64>()?;
+                    copied.set_item("doctop", doctop + overlap.top - object_bbox.top)?;
+                }
+                copied.set_item("width", overlap.width())?;
+                copied.set_item("height", overlap.height())?;
+                transformed.append(copied)?;
+            }
+            DerivedObjectTransform::Within(_) if overlap == Some(object_bbox) => {
+                transformed.append(object)?;
+            }
+            DerivedObjectTransform::Outside(_) if overlap.is_none() => {
+                transformed.append(object)?;
+            }
+            DerivedObjectTransform::Within(_) | DerivedObjectTransform::Outside(_) => {}
+        }
+    }
+
+    Ok(transformed)
+}
+
 /// A spatially filtered view of a PDF page.
 #[pyclass(name = "CroppedPage", dict)]
 struct PyCroppedPage {
     inner: CroppedPage,
+    object_transform: DerivedObjectTransform,
 }
 
 impl PyCroppedPage {
@@ -1189,6 +1275,7 @@ impl PyCroppedPage {
         inner: CroppedPage,
         parent_page: Py<PyAny>,
         root_page: Py<PyAny>,
+        object_transform: DerivedObjectTransform,
     ) -> PyResult<Py<Self>> {
         let mediabox = parent_page.bind(py).getattr("mediabox")?.unbind();
         let page_number = parent_page.bind(py).getattr("page_number")?.unbind();
@@ -1197,7 +1284,13 @@ impl PyCroppedPage {
             .getattr("_layout_laparams")
             .ok()
             .map(Bound::unbind);
-        let page = Py::new(py, Self { inner })?;
+        let page = Py::new(
+            py,
+            Self {
+                inner,
+                object_transform,
+            },
+        )?;
         page.bind(py).setattr("parent_page", parent_page)?;
         page.bind(py).setattr("root_page", root_page)?;
         page.bind(py).setattr("mediabox", mediabox)?;
@@ -1212,73 +1305,11 @@ impl PyCroppedPage {
         py: Python<'_>,
         parent: PyRef<'_, Self>,
         inner: CroppedPage,
+        object_transform: DerivedObjectTransform,
     ) -> PyResult<Py<Self>> {
         let parent: Py<Self> = parent.into();
         let root_page = parent.bind(py).getattr("root_page")?.unbind();
-        Self::from_parent(py, inner, parent.into_any(), root_page)
-    }
-
-    fn char_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .chars()
-            .iter()
-            .map(|ch| char_to_dict(py, ch))
-            .collect()
-    }
-
-    fn line_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .lines()
-            .iter()
-            .map(|line| line_to_dict(py, line))
-            .collect()
-    }
-
-    fn rect_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .rects()
-            .iter()
-            .map(|rect| rect_to_dict(py, rect))
-            .collect()
-    }
-
-    fn curve_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .curves()
-            .iter()
-            .map(|curve| curve_to_dict(py, curve))
-            .collect()
-    }
-
-    fn image_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .images()
-            .iter()
-            .map(|image| image_to_dict(py, image))
-            .collect()
-    }
-
-    fn horizontal_layout_objects(
-        &self,
-        py: Python<'_>,
-        params: &Bound<'_, PyDict>,
-        page_number: usize,
-    ) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
-        let initial_doctop = self
-            .inner
-            .chars()
-            .first()
-            .map(|ch| ch.doctop - ch.bbox.top)
-            .unwrap_or(0.0);
-        compatible_horizontal_layout_objects(
-            py,
-            self.inner.chars(),
-            params,
-            page_number,
-            self.inner.height(),
-            self.inner.height(),
-            initial_doctop,
-        )
+        Self::from_parent(py, inner, parent.into_any(), root_page, object_transform)
     }
 }
 
@@ -1339,38 +1370,14 @@ impl PyCroppedPage {
 
         let parent_objects = page.getattr("parent_page")?.getattr("objects")?;
         let parent_objects = parent_objects.downcast::<PyDict>()?;
-        let page_ref = page.borrow();
-        let layout_values = if let Ok(params) = page.getattr("_layout_laparams") {
-            let params = params.downcast_into::<PyDict>()?;
-            let page_number = page.getattr("page_number")?.extract::<usize>()?;
-            Some(page_ref.horizontal_layout_objects(py, &params, page_number)?)
-        } else {
-            None
-        };
-        let values = [
-            ("char", page_ref.char_objects(py)?),
-            ("line", page_ref.line_objects(py)?),
-            ("rect", page_ref.rect_objects(py)?),
-            ("curve", page_ref.curve_objects(py)?),
-            ("image", page_ref.image_objects(py)?),
-        ];
-        drop(page_ref);
+        let object_transform = page.borrow().object_transform;
 
         let objects = PyDict::new(py);
-        if let Some((textboxes, textlines)) = layout_values {
-            for (kind, values) in [
-                ("textboxhorizontal", textboxes),
-                ("textlinehorizontal", textlines),
-            ] {
-                if parent_objects.contains(kind)? {
-                    objects.set_item(kind, PyList::new(py, values)?)?;
-                }
-            }
-        }
-        for (kind, values) in values {
-            if parent_objects.contains(kind)? {
-                objects.set_item(kind, PyList::new(py, values)?)?;
-            }
+        for (kind, values) in parent_objects.iter() {
+            objects.set_item(
+                kind,
+                transform_derived_objects(py, &values, object_transform)?,
+            )?;
         }
         page.setattr("_objects", &objects)?;
         Ok(objects.into_any().unbind())
@@ -1498,8 +1505,9 @@ impl PyCroppedPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<Self>> {
-        let inner = slf.inner.crop(parse_bbox_tuple(bbox));
-        Self::from_cropped_parent(py, slf, inner)
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.inner.crop(bbox);
+        Self::from_cropped_parent(py, slf, inner, DerivedObjectTransform::Crop(bbox))
     }
 
     /// Filter to objects fully within the given bbox.
@@ -1508,8 +1516,9 @@ impl PyCroppedPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<Self>> {
-        let inner = slf.inner.within_bbox(parse_bbox_tuple(bbox));
-        Self::from_cropped_parent(py, slf, inner)
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.inner.within_bbox(bbox);
+        Self::from_cropped_parent(py, slf, inner, DerivedObjectTransform::Within(bbox))
     }
 
     /// Filter to objects outside the given bbox.
@@ -1518,8 +1527,9 @@ impl PyCroppedPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<Self>> {
-        let inner = slf.inner.outside_bbox(parse_bbox_tuple(bbox));
-        Self::from_cropped_parent(py, slf, inner)
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.inner.outside_bbox(bbox);
+        Self::from_cropped_parent(py, slf, inner, DerivedObjectTransform::Outside(bbox))
     }
 }
 
@@ -3006,10 +3016,17 @@ impl PyPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<PyCroppedPage>> {
-        let inner = slf.with_page(py, |page| Ok(page.crop(parse_bbox_tuple(bbox))))?;
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.with_page(py, |page| Ok(page.crop(bbox)))?;
         let original: Py<Self> = slf.into();
         let root_page = original.clone_ref(py).into_any();
-        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
+        PyCroppedPage::from_parent(
+            py,
+            inner,
+            original.into_any(),
+            root_page,
+            DerivedObjectTransform::Crop(bbox),
+        )
     }
 
     /// Filter to objects fully within the given bbox.
@@ -3018,10 +3035,17 @@ impl PyPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<PyCroppedPage>> {
-        let inner = slf.with_page(py, |page| Ok(page.within_bbox(parse_bbox_tuple(bbox))))?;
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.with_page(py, |page| Ok(page.within_bbox(bbox)))?;
         let original: Py<Self> = slf.into();
         let root_page = original.clone_ref(py).into_any();
-        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
+        PyCroppedPage::from_parent(
+            py,
+            inner,
+            original.into_any(),
+            root_page,
+            DerivedObjectTransform::Within(bbox),
+        )
     }
 
     /// Filter to objects outside the given bbox.
@@ -3030,10 +3054,17 @@ impl PyPage {
         py: Python<'_>,
         bbox: (f64, f64, f64, f64),
     ) -> PyResult<Py<PyCroppedPage>> {
-        let inner = slf.with_page(py, |page| Ok(page.outside_bbox(parse_bbox_tuple(bbox))))?;
+        let bbox = parse_bbox_tuple(bbox);
+        let inner = slf.with_page(py, |page| Ok(page.outside_bbox(bbox)))?;
         let original: Py<Self> = slf.into();
         let root_page = original.clone_ref(py).into_any();
-        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
+        PyCroppedPage::from_parent(
+            py,
+            inner,
+            original.into_any(),
+            root_page,
+            DerivedObjectTransform::Outside(bbox),
+        )
     }
 
     /// Search for a text pattern on this page.
@@ -3989,11 +4020,11 @@ mod tests {
             let cropped = cropped.bind(py).borrow();
             assert!((cropped.width() - 200.0).abs() < 0.1);
             assert!((cropped.height() - 300.0).abs() < 0.1);
-            assert!(cropped.char_objects(py).expect("chars").is_empty());
-            assert!(cropped.line_objects(py).expect("lines").is_empty());
-            assert!(cropped.rect_objects(py).expect("rects").is_empty());
-            assert!(cropped.curve_objects(py).expect("curves").is_empty());
-            assert!(cropped.image_objects(py).expect("images").is_empty());
+            assert!(cropped.inner.chars().is_empty());
+            assert!(cropped.inner.lines().is_empty());
+            assert!(cropped.inner.rects().is_empty());
+            assert!(cropped.inner.curves().is_empty());
+            assert!(cropped.inner.images().is_empty());
             assert!(
                 cropped
                     .extract_words(py, 3.0, 3.0)
