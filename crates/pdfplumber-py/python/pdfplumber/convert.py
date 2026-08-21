@@ -22,6 +22,69 @@ CSV_COLS_TO_PREPEND = [
     "height",
 ]
 ENCODINGS_TO_TRY = ["utf-8", "latin-1", "utf-16", "utf-16le"]
+_PDFDOC_CODEPOINT_OVERRIDES = {
+    0x16: 0x0017,
+    0x17: 0x0017,
+    0x18: 0x02D8,
+    0x19: 0x02C7,
+    0x1A: 0x02C6,
+    0x1B: 0x02D9,
+    0x1C: 0x02DD,
+    0x1D: 0x02DB,
+    0x1E: 0x02DA,
+    0x1F: 0x02DC,
+    0x7F: 0,
+    0x80: 0x2022,
+    0x81: 0x2020,
+    0x82: 0x2021,
+    0x83: 0x2026,
+    0x84: 0x2014,
+    0x85: 0x2013,
+    0x86: 0x0192,
+    0x87: 0x2044,
+    0x88: 0x2039,
+    0x89: 0x203A,
+    0x8A: 0x2212,
+    0x8B: 0x2030,
+    0x8C: 0x201E,
+    0x8D: 0x201C,
+    0x8E: 0x201D,
+    0x8F: 0x2018,
+    0x90: 0x2019,
+    0x91: 0x201A,
+    0x92: 0x2122,
+    0x93: 0xFB01,
+    0x94: 0xFB02,
+    0x95: 0x0141,
+    0x96: 0x0152,
+    0x97: 0x0160,
+    0x98: 0x0178,
+    0x99: 0x017D,
+    0x9A: 0x0131,
+    0x9B: 0x0142,
+    0x9C: 0x0153,
+    0x9D: 0x0161,
+    0x9E: 0x017E,
+    0x9F: 0,
+    0xA0: 0x20AC,
+    0xAD: 0,
+}
+_PDFDOC_ENCODING = tuple(
+    chr(_PDFDOC_CODEPOINT_OVERRIDES.get(value, value)) for value in range(256)
+)
+
+
+def _decode_pdf_text(value: bytes | str) -> str:
+    if isinstance(value, bytes) and value.startswith(b"\xfe\xff"):
+        return str(value[2:], "utf-16be", "ignore")
+    try:
+        indices = (
+            ord(character) if isinstance(character, str) else character
+            for character in value
+        )
+        return "".join(_PDFDOC_ENCODING[index] for index in indices)
+    except IndexError:
+        return str(value)
 
 
 def get_attr_filter(
@@ -93,6 +156,9 @@ class Serializer:
                 base64.b64encode(rawdata).decode("ascii") if rawdata else None
             )
         }
+
+    def do_PSLiteral(self, value: Any) -> str:
+        return _decode_pdf_text(value.name)
 
     def do_bytes(self, value: bytes) -> str | None:
         for encoding in ENCODINGS_TO_TRY:
