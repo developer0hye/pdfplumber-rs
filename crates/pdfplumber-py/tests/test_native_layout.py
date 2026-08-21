@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import importlib.machinery
+import inspect
 import json
 import os
 from pathlib import Path
@@ -1474,6 +1475,94 @@ class NativeLayoutTests(unittest.TestCase):
             mutated_nested = cropped.crop((20, 20, 150, 250))
             self.assertIs(mutated_nested.root_page, marker)
             self.assertIs(mutated_nested.parent_page, cropped)
+
+    def test_point2coord_uses_current_page_view_geometry(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.nonzero_origin_rotated_pdf())) as document:
+            self.assertEqual(
+                [page.point2coord((1, 2)) for page in document.pages],
+                [(11, 178), (21, 88), (11, 178), (21, 88)],
+            )
+
+            original = document.pages[0]
+            cropped = original.crop((20, 0, 80, 50))
+            nested = cropped.crop((30, 10, 70, 30))
+            self.assertEqual(
+                list(inspect.signature(type(original).point2coord).parameters),
+                ["self", "pt"],
+            )
+            self.assertEqual(
+                list(inspect.signature(type(cropped).point2coord).parameters),
+                ["self", "pt"],
+            )
+            self.assertEqual(cropped.point2coord((1, 2)), (11, 28))
+            self.assertEqual(nested.point2coord((1, 2)), (11, -2))
+            self.assertEqual(
+                [
+                    original.point2coord((1, 2)),
+                    original.point2coord([1, 2]),
+                    original.point2coord({0: 1, 1: 2}),
+                    original.point2coord((True, False)),
+                    original.point2coord(pt=(1, 2)),
+                ],
+                [(11, 178), (11, 178), (11, 178), (11, 180), (11, 178)],
+            )
+            self.assertEqual(
+                ["mediabox" in vars(page) for page in (original, cropped, nested)],
+                [True, True, True],
+            )
+
+            marker = (100, 200, 300, 400)
+            original.mediabox = marker
+            self.assertEqual(original.point2coord((1, 2)), (101, 398))
+            self.assertEqual(cropped.point2coord((1, 2)), (11, 28))
+            mutated_child = original.crop((20, 0, 80, 50))
+            self.assertEqual(mutated_child.mediabox, marker)
+            self.assertEqual(mutated_child.point2coord((1, 2)), (101, 248))
+            cropped.mediabox = marker
+            self.assertEqual(cropped.point2coord((1, 2)), (101, 248))
+            self.assertEqual(nested.point2coord((1, 2)), (11, -2))
+            mutated_nested = cropped.crop((30, 10, 70, 30))
+            self.assertEqual(mutated_nested.mediabox, marker)
+            self.assertEqual(mutated_nested.point2coord((1, 2)), (101, 218))
+
+            for point in ((), (1,)):
+                with self.subTest(point=point):
+                    with self.assertRaisesRegex(IndexError, "^tuple index out of range$"):
+                        original.point2coord(point)
+            with self.assertRaisesRegex(TypeError, "^'int' object is not subscriptable$"):
+                original.point2coord(1)
+            with self.assertRaises(TypeError):
+                original.point2coord((None, 2))
+            with self.assertRaises(TypeError):
+                original.point2coord("12")
+            with self.assertRaisesRegex(
+                TypeError,
+                re.escape(
+                    "Page.point2coord() missing 1 required positional argument: 'pt'"
+                ),
+            ):
+                original.point2coord()
+            with self.assertRaisesRegex(
+                TypeError,
+                re.escape(
+                    "Page.point2coord() takes 2 positional arguments but 3 were given"
+                ),
+            ):
+                original.point2coord((1, 2), (3, 4))
+            with self.assertRaisesRegex(
+                TypeError,
+                re.escape(
+                    "Page.point2coord() got multiple values for argument 'pt'"
+                ),
+            ):
+                original.point2coord((1, 2), pt=(3, 4))
+            with self.assertRaisesRegex(
+                TypeError,
+                re.escape(
+                    "Page.point2coord() got an unexpected keyword argument 'point'"
+                ),
+            ):
+                original.point2coord(point=(1, 2))
 
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()

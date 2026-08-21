@@ -161,6 +161,7 @@ class Page:
     """A single page from a PDF document."""
 
     is_original: ClassVar[bool]
+    mediabox: tuple[float, float, float, float]
     root_page: Page
 
     @property
@@ -186,11 +187,6 @@ class Page:
     @property
     def bbox(self) -> tuple[float, float, float, float]:
         """Original-page bounding box in rotation-aware, top-origin coordinates."""
-        ...
-
-    @property
-    def mediabox(self) -> tuple[float, float, float, float]:
-        """MediaBox in the page's rotation-aware, top-origin coordinates."""
         ...
 
     @property
@@ -312,6 +308,12 @@ class Page:
         """Filter to objects outside the given bbox."""
         ...
 
+    def point2coord(
+        self, pt: tuple[int | float, int | float]
+    ) -> tuple[int | float, int | float]:
+        """Convert a PDF-space point to top-origin page coordinates."""
+        ...
+
     def search(
         self,
         pattern: str,
@@ -347,6 +349,7 @@ class CroppedPage:
     """A spatially filtered view of a PDF page."""
 
     is_original: ClassVar[bool]
+    mediabox: tuple[float, float, float, float]
     parent_page: Page | CroppedPage
     root_page: Page
 
@@ -410,4 +413,10 @@ class CroppedPage:
 
     def outside_bbox(self, bbox: BBox) -> CroppedPage:
         """Filter to objects outside the given bbox."""
+        ...
+
+    def point2coord(
+        self, pt: tuple[int | float, int | float]
+    ) -> tuple[int | float, int | float]:
+        """Convert a PDF-space point to top-origin page coordinates."""
         ...

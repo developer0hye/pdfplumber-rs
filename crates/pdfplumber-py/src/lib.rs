@@ -581,6 +581,61 @@ fn compatible_bbox_tuple(bbox: BBox) -> (f64, f64, f64, f64) {
     )
 }
 
+fn compatible_point2coord(
+    py: Python<'_>,
+    page: &Bound<'_, PyAny>,
+    point: &Bound<'_, PyAny>,
+) -> PyResult<(PyObject, PyObject)> {
+    let operator = py.import("operator")?;
+    let add = operator.getattr("add")?;
+    let subtract = operator.getattr("sub")?;
+
+    let x_origin = page.getattr("mediabox")?.get_item(0)?;
+    let x = add.call1((x_origin, point.get_item(0)?))?.unbind();
+
+    let y_origin = page.getattr("mediabox")?.get_item(1)?;
+    let y_from_bottom = add.call1((y_origin, page.getattr("height")?))?;
+    let y = subtract
+        .call1((y_from_bottom, point.get_item(1)?))?
+        .unbind();
+
+    Ok((x, y))
+}
+
+fn parse_point2coord_arg(
+    args: &Bound<'_, PyTuple>,
+    kwargs: Option<&Bound<'_, PyDict>>,
+) -> PyResult<PyObject> {
+    if args.len() > 1 {
+        return Err(PyTypeError::new_err(format!(
+            "Page.point2coord() takes 2 positional arguments but {} were given",
+            args.len() + 1
+        )));
+    }
+
+    let mut point = args.get_item(0).ok().map(Bound::unbind);
+    if let Some(kwargs) = kwargs {
+        for (key, value) in kwargs.iter() {
+            let key = key.extract::<String>()?;
+            if key != "pt" {
+                return Err(PyTypeError::new_err(format!(
+                    "Page.point2coord() got an unexpected keyword argument '{key}'"
+                )));
+            }
+            if point.is_some() {
+                return Err(PyTypeError::new_err(
+                    "Page.point2coord() got multiple values for argument 'pt'",
+                ));
+            }
+            point = Some(value.unbind());
+        }
+    }
+
+    point.ok_or_else(|| {
+        PyTypeError::new_err("Page.point2coord() missing 1 required positional argument: 'pt'")
+    })
+}
+
 fn initial_doctop_to_object(py: Python<'_>, value: f64) -> PyObject {
     if value == 0.0 {
         0_i64.into_pyobject(py).unwrap().into_any().unbind()
@@ -811,9 +866,11 @@ impl PyCroppedPage {
         parent_page: Py<PyAny>,
         root_page: Py<PyAny>,
     ) -> PyResult<Py<Self>> {
+        let mediabox = parent_page.bind(py).getattr("mediabox")?.unbind();
         let page = Py::new(py, Self { inner })?;
         page.bind(py).setattr("parent_page", parent_page)?;
         page.bind(py).setattr("root_page", root_page)?;
+        page.bind(py).setattr("mediabox", mediabox)?;
         Ok(page)
     }
 
@@ -845,6 +902,19 @@ impl PyCroppedPage {
     #[getter]
     fn height(&self) -> f64 {
         self.inner.height()
+    }
+
+    /// Convert a PDF-space point to this page view's top-origin coordinates.
+    #[pyo3(signature = (*args, **kwargs), text_signature = "($self, pt)")]
+    fn point2coord(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(PyObject, PyObject)> {
+        let page: Py<Self> = slf.into();
+        let point = parse_point2coord_arg(args, kwargs)?;
+        compatible_point2coord(py, page.bind(py).as_any(), point.bind(py))
     }
 
     /// Characters in the cropped region as list[dict].
@@ -1612,6 +1682,8 @@ impl PyPdf {
             )?;
             page.bind(py)
                 .setattr("bbox", compatible_bbox_tuple(media_box))?;
+            page.bind(py)
+                .setattr("mediabox", compatible_bbox_tuple(media_box))?;
             page.bind(py).setattr("root_page", page.clone_ref(py))?;
             if let Some(trim_box) = trim_box {
                 page.bind(py)
@@ -1869,6 +1941,18 @@ impl PyPage {
         )
     }
 
+    #[cfg(test)]
+    fn into_py_for_test(self, py: Python<'_>) -> PyResult<Py<Self>> {
+        let media_box = self.geometry.media_box;
+        let page = Py::new(py, self)?;
+        page.bind(py)
+            .setattr("bbox", compatible_bbox_tuple(media_box))?;
+        page.bind(py)
+            .setattr("mediabox", compatible_bbox_tuple(media_box))?;
+        page.bind(py).setattr("root_page", page.clone_ref(py))?;
+        Ok(page)
+    }
+
     fn with_page<T>(
         &self,
         py: Python<'_>,
@@ -1992,16 +2076,23 @@ impl PyPage {
         compatible_geometry_number(self.geometry.height)
     }
 
+    /// Convert a PDF-space point to this page view's top-origin coordinates.
+    #[pyo3(signature = (*args, **kwargs), text_signature = "($self, pt)")]
+    fn point2coord(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<(PyObject, PyObject)> {
+        let page: Py<Self> = slf.into();
+        let point = parse_point2coord_arg(args, kwargs)?;
+        compatible_point2coord(py, page.bind(py).as_any(), point.bind(py))
+    }
+
     /// Page rotation normalized to the range 0 through 359 degrees.
     #[getter]
     fn rotation(&self) -> i32 {
         self.geometry.rotation
-    }
-
-    /// MediaBox in the page's rotation-aware, top-origin coordinate space.
-    #[getter]
-    fn mediabox(&self) -> (f64, f64, f64, f64) {
-        compatible_bbox_tuple(self.geometry.media_box)
     }
 
     /// CropBox in the page's rotation-aware, top-origin coordinate space.
@@ -2433,12 +2524,33 @@ mod tests {
     fn test_pypage_dimensions() {
         let bytes = minimal_pdf_bytes();
         let pdf = Pdf::open(&bytes, None).expect("open");
-        let pypage = PyPage::from_pdf_for_test(pdf, 0);
-        assert!((pypage.width() - 612.0).abs() < 0.1);
-        assert!((pypage.height() - 792.0).abs() < 0.1);
-        assert_eq!(pypage.rotation(), 0);
-        assert_eq!(pypage.mediabox(), (0.0, 0.0, 612.0, 792.0));
-        assert_eq!(pypage.cropbox(), (0.0, 0.0, 612.0, 792.0));
+        let pypdf = PyPdf::from_inner_for_test(pdf);
+        Python::with_gil(|py| {
+            let pages = pypdf.pages(py).expect("pages");
+            let page = pages.bind(py).get_item(0).expect("page");
+            assert!((page.getattr("width").unwrap().extract::<f64>().unwrap() - 612.0).abs() < 0.1);
+            assert!(
+                (page.getattr("height").unwrap().extract::<f64>().unwrap() - 792.0).abs() < 0.1
+            );
+            assert_eq!(
+                page.getattr("rotation").unwrap().extract::<i32>().unwrap(),
+                0
+            );
+            assert_eq!(
+                page.getattr("mediabox")
+                    .unwrap()
+                    .extract::<(f64, f64, f64, f64)>()
+                    .unwrap(),
+                (0.0, 0.0, 612.0, 792.0)
+            );
+            assert_eq!(
+                page.getattr("cropbox")
+                    .unwrap()
+                    .extract::<(f64, f64, f64, f64)>()
+                    .unwrap(),
+                (0.0, 0.0, 612.0, 792.0)
+            );
+        });
     }
 
     #[test]
@@ -2714,7 +2826,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let cropped =
                 PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 306.0, 396.0)).expect("crop");
             let cropped = cropped.bind(py).borrow();
@@ -2729,7 +2841,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let filtered =
                 PyPage::within_bbox(pypage.bind(py).borrow(), py, (0.0, 0.0, 306.0, 396.0))
                     .expect("within bbox");
@@ -2745,7 +2857,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let filtered =
                 PyPage::outside_bbox(pypage.bind(py).borrow(), py, (100.0, 100.0, 200.0, 200.0))
                     .expect("outside bbox");
@@ -3085,7 +3197,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let cropped =
                 PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 200.0, 300.0)).expect("crop");
             let cropped = cropped.bind(py).borrow();
@@ -3114,7 +3226,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let cropped =
                 PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
             let further =
@@ -3132,7 +3244,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let pypage = Py::new(py, pypage).expect("bind page");
+            let pypage = pypage.into_py_for_test(py).expect("bind page");
             let cropped =
                 PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
             let within = PyCroppedPage::within_bbox(
@@ -3312,9 +3424,21 @@ mod tests {
             2,
             "stubs must declare Page and CroppedPage.root_page"
         );
+        assert_eq!(
+            content
+                .matches("mediabox: tuple[float, float, float, float]")
+                .count(),
+            2,
+            "stubs must declare writable Page and CroppedPage.mediabox"
+        );
         assert!(
             content.contains("parent_page: Page | CroppedPage"),
             "stubs must declare CroppedPage.parent_page"
+        );
+        assert_eq!(
+            content.matches("def point2coord(").count(),
+            2,
+            "stubs must declare Page and CroppedPage.point2coord"
         );
         assert_eq!(
             content
