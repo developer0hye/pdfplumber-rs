@@ -179,6 +179,8 @@ mod tests {
             ascent: 750.0,
             descent: -250.0,
             vertical_origin: (0.0, 0.0),
+            stroking_color: Color::Gray(0.0),
+            non_stroking_color: Color::Gray(0.0),
             mcid: None,
             tag: None,
         }

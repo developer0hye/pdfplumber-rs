@@ -718,7 +718,12 @@ impl Pdf {
             .chars
             .iter()
             .map(|event| {
-                let mut ch = char_from_event(event, page_height, None, None);
+                let mut ch = char_from_event(
+                    event,
+                    page_height,
+                    Some(event.stroking_color.clone()),
+                    Some(event.non_stroking_color.clone()),
+                );
                 if needs_rotation {
                     // char_from_event applied a simple y-flip using the raw page height.
                     // Undo it to recover PDF native coordinates, then apply the full

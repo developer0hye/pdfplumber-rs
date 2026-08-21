@@ -59,8 +59,8 @@ impl InterpreterState {
             ctm: Ctm::identity(),
             graphics_state: GraphicsState::default(),
             stack: Vec::new(),
-            stroking_color_space: None,
-            non_stroking_color_space: None,
+            stroking_color_space: Some(ResolvedColorSpace::DeviceGray),
+            non_stroking_color_space: Some(ResolvedColorSpace::DeviceGray),
         }
     }
 
@@ -179,62 +179,85 @@ impl InterpreterState {
 
     /// `G` operator: set stroking color to DeviceGray.
     pub fn set_stroking_gray(&mut self, gray: f32) {
-        self.stroking_color_space = None;
+        self.stroking_color_space = Some(ResolvedColorSpace::DeviceGray);
         self.graphics_state.stroke_color = Color::Gray(gray);
     }
 
     /// `g` operator: set non-stroking color to DeviceGray.
     pub fn set_non_stroking_gray(&mut self, gray: f32) {
-        self.non_stroking_color_space = None;
+        self.non_stroking_color_space = Some(ResolvedColorSpace::DeviceGray);
         self.graphics_state.fill_color = Color::Gray(gray);
     }
 
     /// `RG` operator: set stroking color to DeviceRGB.
     pub fn set_stroking_rgb(&mut self, r: f32, g: f32, b: f32) {
-        self.stroking_color_space = None;
+        self.stroking_color_space = Some(ResolvedColorSpace::DeviceRGB);
         self.graphics_state.stroke_color = Color::Rgb(r, g, b);
     }
 
     /// `rg` operator: set non-stroking color to DeviceRGB.
     pub fn set_non_stroking_rgb(&mut self, r: f32, g: f32, b: f32) {
-        self.non_stroking_color_space = None;
+        self.non_stroking_color_space = Some(ResolvedColorSpace::DeviceRGB);
         self.graphics_state.fill_color = Color::Rgb(r, g, b);
     }
 
     /// `K` operator: set stroking color to DeviceCMYK.
     pub fn set_stroking_cmyk(&mut self, c: f32, m: f32, y: f32, k: f32) {
-        self.stroking_color_space = None;
+        self.stroking_color_space = Some(ResolvedColorSpace::DeviceCMYK);
         self.graphics_state.stroke_color = Color::Cmyk(c, m, y, k);
     }
 
     /// `k` operator: set non-stroking color to DeviceCMYK.
     pub fn set_non_stroking_cmyk(&mut self, c: f32, m: f32, y: f32, k: f32) {
-        self.non_stroking_color_space = None;
+        self.non_stroking_color_space = Some(ResolvedColorSpace::DeviceCMYK);
         self.graphics_state.fill_color = Color::Cmyk(c, m, y, k);
     }
 
     /// `SC`/`SCN` operator: set stroking color from components.
     ///
-    /// If a stroking color space has been set (via CS), uses it to resolve
-    /// the color. Otherwise falls back to inferring from component count.
+    /// Uses the current color space's component count and ignores leading
+    /// operands, matching PDF operand-stack behavior.
     pub fn set_stroking_color(&mut self, components: &[f32]) {
-        self.graphics_state.stroke_color = if let Some(ref cs) = self.stroking_color_space {
-            cs.resolve_color(components)
-        } else {
-            color_from_components(components)
-        };
+        if let Some(color) = color_for_space(self.stroking_color_space.as_ref(), components) {
+            self.graphics_state.stroke_color = color;
+        }
     }
 
     /// `sc`/`scn` operator: set non-stroking color from components.
     ///
-    /// If a non-stroking color space has been set (via cs), uses it to resolve
-    /// the color. Otherwise falls back to inferring from component count.
+    /// Uses the current color space's component count and ignores leading
+    /// operands, matching PDF operand-stack behavior.
     pub fn set_non_stroking_color(&mut self, components: &[f32]) {
-        self.graphics_state.fill_color = if let Some(ref cs) = self.non_stroking_color_space {
-            cs.resolve_color(components)
-        } else {
-            color_from_components(components)
-        };
+        if let Some(color) = color_for_space(self.non_stroking_color_space.as_ref(), components) {
+            self.graphics_state.fill_color = color;
+        }
+    }
+
+    /// Whether the current stroking color space expects a pattern name.
+    pub fn stroking_color_space_is_pattern(&self) -> bool {
+        matches!(self.stroking_color_space, Some(ResolvedColorSpace::Pattern))
+    }
+
+    /// Whether the current non-stroking color space expects a pattern name.
+    pub fn non_stroking_color_space_is_pattern(&self) -> bool {
+        matches!(
+            self.non_stroking_color_space,
+            Some(ResolvedColorSpace::Pattern)
+        )
+    }
+
+    /// Set a colored or uncolored stroking pattern.
+    pub fn set_stroking_pattern(&mut self, components: &[f32], name: String) {
+        if let Some(color) = pattern_color(components, name) {
+            self.graphics_state.stroke_color = color;
+        }
+    }
+
+    /// Set a colored or uncolored non-stroking pattern.
+    pub fn set_non_stroking_pattern(&mut self, components: &[f32], name: String) {
+        if let Some(color) = pattern_color(components, name) {
+            self.graphics_state.fill_color = color;
+        }
     }
 
     /// `CS` operator: set the stroking color space.
@@ -255,6 +278,30 @@ fn color_from_components(components: &[f32]) -> Color {
         3 => Color::Rgb(components[0], components[1], components[2]),
         4 => Color::Cmyk(components[0], components[1], components[2], components[3]),
         _ => Color::Other(components.to_vec()),
+    }
+}
+
+fn color_for_space(space: Option<&ResolvedColorSpace>, components: &[f32]) -> Option<Color> {
+    let Some(space) = space else {
+        return Some(color_from_components(components));
+    };
+    let expected = space.num_components() as usize;
+    if expected == 0 || components.len() < expected {
+        return None;
+    }
+    Some(space.resolve_color(&components[components.len() - expected..]))
+}
+
+fn pattern_color(components: &[f32], name: String) -> Option<Color> {
+    if components.is_empty() {
+        return Some(Color::Pattern(name));
+    }
+    let base = color_from_components(components);
+    match &base {
+        Color::Gray(_) | Color::Rgb(_, _, _) | Color::Cmyk(_, _, _, _) => {
+            Some(Color::PatternWithBase(Box::new(base), name))
+        }
+        Color::Pattern(_) | Color::PatternWithBase(_, _) | Color::Other(_) => None,
     }
 }
 
@@ -580,6 +627,7 @@ mod tests {
     #[test]
     fn test_set_stroking_color_3_components_is_rgb() {
         let mut state = InterpreterState::new();
+        state.set_stroking_color_space(ResolvedColorSpace::DeviceRGB);
         state.set_stroking_color(&[1.0, 0.0, 0.0]);
         assert_eq!(
             state.graphics_state().stroke_color,
@@ -590,6 +638,7 @@ mod tests {
     #[test]
     fn test_set_stroking_color_4_components_is_cmyk() {
         let mut state = InterpreterState::new();
+        state.set_stroking_color_space(ResolvedColorSpace::DeviceCMYK);
         state.set_stroking_color(&[0.1, 0.2, 0.3, 0.4]);
         assert_eq!(
             state.graphics_state().stroke_color,
@@ -598,13 +647,10 @@ mod tests {
     }
 
     #[test]
-    fn test_set_stroking_color_other_component_count() {
+    fn test_set_stroking_color_uses_last_current_space_component() {
         let mut state = InterpreterState::new();
         state.set_stroking_color(&[0.1, 0.2]);
-        assert_eq!(
-            state.graphics_state().stroke_color,
-            Color::Other(vec![0.1, 0.2])
-        );
+        assert_eq!(state.graphics_state().stroke_color, Color::Gray(0.2));
     }
 
     #[test]
@@ -617,18 +663,63 @@ mod tests {
     #[test]
     fn test_set_non_stroking_color_3_components() {
         let mut state = InterpreterState::new();
+        state.set_non_stroking_color_space(ResolvedColorSpace::DeviceRGB);
         state.set_non_stroking_color(&[0.0, 0.0, 1.0]);
         assert_eq!(state.graphics_state().fill_color, Color::Rgb(0.0, 0.0, 1.0));
     }
 
     #[test]
-    fn test_set_non_stroking_color_5_components_is_other() {
+    fn test_set_non_stroking_color_uses_last_current_space_component() {
         let mut state = InterpreterState::new();
         state.set_non_stroking_color(&[0.1, 0.2, 0.3, 0.4, 0.5]);
+        assert_eq!(state.graphics_state().fill_color, Color::Gray(0.5));
+    }
+
+    #[test]
+    fn test_set_color_preserves_multi_component_advanced_space() {
+        let mut state = InterpreterState::new();
+        state.set_stroking_color_space(ResolvedColorSpace::DeviceN {
+            num_components: 2,
+            alternate: Box::new(ResolvedColorSpace::DeviceRGB),
+        });
+        state.set_stroking_color(&[0.9, 0.3, 0.7]);
+        assert_eq!(
+            state.graphics_state().stroke_color,
+            Color::Rgb(0.3, 0.7, 0.0)
+        );
+    }
+
+    #[test]
+    fn test_pattern_colors_preserve_name_and_optional_base_color() {
+        let mut state = InterpreterState::new();
+        state.set_stroking_color_space(ResolvedColorSpace::Pattern);
+        state.set_non_stroking_color_space(ResolvedColorSpace::Pattern);
+
+        assert!(state.stroking_color_space_is_pattern());
+        assert!(state.non_stroking_color_space_is_pattern());
+        state.set_stroking_pattern(&[], "StrokePattern".to_string());
+        state.set_non_stroking_pattern(&[0.25, 0.5, 0.75], "FillPattern".to_string());
+
+        assert_eq!(
+            state.graphics_state().stroke_color,
+            Color::Pattern("StrokePattern".to_string())
+        );
         assert_eq!(
             state.graphics_state().fill_color,
-            Color::Other(vec![0.1, 0.2, 0.3, 0.4, 0.5])
+            Color::PatternWithBase(
+                Box::new(Color::Rgb(0.25, 0.5, 0.75)),
+                "FillPattern".to_string()
+            )
         );
+    }
+
+    #[test]
+    fn test_invalid_pattern_base_components_preserve_previous_color() {
+        let mut state = InterpreterState::new();
+        state.set_stroking_gray(0.25);
+        state.set_stroking_color_space(ResolvedColorSpace::Pattern);
+        state.set_stroking_pattern(&[0.25, 0.75], "Invalid".to_string());
+        assert_eq!(state.graphics_state().stroke_color, Color::Gray(0.25));
     }
 
     // --- Color state independence ---

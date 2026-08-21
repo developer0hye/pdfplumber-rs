@@ -9,8 +9,8 @@ use crate::path::{Path, PathBuilder};
 
 /// Color value from a PDF color space.
 ///
-/// Supports the standard PDF color spaces: DeviceGray, DeviceRGB,
-/// DeviceCMYK, and other (e.g., indexed, ICC-based) spaces.
+/// Supports the standard PDF color spaces, pattern colors, and other
+/// (e.g., indexed, ICC-based) spaces.
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum Color {
@@ -20,6 +20,10 @@ pub enum Color {
     Rgb(f32, f32, f32),
     /// DeviceCMYK: (c, m, y, k) components in [0.0, 1.0].
     Cmyk(f32, f32, f32, f32),
+    /// A colored tiling pattern, stored by its PDF resource name.
+    Pattern(String),
+    /// An uncolored tiling pattern with its base color and PDF resource name.
+    PatternWithBase(Box<Color>, String),
     /// Other color space (e.g., indexed, ICC-based).
     Other(Vec<f32>),
 }
@@ -32,7 +36,7 @@ impl Color {
 
     /// Convert this color to an RGB triple `(r, g, b)` with components in `[0.0, 1.0]`.
     ///
-    /// Returns `None` for `Color::Other` since the color space is unknown.
+    /// Returns `None` for pattern and unknown color spaces.
     pub fn to_rgb(&self) -> Option<(f32, f32, f32)> {
         match self {
             Color::Gray(g) => Some((*g, *g, *g)),
@@ -44,7 +48,7 @@ impl Color {
                 let b = (1.0 - y) * (1.0 - k);
                 Some((r, g, b))
             }
-            Color::Other(_) => None,
+            Color::Pattern(_) | Color::PatternWithBase(_, _) | Color::Other(_) => None,
         }
     }
 }

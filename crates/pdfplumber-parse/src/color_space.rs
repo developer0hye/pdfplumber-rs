@@ -15,6 +15,8 @@ pub enum ResolvedColorSpace {
     DeviceRGB,
     /// DeviceCMYK (4 components).
     DeviceCMYK,
+    /// Pattern color space. The pattern name is supplied by SCN/scn.
+    Pattern,
     /// ICCBased color space: stores the number of components and the
     /// alternate color space to use for conversion.
     ICCBased {
@@ -55,6 +57,7 @@ impl ResolvedColorSpace {
             ResolvedColorSpace::DeviceGray => 1,
             ResolvedColorSpace::DeviceRGB => 3,
             ResolvedColorSpace::DeviceCMYK => 4,
+            ResolvedColorSpace::Pattern => 1,
             ResolvedColorSpace::ICCBased { num_components, .. } => *num_components,
             ResolvedColorSpace::Indexed { .. } => 1,
             ResolvedColorSpace::Separation { .. } => 1,
@@ -82,6 +85,7 @@ impl ResolvedColorSpace {
                 let k = components.get(3).copied().unwrap_or(0.0);
                 Color::Cmyk(c, m, y, k)
             }
+            ResolvedColorSpace::Pattern => Color::Other(components.to_vec()),
             ResolvedColorSpace::ICCBased { alternate, .. } => {
                 // Use the alternate color space for interpretation
                 alternate.resolve_color(components)
@@ -159,6 +163,7 @@ pub fn resolve_color_space_name(
         "DeviceGray" | "G" => Some(ResolvedColorSpace::DeviceGray),
         "DeviceRGB" | "RGB" => Some(ResolvedColorSpace::DeviceRGB),
         "DeviceCMYK" | "CMYK" => Some(ResolvedColorSpace::DeviceCMYK),
+        "Pattern" => Some(ResolvedColorSpace::Pattern),
         _ => {
             // Look up in Resources /ColorSpace dictionary
             if let Ok(cs_dict) = resources.get(b"ColorSpace").and_then(|o| o.as_dict()) {
@@ -183,6 +188,7 @@ pub fn resolve_color_space_object(
                 "DeviceGray" | "G" => Some(ResolvedColorSpace::DeviceGray),
                 "DeviceRGB" | "RGB" => Some(ResolvedColorSpace::DeviceRGB),
                 "DeviceCMYK" | "CMYK" => Some(ResolvedColorSpace::DeviceCMYK),
+                "Pattern" => Some(ResolvedColorSpace::Pattern),
                 _ => None,
             }
         }
@@ -220,6 +226,7 @@ fn resolve_color_space_array(
         "DeviceGray" | "G" => Some(ResolvedColorSpace::DeviceGray),
         "DeviceRGB" | "RGB" => Some(ResolvedColorSpace::DeviceRGB),
         "DeviceCMYK" | "CMYK" => Some(ResolvedColorSpace::DeviceCMYK),
+        "Pattern" => Some(ResolvedColorSpace::Pattern),
         _ => None,
     }
 }
@@ -500,6 +507,7 @@ mod tests {
         assert_eq!(ResolvedColorSpace::DeviceGray.num_components(), 1);
         assert_eq!(ResolvedColorSpace::DeviceRGB.num_components(), 3);
         assert_eq!(ResolvedColorSpace::DeviceCMYK.num_components(), 4);
+        assert_eq!(ResolvedColorSpace::Pattern.num_components(), 1);
     }
 
     // --- Color space name resolution tests ---
@@ -531,6 +539,16 @@ mod tests {
         assert!(matches!(
             resolve_color_space_name("DeviceCMYK", &doc, &resources),
             Some(ResolvedColorSpace::DeviceCMYK)
+        ));
+    }
+
+    #[test]
+    fn resolve_name_pattern() {
+        let doc = lopdf::Document::with_version("1.5");
+        let resources = dictionary! {};
+        assert!(matches!(
+            resolve_color_space_name("Pattern", &doc, &resources),
+            Some(ResolvedColorSpace::Pattern)
         ));
     }
 

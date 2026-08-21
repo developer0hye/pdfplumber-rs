@@ -55,6 +55,10 @@ pub struct CharEvent {
     /// vertical origin, which is displaced from the horizontal origin by (vx, vy).
     /// (0.0, 0.0) for horizontal text.
     pub vertical_origin: (f64, f64),
+    /// Stroking color from the graphics state when this glyph was rendered.
+    pub stroking_color: Color,
+    /// Non-stroking color from the graphics state when this glyph was rendered.
+    pub non_stroking_color: Color,
     /// Marked content identifier (MCID) from BDC operator, if inside a marked content sequence.
     pub mcid: Option<u32>,
     /// Structure tag name (e.g., "P", "Span", "H1") from BMC/BDC operator.
@@ -215,6 +219,8 @@ mod tests {
             ascent: 750.0,
             descent: -250.0,
             vertical_origin: (0.0, 0.0),
+            stroking_color: Color::Gray(0.0),
+            non_stroking_color: Color::Gray(0.0),
             mcid: None,
             tag: None,
         }
@@ -279,6 +285,8 @@ mod tests {
         assert_eq!(event.displacement, 667.0);
         assert_eq!(event.h_scaling, 1.0);
         assert_eq!(event.rise, 0.0);
+        assert_eq!(event.stroking_color, Color::Gray(0.0));
+        assert_eq!(event.non_stroking_color, Color::Gray(0.0));
     }
 
     #[test]
