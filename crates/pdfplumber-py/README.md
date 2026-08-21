@@ -82,10 +82,10 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |
 | `.extract_text(layout=False)` | Extract all text |
 | `.extract_words(x_tolerance=3.0, y_tolerance=3.0)` | Extract words with bounding boxes |
-| `.chars()` | Character-level data with font info |
+| `.chars` | Character-level data with font info |
 | `.find_tables()` | Detect tables, returns `Table` objects |
 | `.extract_tables()` | Extract all table content |
-| `.lines()` / `.rects()` / `.curves()` / `.images()` | Geometric objects |
+| `.lines` / `.rects` / `.curves` / `.images` | Geometric objects |
 | `.crop(bbox)` | Crop to region `(x0, top, x1, bottom)` |
 | `.within_bbox(bbox)` / `.outside_bbox(bbox)` | Spatial filtering |
 | `.search(pattern, regex=True, case=True)` | Search for text |
@@ -101,7 +101,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 
 ### CroppedPage
 
-Supports the same content methods as `Page`: `chars()`, `extract_text()`, `extract_words()`, `find_tables()`, `extract_tables()`, `lines()`, `rects()`, `curves()`, `images()`, and `point2coord()`, plus further `crop()`, `within_bbox()`, `outside_bbox()`.
+Supports the same content surface as `Page`: `chars`, `lines`, `rects`, `curves`, `images`, `extract_text()`, `extract_words()`, `find_tables()`, `extract_tables()`, and `point2coord()`, plus further `crop()`, `within_bbox()`, and `outside_bbox()`.
 
 ## Rust-Native Extensions
 
