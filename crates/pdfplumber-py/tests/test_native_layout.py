@@ -2335,6 +2335,86 @@ class NativeLayoutTests(unittest.TestCase):
                     objects["marker"] = []
                     self.assertIn("marker", page.objects)
 
+    def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        geometry_fields = (
+            "x0",
+            "x1",
+            "y0",
+            "y1",
+            "top",
+            "bottom",
+            "width",
+            "height",
+            "doctop",
+        )
+        cases = (
+            (
+                repository / "tests/fixtures/real-world/images/inline-image.pdf",
+                0,
+                1,
+                (200.0, 300.0, 400.0, 500.0, 292.0, 392.0, 100.0, 100.0, 292.0),
+            ),
+            (
+                repository / "tests/fixtures/real-world/images/xobject-image.pdf",
+                0,
+                1,
+                (100.0, 300.0, 400.0, 550.0, 242.0, 392.0, 200.0, 150.0, 242.0),
+            ),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/issue-71-duplicate-chars.pdf",
+                1,
+                16,
+                (
+                    331.79100300000005,
+                    338.24400306750005,
+                    602.7019984325,
+                    609.1549985,
+                    232.84500149999997,
+                    239.29800156750002,
+                    6.4530000675,
+                    6.4530000675000565,
+                    1074.8450014999999,
+                ),
+            ),
+        )
+
+        for fixture, page_index, expected_count, expected_geometry in cases:
+            with self.subTest(fixture=fixture.name, page=page_index + 1):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[page_index]
+                    document_images = [
+                        image
+                        for image in document.objects["image"]
+                        if image["page_number"] == page.page_number
+                    ]
+                    image_lists = (
+                        page.images,
+                        page.crop(page.bbox).images,
+                        document_images,
+                        page.to_dict(["image"])["images"],
+                        json.loads(page.to_json(object_types=["image"]))["images"],
+                    )
+                    self.assertTrue(
+                        all(len(images) == expected_count for images in image_lists)
+                    )
+                    self.assertEqual(
+                        tuple(
+                            tuple(images[0].get(name, "MISSING") for name in geometry_fields)
+                            for images in image_lists
+                        ),
+                        (expected_geometry,) * len(image_lists),
+                    )
+                    self.assertTrue(
+                        all(
+                            type(image[name]) is float
+                            for images in image_lists
+                            for image in images
+                            for name in geometry_fields
+                        )
+                    )
+
     def test_cropped_page_objects_preserve_parent_keys_in_distinct_cache(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         fixture = (

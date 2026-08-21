@@ -748,6 +748,23 @@ fn image_to_dict(py: Python<'_>, img: &Image, page_number: Option<usize>) -> PyR
     Ok(dict.into_any().unbind())
 }
 
+fn page_image_to_dict(
+    py: Python<'_>,
+    img: &Image,
+    page_number: usize,
+    page_height: f64,
+    initial_doctop: f64,
+) -> PyResult<PyObject> {
+    let dict_object = image_to_dict(py, img, Some(page_number))?;
+    {
+        let dict = dict_object.bind(py).downcast::<PyDict>()?;
+        dict.set_item("y0", page_height - img.bottom)?;
+        dict.set_item("y1", page_height - img.top)?;
+        dict.set_item("doctop", initial_doctop + img.top)?;
+    }
+    Ok(dict_object)
+}
+
 fn annotation_to_dict(
     py: Python<'_>,
     annotation: &Annotation,
@@ -2860,10 +2877,14 @@ impl PyPage {
 
     fn image_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
+        let page_height = self.height();
+        let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.images()
                 .iter()
-                .map(|image| image_to_dict(py, image, Some(page_number)))
+                .map(|image| {
+                    page_image_to_dict(py, image, page_number, page_height, initial_doctop)
+                })
                 .collect()
         })
     }
@@ -4260,7 +4281,8 @@ mod tests {
             mime_type: None,
         };
         Python::with_gil(|py| {
-            let dict_obj = image_to_dict(py, &img, Some(7)).expect("image_to_dict");
+            let dict_obj =
+                page_image_to_dict(py, &img, 7, 400.0, 100.0).expect("page_image_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let name: String = dict.get_item("name").unwrap().unwrap().extract().unwrap();
             assert_eq!(name, "Im0");
@@ -4278,6 +4300,18 @@ mod tests {
                 .extract()
                 .unwrap();
             assert_eq!(page_number, 7);
+            let y0: f64 = dict.get_item("y0").unwrap().unwrap().extract().unwrap();
+            assert_eq!(y0, 300.0);
+            let y1: f64 = dict.get_item("y1").unwrap().unwrap().extract().unwrap();
+            assert_eq!(y1, 400.0);
+            let doctop: f64 = dict.get_item("doctop").unwrap().unwrap().extract().unwrap();
+            assert_eq!(doctop, 100.0);
+
+            let raw_obj = image_to_dict(py, &img, None).expect("raw image_to_dict");
+            let raw = raw_obj.downcast_bound::<PyDict>(py).expect("PyDict");
+            for key in ["page_number", "y0", "y1", "doctop"] {
+                assert!(raw.get_item(key).unwrap().is_none());
+            }
         });
     }
 
