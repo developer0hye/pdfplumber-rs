@@ -263,6 +263,39 @@ class NativeLayoutTests(unittest.TestCase):
         )
 
     @classmethod
+    def mixed_page_and_text_rotations_pdf(cls) -> bytes:
+        content = (
+            b"BT /F1 10 Tf "
+            b"1 0 0 1 20 210 Tm (UP) Tj "
+            b"0 1 -1 0 170 20 Tm (RIGHT) Tj "
+            b"-1 0 0 -1 180 40 Tm (DOWN) Tj "
+            b"0 -1 1 0 40 220 Tm (LEFT) Tj ET"
+        )
+        page_ids = (3, 5, 7, 9)
+        objects = [
+            b"<< /Type /Catalog /Pages 2 0 R >>",
+            b"<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R] /Count 4 >>",
+        ]
+        for page_id, rotation in zip(page_ids, (0, 90, 180, 270), strict=True):
+            content_id = page_id + 1
+            objects.extend(
+                [
+                    (
+                        b"<< /Type /Page /Parent 2 0 R "
+                        b"/MediaBox [0 0 200 240] "
+                        + f"/Rotate {rotation} ".encode()
+                        + b"/Resources << /Font << /F1 11 0 R >> >> "
+                        + f"/Contents {content_id} 0 R >>".encode()
+                    ),
+                    f"<< /Length {len(content)} >>\nstream\n".encode()
+                    + content
+                    + b"\nendstream",
+                ]
+            )
+        objects.append(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>")
+        return cls.build_inline_pdf(tuple(objects))
+
+    @classmethod
     def split_level_page_tree_pdf(cls) -> bytes:
         contents = (
             b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
@@ -1543,6 +1576,158 @@ class NativeLayoutTests(unittest.TestCase):
                     (130, 70, 160, 90),
                     270,
                     (0, 0, 200, 100),
+                ),
+            ],
+        )
+
+    def test_mixed_page_and_content_rotations_match_reading_semantics(self) -> None:
+        with pdfplumber.open(
+            io.BytesIO(self.mixed_page_and_text_rotations_pdf())
+        ) as document:
+            snapshots = []
+            for page in document.pages:
+                snapshots.append(
+                    (
+                        page.page_number,
+                        page.rotation,
+                        page.bbox,
+                        page.width,
+                        page.height,
+                        page.initial_doctop,
+                        page.extract_text(),
+                        "".join(char["text"] for char in page.chars),
+                        tuple(char["upright"] for char in page.chars),
+                        tuple(
+                            (word["text"], word["direction"])
+                            for word in page.extract_words()
+                        ),
+                        page.chars[0]["doctop"],
+                        page.to_dict([])["initial_doctop"],
+                    )
+                )
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    1,
+                    0,
+                    (0, 0, 200, 240),
+                    200,
+                    240,
+                    0,
+                    "UP\nTHGIR\nNWOD\nLEFT",
+                    "UPRIGHTDOWNLEFT",
+                    (
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                    ),
+                    (("UP", "ltr"), ("THGIR", "ttb"), ("NWOD", "ltr"), ("LEFT", "ttb")),
+                    22.069999999999993,
+                    0,
+                ),
+                (
+                    2,
+                    90,
+                    (0, 0, 240, 200),
+                    240,
+                    200,
+                    240,
+                    "UP\nRIGHT\nNWOD\nTFEL",
+                    "UPRIGHTDOWNLEFT",
+                    (
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                    ),
+                    (("UP", "ttb"), ("RIGHT", "ltr"), ("NWOD", "ttb"), ("TFEL", "ltr")),
+                    260.0,
+                    240,
+                ),
+                (
+                    3,
+                    180,
+                    (0, 0, 200, 240),
+                    200,
+                    240,
+                    440,
+                    "PU\nRIGHT\nDOWN\nTFEL",
+                    "UPRIGHTDOWNLEFT",
+                    (
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                    ),
+                    (("PU", "ltr"), ("RIGHT", "ttb"), ("DOWN", "ltr"), ("TFEL", "ttb")),
+                    647.9300000000001,
+                    440,
+                ),
+                (
+                    4,
+                    270,
+                    (0, 0, 240, 200),
+                    240,
+                    200,
+                    680,
+                    "PU\nTHGIR\nDOWN\nLEFT",
+                    "UPRIGHTDOWNLEFT",
+                    (
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                        True,
+                        False,
+                        False,
+                        False,
+                        False,
+                        True,
+                        True,
+                        True,
+                        True,
+                    ),
+                    (("PU", "ttb"), ("THGIR", "ltr"), ("DOWN", "ttb"), ("LEFT", "ltr")),
+                    852.78,
+                    680,
                 ),
             ],
         )
