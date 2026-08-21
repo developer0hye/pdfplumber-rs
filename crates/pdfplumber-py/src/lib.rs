@@ -162,6 +162,8 @@ fn char_to_dict(
     dict.set_item("size", ch.size)?;
     dict.set_item("doctop", ch.doctop)?;
     dict.set_item("upright", ch.upright)?;
+    dict.set_item("mcid", ch.mcid)?;
+    dict.set_item("tag", ch.tag.as_deref())?;
     dict.set_item(
         "direction",
         match ch.direction {
@@ -4723,6 +4725,8 @@ mod tests {
                 .extract()
                 .unwrap();
             assert!(upright);
+            assert!(dict.get_item("mcid").unwrap().unwrap().is_none());
+            assert!(dict.get_item("tag").unwrap().unwrap().is_none());
             let direction: String = dict
                 .get_item("direction")
                 .unwrap()
