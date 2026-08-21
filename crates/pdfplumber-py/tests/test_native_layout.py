@@ -360,6 +360,30 @@ class NativeLayoutTests(unittest.TestCase):
         )
 
     @classmethod
+    def missing_value_behavior_pdf(cls) -> bytes:
+        content = (
+            b"/P <</MCID 7>> BDC "
+            b"BT /F1 10 Tf 10 80 Td (T) Tj ET EMC "
+            b"BT /F1 10 Tf 20 80 Td (U) Tj ET"
+        )
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                (
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] "
+                    b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R "
+                    b"/Annots [6 0 R] >>"
+                ),
+                f"<< /Length {len(content)} >>\nstream\n".encode()
+                + content
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                b"<< /Type /Annot /Subtype /Text /Rect [10 10 20 20] >>",
+            )
+        )
+
+    @classmethod
     def split_level_page_tree_pdf(cls) -> bytes:
         contents = (
             b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
@@ -1865,6 +1889,63 @@ class NativeLayoutTests(unittest.TestCase):
                     for stroke, fill in expected_rects
                 ],
             )
+
+    def test_missing_values_remain_present_as_none_across_object_surfaces(
+        self,
+    ) -> None:
+        expected_chars = [
+            ("T", True, 7, True, "P"),
+            ("U", True, None, True, None),
+        ]
+        expected_annots = [
+            (
+                ("uri", True, None),
+                ("title", True, None),
+                ("contents", True, None),
+            )
+        ]
+
+        def char_optional_fields(character: dict[str, object]) -> tuple[object, ...]:
+            return (
+                character["text"],
+                "mcid" in character,
+                character.get("mcid"),
+                "tag" in character,
+                character.get("tag"),
+            )
+
+        def annot_optional_fields(annotation: dict[str, object]) -> tuple[object, ...]:
+            return tuple(
+                (key, key in annotation, annotation.get(key))
+                for key in ("uri", "title", "contents")
+            )
+
+        with pdfplumber.open(io.BytesIO(self.missing_value_behavior_pdf())) as document:
+            page = document.pages[0]
+            serialized = page.to_dict(["char", "annot"])
+            json_page = json.loads(page.to_json(object_types=["char", "annot"]))
+
+            for characters in (
+                page.chars,
+                document.objects["char"],
+                serialized["chars"],
+                json_page["chars"],
+            ):
+                self.assertEqual(
+                    [char_optional_fields(item) for item in characters],
+                    expected_chars,
+                )
+
+            for annotations in (
+                page.annots,
+                document.annots,
+                serialized["annots"],
+                json_page["annots"],
+            ):
+                self.assertEqual(
+                    [annot_optional_fields(item) for item in annotations],
+                    expected_annots,
+                )
 
     def test_page_and_object_geometry_matches_exact_values(self) -> None:
         geometry_fields = (
