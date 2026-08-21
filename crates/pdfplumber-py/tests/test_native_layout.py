@@ -1754,6 +1754,140 @@ class NativeLayoutTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, r"between -1 and \+1"):
             pdfplumber.open(fixture, laparams={"boxes_flow": 2.0})
 
+    def test_laparams_exposes_cached_horizontal_layout_objects(self) -> None:
+        property_names = (
+            "textboxhorizontals",
+            "textboxverticals",
+            "textlinehorizontals",
+            "textlineverticals",
+        )
+        with pdfplumber.open(self.fixture()) as document:
+            page = document.pages[0]
+            self.assertEqual(list(page.objects), ["char"])
+            for name in property_names:
+                self.assertEqual(getattr(page, name), [])
+                self.assertIsNot(getattr(page, name), getattr(page, name))
+
+        expected_texts = [
+            "The quick brown fox jumps over the lazy dog.\n",
+            'Special chars: "quotes", copyright ©, registered ®, section §, degree °, plus-minus ±\n',
+            "Accented: café, naïve, résumé, über, piñata, à la carte\n",
+            "Numbers: 0 1 2 3 4 5 6 7 8 9. Price: $1,234.56. Ratio: 3:1. Percent: 99.9%\n",
+        ]
+        expected_schema = [
+            "x0",
+            "y0",
+            "x1",
+            "y1",
+            "width",
+            "height",
+            "object_type",
+            "page_number",
+            "text",
+            "top",
+            "bottom",
+            "doctop",
+        ]
+        with pdfplumber.open(self.fixture(), laparams={}) as document:
+            page = document.pages[0]
+            objects = page.objects
+            self.assertEqual(
+                {kind: len(values) for kind, values in objects.items()},
+                {"textboxhorizontal": 4, "textlinehorizontal": 4, "char": 258},
+            )
+            self.assertEqual(list(objects), list(document.objects))
+            self.assertEqual(
+                [item["text"] for item in objects["textboxhorizontal"]],
+                expected_texts,
+            )
+            self.assertEqual(
+                [item["text"] for item in objects["textlinehorizontal"]],
+                expected_texts,
+            )
+            self.assertEqual(list(objects["textboxhorizontal"][0]), expected_schema)
+            first_box = objects["textboxhorizontal"][0]
+            self.assertEqual(
+                {
+                    key: first_box[key]
+                    for key in ("x0", "y0", "y1", "height")
+                },
+                {"x0": 31.18, "y0": 798.956, "y1": 810.956, "height": 12.0},
+            )
+            self.assertEqual(first_box["width"], first_box["x1"] - first_box["x0"])
+            self.assertIs(page.textboxhorizontals, objects["textboxhorizontal"])
+            self.assertIs(page.textlinehorizontals, objects["textlinehorizontal"])
+            self.assertIs(
+                document.textboxhorizontals,
+                document.objects["textboxhorizontal"],
+            )
+            for name in ("textboxverticals", "textlineverticals"):
+                self.assertIsNot(getattr(page, name), getattr(page, name))
+            self.assertEqual(
+                list(page.to_dict()),
+                [
+                    "page_number",
+                    "initial_doctop",
+                    "rotation",
+                    "cropbox",
+                    "mediabox",
+                    "bbox",
+                    "width",
+                    "height",
+                    "textboxhorizontals",
+                    "textlinehorizontals",
+                    "chars",
+                    "annots",
+                ],
+            )
+            cropped = page.crop(page.bbox)
+            self.assertEqual(
+                {kind: len(values) for kind, values in cropped.objects.items()},
+                {"textboxhorizontal": 4, "textlinehorizontal": 4, "char": 258},
+            )
+            self.assertIs(
+                cropped.textboxhorizontals,
+                cropped.objects["textboxhorizontal"],
+            )
+
+    def test_laparams_line_margin_controls_textbox_grouping(self) -> None:
+        fixture = (
+            Path(__file__).resolve().parents[3]
+            / "tests/fixtures/generated/multi_font.pdf"
+        )
+        expected_lines = [
+            "Document Title\n",
+            "A subtitle in italic style\n",
+            "This  is  the  body  text  in  regular  12pt  Helvetica.  It  contains  multiple  sentences  to  provide  enough\n",
+            "characters for font analysis. The quick brown fox jumps over the lazy dog.\n",
+            "def hello():\n",
+            "    print('Hello, World!')\n",
+            "    return 42\n",
+        ]
+        expected_default_boxes = [
+            expected_lines[0],
+            expected_lines[1],
+            expected_lines[2] + expected_lines[3],
+            "".join(expected_lines[4:]),
+        ]
+        for line_margin, expected_boxes in (
+            (0, expected_lines),
+            (0.5, expected_default_boxes),
+            (2, ["".join(expected_lines)]),
+        ):
+            with self.subTest(line_margin=line_margin):
+                with pdfplumber.open(
+                    fixture, laparams={"line_margin": line_margin}
+                ) as document:
+                    page = document.pages[0]
+                    self.assertEqual(
+                        [item["text"] for item in page.textlinehorizontals],
+                        expected_lines,
+                    )
+                    self.assertEqual(
+                        [item["text"] for item in page.textboxhorizontals],
+                        expected_boxes,
+                    )
+
     def test_open_uses_password_for_paths_and_external_streams(self) -> None:
         from pdfplumber.utils.exceptions import PdfminerException
 

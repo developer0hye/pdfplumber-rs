@@ -116,6 +116,26 @@ class PDF:
         ...
 
     @property
+    def textboxhorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textboxverticals(self) -> list[dict[str, object]]:
+        """Vertical text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlinehorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text lines produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlineverticals(self) -> list[dict[str, object]]:
+        """Vertical text lines produced by requested layout analysis."""
+        ...
+
+    @property
     def annots(self) -> list[AnnotDict]:
         """Annotation dictionaries from all selected pages."""
         ...
@@ -244,6 +264,26 @@ class Page:
     @property
     def objects(self) -> dict[str, list[dict[str, object]]]:
         """Objects on this page grouped by their upstream type name."""
+        ...
+
+    @property
+    def textboxhorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textboxverticals(self) -> list[dict[str, object]]:
+        """Vertical text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlinehorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text lines produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlineverticals(self) -> list[dict[str, object]]:
+        """Vertical text lines produced by requested layout analysis."""
         ...
 
     @property
@@ -377,6 +417,26 @@ class CroppedPage:
     @property
     def objects(self) -> dict[str, list[dict[str, object]]]:
         """Objects in the cropped region grouped by type name."""
+        ...
+
+    @property
+    def textboxhorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textboxverticals(self) -> list[dict[str, object]]:
+        """Vertical text boxes produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlinehorizontals(self) -> list[dict[str, object]]:
+        """Horizontal text lines produced by requested layout analysis."""
+        ...
+
+    @property
+    def textlineverticals(self) -> list[dict[str, object]]:
+        """Vertical text lines produced by requested layout analysis."""
         ...
 
     @property
