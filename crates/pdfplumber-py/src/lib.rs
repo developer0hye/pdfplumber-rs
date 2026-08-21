@@ -164,6 +164,13 @@ struct CompatibleLayoutLine {
     text: String,
 }
 
+struct CompatibleLayoutObjects {
+    horizontal_boxes: Vec<PyObject>,
+    vertical_boxes: Vec<PyObject>,
+    horizontal_lines: Vec<PyObject>,
+    vertical_lines: Vec<PyObject>,
+}
+
 fn laparams_number(params: &Bound<'_, PyDict>, key: &str, default: f64) -> PyResult<f64> {
     params
         .get_item(key)?
@@ -212,18 +219,18 @@ fn horizontal_layout_line(chars: &[&Char], word_margin: f64) -> CompatibleLayout
 }
 
 fn horizontal_layout_lines(
-    chars: &[Char],
+    chars: &[&Char],
     line_overlap: f64,
     char_margin: f64,
     word_margin: f64,
 ) -> Vec<CompatibleLayoutLine> {
-    let Some(first) = chars.first() else {
+    let Some(&first) = chars.first() else {
         return Vec::new();
     };
 
     let mut lines = Vec::new();
     let mut current = vec![first];
-    for ch in chars.iter().skip(1) {
+    for &ch in chars.iter().skip(1) {
         if horizontal_char_alignment(
             current.last().expect("line is nonempty"),
             ch,
@@ -237,6 +244,80 @@ fn horizontal_layout_lines(
         }
     }
     lines.push(horizontal_layout_line(&current, word_margin));
+    lines
+}
+
+fn vertical_char_alignment(top: &Char, bottom: &Char, line_overlap: f64, char_margin: f64) -> bool {
+    let horizontal_overlap = top.bbox.x1.min(bottom.bbox.x1) - top.bbox.x0.max(bottom.bbox.x0);
+    if horizontal_overlap <= 0.0
+        || top.bbox.width().min(bottom.bbox.width()) * line_overlap >= horizontal_overlap
+    {
+        return false;
+    }
+
+    let vertical_distance =
+        if bottom.bbox.top <= top.bbox.bottom && top.bbox.top <= bottom.bbox.bottom {
+            0.0
+        } else {
+            (top.bbox.top - bottom.bbox.bottom)
+                .abs()
+                .min((top.bbox.bottom - bottom.bbox.top).abs())
+        };
+    vertical_distance < top.bbox.height().max(bottom.bbox.height()) * char_margin
+}
+
+fn vertical_layout_line(chars: &[&Char], word_margin: f64) -> CompatibleLayoutLine {
+    let mut bbox = chars[0].bbox;
+    let mut text = String::new();
+    let mut previous: Option<BBox> = None;
+    for ch in chars {
+        if let Some(previous) = previous {
+            let distance = if ch.bbox.top <= previous.bottom && previous.top <= ch.bbox.bottom {
+                0.0
+            } else {
+                (previous.top - ch.bbox.bottom)
+                    .abs()
+                    .min((previous.bottom - ch.bbox.top).abs())
+            };
+            let margin = word_margin * ch.bbox.width().max(ch.bbox.height());
+            if distance > margin {
+                text.push(' ');
+            }
+        }
+        text.push_str(&ch.text);
+        previous = Some(ch.bbox);
+        bbox = bbox.union(&ch.bbox);
+    }
+    text.push('\n');
+    CompatibleLayoutLine { bbox, text }
+}
+
+fn vertical_layout_lines(
+    chars: &[&Char],
+    line_overlap: f64,
+    char_margin: f64,
+    word_margin: f64,
+) -> Vec<CompatibleLayoutLine> {
+    let Some(&first) = chars.first() else {
+        return Vec::new();
+    };
+
+    let mut lines = Vec::new();
+    let mut current = vec![first];
+    for &ch in chars.iter().skip(1) {
+        if vertical_char_alignment(
+            current.last().expect("line is nonempty"),
+            ch,
+            line_overlap,
+            char_margin,
+        ) {
+            current.push(ch);
+        } else {
+            lines.push(vertical_layout_line(&current, word_margin));
+            current = vec![ch];
+        }
+    }
+    lines.push(vertical_layout_line(&current, word_margin));
     lines
 }
 
@@ -322,6 +403,72 @@ fn horizontal_layout_boxes(
         .collect()
 }
 
+fn vertical_line_neighbor(
+    line: &CompatibleLayoutLine,
+    other: &CompatibleLayoutLine,
+    ratio: f64,
+) -> bool {
+    let distance = ratio * line.bbox.width();
+    let intersects_search_area = other.bbox.x1 >= line.bbox.x0 - distance
+        && other.bbox.x0 <= line.bbox.x1 + distance
+        && other.bbox.bottom >= line.bbox.top
+        && other.bbox.top <= line.bbox.bottom;
+    let same_width = (other.bbox.width() - line.bbox.width()).abs() <= distance;
+    let top_aligned = (other.bbox.top - line.bbox.top).abs() <= distance;
+    let bottom_aligned = (other.bbox.bottom - line.bbox.bottom).abs() <= distance;
+    let line_center = (line.bbox.top + line.bbox.bottom) / 2.0;
+    let other_center = (other.bbox.top + other.bbox.bottom) / 2.0;
+    intersects_search_area
+        && same_width
+        && (top_aligned || bottom_aligned || (other_center - line_center).abs() <= distance)
+}
+
+fn vertical_layout_boxes(
+    lines: &[CompatibleLayoutLine],
+    line_margin: f64,
+) -> Vec<CompatibleLayoutLine> {
+    let mut parents: Vec<usize> = (0..lines.len()).collect();
+    for left in 0..lines.len() {
+        for right in (left + 1)..lines.len() {
+            if vertical_line_neighbor(&lines[left], &lines[right], line_margin)
+                || vertical_line_neighbor(&lines[right], &lines[left], line_margin)
+            {
+                join_layout_groups(&mut parents, left, right);
+            }
+        }
+    }
+
+    let mut groups: Vec<(usize, Vec<usize>)> = Vec::new();
+    for index in 0..lines.len() {
+        let root = layout_group_root(&mut parents, index);
+        if let Some((_, members)) = groups.iter_mut().find(|(key, _)| *key == root) {
+            members.push(index);
+        } else {
+            groups.push((root, vec![index]));
+        }
+    }
+
+    groups
+        .into_iter()
+        .map(|(_, mut members)| {
+            members.sort_by(|left, right| {
+                lines[*right]
+                    .bbox
+                    .x0
+                    .partial_cmp(&lines[*left].bbox.x0)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let mut bbox = lines[members[0]].bbox;
+            let mut text = String::new();
+            for member in members {
+                bbox = bbox.union(&lines[member].bbox);
+                text.push_str(&lines[member].text);
+            }
+            CompatibleLayoutLine { bbox, text }
+        })
+        .collect()
+}
+
 fn compatible_layout_object_to_dict(
     py: Python<'_>,
     object: &CompatibleLayoutLine,
@@ -353,7 +500,7 @@ fn compatible_layout_object_to_dict(
     Ok(dict.into_any().unbind())
 }
 
-fn compatible_horizontal_layout_objects(
+fn compatible_layout_objects(
     py: Python<'_>,
     chars: &[Char],
     params: &Bound<'_, PyDict>,
@@ -361,15 +508,27 @@ fn compatible_horizontal_layout_objects(
     raw_height: f64,
     public_height: f64,
     initial_doctop: f64,
-) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
+) -> PyResult<CompatibleLayoutObjects> {
     let line_overlap = laparams_number(params, "line_overlap", 0.5)?;
     let char_margin = laparams_number(params, "char_margin", 2.0)?;
     let line_margin = laparams_number(params, "line_margin", 0.5)?;
     let word_margin = laparams_number(params, "word_margin", 0.1)?;
-    let lines = horizontal_layout_lines(chars, line_overlap, char_margin, word_margin);
-    let boxes = horizontal_layout_boxes(&lines, line_margin);
+    let detect_vertical = params
+        .get_item("detect_vertical")?
+        .map_or(Ok(false), |value| value.is_truthy())?;
+    let (horizontal_chars, vertical_chars): (Vec<&Char>, Vec<&Char>) = if detect_vertical {
+        chars.iter().partition(|character| character.upright)
+    } else {
+        (chars.iter().collect(), Vec::new())
+    };
+    let horizontal_lines =
+        horizontal_layout_lines(&horizontal_chars, line_overlap, char_margin, word_margin);
+    let horizontal_boxes = horizontal_layout_boxes(&horizontal_lines, line_margin);
+    let vertical_lines =
+        vertical_layout_lines(&vertical_chars, line_overlap, char_margin, word_margin);
+    let vertical_boxes = vertical_layout_boxes(&vertical_lines, line_margin);
     let height_correction = raw_height - public_height;
-    let boxes = boxes
+    let horizontal_boxes = horizontal_boxes
         .iter()
         .map(|object| {
             compatible_layout_object_to_dict(
@@ -383,7 +542,21 @@ fn compatible_horizontal_layout_objects(
             )
         })
         .collect::<PyResult<Vec<_>>>()?;
-    let lines = lines
+    let vertical_boxes = vertical_boxes
+        .iter()
+        .map(|object| {
+            compatible_layout_object_to_dict(
+                py,
+                object,
+                "textboxvertical",
+                page_number,
+                public_height,
+                height_correction,
+                initial_doctop,
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let horizontal_lines = horizontal_lines
         .iter()
         .map(|object| {
             compatible_layout_object_to_dict(
@@ -397,7 +570,26 @@ fn compatible_horizontal_layout_objects(
             )
         })
         .collect::<PyResult<Vec<_>>>()?;
-    Ok((boxes, lines))
+    let vertical_lines = vertical_lines
+        .iter()
+        .map(|object| {
+            compatible_layout_object_to_dict(
+                py,
+                object,
+                "textlinevertical",
+                page_number,
+                public_height,
+                height_correction,
+                initial_doctop,
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok(CompatibleLayoutObjects {
+        horizontal_boxes,
+        vertical_boxes,
+        horizontal_lines,
+        vertical_lines,
+    })
 }
 
 fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
@@ -2656,17 +2848,17 @@ impl PyPage {
         })
     }
 
-    fn horizontal_layout_objects(
+    fn layout_objects(
         &self,
         py: Python<'_>,
         params: &Bound<'_, PyDict>,
-    ) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
+    ) -> PyResult<CompatibleLayoutObjects> {
         let page_number = self.page_number();
         let raw_height = self.geometry.height;
         let public_height = self.height();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
-            compatible_horizontal_layout_objects(
+            compatible_layout_objects(
                 py,
                 page.chars(),
                 params,
@@ -2786,7 +2978,7 @@ impl PyPage {
         let page_ref = page.borrow();
         let layout_values = layout_params
             .as_ref()
-            .map(|params| page_ref.horizontal_layout_objects(py, params))
+            .map(|params| page_ref.layout_objects(py, params))
             .transpose()?;
         let values = [
             ("char", page_ref.char_objects(py)?),
@@ -2798,10 +2990,12 @@ impl PyPage {
         drop(page_ref);
 
         let objects = PyDict::new(py);
-        if let Some((textboxes, textlines)) = layout_values {
+        if let Some(layout) = layout_values {
             for (kind, values) in [
-                ("textboxhorizontal", textboxes),
-                ("textlinehorizontal", textlines),
+                ("textboxhorizontal", layout.horizontal_boxes),
+                ("textboxvertical", layout.vertical_boxes),
+                ("textlinehorizontal", layout.horizontal_lines),
+                ("textlinevertical", layout.vertical_lines),
             ] {
                 let values = PyList::new(py, values)?;
                 if !values.is_empty() {

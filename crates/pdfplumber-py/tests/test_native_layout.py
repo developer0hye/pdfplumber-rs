@@ -2263,28 +2263,37 @@ class NativeLayoutTests(unittest.TestCase):
     def test_page_objects_are_lazily_cached_by_present_type(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         fixtures = (
-            (self.fixture(), ["char"], {"char": 258}),
+            (self.fixture(), {}, ["char"], {"char": 258}),
+            (
+                self.multipage_fixture(),
+                {"pages": (3,)},
+                ["char", "line"],
+                {"char": 693, "line": 1},
+            ),
             (
                 repository
                 / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf",
+                {},
                 ["char", "rect", "curve"],
                 {"char": 1992, "rect": 208, "curve": 33},
             ),
             (
                 repository / "tests/fixtures/real-world/images/inline-image.pdf",
+                {},
                 ["char", "image"],
                 {"char": 22, "image": 1},
             ),
             (
                 repository / "tests/fixtures/real-world/edge-cases/empty-page.pdf",
+                {},
                 [],
                 {},
             ),
         )
 
-        for fixture, expected_keys, expected_counts in fixtures:
+        for fixture, open_kwargs, expected_keys, expected_counts in fixtures:
             with self.subTest(fixture=fixture.name):
-                with pdfplumber.open(fixture) as document:
+                with pdfplumber.open(fixture, **open_kwargs) as document:
                     page = document.pages[0]
                     self.assertNotIn("_objects", vars(page))
                     objects = page.objects
@@ -2298,6 +2307,21 @@ class NativeLayoutTests(unittest.TestCase):
                     self.assertIs(vars(page)["_objects"], objects)
                     for key, values in objects.items():
                         self.assertIs(page.objects[key], values)
+                    cropped_objects = page.crop(page.bbox).objects
+                    serialized = page.to_dict(expected_keys)
+                    json_value = json.loads(page.to_json(object_types=expected_keys))
+                    for key in expected_keys:
+                        for dictionaries in (
+                            objects[key],
+                            document.objects[key],
+                            cropped_objects[key],
+                            serialized[f"{key}s"],
+                            json_value[f"{key}s"],
+                        ):
+                            self.assertEqual(
+                                {value.get("object_type") for value in dictionaries},
+                                {key},
+                            )
                     objects["marker"] = []
                     self.assertIn("marker", page.objects)
 
@@ -2606,6 +2630,66 @@ class NativeLayoutTests(unittest.TestCase):
                 cropped.textboxhorizontals,
                 cropped.objects["textboxhorizontal"],
             )
+
+    def test_detect_vertical_layout_objects_keep_exact_type_tags(self) -> None:
+        object_types = (
+            "textboxhorizontal",
+            "textboxvertical",
+            "textlinehorizontal",
+            "textlinevertical",
+        )
+        expected_counts = {object_type: 2 for object_type in object_types}
+        with pdfplumber.open(
+            io.BytesIO(self.mixed_page_and_text_rotations_pdf()),
+            laparams={"detect_vertical": True},
+        ) as document:
+            for page in document.pages:
+                serialized = page.to_dict(object_types)
+                json_value = json.loads(page.to_json(object_types=object_types))
+                sources = (
+                    page.objects,
+                    page.crop(page.bbox).objects,
+                    {
+                        object_type: serialized[f"{object_type}s"]
+                        for object_type in object_types
+                    },
+                    {
+                        object_type: json_value[f"{object_type}s"]
+                        for object_type in object_types
+                    },
+                )
+                for objects in sources:
+                    self.assertEqual(
+                        {
+                            object_type: len(objects.get(object_type, []))
+                            for object_type in object_types
+                        },
+                        expected_counts,
+                    )
+                    for object_type in object_types:
+                        self.assertEqual(
+                            {
+                                value.get("object_type")
+                                for value in objects[object_type]
+                            },
+                            {object_type},
+                        )
+
+            self.assertEqual(
+                {
+                    object_type: len(document.objects.get(object_type, []))
+                    for object_type in object_types
+                },
+                {object_type: 8 for object_type in object_types},
+            )
+            for object_type in object_types:
+                self.assertEqual(
+                    {
+                        value.get("object_type")
+                        for value in document.objects[object_type]
+                    },
+                    {object_type},
+                )
 
     def test_laparams_line_margin_controls_textbox_grouping(self) -> None:
         fixture = (
