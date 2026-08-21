@@ -608,6 +608,30 @@ fn compatible_page_repr(py: Python<'_>, page: &Bound<'_, PyAny>) -> PyResult<Str
         .extract()
 }
 
+fn compatible_page_object_list(
+    py: Python<'_>,
+    page: &Bound<'_, PyAny>,
+    kind: &str,
+) -> PyResult<PyObject> {
+    Ok(page
+        .getattr("objects")?
+        .call_method1("get", (kind, PyList::empty(py)))?
+        .unbind())
+}
+
+fn compatible_page_attribute<'py>(
+    page: &Bound<'py, PyAny>,
+    attribute: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    match page.getattr(attribute) {
+        Ok(value) => Ok(value),
+        Err(error) if error.is_instance_of::<PyAttributeError>(page.py()) => Err(
+            PyAttributeError::new_err(format!("'Page' object has no attribute '{attribute}'")),
+        ),
+        Err(error) => Err(error),
+    }
+}
+
 fn parse_point2coord_arg(
     args: &Bound<'_, PyTuple>,
     kwargs: Option<&Bound<'_, PyDict>>,
@@ -891,6 +915,46 @@ impl PyCroppedPage {
         let root_page = parent.bind(py).getattr("root_page")?.unbind();
         Self::from_parent(py, inner, parent.into_any(), root_page)
     }
+
+    fn char_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .chars()
+            .iter()
+            .map(|ch| char_to_dict(py, ch))
+            .collect()
+    }
+
+    fn line_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .lines()
+            .iter()
+            .map(|line| line_to_dict(py, line))
+            .collect()
+    }
+
+    fn rect_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .rects()
+            .iter()
+            .map(|rect| rect_to_dict(py, rect))
+            .collect()
+    }
+
+    fn curve_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .curves()
+            .iter()
+            .map(|curve| curve_to_dict(py, curve))
+            .collect()
+    }
+
+    fn image_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.inner
+            .images()
+            .iter()
+            .map(|image| image_to_dict(py, image))
+            .collect()
+    }
 }
 
 #[pymethods]
@@ -930,11 +994,11 @@ impl PyCroppedPage {
         let parent_objects = parent_objects.downcast::<PyDict>()?;
         let page_ref = page.borrow();
         let values = [
-            ("char", page_ref.chars(py)?),
-            ("line", page_ref.lines(py)?),
-            ("rect", page_ref.rects(py)?),
-            ("curve", page_ref.curves(py)?),
-            ("image", page_ref.images(py)?),
+            ("char", page_ref.char_objects(py)?),
+            ("line", page_ref.line_objects(py)?),
+            ("rect", page_ref.rect_objects(py)?),
+            ("curve", page_ref.curve_objects(py)?),
+            ("image", page_ref.image_objects(py)?),
         ];
         drop(page_ref);
 
@@ -962,12 +1026,10 @@ impl PyCroppedPage {
     }
 
     /// Characters in the cropped region as list[dict].
-    fn chars(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .chars()
-            .iter()
-            .map(|ch| char_to_dict(py, ch))
-            .collect()
+    #[getter]
+    fn chars(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "char")
     }
 
     /// Extract text from the cropped region.
@@ -1011,39 +1073,31 @@ impl PyCroppedPage {
     }
 
     /// Lines in the cropped region as list[dict].
-    fn lines(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .lines()
-            .iter()
-            .map(|l| line_to_dict(py, l))
-            .collect()
+    #[getter]
+    fn lines(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "line")
     }
 
     /// Rects in the cropped region as list[dict].
-    fn rects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .rects()
-            .iter()
-            .map(|r| rect_to_dict(py, r))
-            .collect()
+    #[getter]
+    fn rects(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "rect")
     }
 
     /// Curves in the cropped region as list[dict].
-    fn curves(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .curves()
-            .iter()
-            .map(|c| curve_to_dict(py, c))
-            .collect()
+    #[getter]
+    fn curves(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "curve")
     }
 
     /// Images in the cropped region as list[dict].
-    fn images(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.inner
-            .images()
-            .iter()
-            .map(|i| image_to_dict(py, i))
-            .collect()
+    #[getter]
+    fn images(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "image")
     }
 
     /// Further crop this cropped page.
@@ -1768,7 +1822,7 @@ impl PyPdf {
                 ("curve", "curves"),
                 ("image", "images"),
             ] {
-                let page_values = page.call_method0(accessor)?;
+                let page_values = page.getattr(accessor)?;
                 let page_values = page_values.downcast::<PyList>()?;
                 if page_values.is_empty() {
                     continue;
@@ -2033,27 +2087,52 @@ impl PyPage {
         })
     }
 
-    fn object_list(&self, py: Python<'_>, attribute: &str) -> PyResult<PyObject> {
-        let values = match attribute {
-            "chars" => PyList::new(py, self.chars(py)?)?,
-            "lines" => PyList::new(py, self.lines(py)?)?,
-            "rects" => PyList::new(py, self.rects(py)?)?,
-            "curves" => PyList::new(py, self.curves(py)?)?,
-            "images" => PyList::new(py, self.images(py)?)?,
-            "annots" => PyList::new(py, self.annots(py)?)?,
-            "hyperlinks" => PyList::new(py, self.hyperlinks(py)?)?,
-            _ => {
-                return Err(PyAttributeError::new_err(format!(
-                    "'Page' object has no attribute '{attribute}'"
-                )));
-            }
-        };
-        Ok(values.into_any().unbind())
+    fn char_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.chars().iter().map(|ch| char_to_dict(py, ch)).collect()
+        })
+    }
+
+    fn line_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.lines()
+                .iter()
+                .map(|line| line_to_dict(py, line))
+                .collect()
+        })
+    }
+
+    fn rect_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.rects()
+                .iter()
+                .map(|rect| rect_to_dict(py, rect))
+                .collect()
+        })
+    }
+
+    fn curve_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.curves()
+                .iter()
+                .map(|curve| curve_to_dict(py, curve))
+                .collect()
+        })
+    }
+
+    fn image_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        self.with_page(py, |page| {
+            page.images()
+                .iter()
+                .map(|image| image_to_dict(py, image))
+                .collect()
+        })
     }
 
     fn to_dict_impl(
         &self,
         py: Python<'_>,
+        page: &Bound<'_, PyAny>,
         object_types: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
@@ -2079,16 +2158,18 @@ impl PyPage {
                 let object_type = object_type?;
                 let attribute = add.call1((&object_type, "s"))?;
                 let attribute = attribute.extract::<String>()?;
-                dict.set_item(&attribute, self.object_list(py, &attribute)?)?;
+                dict.set_item(&attribute, compatible_page_attribute(page, &attribute)?)?;
             }
         } else {
-            for attribute in ["chars", "lines", "rects", "curves", "images"] {
-                let values = self.object_list(py, attribute)?;
-                if !values.bind(py).downcast::<PyList>()?.is_empty() {
-                    dict.set_item(attribute, values)?;
-                }
+            let objects = page.getattr("objects")?;
+            let keys = objects.call_method0("keys")?;
+            let add = py.import("operator")?.getattr("add")?;
+            for object_type in keys.try_iter()? {
+                let attribute = add.call1((object_type?, "s"))?;
+                let attribute = attribute.extract::<String>()?;
+                dict.set_item(&attribute, compatible_page_attribute(page, &attribute)?)?;
             }
-            dict.set_item("annots", self.object_list(py, "annots")?)?;
+            dict.set_item("annots", page.getattr("annots")?)?;
         }
 
         Ok(dict.into_any().unbind())
@@ -2124,11 +2205,11 @@ impl PyPage {
 
         let page_ref = page.borrow();
         let values = [
-            ("char", page_ref.chars(py)?),
-            ("line", page_ref.lines(py)?),
-            ("rect", page_ref.rects(py)?),
-            ("curve", page_ref.curves(py)?),
-            ("image", page_ref.images(py)?),
+            ("char", page_ref.char_objects(py)?),
+            ("line", page_ref.line_objects(py)?),
+            ("rect", page_ref.rect_objects(py)?),
+            ("curve", page_ref.curve_objects(py)?),
+            ("image", page_ref.image_objects(py)?),
         ];
         drop(page_ref);
 
@@ -2187,10 +2268,10 @@ impl PyPage {
     }
 
     /// Characters on this page as list[dict].
-    fn chars(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.with_page(py, |page| {
-            page.chars().iter().map(|ch| char_to_dict(py, ch)).collect()
-        })
+    #[getter]
+    fn chars(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "char")
     }
 
     /// Extract text from this page.
@@ -2242,43 +2323,31 @@ impl PyPage {
     }
 
     /// Lines on this page as list[dict].
-    fn lines(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.with_page(py, |page| {
-            page.lines()
-                .iter()
-                .map(|line| line_to_dict(py, line))
-                .collect()
-        })
+    #[getter]
+    fn lines(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "line")
     }
 
     /// Rectangles on this page as list[dict].
-    fn rects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.with_page(py, |page| {
-            page.rects()
-                .iter()
-                .map(|rect| rect_to_dict(py, rect))
-                .collect()
-        })
+    #[getter]
+    fn rects(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "rect")
     }
 
     /// Curves on this page as list[dict].
-    fn curves(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.with_page(py, |page| {
-            page.curves()
-                .iter()
-                .map(|curve| curve_to_dict(py, curve))
-                .collect()
-        })
+    #[getter]
+    fn curves(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "curve")
     }
 
     /// Images on this page as list[dict].
-    fn images(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
-        self.with_page(py, |page| {
-            page.images()
-                .iter()
-                .map(|image| image_to_dict(py, image))
-                .collect()
-        })
+    #[getter]
+    fn images(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "image")
     }
 
     /// Annotation dictionaries on this page.
@@ -2341,11 +2410,13 @@ impl PyPage {
     /// Page geometry and requested object lists in upstream dictionary form.
     #[pyo3(signature = (object_types=None))]
     fn to_dict(
-        &self,
+        slf: PyRef<'_, Self>,
         py: Python<'_>,
         object_types: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
-        self.to_dict_impl(py, object_types)
+        let page: Py<Self> = slf.into();
+        page.borrow(py)
+            .to_dict_impl(py, page.bind(py).as_any(), object_types)
     }
 
     /// Serialize page geometry and requested objects as upstream JSON.
@@ -2354,14 +2425,16 @@ impl PyPage {
         text_signature = "(stream=None, object_types=None, include_attrs=None, exclude_attrs=None, precision=None, indent=None)"
     )]
     fn to_json(
-        &self,
+        slf: PyRef<'_, Self>,
         py: Python<'_>,
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<PyObject> {
         let options = parse_container_to_json_args(py, args, kwargs)?;
-        let data = self.to_dict_impl(
+        let page: Py<Self> = slf.into();
+        let data = page.borrow(py).to_dict_impl(
             py,
+            page.bind(py).as_any(),
             options.object_types.as_ref().map(|value| value.bind(py)),
         )?;
         container_to_json(
@@ -2381,14 +2454,16 @@ impl PyPage {
         text_signature = "(stream=None, object_types=None, precision=None, include_attrs=None, exclude_attrs=None)"
     )]
     fn to_csv(
-        &self,
+        slf: PyRef<'_, Self>,
         py: Python<'_>,
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> PyResult<PyObject> {
         let options = parse_container_to_csv_args(py, args, kwargs)?;
-        let data = self.to_dict_impl(
+        let page: Py<Self> = slf.into();
+        let data = page.borrow(py).to_dict_impl(
             py,
+            page.bind(py).as_any(),
             options.object_types.as_ref().map(|value| value.bind(py)),
         )?;
         let page_dicts = PyList::empty(py);
@@ -2784,7 +2859,7 @@ mod tests {
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         // Empty page should return empty list
         Python::with_gil(|py| {
-            let chars = pypage.chars(py).expect("chars");
+            let chars = pypage.char_objects(py).expect("chars");
             assert!(chars.is_empty());
         });
     }
@@ -2828,7 +2903,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let lines = pypage.lines(py).expect("lines");
+            let lines = pypage.line_objects(py).expect("lines");
             assert!(lines.is_empty());
         });
     }
@@ -2839,7 +2914,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let rects = pypage.rects(py).expect("rects");
+            let rects = pypage.rect_objects(py).expect("rects");
             assert!(rects.is_empty());
         });
     }
@@ -2850,7 +2925,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let curves = pypage.curves(py).expect("curves");
+            let curves = pypage.curve_objects(py).expect("curves");
             assert!(curves.is_empty());
         });
     }
@@ -2861,7 +2936,7 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let images = pypage.images(py).expect("images");
+            let images = pypage.image_objects(py).expect("images");
             assert!(images.is_empty());
         });
     }
@@ -3282,11 +3357,11 @@ mod tests {
             let cropped = cropped.bind(py).borrow();
             assert!((cropped.width() - 200.0).abs() < 0.1);
             assert!((cropped.height() - 300.0).abs() < 0.1);
-            assert!(cropped.chars(py).expect("chars").is_empty());
-            assert!(cropped.lines(py).expect("lines").is_empty());
-            assert!(cropped.rects(py).expect("rects").is_empty());
-            assert!(cropped.curves(py).expect("curves").is_empty());
-            assert!(cropped.images(py).expect("images").is_empty());
+            assert!(cropped.char_objects(py).expect("chars").is_empty());
+            assert!(cropped.line_objects(py).expect("lines").is_empty());
+            assert!(cropped.rect_objects(py).expect("rects").is_empty());
+            assert!(cropped.curve_objects(py).expect("curves").is_empty());
+            assert!(cropped.image_objects(py).expect("images").is_empty());
             assert!(
                 cropped
                     .extract_words(py, 3.0, 3.0)
@@ -3480,6 +3555,19 @@ mod tests {
             3,
             "stubs must declare PDF, Page, and CroppedPage.objects"
         );
+        for declaration in [
+            "    @property\n    def chars(self) -> list[CharDict]:",
+            "    @property\n    def lines(self) -> list[LineDict]:",
+            "    @property\n    def rects(self) -> list[RectDict]:",
+            "    @property\n    def curves(self) -> list[CurveDict]:",
+            "    @property\n    def images(self) -> list[ImageDict]:",
+        ] {
+            assert_eq!(
+                content.matches(declaration).count(),
+                2,
+                "stubs must declare Page and CroppedPage object-list properties"
+            );
+        }
         assert!(
             content.contains("def annots(self) -> list[AnnotDict]:"),
             "stubs must declare document and page annotations"

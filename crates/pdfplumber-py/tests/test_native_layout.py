@@ -804,7 +804,7 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertIsNot(second_pages[0], first_page)
         self.assertNotIn(marker, second_pages)
         self.assertEqual(len(second_pages), 1)
-        self.assertGreater(len(first_page.chars()), 0)
+        self.assertGreater(len(first_page.chars), 0)
 
         self.assertIsNone(document.close())
         third_pages = document.pages
@@ -839,7 +839,7 @@ class NativeLayoutTests(unittest.TestCase):
         try:
             first_pages = document.pages
             first_page = first_pages[0]
-            first_chars = first_page.chars()
+            first_chars = first_page.chars
             marker = object()
             first_pages.append(marker)
 
@@ -854,7 +854,7 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertIsNot(second_pages, first_pages)
             self.assertIsNot(second_pages[0], first_page)
             self.assertNotIn(marker, second_pages)
-            self.assertEqual(first_page.chars(), first_chars)
+            self.assertEqual(first_page.chars, first_chars)
             self.assertFalse(owned_stream.closed)
 
             self.assertIsNone(document.flush_cache())
@@ -917,8 +917,8 @@ class NativeLayoutTests(unittest.TestCase):
         document = pdfplumber.open(self.multipage_fixture(), pages=(3, 5))
         try:
             first_pages = document.pages
-            expected_chars = [char for page in first_pages for char in page.chars()]
-            expected_lines = [line for page in first_pages for line in page.lines()]
+            expected_chars = [char for page in first_pages for char in page.chars]
+            expected_lines = [line for page in first_pages for line in page.lines]
             first_objects = document.objects
 
             self.assertEqual(list(first_objects), ["char", "line"])
@@ -1111,7 +1111,7 @@ class NativeLayoutTests(unittest.TestCase):
         self.assertEqual([page.page_number for page in pages], [3, 5])
 
         char_offsets = [
-            page.chars()[0]["doctop"] - page.chars()[0]["top"] for page in pages
+            page.chars[0]["doctop"] - page.chars[0]["top"] for page in pages
         ]
         word_offsets = [
             page.extract_words()[0]["doctop"] - page.extract_words()[0]["top"]
@@ -1664,6 +1664,69 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertNotIn("marker", parent.objects)
             self.assertNotIn("marker", nested.objects)
 
+    def test_page_object_lists_are_cache_backed_properties(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            page = document.pages[0]
+            objects = page.objects
+            names = ("chars", "lines", "rects", "curves", "images")
+            first = {name: getattr(page, name) for name in names}
+            second = {name: getattr(page, name) for name in names}
+            self.assertEqual(
+                {name: len(values) for name, values in first.items()},
+                {"chars": 258, "lines": 0, "rects": 0, "curves": 0, "images": 0},
+            )
+            self.assertIs(first["chars"], objects["char"])
+            self.assertIs(second["chars"], first["chars"])
+            for name in names[1:]:
+                self.assertIsNot(second[name], first[name])
+            marker = {"object_type": "char", "text": "marker"}
+            objects["char"].append(marker)
+            self.assertIs(page.chars[-1], marker)
+            self.assertIs(page.to_dict(["char"])["chars"], page.chars)
+            self.assertIs(page.to_dict()["chars"], page.chars)
+            with self.assertRaisesRegex(TypeError, "^'list' object is not callable$"):
+                page.chars()
+
+    def test_cropped_object_lists_reuse_only_present_parent_keys(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        fixture = (
+            repository
+            / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf"
+        )
+        with pdfplumber.open(fixture) as document:
+            cropped = document.pages[0].crop((0, 0, 20, 20))
+            names = ("chars", "lines", "rects", "curves", "images")
+            kinds = {
+                "chars": "char",
+                "lines": "line",
+                "rects": "rect",
+                "curves": "curve",
+                "images": "image",
+            }
+            first = {name: getattr(cropped, name) for name in names}
+            second = {name: getattr(cropped, name) for name in names}
+            self.assertEqual([len(first[name]) for name in names], [0, 0, 0, 0, 0])
+            for name in ("chars", "rects", "curves"):
+                self.assertIs(first[name], cropped.objects[kinds[name]])
+                self.assertIs(second[name], first[name])
+            for name in ("lines", "images"):
+                self.assertIsNot(second[name], first[name])
+
+    def test_annotation_properties_remain_fresh_lists_and_dictionaries(self) -> None:
+        fixture = self.annotation_fixture("issue-463-example.pdf")
+        with pdfplumber.open(fixture) as document:
+            page = document.pages[0]
+            first_annots = page.annots
+            second_annots = page.annots
+            first_links = page.hyperlinks
+            second_links = page.hyperlinks
+            self.assertEqual([len(first_annots), len(first_links)], [2, 0])
+            self.assertIsNot(first_annots, second_annots)
+            self.assertIsNot(first_annots[0], second_annots[0])
+            self.assertIsNot(first_links, second_links)
+            self.assertFalse(callable(first_annots))
+            self.assertFalse(callable(first_links))
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:
@@ -1862,7 +1925,7 @@ class NativeLayoutTests(unittest.TestCase):
     def test_open_applies_and_exposes_unicode_normalization(self) -> None:
         with pdfplumber.open(self.fixture()) as unchanged:
             self.assertIsNone(unchanged.unicode_norm)
-            self.assertEqual(unchanged.pages[0].chars()[142]["text"], "é")
+            self.assertEqual(unchanged.pages[0].chars[142]["text"], "é")
 
         canonical = {
             "NFC": "é",
@@ -1881,13 +1944,13 @@ class NativeLayoutTests(unittest.TestCase):
                 with pdfplumber.open(self.fixture(), unicode_norm=form) as document:
                     self.assertEqual(document.unicode_norm, form)
                     self.assertEqual(
-                        document.pages[0].chars()[142]["text"], canonical[form]
+                        document.pages[0].chars[142]["text"], canonical[form]
                     )
                 with pdfplumber.open(
                     self.compatibility_ligature_fixture(), unicode_norm=form
                 ) as document:
                     self.assertEqual(
-                        document.pages[0].chars()[0]["text"], compatibility[form]
+                        document.pages[0].chars[0]["text"], compatibility[form]
                     )
 
         for value in ("nfc", ""):
@@ -1901,7 +1964,7 @@ class NativeLayoutTests(unittest.TestCase):
                     with self.assertRaisesRegex(
                         ValueError, "^invalid normalization form$"
                     ):
-                        pages[0].chars()
+                        pages[0].chars
                 finally:
                     document.close()
         for value, type_name in ((1, "int"), (True, "bool"), (b"NFC", "bytes")):
@@ -1916,7 +1979,7 @@ class NativeLayoutTests(unittest.TestCase):
                         TypeError,
                         rf"^normalize\(\) argument 1 must be str, not {type_name}$",
                     ):
-                        pages[0].chars()
+                        pages[0].chars
                 finally:
                     document.close()
 
@@ -2286,7 +2349,7 @@ class NativeLayoutTests(unittest.TestCase):
 
             filtered = document.to_dict(["char"])
             self.assertEqual(list(filtered["pages"][0]), [*geometry, "chars"])
-            self.assertEqual(filtered["pages"][0]["chars"], document.pages[0].chars())
+            self.assertEqual(filtered["pages"][0]["chars"], document.pages[0].chars)
             self.assertEqual(len(filtered["pages"][0]["chars"]), 258)
 
             default = document.to_dict()

@@ -246,6 +246,7 @@ class Page:
         """Objects on this page grouped by their upstream type name."""
         ...
 
+    @property
     def chars(self) -> list[CharDict]:
         """Characters on this page as list[dict]."""
         ...
@@ -270,18 +271,22 @@ class Page:
         """Extract table content as list[list[list[str|None]]]."""
         ...
 
+    @property
     def lines(self) -> list[LineDict]:
         """Lines on this page as list[dict]."""
         ...
 
+    @property
     def rects(self) -> list[RectDict]:
         """Rectangles on this page as list[dict]."""
         ...
 
+    @property
     def curves(self) -> list[CurveDict]:
         """Curves on this page as list[dict]."""
         ...
 
+    @property
     def images(self) -> list[ImageDict]:
         """Images on this page as list[dict]."""
         ...
@@ -374,6 +379,7 @@ class CroppedPage:
         """Objects in the cropped region grouped by type name."""
         ...
 
+    @property
     def chars(self) -> list[CharDict]:
         """Characters in the cropped region as list[dict]."""
         ...
@@ -398,18 +404,22 @@ class CroppedPage:
         """Extract table content from the cropped region."""
         ...
 
+    @property
     def lines(self) -> list[LineDict]:
         """Lines in the cropped region as list[dict]."""
         ...
 
+    @property
     def rects(self) -> list[RectDict]:
         """Rects in the cropped region as list[dict]."""
         ...
 
+    @property
     def curves(self) -> list[CurveDict]:
         """Curves in the cropped region as list[dict]."""
         ...
 
+    @property
     def images(self) -> list[ImageDict]:
         """Images in the cropped region as list[dict]."""
         ...
