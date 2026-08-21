@@ -129,6 +129,248 @@ fn char_to_dict(py: Python<'_>, ch: &Char) -> PyResult<PyObject> {
     Ok(dict.into_any().unbind())
 }
 
+#[derive(Clone)]
+struct CompatibleLayoutLine {
+    bbox: BBox,
+    text: String,
+}
+
+fn laparams_number(params: &Bound<'_, PyDict>, key: &str, default: f64) -> PyResult<f64> {
+    params
+        .get_item(key)?
+        .map_or(Ok(default), |value| value.extract::<f64>())
+}
+
+fn horizontal_char_alignment(
+    left: &Char,
+    right: &Char,
+    line_overlap: f64,
+    char_margin: f64,
+) -> bool {
+    let vertical_overlap =
+        left.bbox.bottom.min(right.bbox.bottom) - left.bbox.top.max(right.bbox.top);
+    if vertical_overlap <= 0.0
+        || left.bbox.height().min(right.bbox.height()) * line_overlap >= vertical_overlap
+    {
+        return false;
+    }
+
+    let horizontal_distance = if right.bbox.x0 <= left.bbox.x1 && left.bbox.x0 <= right.bbox.x1 {
+        0.0
+    } else {
+        (left.bbox.x0 - right.bbox.x1)
+            .abs()
+            .min((left.bbox.x1 - right.bbox.x0).abs())
+    };
+    horizontal_distance < left.bbox.width().max(right.bbox.width()) * char_margin
+}
+
+fn horizontal_layout_line(chars: &[&Char], word_margin: f64) -> CompatibleLayoutLine {
+    let mut bbox = chars[0].bbox;
+    let mut text = String::new();
+    let mut previous_x1 = f64::INFINITY;
+    for ch in chars {
+        let margin = word_margin * ch.bbox.width().max(ch.bbox.height());
+        if previous_x1 < ch.bbox.x0 - margin {
+            text.push(' ');
+        }
+        text.push_str(&ch.text);
+        previous_x1 = ch.bbox.x1;
+        bbox = bbox.union(&ch.bbox);
+    }
+    text.push('\n');
+    CompatibleLayoutLine { bbox, text }
+}
+
+fn horizontal_layout_lines(
+    chars: &[Char],
+    line_overlap: f64,
+    char_margin: f64,
+    word_margin: f64,
+) -> Vec<CompatibleLayoutLine> {
+    let Some(first) = chars.first() else {
+        return Vec::new();
+    };
+
+    let mut lines = Vec::new();
+    let mut current = vec![first];
+    for ch in chars.iter().skip(1) {
+        if horizontal_char_alignment(
+            current.last().expect("line is nonempty"),
+            ch,
+            line_overlap,
+            char_margin,
+        ) {
+            current.push(ch);
+        } else {
+            lines.push(horizontal_layout_line(&current, word_margin));
+            current = vec![ch];
+        }
+    }
+    lines.push(horizontal_layout_line(&current, word_margin));
+    lines
+}
+
+fn horizontal_line_neighbor(
+    line: &CompatibleLayoutLine,
+    other: &CompatibleLayoutLine,
+    ratio: f64,
+) -> bool {
+    let distance = ratio * line.bbox.height();
+    let intersects_search_area = other.bbox.x1 >= line.bbox.x0
+        && other.bbox.x0 <= line.bbox.x1
+        && other.bbox.bottom >= line.bbox.top - distance
+        && other.bbox.top <= line.bbox.bottom + distance;
+    let same_height = (other.bbox.height() - line.bbox.height()).abs() <= distance;
+    let left_aligned = (other.bbox.x0 - line.bbox.x0).abs() <= distance;
+    let right_aligned = (other.bbox.x1 - line.bbox.x1).abs() <= distance;
+    let line_center = (line.bbox.x0 + line.bbox.x1) / 2.0;
+    let other_center = (other.bbox.x0 + other.bbox.x1) / 2.0;
+    intersects_search_area
+        && same_height
+        && (left_aligned || right_aligned || (other_center - line_center).abs() <= distance)
+}
+
+fn layout_group_root(parents: &mut [usize], mut index: usize) -> usize {
+    while parents[index] != index {
+        parents[index] = parents[parents[index]];
+        index = parents[index];
+    }
+    index
+}
+
+fn join_layout_groups(parents: &mut [usize], left: usize, right: usize) {
+    let left_root = layout_group_root(parents, left);
+    let right_root = layout_group_root(parents, right);
+    if left_root != right_root {
+        parents[right_root] = left_root;
+    }
+}
+
+fn horizontal_layout_boxes(
+    lines: &[CompatibleLayoutLine],
+    line_margin: f64,
+) -> Vec<CompatibleLayoutLine> {
+    let mut parents: Vec<usize> = (0..lines.len()).collect();
+    for left in 0..lines.len() {
+        for right in (left + 1)..lines.len() {
+            if horizontal_line_neighbor(&lines[left], &lines[right], line_margin)
+                || horizontal_line_neighbor(&lines[right], &lines[left], line_margin)
+            {
+                join_layout_groups(&mut parents, left, right);
+            }
+        }
+    }
+
+    let mut groups: Vec<(usize, Vec<usize>)> = Vec::new();
+    for index in 0..lines.len() {
+        let root = layout_group_root(&mut parents, index);
+        if let Some((_, members)) = groups.iter_mut().find(|(key, _)| *key == root) {
+            members.push(index);
+        } else {
+            groups.push((root, vec![index]));
+        }
+    }
+
+    groups
+        .into_iter()
+        .map(|(_, mut members)| {
+            members.sort_by(|left, right| {
+                lines[*left]
+                    .bbox
+                    .top
+                    .partial_cmp(&lines[*right].bbox.top)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            let mut bbox = lines[members[0]].bbox;
+            let mut text = String::new();
+            for member in members {
+                bbox = bbox.union(&lines[member].bbox);
+                text.push_str(&lines[member].text);
+            }
+            CompatibleLayoutLine { bbox, text }
+        })
+        .collect()
+}
+
+fn compatible_layout_object_to_dict(
+    py: Python<'_>,
+    object: &CompatibleLayoutLine,
+    object_type: &str,
+    page_number: usize,
+    public_height: f64,
+    height_correction: f64,
+    initial_doctop: f64,
+) -> PyResult<PyObject> {
+    let x0 = object.bbox.x0;
+    let top = object.bbox.top - height_correction;
+    let x1 = object.bbox.x1;
+    let bottom = object.bbox.bottom - height_correction;
+    let y0 = public_height - bottom;
+    let y1 = public_height - top;
+    let dict = PyDict::new(py);
+    dict.set_item("x0", x0)?;
+    dict.set_item("y0", y0)?;
+    dict.set_item("x1", x1)?;
+    dict.set_item("y1", y1)?;
+    dict.set_item("width", x1 - x0)?;
+    dict.set_item("height", bottom - top)?;
+    dict.set_item("object_type", object_type)?;
+    dict.set_item("page_number", page_number)?;
+    dict.set_item("text", &object.text)?;
+    dict.set_item("top", top)?;
+    dict.set_item("bottom", bottom)?;
+    dict.set_item("doctop", initial_doctop + top)?;
+    Ok(dict.into_any().unbind())
+}
+
+fn compatible_horizontal_layout_objects(
+    py: Python<'_>,
+    chars: &[Char],
+    params: &Bound<'_, PyDict>,
+    page_number: usize,
+    raw_height: f64,
+    public_height: f64,
+    initial_doctop: f64,
+) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
+    let line_overlap = laparams_number(params, "line_overlap", 0.5)?;
+    let char_margin = laparams_number(params, "char_margin", 2.0)?;
+    let line_margin = laparams_number(params, "line_margin", 0.5)?;
+    let word_margin = laparams_number(params, "word_margin", 0.1)?;
+    let lines = horizontal_layout_lines(chars, line_overlap, char_margin, word_margin);
+    let boxes = horizontal_layout_boxes(&lines, line_margin);
+    let height_correction = raw_height - public_height;
+    let boxes = boxes
+        .iter()
+        .map(|object| {
+            compatible_layout_object_to_dict(
+                py,
+                object,
+                "textboxhorizontal",
+                page_number,
+                public_height,
+                height_correction,
+                initial_doctop,
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    let lines = lines
+        .iter()
+        .map(|object| {
+            compatible_layout_object_to_dict(
+                py,
+                object,
+                "textlinehorizontal",
+                page_number,
+                public_height,
+                height_correction,
+                initial_doctop,
+            )
+        })
+        .collect::<PyResult<Vec<_>>>()?;
+    Ok((boxes, lines))
+}
+
 fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("text", &word.text)?;
@@ -898,11 +1140,19 @@ impl PyCroppedPage {
     ) -> PyResult<Py<Self>> {
         let mediabox = parent_page.bind(py).getattr("mediabox")?.unbind();
         let page_number = parent_page.bind(py).getattr("page_number")?.unbind();
+        let layout_laparams = parent_page
+            .bind(py)
+            .getattr("_layout_laparams")
+            .ok()
+            .map(Bound::unbind);
         let page = Py::new(py, Self { inner })?;
         page.bind(py).setattr("parent_page", parent_page)?;
         page.bind(py).setattr("root_page", root_page)?;
         page.bind(py).setattr("mediabox", mediabox)?;
         page.bind(py).setattr("page_number", page_number)?;
+        if let Some(layout_laparams) = layout_laparams {
+            page.bind(py).setattr("_layout_laparams", layout_laparams)?;
+        }
         Ok(page)
     }
 
@@ -955,6 +1205,29 @@ impl PyCroppedPage {
             .map(|image| image_to_dict(py, image))
             .collect()
     }
+
+    fn horizontal_layout_objects(
+        &self,
+        py: Python<'_>,
+        params: &Bound<'_, PyDict>,
+        page_number: usize,
+    ) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
+        let initial_doctop = self
+            .inner
+            .chars()
+            .first()
+            .map(|ch| ch.doctop - ch.bbox.top)
+            .unwrap_or(0.0);
+        compatible_horizontal_layout_objects(
+            py,
+            self.inner.chars(),
+            params,
+            page_number,
+            self.inner.height(),
+            self.inner.height(),
+            initial_doctop,
+        )
+    }
 }
 
 #[pymethods]
@@ -993,6 +1266,13 @@ impl PyCroppedPage {
         let parent_objects = page.getattr("parent_page")?.getattr("objects")?;
         let parent_objects = parent_objects.downcast::<PyDict>()?;
         let page_ref = page.borrow();
+        let layout_values = if let Ok(params) = page.getattr("_layout_laparams") {
+            let params = params.downcast_into::<PyDict>()?;
+            let page_number = page.getattr("page_number")?.extract::<usize>()?;
+            Some(page_ref.horizontal_layout_objects(py, &params, page_number)?)
+        } else {
+            None
+        };
         let values = [
             ("char", page_ref.char_objects(py)?),
             ("line", page_ref.line_objects(py)?),
@@ -1003,6 +1283,16 @@ impl PyCroppedPage {
         drop(page_ref);
 
         let objects = PyDict::new(py);
+        if let Some((textboxes, textlines)) = layout_values {
+            for (kind, values) in [
+                ("textboxhorizontal", textboxes),
+                ("textlinehorizontal", textlines),
+            ] {
+                if parent_objects.contains(kind)? {
+                    objects.set_item(kind, PyList::new(py, values)?)?;
+                }
+            }
+        }
         for (kind, values) in values {
             if parent_objects.contains(kind)? {
                 objects.set_item(kind, PyList::new(py, values)?)?;
@@ -1010,6 +1300,34 @@ impl PyCroppedPage {
         }
         page.setattr("_objects", &objects)?;
         Ok(objects.into_any().unbind())
+    }
+
+    /// Horizontal text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxhorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textboxhorizontal")
+    }
+
+    /// Vertical text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textboxvertical")
+    }
+
+    /// Horizontal text lines created when layout analysis is requested.
+    #[getter]
+    fn textlinehorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textlinehorizontal")
+    }
+
+    /// Vertical text lines created when layout analysis is requested.
+    #[getter]
+    fn textlineverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textlinevertical")
     }
 
     /// Convert a PDF-space point to this page view's top-origin coordinates.
@@ -1783,6 +2101,10 @@ impl PyPdf {
             page.bind(py)
                 .setattr("mediabox", compatible_bbox_tuple(media_box))?;
             page.bind(py).setattr("root_page", page.clone_ref(py))?;
+            if let Some(laparams) = &self._laparams {
+                page.bind(py)
+                    .setattr("_layout_laparams", laparams.clone_ref(py))?;
+            }
             if let Some(trim_box) = trim_box {
                 page.bind(py)
                     .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
@@ -1815,23 +2137,17 @@ impl PyPdf {
         let objects = PyDict::new(py);
         let pages = self.pages(py)?;
         for page in pages.bind(py).iter() {
-            for (kind, accessor) in [
-                ("char", "chars"),
-                ("line", "lines"),
-                ("rect", "rects"),
-                ("curve", "curves"),
-                ("image", "images"),
-            ] {
-                let page_values = page.getattr(accessor)?;
+            let page_objects = page.getattr("objects")?;
+            for (kind, page_values) in page_objects.downcast::<PyDict>()?.iter() {
                 let page_values = page_values.downcast::<PyList>()?;
                 if page_values.is_empty() {
                     continue;
                 }
-                let aggregate = match objects.get_item(kind)? {
+                let aggregate = match objects.get_item(&kind)? {
                     Some(existing) => existing.downcast_into::<PyList>()?,
                     None => {
                         let aggregate = PyList::empty(py);
-                        objects.set_item(kind, &aggregate)?;
+                        objects.set_item(&kind, &aggregate)?;
                         aggregate
                     }
                 };
@@ -1851,6 +2167,34 @@ impl PyPdf {
         }
         *cache = Some(objects.clone_ref(py));
         Ok(objects)
+    }
+
+    /// Horizontal text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxhorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let document: Py<Self> = slf.into();
+        compatible_page_object_list(py, document.bind(py).as_any(), "textboxhorizontal")
+    }
+
+    /// Vertical text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let document: Py<Self> = slf.into();
+        compatible_page_object_list(py, document.bind(py).as_any(), "textboxvertical")
+    }
+
+    /// Horizontal text lines created when layout analysis is requested.
+    #[getter]
+    fn textlinehorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let document: Py<Self> = slf.into();
+        compatible_page_object_list(py, document.bind(py).as_any(), "textlinehorizontal")
+    }
+
+    /// Vertical text lines created when layout analysis is requested.
+    #[getter]
+    fn textlineverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let document: Py<Self> = slf.into();
+        compatible_page_object_list(py, document.bind(py).as_any(), "textlinevertical")
     }
 
     /// Annotation dictionaries from all selected pages in document order.
@@ -2129,6 +2473,28 @@ impl PyPage {
         })
     }
 
+    fn horizontal_layout_objects(
+        &self,
+        py: Python<'_>,
+        params: &Bound<'_, PyDict>,
+    ) -> PyResult<(Vec<PyObject>, Vec<PyObject>)> {
+        let page_number = self.page_number();
+        let raw_height = self.geometry.height;
+        let public_height = self.height();
+        let initial_doctop = self.initial_doctop();
+        self.with_page(py, |page| {
+            compatible_horizontal_layout_objects(
+                py,
+                page.chars(),
+                params,
+                page_number,
+                raw_height,
+                public_height,
+                initial_doctop,
+            )
+        })
+    }
+
     fn to_dict_impl(
         &self,
         py: Python<'_>,
@@ -2203,7 +2569,16 @@ impl PyPage {
             return Ok(page.getattr("_objects")?.unbind());
         }
 
+        let layout_params = page
+            .getattr("_layout_laparams")
+            .ok()
+            .map(|params| params.downcast_into::<PyDict>())
+            .transpose()?;
         let page_ref = page.borrow();
+        let layout_values = layout_params
+            .as_ref()
+            .map(|params| page_ref.horizontal_layout_objects(py, params))
+            .transpose()?;
         let values = [
             ("char", page_ref.char_objects(py)?),
             ("line", page_ref.line_objects(py)?),
@@ -2214,6 +2589,17 @@ impl PyPage {
         drop(page_ref);
 
         let objects = PyDict::new(py);
+        if let Some((textboxes, textlines)) = layout_values {
+            for (kind, values) in [
+                ("textboxhorizontal", textboxes),
+                ("textlinehorizontal", textlines),
+            ] {
+                let values = PyList::new(py, values)?;
+                if !values.is_empty() {
+                    objects.set_item(kind, values)?;
+                }
+            }
+        }
         for (kind, values) in values {
             let values = PyList::new(py, values)?;
             if !values.is_empty() {
@@ -2222,6 +2608,34 @@ impl PyPage {
         }
         page.setattr("_objects", &objects)?;
         Ok(objects.into_any().unbind())
+    }
+
+    /// Horizontal text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxhorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textboxhorizontal")
+    }
+
+    /// Vertical text boxes created when layout analysis is requested.
+    #[getter]
+    fn textboxverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textboxvertical")
+    }
+
+    /// Horizontal text lines created when layout analysis is requested.
+    #[getter]
+    fn textlinehorizontals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textlinehorizontal")
+    }
+
+    /// Vertical text lines created when layout analysis is requested.
+    #[getter]
+    fn textlineverticals(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        compatible_page_object_list(py, page.bind(py).as_any(), "textlinevertical")
     }
 
     /// Page width in points.
@@ -3555,6 +3969,18 @@ mod tests {
             3,
             "stubs must declare PDF, Page, and CroppedPage.objects"
         );
+        for declaration in [
+            "    def textboxhorizontals(self) -> list[dict[str, object]]:",
+            "    def textboxverticals(self) -> list[dict[str, object]]:",
+            "    def textlinehorizontals(self) -> list[dict[str, object]]:",
+            "    def textlineverticals(self) -> list[dict[str, object]]:",
+        ] {
+            assert_eq!(
+                content.matches(declaration).count(),
+                3,
+                "stubs must declare document, page, and cropped-page layout properties"
+            );
+        }
         for declaration in [
             "    @property\n    def chars(self) -> list[CharDict]:",
             "    @property\n    def lines(self) -> list[LineDict]:",

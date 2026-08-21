@@ -45,6 +45,8 @@ with open("document.pdf", "rb") as f:
 
 The top-level `pdfplumber.open` alias is available for filesystem paths. Other compatibility-facade work remains in progress; use the private extension explicitly for the native-only API shown above.
 
+Passing `laparams={}` to `pdfplumber.open` enables native horizontal layout analysis. The resulting `textboxhorizontal` and `textlinehorizontal` lists participate in the same page/document object caches and serialization as ordinary objects, and are also available through `.textboxhorizontals` and `.textlinehorizontals`. Horizontal grouping honors `line_overlap`, `char_margin`, `word_margin`, and `line_margin`; vertical layout and embedded-figure hierarchy support remain in progress.
+
 ## API Reference
 
 ### PDF
@@ -58,6 +60,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.to_dict(object_types=None)` | Document metadata and selected-page dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of selected page objects |
+| `.textboxhorizontals` / `.textlinehorizontals` | Aggregated horizontal layout objects when `laparams` is supplied |
 | `.rust` | Explicit namespace for Rust-native document extensions |
 
 ### Page
@@ -77,6 +80,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.point2coord(pt)` | Convert a PDF-space point to top-origin page coordinates |
 | `repr(page)` | Return `<Page:N>` using the 1-based document page number |
 | `.objects` | Cached mutable dictionary of present page objects keyed by type |
+| `.textboxhorizontals` / `.textlinehorizontals` | Cached horizontal layout objects when `laparams` is supplied |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |
