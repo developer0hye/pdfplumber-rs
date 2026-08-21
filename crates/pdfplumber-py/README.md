@@ -75,6 +75,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.artbox` | Direct rotation-aware ArtBox when present; absent otherwise |
 | `.initial_doctop` | Cumulative height of preceding pages in the current page view |
 | `.point2coord(pt)` | Convert a PDF-space point to top-origin page coordinates |
+| `repr(page)` | Return `<Page:N>` using the 1-based document page number |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |

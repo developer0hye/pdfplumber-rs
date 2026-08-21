@@ -602,6 +602,12 @@ fn compatible_point2coord(
     Ok((x, y))
 }
 
+fn compatible_page_repr(py: Python<'_>, page: &Bound<'_, PyAny>) -> PyResult<String> {
+    PyString::new(py, "<Page:{}>")
+        .call_method1("format", (page.getattr("page_number")?,))?
+        .extract()
+}
+
 fn parse_point2coord_arg(
     args: &Bound<'_, PyTuple>,
     kwargs: Option<&Bound<'_, PyDict>>,
@@ -867,10 +873,12 @@ impl PyCroppedPage {
         root_page: Py<PyAny>,
     ) -> PyResult<Py<Self>> {
         let mediabox = parent_page.bind(py).getattr("mediabox")?.unbind();
+        let page_number = parent_page.bind(py).getattr("page_number")?.unbind();
         let page = Py::new(py, Self { inner })?;
         page.bind(py).setattr("parent_page", parent_page)?;
         page.bind(py).setattr("root_page", root_page)?;
         page.bind(py).setattr("mediabox", mediabox)?;
+        page.bind(py).setattr("page_number", page_number)?;
         Ok(page)
     }
 
@@ -902,6 +910,11 @@ impl PyCroppedPage {
     #[getter]
     fn height(&self) -> f64 {
         self.inner.height()
+    }
+
+    fn __repr__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<String> {
+        let page: Py<Self> = slf.into();
+        compatible_page_repr(py, page.bind(py).as_any())
     }
 
     /// Convert a PDF-space point to this page view's top-origin coordinates.
@@ -2062,6 +2075,11 @@ impl PyPage {
     #[getter]
     fn page_number(&self) -> usize {
         self.page_index + 1
+    }
+
+    fn __repr__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<String> {
+        let page: Py<Self> = slf.into();
+        compatible_page_repr(py, page.bind(py).as_any())
     }
 
     /// Page width in points.
