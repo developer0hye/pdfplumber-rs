@@ -92,7 +92,26 @@ fn color_to_py(py: Python<'_>, color: &Color) -> PyObject {
     }
 }
 
-fn char_to_dict(py: Python<'_>, ch: &Char) -> PyResult<PyObject> {
+fn set_compatible_bbox_geometry(
+    dict: &Bound<'_, PyDict>,
+    x0: f64,
+    top: f64,
+    x1: f64,
+    bottom: f64,
+    page_height: f64,
+    initial_doctop: Option<f64>,
+) -> PyResult<()> {
+    dict.set_item("y0", page_height - bottom)?;
+    dict.set_item("y1", page_height - top)?;
+    dict.set_item("width", x1 - x0)?;
+    dict.set_item("height", bottom - top)?;
+    if let Some(initial_doctop) = initial_doctop {
+        dict.set_item("doctop", initial_doctop + top)?;
+    }
+    Ok(())
+}
+
+fn char_to_dict(py: Python<'_>, ch: &Char, page_height: f64) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("object_type", "char")?;
     dict.set_item("text", &ch.text)?;
@@ -100,6 +119,15 @@ fn char_to_dict(py: Python<'_>, ch: &Char) -> PyResult<PyObject> {
     dict.set_item("top", ch.bbox.top)?;
     dict.set_item("x1", ch.bbox.x1)?;
     dict.set_item("bottom", ch.bbox.bottom)?;
+    set_compatible_bbox_geometry(
+        &dict,
+        ch.bbox.x0,
+        ch.bbox.top,
+        ch.bbox.x1,
+        ch.bbox.bottom,
+        page_height,
+        None,
+    )?;
     dict.set_item("fontname", &ch.fontname)?;
     dict.set_item("size", ch.size)?;
     dict.set_item("doctop", ch.doctop)?;
@@ -380,6 +408,8 @@ fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
     dict.set_item("x1", word.bbox.x1)?;
     dict.set_item("bottom", word.bbox.bottom)?;
     dict.set_item("doctop", word.doctop)?;
+    dict.set_item("width", word.bbox.width())?;
+    dict.set_item("height", word.bbox.height())?;
     // The current Python API exposes only the upstream default word directions:
     // upright characters use `char_dir="ltr"`, while rotated characters use
     // the flipped `char_dir_rotated="ttb"`. Keep the core's richer TRM-derived
@@ -401,13 +431,27 @@ fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
     Ok(dict.into_any().unbind())
 }
 
-fn line_to_dict(py: Python<'_>, line: &Line) -> PyResult<PyObject> {
+fn line_to_dict(
+    py: Python<'_>,
+    line: &Line,
+    page_height: f64,
+    initial_doctop: f64,
+) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("object_type", "line")?;
     dict.set_item("x0", line.x0)?;
     dict.set_item("top", line.top)?;
     dict.set_item("x1", line.x1)?;
     dict.set_item("bottom", line.bottom)?;
+    set_compatible_bbox_geometry(
+        &dict,
+        line.x0,
+        line.top,
+        line.x1,
+        line.bottom,
+        page_height,
+        Some(initial_doctop),
+    )?;
     dict.set_item("line_width", line.line_width)?;
     dict.set_item("stroke_color", color_to_py(py, &line.stroke_color))?;
     dict.set_item(
@@ -421,13 +465,27 @@ fn line_to_dict(py: Python<'_>, line: &Line) -> PyResult<PyObject> {
     Ok(dict.into_any().unbind())
 }
 
-fn rect_to_dict(py: Python<'_>, rect: &Rect) -> PyResult<PyObject> {
+fn rect_to_dict(
+    py: Python<'_>,
+    rect: &Rect,
+    page_height: f64,
+    initial_doctop: f64,
+) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("object_type", "rect")?;
     dict.set_item("x0", rect.x0)?;
     dict.set_item("top", rect.top)?;
     dict.set_item("x1", rect.x1)?;
     dict.set_item("bottom", rect.bottom)?;
+    set_compatible_bbox_geometry(
+        &dict,
+        rect.x0,
+        rect.top,
+        rect.x1,
+        rect.bottom,
+        page_height,
+        Some(initial_doctop),
+    )?;
     dict.set_item("line_width", rect.line_width)?;
     dict.set_item("stroke", rect.stroke)?;
     dict.set_item("fill", rect.fill)?;
@@ -436,13 +494,27 @@ fn rect_to_dict(py: Python<'_>, rect: &Rect) -> PyResult<PyObject> {
     Ok(dict.into_any().unbind())
 }
 
-fn curve_to_dict(py: Python<'_>, curve: &Curve) -> PyResult<PyObject> {
+fn curve_to_dict(
+    py: Python<'_>,
+    curve: &Curve,
+    page_height: f64,
+    initial_doctop: f64,
+) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("object_type", "curve")?;
     dict.set_item("x0", curve.x0)?;
     dict.set_item("top", curve.top)?;
     dict.set_item("x1", curve.x1)?;
     dict.set_item("bottom", curve.bottom)?;
+    set_compatible_bbox_geometry(
+        &dict,
+        curve.x0,
+        curve.top,
+        curve.x1,
+        curve.bottom,
+        page_height,
+        Some(initial_doctop),
+    )?;
     dict.set_item("pts", &curve.pts)?;
     dict.set_item("line_width", curve.line_width)?;
     dict.set_item("stroke", curve.stroke)?;
@@ -2533,34 +2605,44 @@ impl PyPage {
     }
 
     fn char_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let page_height = self.height();
         self.with_page(py, |page| {
-            page.chars().iter().map(|ch| char_to_dict(py, ch)).collect()
+            page.chars()
+                .iter()
+                .map(|ch| char_to_dict(py, ch, page_height))
+                .collect()
         })
     }
 
     fn line_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let page_height = self.height();
+        let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.lines()
                 .iter()
-                .map(|line| line_to_dict(py, line))
+                .map(|line| line_to_dict(py, line, page_height, initial_doctop))
                 .collect()
         })
     }
 
     fn rect_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let page_height = self.height();
+        let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.rects()
                 .iter()
-                .map(|rect| rect_to_dict(py, rect))
+                .map(|rect| rect_to_dict(py, rect, page_height, initial_doctop))
                 .collect()
         })
     }
 
     fn curve_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
+        let page_height = self.height();
+        let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.curves()
                 .iter()
-                .map(|curve| curve_to_dict(py, curve))
+                .map(|curve| curve_to_dict(py, curve, page_height, initial_doctop))
                 .collect()
         })
     }
@@ -3795,7 +3877,7 @@ mod tests {
             tag: None,
         };
         Python::with_gil(|py| {
-            let dict_obj = char_to_dict(py, &ch).expect("char_to_dict");
+            let dict_obj = char_to_dict(py, &ch, 400.0).expect("char_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let text: String = dict.get_item("text").unwrap().unwrap().extract().unwrap();
             assert_eq!(text, "A");
@@ -3858,7 +3940,7 @@ mod tests {
             orientation: ::pdfplumber::Orientation::Horizontal,
         };
         Python::with_gil(|py| {
-            let dict_obj = line_to_dict(py, &line).expect("line_to_dict");
+            let dict_obj = line_to_dict(py, &line, 400.0, 100.0).expect("line_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let x0: f64 = dict.get_item("x0").unwrap().unwrap().extract().unwrap();
             assert!((x0 - 10.0).abs() < 0.01);
@@ -3886,7 +3968,7 @@ mod tests {
             fill_color: Color::Gray(1.0),
         };
         Python::with_gil(|py| {
-            let dict_obj = rect_to_dict(py, &rect).expect("rect_to_dict");
+            let dict_obj = rect_to_dict(py, &rect, 400.0, 100.0).expect("rect_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let stroke: bool = dict.get_item("stroke").unwrap().unwrap().extract().unwrap();
             assert!(stroke);
@@ -3910,7 +3992,7 @@ mod tests {
             fill_color: Color::black(),
         };
         Python::with_gil(|py| {
-            let dict_obj = curve_to_dict(py, &curve).expect("curve_to_dict");
+            let dict_obj = curve_to_dict(py, &curve, 400.0, 100.0).expect("curve_to_dict");
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let stroke: bool = dict.get_item("stroke").unwrap().unwrap().extract().unwrap();
             assert!(stroke);

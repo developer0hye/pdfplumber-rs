@@ -296,6 +296,39 @@ class NativeLayoutTests(unittest.TestCase):
         return cls.build_inline_pdf(tuple(objects))
 
     @classmethod
+    def exact_geometry_pdf(cls) -> bytes:
+        content = (
+            b"0.75 w "
+            b"10.25 20.5 30.75 40.125 re S "
+            b"5.5 8.25 m 80.125 70.875 l S "
+            b"20.5 30.25 m 40.75 90.125 100.5 90.125 120.25 30.25 c S "
+            b"BT /F1 12.5 Tf 1 0 0 1 31.25 241.75 Tm (AB) Tj ET"
+        )
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                b"<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+                (
+                    b"<< /Type /Page /Parent 2 0 R "
+                    b"/MediaBox [0 0 200.5 300.25] "
+                    b"/Resources << /Font << /F1 7 0 R >> >> /Contents 4 0 R >>"
+                ),
+                f"<< /Length {len(content)} >>\nstream\n".encode()
+                + content
+                + b"\nendstream",
+                (
+                    b"<< /Type /Page /Parent 2 0 R "
+                    b"/MediaBox [0 0 200.5 300.25] /Rotate 90 "
+                    b"/Resources << /Font << /F1 7 0 R >> >> /Contents 6 0 R >>"
+                ),
+                f"<< /Length {len(content)} >>\nstream\n".encode()
+                + content
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            )
+        )
+
+    @classmethod
     def split_level_page_tree_pdf(cls) -> bytes:
         contents = (
             b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
@@ -1728,6 +1761,126 @@ class NativeLayoutTests(unittest.TestCase):
                     (("PU", "ttb"), ("THGIR", "ltr"), ("DOWN", "ttb"), ("LEFT", "ltr")),
                     852.78,
                     680,
+                ),
+            ],
+        )
+
+    def test_page_and_object_geometry_matches_exact_values(self) -> None:
+        geometry_fields = (
+            "x0",
+            "y0",
+            "x1",
+            "y1",
+            "top",
+            "bottom",
+            "width",
+            "height",
+            "doctop",
+        )
+        word_fields = ("x0", "x1", "top", "bottom", "width", "height", "doctop")
+
+        with pdfplumber.open(io.BytesIO(self.exact_geometry_pdf())) as document:
+            snapshots = []
+            for page in document.pages:
+                character = page.chars[0]
+                word = page.extract_words()[0]
+                line = page.lines[0]
+                rectangle = page.rects[0]
+                curve = page.curves[0]
+                object_values = (
+                    tuple(character.get(name, "MISSING") for name in geometry_fields),
+                    tuple(word.get(name, "MISSING") for name in word_fields),
+                    tuple(line.get(name, "MISSING") for name in geometry_fields),
+                    tuple(rectangle.get(name, "MISSING") for name in geometry_fields),
+                    tuple(curve.get(name, "MISSING") for name in geometry_fields),
+                )
+                snapshots.append(
+                    (
+                        page.page_number,
+                        page.rotation,
+                        page.bbox,
+                        page.width,
+                        page.height,
+                        page.initial_doctop,
+                        page.point2coord((12.125, 42.875)),
+                        *object_values,
+                        tuple(tuple(point) for point in curve["pts"]),
+                    )
+                )
+                for values in object_values:
+                    self.assertTrue(all(type(value) is float for value in values))
+                self.assertTrue(
+                    all(type(value) is float for point in curve["pts"] for value in point)
+                )
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    1,
+                    0,
+                    (0, 0.0, 200.5, 300.25),
+                    200.5,
+                    300.25,
+                    0,
+                    (12.125, 257.375),
+                    (
+                        31.25,
+                        239.1625,
+                        39.5875,
+                        251.6625,
+                        48.587500000000006,
+                        61.087500000000006,
+                        8.337499999999999,
+                        12.5,
+                        48.587500000000006,
+                    ),
+                    (
+                        31.25,
+                        47.925,
+                        48.587500000000006,
+                        61.087500000000006,
+                        16.674999999999997,
+                        12.5,
+                        48.587500000000006,
+                    ),
+                    (5.5, 8.25, 80.125, 70.875, 229.375, 292.0, 74.625, 62.625, 229.375),
+                    (10.25, 20.5, 41.0, 60.625, 239.625, 279.75, 30.75, 40.125, 239.625),
+                    (20.5, 30.25, 120.25, 30.25, 270.0, 270.0, 99.75, 0.0, 270.0),
+                    ((20.5, 270.0), (120.25, 270.0)),
+                ),
+                (
+                    2,
+                    90,
+                    (0, 0.0, 300.25, 200.5),
+                    300.25,
+                    200.5,
+                    300.25,
+                    (12.125, 157.625),
+                    (
+                        239.1625,
+                        160.9125,
+                        251.6625,
+                        169.25,
+                        31.25,
+                        39.587500000000006,
+                        12.5,
+                        8.337500000000006,
+                        331.5,
+                    ),
+                    (
+                        239.1625,
+                        251.6625,
+                        31.25,
+                        47.92500000000001,
+                        12.5,
+                        16.67500000000001,
+                        331.5,
+                    ),
+                    (8.25, 120.375, 70.875, 195.0, 5.5, 80.125, 62.625, 74.625, 305.75),
+                    (20.5, 159.5, 60.625, 190.25, 10.25, 41.0, 40.125, 30.75, 310.5),
+                    (30.25, 80.25, 30.25, 180.0, 20.5, 120.25, 0.0, 99.75, 320.75),
+                    ((30.25, 20.5), (30.25, 120.25)),
                 ),
             ],
         )
