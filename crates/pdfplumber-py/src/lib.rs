@@ -799,13 +799,42 @@ impl PyTable {
 // ---------------------------------------------------------------------------
 
 /// A spatially filtered view of a PDF page.
-#[pyclass(name = "CroppedPage")]
+#[pyclass(name = "CroppedPage", dict)]
 struct PyCroppedPage {
     inner: CroppedPage,
 }
 
+impl PyCroppedPage {
+    fn from_parent(
+        py: Python<'_>,
+        inner: CroppedPage,
+        parent_page: Py<PyAny>,
+        root_page: Py<PyAny>,
+    ) -> PyResult<Py<Self>> {
+        let page = Py::new(py, Self { inner })?;
+        page.bind(py).setattr("parent_page", parent_page)?;
+        page.bind(py).setattr("root_page", root_page)?;
+        Ok(page)
+    }
+
+    fn from_cropped_parent(
+        py: Python<'_>,
+        parent: PyRef<'_, Self>,
+        inner: CroppedPage,
+    ) -> PyResult<Py<Self>> {
+        let parent: Py<Self> = parent.into();
+        let root_page = parent.bind(py).getattr("root_page")?.unbind();
+        Self::from_parent(py, inner, parent.into_any(), root_page)
+    }
+}
+
 #[pymethods]
 impl PyCroppedPage {
+    #[classattr]
+    fn is_original() -> bool {
+        false
+    }
+
     /// Width of the cropped region.
     #[getter]
     fn width(&self) -> f64 {
@@ -904,24 +933,33 @@ impl PyCroppedPage {
     }
 
     /// Further crop this cropped page.
-    fn crop(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.crop(parse_bbox_tuple(bbox)),
-        }
+    fn crop(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<Self>> {
+        let inner = slf.inner.crop(parse_bbox_tuple(bbox));
+        Self::from_cropped_parent(py, slf, inner)
     }
 
     /// Filter to objects fully within the given bbox.
-    fn within_bbox(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.within_bbox(parse_bbox_tuple(bbox)),
-        }
+    fn within_bbox(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<Self>> {
+        let inner = slf.inner.within_bbox(parse_bbox_tuple(bbox));
+        Self::from_cropped_parent(py, slf, inner)
     }
 
     /// Filter to objects outside the given bbox.
-    fn outside_bbox(&self, bbox: (f64, f64, f64, f64)) -> PyCroppedPage {
-        PyCroppedPage {
-            inner: self.inner.outside_bbox(parse_bbox_tuple(bbox)),
-        }
+    fn outside_bbox(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<Self>> {
+        let inner = slf.inner.outside_bbox(parse_bbox_tuple(bbox));
+        Self::from_cropped_parent(py, slf, inner)
     }
 }
 
@@ -1574,6 +1612,7 @@ impl PyPdf {
             )?;
             page.bind(py)
                 .setattr("bbox", compatible_bbox_tuple(media_box))?;
+            page.bind(py).setattr("root_page", page.clone_ref(py))?;
             if let Some(trim_box) = trim_box {
                 page.bind(py)
                     .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
@@ -1930,6 +1969,11 @@ impl PyPage {
 
 #[pymethods]
 impl PyPage {
+    #[classattr]
+    fn is_original() -> bool {
+        true
+    }
+
     /// The original 1-based document page number.
     #[getter]
     fn page_number(&self) -> usize {
@@ -2190,30 +2234,39 @@ impl PyPage {
     }
 
     /// Crop this page to a bounding box (x0, top, x1, bottom).
-    fn crop(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
-        self.with_page(py, |page| {
-            Ok(PyCroppedPage {
-                inner: page.crop(parse_bbox_tuple(bbox)),
-            })
-        })
+    fn crop(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<PyCroppedPage>> {
+        let inner = slf.with_page(py, |page| Ok(page.crop(parse_bbox_tuple(bbox))))?;
+        let original: Py<Self> = slf.into();
+        let root_page = original.clone_ref(py).into_any();
+        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
     }
 
     /// Filter to objects fully within the given bbox.
-    fn within_bbox(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
-        self.with_page(py, |page| {
-            Ok(PyCroppedPage {
-                inner: page.within_bbox(parse_bbox_tuple(bbox)),
-            })
-        })
+    fn within_bbox(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<PyCroppedPage>> {
+        let inner = slf.with_page(py, |page| Ok(page.within_bbox(parse_bbox_tuple(bbox))))?;
+        let original: Py<Self> = slf.into();
+        let root_page = original.clone_ref(py).into_any();
+        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
     }
 
     /// Filter to objects outside the given bbox.
-    fn outside_bbox(&self, py: Python<'_>, bbox: (f64, f64, f64, f64)) -> PyResult<PyCroppedPage> {
-        self.with_page(py, |page| {
-            Ok(PyCroppedPage {
-                inner: page.outside_bbox(parse_bbox_tuple(bbox)),
-            })
-        })
+    fn outside_bbox(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        bbox: (f64, f64, f64, f64),
+    ) -> PyResult<Py<PyCroppedPage>> {
+        let inner = slf.with_page(py, |page| Ok(page.outside_bbox(parse_bbox_tuple(bbox))))?;
+        let original: Py<Self> = slf.into();
+        let root_page = original.clone_ref(py).into_any();
+        PyCroppedPage::from_parent(py, inner, original.into_any(), root_page)
     }
 
     /// Search for a text pattern on this page.
@@ -2661,7 +2714,10 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let cropped = pypage.crop(py, (0.0, 0.0, 306.0, 396.0)).expect("crop");
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let cropped =
+                PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 306.0, 396.0)).expect("crop");
+            let cropped = cropped.bind(py).borrow();
             assert!((cropped.width() - 306.0).abs() < 0.1);
             assert!((cropped.height() - 396.0).abs() < 0.1);
         });
@@ -2673,9 +2729,11 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let filtered = pypage
-                .within_bbox(py, (0.0, 0.0, 306.0, 396.0))
-                .expect("within bbox");
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let filtered =
+                PyPage::within_bbox(pypage.bind(py).borrow(), py, (0.0, 0.0, 306.0, 396.0))
+                    .expect("within bbox");
+            let filtered = filtered.bind(py).borrow();
             assert!((filtered.width() - 306.0).abs() < 0.1);
             assert!((filtered.height() - 396.0).abs() < 0.1);
         });
@@ -2687,9 +2745,11 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let filtered = pypage
-                .outside_bbox(py, (100.0, 100.0, 200.0, 200.0))
-                .expect("outside bbox");
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let filtered =
+                PyPage::outside_bbox(pypage.bind(py).borrow(), py, (100.0, 100.0, 200.0, 200.0))
+                    .expect("outside bbox");
+            let filtered = filtered.bind(py).borrow();
             // outside_bbox uses the bbox dimensions (coordinate-adjusted region)
             assert!((filtered.width() - 100.0).abs() < 0.1);
             assert!((filtered.height() - 100.0).abs() < 0.1);
@@ -3025,7 +3085,10 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let cropped = pypage.crop(py, (0.0, 0.0, 200.0, 300.0)).expect("crop");
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let cropped =
+                PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 200.0, 300.0)).expect("crop");
+            let cropped = cropped.bind(py).borrow();
             assert!((cropped.width() - 200.0).abs() < 0.1);
             assert!((cropped.height() - 300.0).abs() < 0.1);
             assert!(cropped.chars(py).expect("chars").is_empty());
@@ -3051,8 +3114,13 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let cropped = pypage.crop(py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
-            let further = cropped.crop((0.0, 0.0, 200.0, 250.0));
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let cropped =
+                PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
+            let further =
+                PyCroppedPage::crop(cropped.bind(py).borrow(), py, (0.0, 0.0, 200.0, 250.0))
+                    .expect("further crop");
+            let further = further.bind(py).borrow();
             assert!((further.width() - 200.0).abs() < 0.1);
             assert!((further.height() - 250.0).abs() < 0.1);
         });
@@ -3064,8 +3132,16 @@ mod tests {
         let pdf = Pdf::open(&bytes, None).expect("open");
         let pypage = PyPage::from_pdf_for_test(pdf, 0);
         Python::with_gil(|py| {
-            let cropped = pypage.crop(py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
-            let within = cropped.within_bbox((50.0, 50.0, 150.0, 150.0));
+            let pypage = Py::new(py, pypage).expect("bind page");
+            let cropped =
+                PyPage::crop(pypage.bind(py).borrow(), py, (0.0, 0.0, 400.0, 500.0)).expect("crop");
+            let within = PyCroppedPage::within_bbox(
+                cropped.bind(py).borrow(),
+                py,
+                (50.0, 50.0, 150.0, 150.0),
+            )
+            .expect("within bbox");
+            let within = within.bind(py).borrow();
             assert!((within.width() - 100.0).abs() < 0.1);
             assert!((within.height() - 100.0).abs() < 0.1);
         });
@@ -3225,6 +3301,20 @@ mod tests {
         assert!(
             content.contains("def initial_doctop(self) -> int | float:"),
             "stubs must declare Page.initial_doctop"
+        );
+        assert_eq!(
+            content.matches("is_original: ClassVar[bool]").count(),
+            2,
+            "stubs must declare Page and CroppedPage.is_original"
+        );
+        assert_eq!(
+            content.matches("root_page: Page").count(),
+            2,
+            "stubs must declare Page and CroppedPage.root_page"
+        );
+        assert!(
+            content.contains("parent_page: Page | CroppedPage"),
+            "stubs must declare CroppedPage.parent_page"
         );
         assert_eq!(
             content

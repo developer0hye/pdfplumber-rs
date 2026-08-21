@@ -1438,6 +1438,43 @@ class NativeLayoutTests(unittest.TestCase):
             ],
         )
 
+    def test_derived_pages_retain_root_and_immediate_parent_identity(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            original = document.pages[0]
+            cropped = original.crop((0, 0, 300, 400))
+            nested = cropped.crop((10, 10, 200, 300))
+            within = nested.within_bbox((20, 20, 100, 100))
+            outside = within.outside_bbox((30, 30, 50, 50))
+            pages = [original, cropped, nested, within, outside]
+
+            self.assertEqual(
+                [page.is_original for page in pages],
+                [True, False, False, False, False],
+            )
+            self.assertTrue(all(page.root_page is original for page in pages))
+            self.assertFalse(hasattr(original, "parent_page"))
+            self.assertIs(cropped.parent_page, original)
+            self.assertIs(nested.parent_page, cropped)
+            self.assertIs(within.parent_page, nested)
+            self.assertIs(outside.parent_page, within)
+            self.assertEqual(["root_page" in vars(page) for page in pages], [True] * 5)
+            self.assertEqual(
+                ["parent_page" in vars(page) for page in pages],
+                [False, True, True, True, True],
+            )
+            self.assertEqual(
+                ["is_original" in vars(page) for page in pages],
+                [False] * 5,
+            )
+            self.assertIs(type(original).is_original, True)
+            self.assertIs(type(cropped).is_original, False)
+
+            marker = object()
+            cropped.root_page = marker
+            mutated_nested = cropped.crop((20, 20, 150, 250))
+            self.assertIs(mutated_nested.root_page, marker)
+            self.assertIs(mutated_nested.parent_page, cropped)
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:

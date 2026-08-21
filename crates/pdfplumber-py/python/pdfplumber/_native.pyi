@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TextIO
+from typing import ClassVar, TextIO
 
 __version__: str
 
@@ -159,6 +159,9 @@ class PDF:
 
 class Page:
     """A single page from a PDF document."""
+
+    is_original: ClassVar[bool]
+    root_page: Page
 
     @property
     def page_number(self) -> int:
@@ -342,6 +345,10 @@ class Table:
 
 class CroppedPage:
     """A spatially filtered view of a PDF page."""
+
+    is_original: ClassVar[bool]
+    parent_page: Page | CroppedPage
+    root_page: Page
 
     @property
     def width(self) -> float:
