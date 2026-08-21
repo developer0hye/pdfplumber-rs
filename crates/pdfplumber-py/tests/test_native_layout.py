@@ -1664,6 +1664,97 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertNotIn("marker", parent.objects)
             self.assertNotIn("marker", nested.objects)
 
+    def test_derived_cache_materialization_snapshots_parent_containers(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            parent = document.pages[0]
+            cropped = parent.crop(parent.bbox)
+            within = parent.within_bbox(parent.bbox)
+            outside = parent.outside_bbox((0, 0, 1, 1))
+            parent_objects = parent.objects
+            parent_char = parent_objects["char"][0]
+            parent_char["text"] = "before-derived-cache"
+            parent_char["mutable_marker"] = ["parent"]
+            parent_objects["custom"] = [parent_char]
+
+            cropped_objects = cropped.objects
+            within_objects = within.objects
+            outside_objects = outside.objects
+            for objects in (cropped_objects, within_objects, outside_objects):
+                self.assertEqual(list(objects), ["char", "custom"])
+                self.assertEqual(objects["char"][0]["text"], "before-derived-cache")
+                self.assertIsNot(objects, parent_objects)
+                self.assertIsNot(objects["char"], parent_objects["char"])
+                self.assertIsNot(objects["custom"], parent_objects["custom"])
+
+            self.assertIsNot(cropped_objects["char"][0], parent_char)
+            self.assertIsNot(cropped_objects["custom"][0], parent_char)
+            self.assertIsNot(
+                cropped_objects["char"][0],
+                cropped_objects["custom"][0],
+            )
+            self.assertIs(within_objects["char"][0], parent_char)
+            self.assertIs(within_objects["custom"][0], parent_char)
+            self.assertIs(outside_objects["char"][0], parent_char)
+            self.assertIs(outside_objects["custom"][0], parent_char)
+
+            parent_char["text"] = "after-derived-cache"
+            parent_char["mutable_marker"].append("shared")
+            parent_objects["char"].append(dict(parent_char))
+            self.assertEqual(cropped_objects["char"][0]["text"], "before-derived-cache")
+            self.assertEqual(within_objects["char"][0]["text"], "after-derived-cache")
+            self.assertEqual(outside_objects["char"][0]["text"], "after-derived-cache")
+            self.assertEqual(
+                cropped_objects["char"][0]["mutable_marker"],
+                ["parent", "shared"],
+            )
+            self.assertEqual(
+                [
+                    len(parent_objects["char"]),
+                    len(cropped_objects["char"]),
+                    len(within_objects["char"]),
+                    len(outside_objects["char"]),
+                ],
+                [259, 258, 258, 258],
+            )
+
+    def test_sibling_and_nested_derived_cache_identity_matches_upstream(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            parent = document.pages[0]
+            first = parent.crop(parent.bbox)
+            second = parent.crop(parent.bbox)
+            first_objects = first.objects
+            second_objects = second.objects
+            full_bbox = (0, 0, first.width, first.height)
+            nested_crop = first.crop(full_bbox)
+            nested_within = first.within_bbox(full_bbox)
+            nested_crop_objects = nested_crop.objects
+            nested_within_objects = nested_within.objects
+
+            first_char = first_objects["char"][0]
+            self.assertIsNot(first_char, second_objects["char"][0])
+            self.assertIsNot(first_char, nested_crop_objects["char"][0])
+            self.assertIs(first_char, nested_within_objects["char"][0])
+            first_char["nested_marker"] = True
+            self.assertNotIn("nested_marker", second_objects["char"][0])
+            self.assertNotIn("nested_marker", nested_crop_objects["char"][0])
+            self.assertTrue(nested_within_objects["char"][0]["nested_marker"])
+
+        repository = Path(__file__).resolve().parents[3]
+        curve_fixture = (
+            repository
+            / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf"
+        )
+        with pdfplumber.open(curve_fixture) as document:
+            parent = document.pages[0]
+            cropped = parent.crop(parent.bbox)
+            parent_curve = parent.curves[0]
+            cropped_curve = cropped.curves[0]
+            self.assertIsNot(parent_curve, cropped_curve)
+            self.assertIs(parent_curve["pts"], cropped_curve["pts"])
+            marker = object()
+            parent_curve["pts"].append(marker)
+            self.assertIs(cropped_curve["pts"][-1], marker)
+
     def test_page_object_lists_are_cache_backed_properties(self) -> None:
         with pdfplumber.open(self.fixture()) as document:
             page = document.pages[0]
