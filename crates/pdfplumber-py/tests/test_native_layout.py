@@ -2322,6 +2322,16 @@ class NativeLayoutTests(unittest.TestCase):
                                 {value.get("object_type") for value in dictionaries},
                                 {key},
                             )
+                            self.assertEqual(
+                                {value.get("page_number") for value in dictionaries},
+                                {page.page_number},
+                            )
+                            self.assertTrue(
+                                all(
+                                    type(value.get("page_number")) is int
+                                    for value in dictionaries
+                                )
+                            )
                     objects["marker"] = []
                     self.assertIn("marker", page.objects)
 
@@ -2674,6 +2684,19 @@ class NativeLayoutTests(unittest.TestCase):
                             },
                             {object_type},
                         )
+                        self.assertEqual(
+                            {
+                                value.get("page_number")
+                                for value in objects[object_type]
+                            },
+                            {page.page_number},
+                        )
+                        self.assertTrue(
+                            all(
+                                type(value.get("page_number")) is int
+                                for value in objects[object_type]
+                            )
+                        )
 
             self.assertEqual(
                 {
@@ -2689,6 +2712,19 @@ class NativeLayoutTests(unittest.TestCase):
                         for value in document.objects[object_type]
                     },
                     {object_type},
+                )
+                self.assertEqual(
+                    {
+                        value.get("page_number")
+                        for value in document.objects[object_type]
+                    },
+                    {1, 2, 3, 4},
+                )
+                self.assertTrue(
+                    all(
+                        type(value.get("page_number")) is int
+                        for value in document.objects[object_type]
+                    )
                 )
 
     def test_laparams_line_margin_controls_textbox_grouping(self) -> None:
