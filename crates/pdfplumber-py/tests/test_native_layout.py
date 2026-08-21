@@ -243,6 +243,26 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @classmethod
+    def single_page_rotation_pdf(cls, rotation: int) -> bytes:
+        content = b"10 40 20 30 re S\nBT /F1 12 Tf 10 20 Td (ROTATE PAGE) Tj ET"
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                (
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 200] "
+                    + f"/Rotate {rotation} ".encode()
+                    + b"/Resources << /Font << /F1 5 0 R >> >> "
+                    b"/Contents 4 0 R >>"
+                ),
+                f"<< /Length {len(content)} >>\nstream\n".encode()
+                + content
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            )
+        )
+
+    @classmethod
     def split_level_page_tree_pdf(cls) -> bytes:
         contents = (
             b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
@@ -1430,6 +1450,99 @@ class NativeLayoutTests(unittest.TestCase):
                     100,
                     "ROOT",
                     ("Helvetica",),
+                ),
+            ],
+        )
+
+    def test_all_four_page_rotations_match_text_and_geometry(self) -> None:
+        snapshots = []
+        for rotation in (0, 90, 180, 270):
+            with pdfplumber.open(
+                io.BytesIO(self.single_page_rotation_pdf(rotation))
+            ) as document:
+                page = document.pages[0]
+                rectangle = page.rects[0]
+                serialized = page.to_dict(["rect"])
+                snapshots.append(
+                    (
+                        rotation,
+                        page.rotation,
+                        page.bbox,
+                        page.width,
+                        page.height,
+                        page.extract_text(),
+                        "".join(char["text"] for char in page.chars),
+                        tuple(sorted({char["upright"] for char in page.chars})),
+                        tuple(word["text"] for word in page.extract_words()),
+                        (
+                            rectangle["x0"],
+                            rectangle["top"],
+                            rectangle["x1"],
+                            rectangle["bottom"],
+                        ),
+                        serialized["rotation"],
+                        serialized["bbox"],
+                    )
+                )
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    0,
+                    0,
+                    (0, 0, 100, 200),
+                    100,
+                    200,
+                    "ROTATE PAGE",
+                    "ROTATE PAGE",
+                    (True,),
+                    ("ROTATE", "PAGE"),
+                    (10, 130, 30, 160),
+                    0,
+                    (0, 0, 100, 200),
+                ),
+                (
+                    90,
+                    90,
+                    (0, 0, 200, 100),
+                    200,
+                    100,
+                    "ROTATE\nPAGE",
+                    "ROTATE PAGE",
+                    (False,),
+                    ("ROTATE", "PAGE"),
+                    (40, 10, 70, 30),
+                    90,
+                    (0, 0, 200, 100),
+                ),
+                (
+                    180,
+                    180,
+                    (0, 0, 100, 200),
+                    100,
+                    200,
+                    "EGAP ETATOR",
+                    "ROTATE PAGE",
+                    (True,),
+                    ("EGAP", "ETATOR"),
+                    (70, 40, 90, 70),
+                    180,
+                    (0, 0, 100, 200),
+                ),
+                (
+                    270,
+                    270,
+                    (0, 0, 200, 100),
+                    200,
+                    100,
+                    "EGAP\nETATOR",
+                    "ROTATE PAGE",
+                    (False,),
+                    ("EGAP", "ETATOR"),
+                    (130, 70, 160, 90),
+                    270,
+                    (0, 0, 200, 100),
                 ),
             ],
         )
