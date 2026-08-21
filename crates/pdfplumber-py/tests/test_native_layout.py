@@ -1564,6 +1564,35 @@ class NativeLayoutTests(unittest.TestCase):
             ):
                 original.point2coord(point=(1, 2))
 
+    def test_page_repr_matches_original_and_derived_page_numbers(self) -> None:
+        for fixture in (self.fixture(), self.multipage_fixture()):
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    original = document.pages[0]
+                    cropped = original.crop(original.bbox)
+                    nested = cropped.crop((0, 0, cropped.width, cropped.height))
+                    self.assertEqual(
+                        [repr(original), repr(cropped), repr(nested)],
+                        ["<Page:1>", "<Page:1>", "<Page:1>"],
+                    )
+                    self.assertEqual(str(original), "<Page:1>")
+                    cropped.page_number = "custom"
+                    mutated_nested = cropped.crop(
+                        (0, 0, cropped.width, cropped.height)
+                    )
+                    self.assertEqual(
+                        [repr(cropped), repr(mutated_nested)],
+                        ["<Page:custom>", "<Page:custom>"],
+                    )
+
+        with pdfplumber.open(self.multipage_fixture(), pages=(3, 5)) as document:
+            self.assertEqual(
+                [repr(page) for page in document.pages],
+                ["<Page:3>", "<Page:5>"],
+            )
+            selected_crop = document.pages[0].crop(document.pages[0].bbox)
+            self.assertEqual(repr(selected_crop), "<Page:3>")
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:

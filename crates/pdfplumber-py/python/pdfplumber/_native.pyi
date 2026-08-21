@@ -166,7 +166,7 @@ class Page:
 
     @property
     def page_number(self) -> int:
-        """The 0-based page index."""
+        """The 1-based document page number."""
         ...
 
     @property
@@ -350,6 +350,7 @@ class CroppedPage:
 
     is_original: ClassVar[bool]
     mediabox: tuple[float, float, float, float]
+    page_number: int
     parent_page: Page | CroppedPage
     root_page: Page
 
