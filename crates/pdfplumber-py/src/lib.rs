@@ -1078,55 +1078,142 @@ fn compatible_geometry_number(value: f64) -> f64 {
     if value == 0.0 { 0.0 } else { value }
 }
 
-fn normalized_page_box(page_box: BBox, rotation: i32) -> BBox {
-    let x0 = page_box.x0.min(page_box.x1);
-    let y0 = page_box.top.min(page_box.bottom);
-    let x1 = page_box.x0.max(page_box.x1);
-    let y1 = page_box.top.max(page_box.bottom);
-    let (x0, y0, x1, y1) = if matches!(rotation, 90 | 270) {
-        (y0, x0, y1, x1)
+#[derive(Clone, Copy)]
+struct CompatiblePageBox {
+    bbox: BBox,
+    integer_flags: [bool; 4],
+}
+
+fn normalized_page_box(
+    page_box: BBox,
+    integer_flags: [bool; 4],
+    rotation: i32,
+) -> CompatiblePageBox {
+    let (x0, x0_is_integer, x1, x1_is_integer) = if page_box.x0 <= page_box.x1 {
+        (page_box.x0, integer_flags[0], page_box.x1, integer_flags[2])
     } else {
-        (x0, y0, x1, y1)
+        (page_box.x1, integer_flags[2], page_box.x0, integer_flags[0])
     };
-    BBox::new(x0, y0, x1, y1)
+    let (y0, y0_is_integer, y1, y1_is_integer) = if page_box.top <= page_box.bottom {
+        (
+            page_box.top,
+            integer_flags[1],
+            page_box.bottom,
+            integer_flags[3],
+        )
+    } else {
+        (
+            page_box.bottom,
+            integer_flags[3],
+            page_box.top,
+            integer_flags[1],
+        )
+    };
+    let (bbox, integer_flags) = if matches!(rotation, 90 | 270) {
+        (
+            BBox::new(y0, x0, y1, x1),
+            [y0_is_integer, x0_is_integer, y1_is_integer, x1_is_integer],
+        )
+    } else {
+        (
+            BBox::new(x0, y0, x1, y1),
+            [x0_is_integer, y0_is_integer, x1_is_integer, y1_is_integer],
+        )
+    };
+    CompatiblePageBox {
+        bbox,
+        integer_flags,
+    }
 }
 
-fn invert_page_box(page_box: BBox, media_height: f64) -> BBox {
-    BBox::new(
-        page_box.x0,
-        media_height - page_box.bottom,
-        page_box.x1,
-        media_height - page_box.top,
-    )
+fn invert_page_box(
+    page_box: CompatiblePageBox,
+    media_height: f64,
+    media_height_is_integer: bool,
+) -> CompatiblePageBox {
+    CompatiblePageBox {
+        bbox: BBox::new(
+            page_box.bbox.x0,
+            media_height - page_box.bbox.bottom,
+            page_box.bbox.x1,
+            media_height - page_box.bbox.top,
+        ),
+        integer_flags: [
+            page_box.integer_flags[0],
+            media_height_is_integer && page_box.integer_flags[3],
+            page_box.integer_flags[2],
+            media_height_is_integer && page_box.integer_flags[1],
+        ],
+    }
 }
 
-fn compatible_page_boxes(media_box: BBox, crop_box: Option<BBox>, rotation: i32) -> (BBox, BBox) {
-    let normalized_media_box = normalized_page_box(media_box, rotation);
-    let media_height = normalized_media_box.bottom - normalized_media_box.top;
-    let normalized_crop_box = normalized_page_box(crop_box.unwrap_or(media_box), rotation);
+fn compatible_page_boxes(
+    media_box: BBox,
+    media_box_integer_flags: [bool; 4],
+    crop_box: Option<BBox>,
+    crop_box_integer_flags: Option<[bool; 4]>,
+    rotation: i32,
+) -> (CompatiblePageBox, CompatiblePageBox) {
+    let normalized_media_box = normalized_page_box(media_box, media_box_integer_flags, rotation);
+    let media_height = normalized_media_box.bbox.bottom - normalized_media_box.bbox.top;
+    let media_height_is_integer =
+        normalized_media_box.integer_flags[3] && normalized_media_box.integer_flags[1];
+    let normalized_crop_box = normalized_page_box(
+        crop_box.unwrap_or(media_box),
+        crop_box_integer_flags.unwrap_or(media_box_integer_flags),
+        rotation,
+    );
     (
-        invert_page_box(normalized_media_box, media_height),
-        invert_page_box(normalized_crop_box, media_height),
+        invert_page_box(normalized_media_box, media_height, media_height_is_integer),
+        invert_page_box(normalized_crop_box, media_height, media_height_is_integer),
     )
 }
 
 fn compatible_optional_page_box(
     media_box: BBox,
+    media_box_integer_flags: [bool; 4],
     page_box: Option<BBox>,
+    page_box_integer_flags: Option<[bool; 4]>,
     rotation: i32,
-) -> Option<BBox> {
-    let media_box = normalized_page_box(media_box, rotation);
-    let media_height = media_box.bottom - media_box.top;
-    page_box.map(|page_box| invert_page_box(normalized_page_box(page_box, rotation), media_height))
+) -> Option<CompatiblePageBox> {
+    let media_box = normalized_page_box(media_box, media_box_integer_flags, rotation);
+    let media_height = media_box.bbox.bottom - media_box.bbox.top;
+    let media_height_is_integer = media_box.integer_flags[3] && media_box.integer_flags[1];
+    page_box
+        .zip(page_box_integer_flags)
+        .map(|(page_box, integer_flags)| {
+            invert_page_box(
+                normalized_page_box(page_box, integer_flags, rotation),
+                media_height,
+                media_height_is_integer,
+            )
+        })
 }
 
-fn compatible_bbox_tuple(bbox: BBox) -> (f64, f64, f64, f64) {
-    (
-        compatible_geometry_number(bbox.x0),
-        compatible_geometry_number(bbox.top),
-        compatible_geometry_number(bbox.x1),
-        compatible_geometry_number(bbox.bottom),
-    )
+fn compatible_number_to_object(py: Python<'_>, value: f64, is_integer: bool) -> PyObject {
+    if is_integer {
+        (value as i64)
+            .into_pyobject(py)
+            .unwrap()
+            .into_any()
+            .unbind()
+    } else {
+        compatible_geometry_number(value)
+            .into_pyobject(py)
+            .unwrap()
+            .into_any()
+            .unbind()
+    }
+}
+
+fn compatible_bbox_to_object(py: Python<'_>, page_box: CompatiblePageBox) -> PyResult<PyObject> {
+    let values = [
+        compatible_number_to_object(py, page_box.bbox.x0, page_box.integer_flags[0]),
+        compatible_number_to_object(py, page_box.bbox.top, page_box.integer_flags[1]),
+        compatible_number_to_object(py, page_box.bbox.x1, page_box.integer_flags[2]),
+        compatible_number_to_object(py, page_box.bbox.bottom, page_box.integer_flags[3]),
+    ];
+    Ok(PyTuple::new(py, values)?.into_any().unbind())
 }
 
 fn compatible_point2coord(
@@ -1265,16 +1352,8 @@ fn parse_point2coord_arg(
     })
 }
 
-fn initial_doctop_to_object(py: Python<'_>, value: f64) -> PyObject {
-    if value == 0.0 {
-        0_i64.into_pyobject(py).unwrap().into_any().unbind()
-    } else {
-        compatible_geometry_number(value)
-            .into_pyobject(py)
-            .unwrap()
-            .into_any()
-            .unbind()
-    }
+fn initial_doctop_to_object(py: Python<'_>, value: f64, is_integer: bool) -> PyObject {
+    compatible_number_to_object(py, value, is_integer)
 }
 
 fn container_to_json(
@@ -2438,6 +2517,7 @@ impl PyPdf {
         }
 
         let mut selected_doctop = 0.0;
+        let mut selected_doctop_is_integer = true;
         for i in 0..self.inner.page_count() {
             let page_number = (i + 1) as isize;
             if let Some(selected) = &self.selected_pages {
@@ -2454,17 +2534,47 @@ impl PyPdf {
             let media_box = self.inner.page_media_box(i).ok_or_else(|| {
                 PyRuntimeError::new_err(format!("missing MediaBox for page {}", i + 1))
             })?;
-            let trim_box =
-                compatible_optional_page_box(media_box, self.inner.page_trim_box(i), rotation);
-            let bleed_box =
-                compatible_optional_page_box(media_box, self.inner.page_bleed_box(i), rotation);
-            let art_box =
-                compatible_optional_page_box(media_box, self.inner.page_art_box(i), rotation);
-            let (media_box, crop_box) =
-                compatible_page_boxes(media_box, self.inner.page_crop_box(i), rotation);
+            let media_box_integer_flags =
+                self.inner.page_media_box_integer_flags(i).ok_or_else(|| {
+                    PyRuntimeError::new_err(format!(
+                        "missing MediaBox number types for page {}",
+                        i + 1
+                    ))
+                })?;
+            let trim_box = compatible_optional_page_box(
+                media_box,
+                media_box_integer_flags,
+                self.inner.page_trim_box(i),
+                self.inner.page_trim_box_integer_flags(i),
+                rotation,
+            );
+            let bleed_box = compatible_optional_page_box(
+                media_box,
+                media_box_integer_flags,
+                self.inner.page_bleed_box(i),
+                self.inner.page_bleed_box_integer_flags(i),
+                rotation,
+            );
+            let art_box = compatible_optional_page_box(
+                media_box,
+                media_box_integer_flags,
+                self.inner.page_art_box(i),
+                self.inner.page_art_box_integer_flags(i),
+                rotation,
+            );
+            let (media_box, crop_box) = compatible_page_boxes(
+                media_box,
+                media_box_integer_flags,
+                self.inner.page_crop_box(i),
+                self.inner.page_crop_box_integer_flags(i),
+                rotation,
+            );
+            let width_is_integer = media_box.integer_flags[2] && media_box.integer_flags[0];
+            let height_is_integer = media_box.integer_flags[3] && media_box.integer_flags[1];
             let initial_doctop = if self.selected_pages.is_some() {
-                let initial_doctop = selected_doctop;
+                let initial_doctop = (selected_doctop, selected_doctop_is_integer);
                 selected_doctop += compatible_geometry_number(height);
+                selected_doctop_is_integer &= height_is_integer;
                 Some(initial_doctop)
             } else {
                 None
@@ -2477,6 +2587,8 @@ impl PyPdf {
                     PyPageGeometry {
                         width,
                         height,
+                        width_is_integer,
+                        height_is_integer,
                         rotation,
                         media_box,
                         crop_box,
@@ -2486,9 +2598,9 @@ impl PyPdf {
                 ),
             )?;
             page.bind(py)
-                .setattr("bbox", compatible_bbox_tuple(media_box))?;
+                .setattr("bbox", compatible_bbox_to_object(py, media_box)?)?;
             page.bind(py)
-                .setattr("mediabox", compatible_bbox_tuple(media_box))?;
+                .setattr("mediabox", compatible_bbox_to_object(py, media_box)?)?;
             page.bind(py).setattr("root_page", page.clone_ref(py))?;
             if let Some(laparams) = &self._laparams {
                 page.bind(py)
@@ -2496,15 +2608,15 @@ impl PyPdf {
             }
             if let Some(trim_box) = trim_box {
                 page.bind(py)
-                    .setattr("trimbox", compatible_bbox_tuple(trim_box))?;
+                    .setattr("trimbox", compatible_bbox_to_object(py, trim_box)?)?;
             }
             if let Some(bleed_box) = bleed_box {
                 page.bind(py)
-                    .setattr("bleedbox", compatible_bbox_tuple(bleed_box))?;
+                    .setattr("bleedbox", compatible_bbox_to_object(py, bleed_box)?)?;
             }
             if let Some(art_box) = art_box {
                 page.bind(py)
-                    .setattr("artbox", compatible_bbox_tuple(art_box))?;
+                    .setattr("artbox", compatible_bbox_to_object(py, art_box)?)?;
             }
             pages.bind(py).append(page)?;
         }
@@ -2716,9 +2828,11 @@ impl PyPdf {
 struct PyPageGeometry {
     width: f64,
     height: f64,
+    width_is_integer: bool,
+    height_is_integer: bool,
     rotation: i32,
-    media_box: BBox,
-    crop_box: BBox,
+    media_box: CompatiblePageBox,
+    crop_box: CompatiblePageBox,
 }
 
 #[pyclass(name = "Page", dict)]
@@ -2726,7 +2840,7 @@ struct PyPage {
     pdf: Arc<Pdf>,
     page_index: usize,
     geometry: PyPageGeometry,
-    selected_doctop: Option<f64>,
+    selected_doctop: Option<(f64, bool)>,
     unicode_norm: Option<PyObject>,
     page_cache: Mutex<Option<Page>>,
 }
@@ -2736,7 +2850,7 @@ impl PyPage {
         pdf: Arc<Pdf>,
         page_index: usize,
         geometry: PyPageGeometry,
-        selected_doctop: Option<f64>,
+        selected_doctop: Option<(f64, bool)>,
         unicode_norm: Option<PyObject>,
     ) -> Self {
         Self {
@@ -2755,14 +2869,26 @@ impl PyPage {
         let (width, height) = pdf.page_dimensions(page_index).expect("page dimensions");
         let rotation = pdf.page_rotation(page_index).expect("page rotation");
         let source_media_box = pdf.page_media_box(page_index).expect("page MediaBox");
-        let (media_box, crop_box) =
-            compatible_page_boxes(source_media_box, pdf.page_crop_box(page_index), rotation);
+        let media_box_integer_flags = pdf
+            .page_media_box_integer_flags(page_index)
+            .expect("MediaBox number types");
+        let (media_box, crop_box) = compatible_page_boxes(
+            source_media_box,
+            media_box_integer_flags,
+            pdf.page_crop_box(page_index),
+            pdf.page_crop_box_integer_flags(page_index),
+            rotation,
+        );
+        let width_is_integer = media_box.integer_flags[2] && media_box.integer_flags[0];
+        let height_is_integer = media_box.integer_flags[3] && media_box.integer_flags[1];
         Self::new(
             pdf,
             page_index,
             PyPageGeometry {
                 width,
                 height,
+                width_is_integer,
+                height_is_integer,
                 rotation,
                 media_box,
                 crop_box,
@@ -2777,9 +2903,9 @@ impl PyPage {
         let media_box = self.geometry.media_box;
         let page = Py::new(py, self)?;
         page.bind(py)
-            .setattr("bbox", compatible_bbox_tuple(media_box))?;
+            .setattr("bbox", compatible_bbox_to_object(py, media_box)?)?;
         page.bind(py)
-            .setattr("mediabox", compatible_bbox_tuple(media_box))?;
+            .setattr("mediabox", compatible_bbox_to_object(py, media_box)?)?;
         page.bind(py).setattr("root_page", page.clone_ref(py))?;
         Ok(page)
     }
@@ -2797,7 +2923,7 @@ impl PyPage {
         if cache.is_none() {
             let mut page = self.pdf.page(self.page_index).map_err(to_py_err)?;
             page.apply_unicode_norm(&unicode_norm);
-            if let Some(selected_doctop) = self.selected_doctop {
+            if let Some((selected_doctop, _)) = self.selected_doctop {
                 page.rebase_doctop(selected_doctop);
             }
             *cache = Some(page);
@@ -2817,20 +2943,53 @@ impl PyPage {
     }
 
     fn initial_doctop(&self) -> f64 {
-        self.selected_doctop.unwrap_or_else(|| {
-            (0..self.page_index)
-                .filter_map(|index| {
-                    self.pdf
-                        .page_dimensions(index)
-                        .map(|(_, height)| compatible_geometry_number(height))
+        self.selected_doctop
+            .map(|(value, _)| value)
+            .unwrap_or_else(|| {
+                (0..self.page_index)
+                    .filter_map(|index| {
+                        self.pdf
+                            .page_dimensions(index)
+                            .map(|(_, height)| compatible_geometry_number(height))
+                    })
+                    .sum()
+            })
+    }
+
+    fn page_dimension_integer_flags(&self, index: usize) -> Option<(bool, bool)> {
+        let media_box = self.pdf.page_media_box(index)?;
+        let media_box_integer_flags = self.pdf.page_media_box_integer_flags(index)?;
+        let rotation = self.pdf.page_rotation(index)?;
+        let (media_box, _) =
+            compatible_page_boxes(media_box, media_box_integer_flags, None, None, rotation);
+        Some((
+            media_box.integer_flags[2] && media_box.integer_flags[0],
+            media_box.integer_flags[3] && media_box.integer_flags[1],
+        ))
+    }
+
+    fn initial_doctop_is_integer(&self) -> bool {
+        self.selected_doctop
+            .map(|(_, is_integer)| is_integer)
+            .unwrap_or_else(|| {
+                (0..self.page_index).all(|index| {
+                    self.page_dimension_integer_flags(index)
+                        .is_some_and(|(_, height_is_integer)| height_is_integer)
                 })
-                .sum()
-        })
+            })
+    }
+
+    fn width_value(&self) -> f64 {
+        compatible_geometry_number(self.geometry.width)
+    }
+
+    fn height_value(&self) -> f64 {
+        compatible_geometry_number(self.geometry.height)
     }
 
     fn char_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
-        let page_height = self.height();
+        let page_height = self.height_value();
         self.with_page(py, |page| {
             page.chars()
                 .iter()
@@ -2841,7 +3000,7 @@ impl PyPage {
 
     fn line_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
-        let page_height = self.height();
+        let page_height = self.height_value();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.lines()
@@ -2853,7 +3012,7 @@ impl PyPage {
 
     fn rect_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
-        let page_height = self.height();
+        let page_height = self.height_value();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.rects()
@@ -2865,7 +3024,7 @@ impl PyPage {
 
     fn curve_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
-        let page_height = self.height();
+        let page_height = self.height_value();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.curves()
@@ -2877,7 +3036,7 @@ impl PyPage {
 
     fn image_objects(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
-        let page_height = self.height();
+        let page_height = self.height_value();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             page.images()
@@ -2896,7 +3055,7 @@ impl PyPage {
     ) -> PyResult<CompatibleLayoutObjects> {
         let page_number = self.page_number();
         let raw_height = self.geometry.height;
-        let public_height = self.height();
+        let public_height = self.height_value();
         let initial_doctop = self.initial_doctop();
         self.with_page(py, |page| {
             compatible_layout_objects(
@@ -2919,18 +3078,38 @@ impl PyPage {
     ) -> PyResult<PyObject> {
         let dict = PyDict::new(py);
         let initial_doctop = self.initial_doctop();
+        let initial_doctop_is_integer = self.initial_doctop_is_integer();
         self.with_page(py, |_| {
             dict.set_item("page_number", self.page_number())?;
             dict.set_item(
                 "initial_doctop",
-                initial_doctop_to_object(py, initial_doctop),
+                initial_doctop_to_object(py, initial_doctop, initial_doctop_is_integer),
             )?;
             dict.set_item("rotation", self.geometry.rotation)?;
-            dict.set_item("cropbox", compatible_bbox_tuple(self.geometry.crop_box))?;
-            dict.set_item("mediabox", compatible_bbox_tuple(self.geometry.media_box))?;
-            dict.set_item("bbox", compatible_bbox_tuple(self.geometry.media_box))?;
-            dict.set_item("width", self.width())?;
-            dict.set_item("height", self.height())?;
+            dict.set_item(
+                "cropbox",
+                compatible_bbox_to_object(py, self.geometry.crop_box)?,
+            )?;
+            dict.set_item(
+                "mediabox",
+                compatible_bbox_to_object(py, self.geometry.media_box)?,
+            )?;
+            dict.set_item(
+                "bbox",
+                compatible_bbox_to_object(py, self.geometry.media_box)?,
+            )?;
+            dict.set_item(
+                "width",
+                compatible_number_to_object(py, self.width_value(), self.geometry.width_is_integer),
+            )?;
+            dict.set_item(
+                "height",
+                compatible_number_to_object(
+                    py,
+                    self.height_value(),
+                    self.geometry.height_is_integer,
+                ),
+            )?;
             Ok(())
         })?;
 
@@ -3084,14 +3263,14 @@ impl PyPage {
 
     /// Page width in points.
     #[getter]
-    fn width(&self) -> f64 {
-        compatible_geometry_number(self.geometry.width)
+    fn width(&self, py: Python<'_>) -> PyObject {
+        compatible_number_to_object(py, self.width_value(), self.geometry.width_is_integer)
     }
 
     /// Page height in points.
     #[getter]
-    fn height(&self) -> f64 {
-        compatible_geometry_number(self.geometry.height)
+    fn height(&self, py: Python<'_>) -> PyObject {
+        compatible_number_to_object(py, self.height_value(), self.geometry.height_is_integer)
     }
 
     /// Convert a PDF-space point to this page view's top-origin coordinates.
@@ -3115,14 +3294,14 @@ impl PyPage {
 
     /// CropBox in the page's rotation-aware, top-origin coordinate space.
     #[getter]
-    fn cropbox(&self) -> (f64, f64, f64, f64) {
-        compatible_bbox_tuple(self.geometry.crop_box)
+    fn cropbox(&self, py: Python<'_>) -> PyResult<PyObject> {
+        compatible_bbox_to_object(py, self.geometry.crop_box)
     }
 
     /// Cumulative height of preceding pages in the current page view.
     #[getter(initial_doctop)]
     fn initial_doctop_property(&self, py: Python<'_>) -> PyObject {
-        initial_doctop_to_object(py, self.initial_doctop())
+        initial_doctop_to_object(py, self.initial_doctop(), self.initial_doctop_is_integer())
     }
 
     /// Characters on this page as list[dict].
@@ -3213,7 +3392,7 @@ impl PyPage {
     fn annots(&self, py: Python<'_>) -> PyResult<Vec<PyObject>> {
         let page_number = self.page_number();
         let page_height = self.geometry.height;
-        let initial_doctop = self.selected_doctop.unwrap_or(0.0);
+        let initial_doctop = self.selected_doctop.map(|(value, _)| value).unwrap_or(0.0);
         self.with_page(py, |page| {
             page.annots()
                 .iter()

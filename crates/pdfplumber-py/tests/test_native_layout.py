@@ -2023,6 +2023,130 @@ class NativeLayoutTests(unittest.TestCase):
             ],
         )
 
+    def test_page_geometry_numeric_types_preserve_source_numbers(self) -> None:
+        def scalar_type(value: object) -> str:
+            return type(value).__name__
+
+        def bbox_types(value: object) -> tuple[str, ...]:
+            return tuple(scalar_type(number) for number in value)
+
+        def snapshot(page: object) -> dict[str, object]:
+            serialized = page.to_dict([])
+            json_value = json.loads(page.to_json(object_types=[]))
+            result: dict[str, object] = {}
+            for surface_name, surface in (
+                (
+                    "direct",
+                    {
+                        "initial_doctop": page.initial_doctop,
+                        "bbox": page.bbox,
+                        "mediabox": page.mediabox,
+                        "cropbox": page.cropbox,
+                        "width": page.width,
+                        "height": page.height,
+                    },
+                ),
+                ("dict", serialized),
+                ("json", json_value),
+            ):
+                result[surface_name] = {
+                    "initial_doctop": scalar_type(surface["initial_doctop"]),
+                    "bbox": bbox_types(surface["bbox"]),
+                    "mediabox": bbox_types(surface["mediabox"]),
+                    "cropbox": bbox_types(surface["cropbox"]),
+                    "width": scalar_type(surface["width"]),
+                    "height": scalar_type(surface["height"]),
+                }
+            result["point2coord_int"] = bbox_types(page.point2coord((1, 2)))
+            result["point2coord_mixed"] = bbox_types(page.point2coord((1, 2.5)))
+            return result
+
+        integer_box = ("int", "int", "int", "int")
+        integer_surface = {
+            "initial_doctop": "int",
+            "bbox": integer_box,
+            "mediabox": integer_box,
+            "cropbox": integer_box,
+            "width": "int",
+            "height": "int",
+        }
+        integer_page = {
+            "direct": integer_surface,
+            "dict": integer_surface,
+            "json": integer_surface,
+            "point2coord_int": ("int", "int"),
+            "point2coord_mixed": ("int", "float"),
+        }
+        with pdfplumber.open(
+            io.BytesIO(self.normalized_rotation_pdf())
+        ) as document:
+            self.assertEqual(
+                [snapshot(page) for page in document.pages],
+                [integer_page, integer_page, integer_page],
+            )
+
+        mixed_box = ("int", "float", "float", "float")
+        mixed_surface_int_doctop = {
+            "initial_doctop": "int",
+            "bbox": mixed_box,
+            "mediabox": mixed_box,
+            "cropbox": mixed_box,
+            "width": "float",
+            "height": "float",
+        }
+        mixed_surface_float_doctop = {
+            **mixed_surface_int_doctop,
+            "initial_doctop": "float",
+        }
+        with pdfplumber.open(io.BytesIO(self.exact_geometry_pdf())) as document:
+            snapshots = [snapshot(page) for page in document.pages]
+        self.assertEqual(
+            snapshots,
+            [
+                {
+                    "direct": mixed_surface_int_doctop,
+                    "dict": mixed_surface_int_doctop,
+                    "json": mixed_surface_int_doctop,
+                    "point2coord_int": ("int", "float"),
+                    "point2coord_mixed": ("int", "float"),
+                },
+                {
+                    "direct": mixed_surface_float_doctop,
+                    "dict": mixed_surface_float_doctop,
+                    "json": mixed_surface_float_doctop,
+                    "point2coord_int": ("int", "float"),
+                    "point2coord_mixed": ("int", "float"),
+                },
+            ],
+        )
+
+        for factory, attribute in (
+            (self.trimbox_pdf, "trimbox"),
+            (self.bleedbox_pdf, "bleedbox"),
+            (self.artbox_pdf, "artbox"),
+        ):
+            with self.subTest(attribute=attribute):
+                with pdfplumber.open(io.BytesIO(factory())) as document:
+                    self.assertEqual(bbox_types(getattr(document.pages[1], attribute)), integer_box)
+
+        repository = Path(__file__).resolve().parents[3]
+        real_fixture = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/page-boxes-example.pdf"
+        )
+        with pdfplumber.open(real_fixture) as document:
+            page = document.pages[0]
+            self.assertEqual(bbox_types(page.bbox), mixed_box)
+            self.assertEqual(bbox_types(page.mediabox), mixed_box)
+
+        with pdfplumber.open(
+            io.BytesIO(self.normalized_rotation_pdf()), pages=(2, 3)
+        ) as document:
+            self.assertEqual(
+                [scalar_type(page.initial_doctop) for page in document.pages],
+                ["int", "int"],
+            )
+
     def test_negative_mediabox_origin_is_retained_for_rotated_content(self) -> None:
         with pdfplumber.open(io.BytesIO(self.negative_origin_rotated_rect_pdf())) as document:
             snapshots = []
@@ -3620,9 +3744,9 @@ class NativeLayoutTests(unittest.TestCase):
         compact = (
             '{"metadata": {"CreationDate": "D:20260228140604Z"}, "pages": '
             '[{"page_number": 1, "initial_doctop": 0, "rotation": 0, '
-            '"cropbox": [0.0, 0.0, 595.28, 841.89], "mediabox": '
-            '[0.0, 0.0, 595.28, 841.89], "bbox": '
-            '[0.0, 0.0, 595.28, 841.89], "width": 595.28, '
+            '"cropbox": [0, 0.0, 595.28, 841.89], "mediabox": '
+            '[0, 0.0, 595.28, 841.89], "bbox": '
+            '[0, 0.0, 595.28, 841.89], "width": 595.28, '
             '"height": 841.89}]}'
         )
         pretty_page = """{
@@ -3630,19 +3754,19 @@ class NativeLayoutTests(unittest.TestCase):
   "initial_doctop": 0,
   "rotation": 0,
   "cropbox": [
-    0.0,
+    0,
     0.0,
     595.3,
     841.9
   ],
   "mediabox": [
-    0.0,
+    0,
     0.0,
     595.3,
     841.9
   ],
   "bbox": [
-    0.0,
+    0,
     0.0,
     595.3,
     841.9
