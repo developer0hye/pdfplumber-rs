@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import io
 import importlib.machinery
 import inspect
@@ -4278,9 +4279,23 @@ class NativeLayoutTests(unittest.TestCase):
             def __init__(self, rawdata: bytes | None) -> None:
                 self.rawdata = rawdata
 
+        class PSLiteral:
+            def __init__(self, name: bytes | str) -> None:
+                self.name = name
+
+            def __repr__(self) -> str:
+                return f"/{self.name!r}"
+
         serializer = Serializer(
             precision=2,
-            include_attrs=["value", "nested", "stream", "bytes"],
+            include_attrs=[
+                "value",
+                "nested",
+                "stream",
+                "bytes",
+                "literal",
+                "utf16_literal",
+            ],
         )
         serialized = serializer.serialize(
             {
@@ -4292,6 +4307,8 @@ class NativeLayoutTests(unittest.TestCase):
                         "nested": (True, [2.345, None]),
                         "stream": PDFStream(b"\x00\xff"),
                         "bytes": b"\xff",
+                        "literal": PSLiteral(b"\x80"),
+                        "utf16_literal": PSLiteral(b"\xfe\xff\xd5\x5c"),
                         "ignored": "excluded",
                     },
                     {
@@ -4313,6 +4330,8 @@ class NativeLayoutTests(unittest.TestCase):
                         "nested": (1, [2.35, None]),
                         "stream": {"rawdata": "AP8="},
                         "bytes": None,
+                        "literal": "•",
+                        "utf16_literal": "한",
                     },
                     {"object_type": "image", "stream": {"rawdata": None}},
                 ],
@@ -4323,6 +4342,19 @@ class NativeLayoutTests(unittest.TestCase):
             json.dumps(serialized["metadata"]),
             r'{"unicode": "\ud55c", "bytes": "plain"}',
         )
+        # Pin every PDFDocEncoding entry without embedding control characters.
+        literal_inputs = (
+            [PSLiteral(bytes([value])) for value in range(256)],
+            [PSLiteral(chr(value)) for value in range(256)],
+        )
+        for values in literal_inputs:
+            with self.subTest(literal_name_type=type(values[0].name).__name__):
+                serialized_literals = serializer.serialize(values)
+                self.assertEqual(
+                    hashlib.sha256(repr(serialized_literals).encode()).hexdigest(),
+                    "110773316cd2b18d56106ee2e7db5bc77be5246e1546678516ff93e29aa0d8dc",
+                )
+        self.assertEqual(serializer.serialize(PSLiteral("한")), "한")
 
 
 if __name__ == "__main__":
