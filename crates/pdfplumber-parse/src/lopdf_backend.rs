@@ -79,12 +79,49 @@ impl LopdfBackend {
         validate_metadata_object(&doc.inner, info, &mut std::collections::HashSet::new())
     }
 
+    /// Return which source MediaBox coordinates were PDF integers.
+    pub fn page_media_box_integer_flags(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<[bool; 4], BackendError> {
+        let object = resolve_inherited(&doc.inner, page.object_id, b"MediaBox")?
+            .ok_or_else(|| BackendError::Parse("MediaBox not found on page or ancestors".into()))?;
+        let array = object
+            .as_array()
+            .map_err(|error| BackendError::Parse(format!("MediaBox is not an array: {error}")))?;
+        extract_bbox_integer_flags(array)
+    }
+
+    /// Return which source CropBox coordinates were PDF integers, when present.
+    pub fn page_crop_box_integer_flags(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<[bool; 4]>, BackendError> {
+        match resolve_inherited(&doc.inner, page.object_id, b"CropBox")? {
+            Some(object) => {
+                let array = object.as_array().map_err(|error| {
+                    BackendError::Parse(format!("CropBox is not an array: {error}"))
+                })?;
+                extract_bbox_integer_flags(array).map(Some)
+            }
+            None => Ok(None),
+        }
+    }
+
     /// Return the TrimBox defined directly on a page, without page-tree inheritance.
     pub fn page_explicit_trim_box(
         doc: &LopdfDocument,
         page: &LopdfPage,
     ) -> Result<Option<BBox>, BackendError> {
         page_explicit_box(&doc.inner, page.object_id, b"TrimBox")
+    }
+
+    /// Return which directly defined TrimBox coordinates were PDF integers.
+    pub fn page_explicit_trim_box_integer_flags(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<[bool; 4]>, BackendError> {
+        page_explicit_box_integer_flags(&doc.inner, page.object_id, b"TrimBox")
     }
 
     /// Return the BleedBox defined directly on a page, without page-tree inheritance.
@@ -95,12 +132,28 @@ impl LopdfBackend {
         page_explicit_box(&doc.inner, page.object_id, b"BleedBox")
     }
 
+    /// Return which directly defined BleedBox coordinates were PDF integers.
+    pub fn page_explicit_bleed_box_integer_flags(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<[bool; 4]>, BackendError> {
+        page_explicit_box_integer_flags(&doc.inner, page.object_id, b"BleedBox")
+    }
+
     /// Return the ArtBox defined directly on a page, without page-tree inheritance.
     pub fn page_explicit_art_box(
         doc: &LopdfDocument,
         page: &LopdfPage,
     ) -> Result<Option<BBox>, BackendError> {
         page_explicit_box(&doc.inner, page.object_id, b"ArtBox")
+    }
+
+    /// Return which directly defined ArtBox coordinates were PDF integers.
+    pub fn page_explicit_art_box_integer_flags(
+        doc: &LopdfDocument,
+        page: &LopdfPage,
+    ) -> Result<Option<[bool; 4]>, BackendError> {
+        page_explicit_box_integer_flags(&doc.inner, page.object_id, b"ArtBox")
     }
 }
 
@@ -123,6 +176,25 @@ fn page_explicit_box(
     }
 }
 
+fn page_explicit_box_integer_flags(
+    doc: &lopdf::Document,
+    page_id: lopdf::ObjectId,
+    key: &[u8],
+) -> Result<Option<[bool; 4]>, BackendError> {
+    match resolve_direct(doc, page_id, key)? {
+        Some(object) => {
+            let array = object.as_array().map_err(|error| {
+                BackendError::Parse(format!(
+                    "{} is not an array: {error}",
+                    String::from_utf8_lossy(key)
+                ))
+            })?;
+            extract_bbox_integer_flags(array).map(Some)
+        }
+        None => Ok(None),
+    }
+}
+
 /// Extract a [`BBox`] from a lopdf array of 4 numbers `[x0, y0, x1, y1]`.
 fn extract_bbox_from_array(array: &[lopdf::Object]) -> Result<BBox, BackendError> {
     if array.len() != 4 {
@@ -136,6 +208,29 @@ fn extract_bbox_from_array(array: &[lopdf::Object]) -> Result<BBox, BackendError
     let x1 = object_to_f64(&array[2])?;
     let y1 = object_to_f64(&array[3])?;
     Ok(BBox::new(x0, y0, x1, y1))
+}
+
+fn extract_bbox_integer_flags(array: &[lopdf::Object]) -> Result<[bool; 4], BackendError> {
+    if array.len() != 4 {
+        return Err(BackendError::Parse(format!(
+            "expected 4-element array for box, got {}",
+            array.len()
+        )));
+    }
+
+    let mut flags = [false; 4];
+    for (index, object) in array.iter().enumerate() {
+        flags[index] = match object {
+            lopdf::Object::Integer(_) => true,
+            lopdf::Object::Real(_) => false,
+            _ => {
+                return Err(BackendError::Parse(format!(
+                    "expected number, got {object:?}"
+                )));
+            }
+        };
+    }
+    Ok(flags)
 }
 
 /// Convert a lopdf numeric object (Integer or Real) to f64.

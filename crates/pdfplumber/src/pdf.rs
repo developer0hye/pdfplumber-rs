@@ -70,14 +70,24 @@ pub struct Pdf {
     page_rotations: Vec<i32>,
     /// Cached source MediaBoxes for creating lazy page handles.
     page_media_boxes: Vec<BBox>,
+    /// Cached source MediaBox integer/real kinds for compatibility adapters.
+    page_media_box_integer_flags: Vec<[bool; 4]>,
     /// Cached inherited source CropBoxes for creating lazy page handles.
     page_crop_boxes: Vec<Option<BBox>>,
+    /// Cached source CropBox integer/real kinds for compatibility adapters.
+    page_crop_box_integer_flags: Vec<Option<[bool; 4]>>,
     /// Cached source TrimBoxes defined directly on each page.
     page_trim_boxes: Vec<Option<BBox>>,
+    /// Cached source TrimBox integer/real kinds for compatibility adapters.
+    page_trim_box_integer_flags: Vec<Option<[bool; 4]>>,
     /// Cached source BleedBoxes defined directly on each page.
     page_bleed_boxes: Vec<Option<BBox>>,
+    /// Cached source BleedBox integer/real kinds for compatibility adapters.
+    page_bleed_box_integer_flags: Vec<Option<[bool; 4]>>,
     /// Cached source ArtBoxes defined directly on each page.
     page_art_boxes: Vec<Option<BBox>>,
+    /// Cached source ArtBox integer/real kinds for compatibility adapters.
+    page_art_box_integer_flags: Vec<Option<[bool; 4]>>,
     /// Cached raw PDF (MediaBox) heights for y-flip in char extraction.
     raw_page_heights: Vec<f64>,
     /// Cached document metadata from the /Info dictionary.
@@ -297,22 +307,40 @@ impl Pdf {
         let mut page_heights = Vec::with_capacity(page_count);
         let mut page_rotations = Vec::with_capacity(page_count);
         let mut page_media_boxes = Vec::with_capacity(page_count);
+        let mut page_media_box_integer_flags = Vec::with_capacity(page_count);
         let mut page_crop_boxes = Vec::with_capacity(page_count);
+        let mut page_crop_box_integer_flags = Vec::with_capacity(page_count);
         let mut page_trim_boxes = Vec::with_capacity(page_count);
+        let mut page_trim_box_integer_flags = Vec::with_capacity(page_count);
         let mut page_bleed_boxes = Vec::with_capacity(page_count);
+        let mut page_bleed_box_integer_flags = Vec::with_capacity(page_count);
         let mut page_art_boxes = Vec::with_capacity(page_count);
+        let mut page_art_box_integer_flags = Vec::with_capacity(page_count);
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
             let page = LopdfBackend::get_page(&doc, i).map_err(PdfError::from)?;
             let media_box = LopdfBackend::page_media_box(&doc, &page).map_err(PdfError::from)?;
+            let media_box_integer_flags =
+                LopdfBackend::page_media_box_integer_flags(&doc, &page).map_err(PdfError::from)?;
             let crop_box = LopdfBackend::page_crop_box(&doc, &page).map_err(PdfError::from)?;
+            let crop_box_integer_flags =
+                LopdfBackend::page_crop_box_integer_flags(&doc, &page).map_err(PdfError::from)?;
             let trim_box =
                 LopdfBackend::page_explicit_trim_box(&doc, &page).map_err(PdfError::from)?;
+            let trim_box_integer_flags =
+                LopdfBackend::page_explicit_trim_box_integer_flags(&doc, &page)
+                    .map_err(PdfError::from)?;
             let bleed_box =
                 LopdfBackend::page_explicit_bleed_box(&doc, &page).map_err(PdfError::from)?;
+            let bleed_box_integer_flags =
+                LopdfBackend::page_explicit_bleed_box_integer_flags(&doc, &page)
+                    .map_err(PdfError::from)?;
             let art_box =
                 LopdfBackend::page_explicit_art_box(&doc, &page).map_err(PdfError::from)?;
+            let art_box_integer_flags =
+                LopdfBackend::page_explicit_art_box_integer_flags(&doc, &page)
+                    .map_err(PdfError::from)?;
             let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
             // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
             // CropBox is stored as page metadata but does not affect coordinate transforms.
@@ -321,10 +349,15 @@ impl Pdf {
             page_heights.push(geometry.height());
             page_rotations.push(geometry.rotation());
             page_media_boxes.push(media_box);
+            page_media_box_integer_flags.push(media_box_integer_flags);
             page_crop_boxes.push(crop_box);
+            page_crop_box_integer_flags.push(crop_box_integer_flags);
             page_trim_boxes.push(trim_box);
+            page_trim_box_integer_flags.push(trim_box_integer_flags);
             page_bleed_boxes.push(bleed_box);
+            page_bleed_box_integer_flags.push(bleed_box_integer_flags);
             page_art_boxes.push(art_box);
+            page_art_box_integer_flags.push(art_box_integer_flags);
             // Compute the effective page height for the y-flip transform.
             //
             // Python pdfplumber computes: top = (height - char.y1) + mb_top
@@ -358,10 +391,15 @@ impl Pdf {
             page_heights,
             page_rotations,
             page_media_boxes,
+            page_media_box_integer_flags,
             page_crop_boxes,
+            page_crop_box_integer_flags,
             page_trim_boxes,
+            page_trim_box_integer_flags,
             page_bleed_boxes,
+            page_bleed_box_integer_flags,
             page_art_boxes,
+            page_art_box_integer_flags,
             raw_page_heights,
             metadata,
             raw_metadata,
@@ -395,9 +433,22 @@ impl Pdf {
         self.page_media_boxes.get(index).copied()
     }
 
+    /// Return which source MediaBox coordinates were PDF integers.
+    pub fn page_media_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
+        self.page_media_box_integer_flags.get(index).copied()
+    }
+
     /// Return a page's inherited source CropBox without interpreting its content stream.
     pub fn page_crop_box(&self, index: usize) -> Option<BBox> {
         self.page_crop_boxes.get(index).copied().flatten()
+    }
+
+    /// Return which source CropBox coordinates were PDF integers.
+    pub fn page_crop_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
+        self.page_crop_box_integer_flags
+            .get(index)
+            .copied()
+            .flatten()
     }
 
     /// Return a page's explicit source TrimBox without interpreting its content stream.
@@ -405,14 +456,38 @@ impl Pdf {
         self.page_trim_boxes.get(index).copied().flatten()
     }
 
+    /// Return which source TrimBox coordinates were PDF integers.
+    pub fn page_trim_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
+        self.page_trim_box_integer_flags
+            .get(index)
+            .copied()
+            .flatten()
+    }
+
     /// Return a page's explicit source BleedBox without interpreting its content stream.
     pub fn page_bleed_box(&self, index: usize) -> Option<BBox> {
         self.page_bleed_boxes.get(index).copied().flatten()
     }
 
+    /// Return which source BleedBox coordinates were PDF integers.
+    pub fn page_bleed_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
+        self.page_bleed_box_integer_flags
+            .get(index)
+            .copied()
+            .flatten()
+    }
+
     /// Return a page's explicit source ArtBox without interpreting its content stream.
     pub fn page_art_box(&self, index: usize) -> Option<BBox> {
         self.page_art_boxes.get(index).copied().flatten()
+    }
+
+    /// Return which source ArtBox coordinates were PDF integers.
+    pub fn page_art_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
+        self.page_art_box_integer_flags
+            .get(index)
+            .copied()
+            .flatten()
     }
 
     /// Return the document metadata from the PDF /Info dictionary.
