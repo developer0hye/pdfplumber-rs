@@ -17,6 +17,7 @@ use pyo3::exceptions::{
     PyValueError,
 };
 use pyo3::prelude::*;
+use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
 use std::sync::{Arc, Mutex};
 
@@ -861,9 +862,53 @@ fn compatible_page_object_list(
         .unbind())
 }
 
-fn clear_compatible_page_objects(page: &Bound<'_, PyAny>) -> PyResult<()> {
-    if page.hasattr("_objects")? {
-        page.delattr("_objects")?;
+static PAGE_CACHED_PROPERTIES: GILOnceCell<Py<PyList>> = GILOnceCell::new();
+
+fn compatible_page_cached_properties(py: Python<'_>) -> PyResult<Py<PyList>> {
+    let properties = PAGE_CACHED_PROPERTIES.get_or_try_init(py, || {
+        Ok::<_, PyErr>(
+            PyList::new(
+                py,
+                [
+                    "_rect_edges",
+                    "_curve_edges",
+                    "_edges",
+                    "_objects",
+                    "_layout",
+                ],
+            )?
+            .unbind(),
+        )
+    })?;
+    Ok(properties.clone_ref(py))
+}
+
+fn flush_compatible_page_cache(
+    page: &Bound<'_, PyAny>,
+    properties: Option<&Bound<'_, PyAny>>,
+    mut clear_layout: impl FnMut() -> PyResult<()>,
+) -> PyResult<()> {
+    let properties = match properties {
+        Some(properties) => properties.clone(),
+        None => page.getattr("cached_properties")?,
+    };
+
+    for property in properties.try_iter()? {
+        let property = property?;
+        if !property.is_instance_of::<PyString>() {
+            let type_name = property.get_type().name()?.to_string_lossy().into_owned();
+            return Err(PyTypeError::new_err(format!(
+                "attribute name must be string, not '{type_name}'"
+            )));
+        }
+
+        let property = property.extract::<String>()?;
+        if page.hasattr(property.as_str())? {
+            page.delattr(property.as_str())?;
+        }
+        if property == "_layout" {
+            clear_layout()?;
+        }
     }
     Ok(())
 }
@@ -1240,6 +1285,11 @@ impl PyCroppedPage {
 #[pymethods]
 impl PyCroppedPage {
     #[classattr]
+    fn cached_properties(py: Python<'_>) -> PyResult<Py<PyList>> {
+        compatible_page_cached_properties(py)
+    }
+
+    #[classattr]
     fn is_original() -> bool {
         false
     }
@@ -1264,7 +1314,18 @@ impl PyCroppedPage {
     /// Discard cached objects for this derived page.
     fn close(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<()> {
         let page: Py<Self> = slf.into();
-        clear_compatible_page_objects(page.bind(py).as_any())
+        flush_compatible_page_cache(page.bind(py).as_any(), None, || Ok(()))
+    }
+
+    /// Discard selected cached properties for this derived page.
+    #[pyo3(signature = (properties=None))]
+    fn flush_cache(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        properties: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let page: Py<Self> = slf.into();
+        flush_compatible_page_cache(page.bind(py).as_any(), properties, || Ok(()))
     }
 
     /// Objects in the cropped region grouped by their upstream type name.
@@ -2566,6 +2627,11 @@ impl PyPage {
 #[pymethods]
 impl PyPage {
     #[classattr]
+    fn cached_properties(py: Python<'_>) -> PyResult<Py<PyList>> {
+        compatible_page_cached_properties(py)
+    }
+
+    #[classattr]
     fn is_original() -> bool {
         true
     }
@@ -2583,9 +2649,23 @@ impl PyPage {
 
     /// Discard cached parsed content and objects for this page.
     fn close(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<()> {
-        slf.clear_page_cache()?;
         let page: Py<Self> = slf.into();
-        clear_compatible_page_objects(page.bind(py).as_any())
+        let page = page.bind(py);
+        flush_compatible_page_cache(page.as_any(), None, || page.borrow().clear_page_cache())
+    }
+
+    /// Discard selected cached properties for this page.
+    #[pyo3(signature = (properties=None))]
+    fn flush_cache(
+        slf: PyRef<'_, Self>,
+        py: Python<'_>,
+        properties: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<()> {
+        let page: Py<Self> = slf.into();
+        let page = page.bind(py);
+        flush_compatible_page_cache(page.as_any(), properties, || {
+            page.borrow().clear_page_cache()
+        })
     }
 
     /// Objects on this page grouped by their upstream type name.
@@ -3179,6 +3259,73 @@ mod tests {
                 let cache = page_ref.page_cache.lock().expect("page cache");
                 assert!(cache.is_none());
             }
+            assert!(
+                !page
+                    .bind(py)
+                    .getattr("__dict__")
+                    .expect("page dictionary")
+                    .downcast::<PyDict>()
+                    .expect("dictionary")
+                    .contains("_objects")
+                    .expect("object cache presence")
+            );
+        });
+    }
+
+    #[test]
+    fn test_pypage_flush_cache_selectively_clears_native_page_cache() {
+        let bytes = minimal_pdf_bytes();
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let page = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let page = page.into_py_for_test(py).expect("Python page");
+            page.bind(py).getattr("chars").expect("materialize objects");
+
+            let only_objects = PyList::new(py, ["_objects"]).expect("property list");
+            page.bind(py)
+                .call_method1("flush_cache", (only_objects,))
+                .expect("flush objects");
+            {
+                let page_ref = page.bind(py).borrow();
+                let cache = page_ref.page_cache.lock().expect("page cache");
+                assert!(cache.is_some());
+            }
+            assert!(
+                !page
+                    .bind(py)
+                    .getattr("__dict__")
+                    .expect("page dictionary")
+                    .downcast::<PyDict>()
+                    .expect("dictionary")
+                    .contains("_objects")
+                    .expect("object cache presence")
+            );
+
+            page.bind(py)
+                .getattr("chars")
+                .expect("rematerialize objects");
+            let only_layout = PyList::new(py, ["_layout"]).expect("property list");
+            page.bind(py)
+                .call_method1("flush_cache", (only_layout,))
+                .expect("flush layout");
+            {
+                let page_ref = page.bind(py).borrow();
+                let cache = page_ref.page_cache.lock().expect("page cache");
+                assert!(cache.is_none());
+            }
+            assert!(
+                page.bind(py)
+                    .getattr("__dict__")
+                    .expect("page dictionary")
+                    .downcast::<PyDict>()
+                    .expect("dictionary")
+                    .contains("_objects")
+                    .expect("object cache presence")
+            );
+
+            page.bind(py)
+                .call_method0("flush_cache")
+                .expect("flush default caches");
             assert!(
                 !page
                     .bind(py)
@@ -4029,9 +4176,12 @@ mod tests {
             content.contains("__version__"),
             "stubs must declare __version__"
         );
-        assert!(
-            content.contains("def flush_cache(self, properties: list[str] | None = None) -> None:"),
-            "stubs must declare PDF.flush_cache"
+        assert_eq!(
+            content
+                .matches("def flush_cache(self, properties: list[str] | None = None) -> None:")
+                .count(),
+            3,
+            "stubs must declare PDF, Page, and CroppedPage.flush_cache"
         );
         assert_eq!(
             content.matches("    def close(self) -> None:").count(),
