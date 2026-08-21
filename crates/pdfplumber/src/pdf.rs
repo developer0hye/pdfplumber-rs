@@ -6,16 +6,16 @@ use pdfplumber_core::{
     BBox, Bookmark, Char, Color, Ctm, Curve, DashPattern, DocumentMetadata, ExtractOptions,
     ExtractWarning, FormField, Image, ImageContent, ImageFilter, ImageMetadata, Line, Orientation,
     PageRegionOptions, PageRegions, PaintedPath, Path, PdfError, RawDocumentMetadata, Rect,
-    RepairOptions, RepairResult, SearchMatch, SearchOptions, SignatureInfo, StructElement,
-    TextDirection, TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions, dedupe_chars,
-    detect_page_regions, extract_shapes, image_from_ctm, normalize_chars,
+    RepairOptions, RepairResult, SearchMatch, SearchOptions, ShapeKind, SignatureInfo,
+    StructElement, TextDirection, TextOptions, UnicodeNorm, ValidationIssue, apply_bidi_directions,
+    dedupe_chars, detect_page_regions, extract_shapes_with_order, image_from_ctm, normalize_chars,
 };
 use pdfplumber_parse::{
     CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, PageGeometry, PaintOp,
     PathEvent, PdfBackend, char_from_event,
 };
 
-use crate::Page;
+use crate::{Page, PageObjectKind};
 
 /// Iterator over pages of a PDF document, yielding each page on demand.
 ///
@@ -105,10 +105,17 @@ pub struct Pdf {
 }
 
 /// Internal handler that collects content stream events during interpretation.
+enum CollectedObjectEvent {
+    Char,
+    Path(usize),
+    Image,
+}
+
 struct CollectingHandler {
     chars: Vec<CharEvent>,
     paths: Vec<PathEvent>,
     images: Vec<ImageEvent>,
+    object_events: Vec<CollectedObjectEvent>,
     warnings: Vec<ExtractWarning>,
     page_index: usize,
     collect_warnings: bool,
@@ -120,6 +127,7 @@ impl CollectingHandler {
             chars: Vec::new(),
             paths: Vec::new(),
             images: Vec::new(),
+            object_events: Vec::new(),
             warnings: Vec::new(),
             page_index,
             collect_warnings,
@@ -129,14 +137,18 @@ impl CollectingHandler {
 
 impl ContentHandler for CollectingHandler {
     fn on_char(&mut self, event: CharEvent) {
+        self.object_events.push(CollectedObjectEvent::Char);
         self.chars.push(event);
     }
 
     fn on_path_painted(&mut self, event: PathEvent) {
+        self.object_events
+            .push(CollectedObjectEvent::Path(self.paths.len()));
         self.paths.push(event);
     }
 
     fn on_image(&mut self, event: ImageEvent) {
+        self.object_events.push(CollectedObjectEvent::Image);
         self.images.push(event);
     }
 
@@ -746,10 +758,13 @@ impl Pdf {
         let mut all_lines: Vec<Line> = Vec::new();
         let mut all_rects: Vec<Rect> = Vec::new();
         let mut all_curves: Vec<Curve> = Vec::new();
+        let mut path_object_kinds: Vec<Vec<PageObjectKind>> =
+            Vec::with_capacity(handler.paths.len());
 
         for path_event in &handler.paths {
             let painted = path_event_to_painted_path(path_event);
-            let (mut lines, mut rects, mut curves) = extract_shapes(&painted, page_height);
+            let (mut lines, mut rects, mut curves, shape_order) =
+                extract_shapes_with_order(&painted, page_height);
             if needs_rotation {
                 for line in &mut lines {
                     let bbox = rotate_bbox(
@@ -806,6 +821,15 @@ impl Pdf {
                         .collect();
                 }
             }
+            let kinds = shape_order
+                .into_iter()
+                .map(|kind| match kind {
+                    ShapeKind::Line => PageObjectKind::Line,
+                    ShapeKind::Rect => PageObjectKind::Rect,
+                    ShapeKind::Curve => PageObjectKind::Curve,
+                })
+                .collect();
+            path_object_kinds.push(kinds);
             all_lines.extend(lines);
             all_rects.extend(rects);
             all_curves.extend(curves);
@@ -869,6 +893,21 @@ impl Pdf {
                 img
             })
             .collect();
+
+        let mut object_order = Vec::new();
+        for event in &handler.object_events {
+            let kinds: &[PageObjectKind] = match event {
+                CollectedObjectEvent::Char if !chars.is_empty() => &[PageObjectKind::Char],
+                CollectedObjectEvent::Path(index) => &path_object_kinds[*index],
+                CollectedObjectEvent::Image if !images.is_empty() => &[PageObjectKind::Image],
+                CollectedObjectEvent::Char | CollectedObjectEvent::Image => &[],
+            };
+            for &kind in kinds {
+                if !object_order.contains(&kind) {
+                    object_order.push(kind);
+                }
+            }
+        }
 
         // Extract annotations from the page
         let annotations =
@@ -954,6 +993,7 @@ impl Pdf {
             all_rects,
             all_curves,
             images,
+            object_order,
             annotations,
             hyperlinks,
             uri_hyperlinks,

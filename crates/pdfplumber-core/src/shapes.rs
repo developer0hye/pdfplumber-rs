@@ -101,6 +101,17 @@ impl Rect {
 /// Tolerance for floating-point comparison when detecting axis-aligned shapes.
 const AXIS_TOLERANCE: f64 = 1e-6;
 
+/// The compatible object family emitted for a painted-path subpath.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ShapeKind {
+    /// A single straight segment.
+    Line,
+    /// A closed axis-aligned rectangle.
+    Rect,
+    /// Any other painted path.
+    Curve,
+}
+
 /// Classify line orientation based on start and end points (already y-flipped).
 fn classify_orientation(x0: f64, y0: f64, x1: f64, y1: f64) -> Orientation {
     let dx = (x1 - x0).abs();
@@ -196,9 +207,19 @@ pub fn extract_shapes(
     painted: &PaintedPath,
     page_height: f64,
 ) -> (Vec<Line>, Vec<Rect>, Vec<Curve>) {
+    let (lines, rects, curves, _) = extract_shapes_with_order(painted, page_height);
+    (lines, rects, curves)
+}
+
+/// Extract shapes while retaining the emitted subpath-family order.
+pub fn extract_shapes_with_order(
+    painted: &PaintedPath,
+    page_height: f64,
+) -> (Vec<Line>, Vec<Rect>, Vec<Curve>, Vec<ShapeKind>) {
     let mut lines = Vec::new();
     let mut rects = Vec::new();
     let mut curves = Vec::new();
+    let mut order = Vec::new();
 
     for subpath in extract_subpaths(&painted.path.segments) {
         let Some((shape, points)) = shape_of(subpath) else {
@@ -208,29 +229,39 @@ pub fn extract_shapes(
         match shape.as_str() {
             "ml" | "mlh" => {
                 push_line(points[0], points[1], painted, page_height, &mut lines);
+                order.push(ShapeKind::Line);
             }
             "mlllh" | "mllll" => {
                 let closed_loop = points_coincide(points[0], points[4]);
                 match try_detect_rect(&points[..4], page_height).filter(|_| closed_loop) {
-                    Some((x0, top, x1, bottom)) => rects.push(Rect {
-                        x0,
-                        top,
-                        x1,
-                        bottom,
-                        line_width: painted.line_width,
-                        stroke: painted.stroke,
-                        fill: painted.fill,
-                        stroke_color: painted.stroke_color.clone(),
-                        fill_color: painted.fill_color.clone(),
-                    }),
-                    None => curves.push(curve_from_points(&points, painted, page_height)),
+                    Some((x0, top, x1, bottom)) => {
+                        rects.push(Rect {
+                            x0,
+                            top,
+                            x1,
+                            bottom,
+                            line_width: painted.line_width,
+                            stroke: painted.stroke,
+                            fill: painted.fill,
+                            stroke_color: painted.stroke_color.clone(),
+                            fill_color: painted.fill_color.clone(),
+                        });
+                        order.push(ShapeKind::Rect);
+                    }
+                    None => {
+                        curves.push(curve_from_points(&points, painted, page_height));
+                        order.push(ShapeKind::Curve);
+                    }
                 }
             }
-            _ => curves.push(curve_from_points(&points, painted, page_height)),
+            _ => {
+                curves.push(curve_from_points(&points, painted, page_height));
+                order.push(ShapeKind::Curve);
+            }
         }
     }
 
-    (lines, rects, curves)
+    (lines, rects, curves, order)
 }
 
 /// Describe a subpath as pdfminer does: a shape string and one point per
@@ -707,9 +738,10 @@ mod tests {
         builder.line_to(200.0, 100.0);
         let painted = builder.stroke(&default_gs());
 
-        let (lines, rects, _) = extract_shapes(&painted, PAGE_HEIGHT);
+        let (lines, rects, _, order) = extract_shapes_with_order(&painted, PAGE_HEIGHT);
         assert_eq!(rects.len(), 1);
         assert_eq!(lines.len(), 1);
+        assert_eq!(order, vec![ShapeKind::Rect, ShapeKind::Line]);
     }
 
     // --- n (end path, no painting) produces nothing ---

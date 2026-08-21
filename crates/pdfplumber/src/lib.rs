@@ -94,7 +94,7 @@ mod page;
 mod pdf;
 
 pub use cropped_page::CroppedPage;
-pub use page::Page;
+pub use page::{Page, PageObjectKind};
 pub use pdf::{PagesIter, Pdf};
 
 /// A page view produced by [`Page::filter`] or [`CroppedPage::filter`].
@@ -112,17 +112,18 @@ pub use pdfplumber_core::{
     ImageFormat, ImageMetadata, Intersection, Line, LineOrientation, MetadataEntry,
     MetadataReference, MetadataValue, Orientation, PageObject, PageRegionOptions, PageRegions,
     PaintedPath, Path, PathBuilder, PathSegment, PdfError, Point, RawDocumentMetadata, Rect,
-    RepairOptions, RepairResult, SearchMatch, SearchOptions, Severity, SignatureInfo,
+    RepairOptions, RepairResult, SearchMatch, SearchOptions, Severity, ShapeKind, SignatureInfo,
     StandardEncoding, Strategy, StructElement, SvgDebugOptions, SvgOptions, SvgRenderer, Table,
     TableFinder, TableFinderDebug, TableQuality, TableSettings, TextBlock, TextDirection, TextLine,
     TextOptions, UnicodeNorm, ValidationIssue, Word, WordExtractor, WordOptions, blocks_to_text,
     cells_to_tables, cluster_lines_into_blocks, cluster_words_into_lines, derive_edges,
     detect_columns, edge_from_curve, edge_from_line, edges_from_curve, edges_from_rect,
     edges_to_cells, edges_to_intersections, explicit_lines_to_edges, export_image_set,
-    extract_shapes, extract_text_for_cells, extract_text_for_cells_with_options, image_from_ctm,
-    intersections_to_cells, is_cjk, is_cjk_text, join_edge_group, snap_edges,
-    sort_blocks_column_order, sort_blocks_reading_order, split_lines_at_columns, words_to_edges_h,
-    words_to_edges_stream, words_to_edges_v, words_to_text,
+    extract_shapes, extract_shapes_with_order, extract_text_for_cells,
+    extract_text_for_cells_with_options, image_from_ctm, intersections_to_cells, is_cjk,
+    is_cjk_text, join_edge_group, snap_edges, sort_blocks_column_order, sort_blocks_reading_order,
+    split_lines_at_columns, words_to_edges_h, words_to_edges_stream, words_to_edges_v,
+    words_to_text,
 };
 pub use pdfplumber_parse::{
     self, CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, LopdfPage,

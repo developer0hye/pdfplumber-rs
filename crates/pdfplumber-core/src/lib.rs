@@ -118,7 +118,9 @@ pub use painting::{Color, DashPattern, ExtGState, FillRule, GraphicsState, Paint
 pub use path::{Path, PathBuilder, PathSegment};
 pub use repair::{RepairOptions, RepairResult};
 pub use search::{SearchMatch, SearchOptions, search_chars};
-pub use shapes::{Curve, Line, LineOrientation, Rect, extract_shapes};
+pub use shapes::{
+    Curve, Line, LineOrientation, Rect, ShapeKind, extract_shapes, extract_shapes_with_order,
+};
 pub use signature::SignatureInfo;
 pub use struct_tree::StructElement;
 pub use svg::{DrawStyle, SvgDebugOptions, SvgOptions, SvgRenderer};
