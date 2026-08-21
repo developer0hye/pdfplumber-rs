@@ -329,6 +329,37 @@ class NativeLayoutTests(unittest.TestCase):
         )
 
     @classmethod
+    def color_value_shapes_pdf(cls) -> bytes:
+        content = (
+            b"0.25 G 0.5 g "
+            b"BT /F1 10 Tf 10 180 Td (G) Tj ET 10 170 10 5 re B\n"
+            b"0.25 0.5 0.75 RG 0.75 0.5 0.25 rg "
+            b"BT /F1 10 Tf 10 150 Td (R) Tj ET 10 140 10 5 re B\n"
+            b"0 0.25 0.5 0.75 K 1 0.75 0.5 0.25 k "
+            b"BT /F1 10 Tf 10 120 Td (C) Tj ET 10 110 10 5 re B\n"
+            b"/Pattern CS /StrokePattern SCN "
+            b"/Pattern cs /FillPattern scn "
+            b"BT /F1 10 Tf 10 90 Td (P) Tj ET 10 80 10 5 re B\n"
+            b"0.125 G 0.875 g /Missing CS /Missing cs "
+            b"0.125 0.25 SCN 0.875 0.75 scn "
+            b"BT /F1 10 Tf 10 60 Td (U) Tj ET 10 50 10 5 re B\n"
+        )
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+                (
+                    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] "
+                    b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"
+                ),
+                f"<< /Length {len(content)} >>\nstream\n".encode()
+                + content
+                + b"endstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            )
+        )
+
+    @classmethod
     def split_level_page_tree_pdf(cls) -> bytes:
         contents = (
             b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
@@ -1764,6 +1795,76 @@ class NativeLayoutTests(unittest.TestCase):
                 ),
             ],
         )
+
+    def test_color_value_shapes_match_gray_rgb_cmyk_pattern_and_unknown_spaces(
+        self,
+    ) -> None:
+        expected_chars = [
+            ("G", (0.25,), (0.5,)),
+            ("R", (0.25, 0.5, 0.75), (0.75, 0.5, 0.25)),
+            ("C", (0.0, 0.25, 0.5, 0.75), (1.0, 0.75, 0.5, 0.25)),
+            ("P", ("StrokePattern",), ("FillPattern",)),
+            ("U", (0.25,), (0.75,)),
+        ]
+        expected_rects = [
+            (0.25, 0.5),
+            ((0.25, 0.5, 0.75), (0.75, 0.5, 0.25)),
+            ((0.0, 0.25, 0.5, 0.75), (1.0, 0.75, 0.5, 0.25)),
+            ("StrokePattern", "FillPattern"),
+            (0.25, 0.75),
+        ]
+
+        def char_colors(character: dict[str, object]) -> tuple[object, ...]:
+            return (
+                character["text"],
+                character["stroking_color"],
+                character["non_stroking_color"],
+            )
+
+        def rect_colors(rectangle: dict[str, object]) -> tuple[object, object]:
+            return rectangle["stroke_color"], rectangle["fill_color"]
+
+        with pdfplumber.open(io.BytesIO(self.color_value_shapes_pdf())) as document:
+            page = document.pages[0]
+            self.assertEqual([char_colors(item) for item in page.chars], expected_chars)
+            self.assertEqual([rect_colors(item) for item in page.rects], expected_rects)
+            self.assertEqual(
+                [char_colors(item) for item in document.objects["char"]],
+                expected_chars,
+            )
+            self.assertEqual(
+                [rect_colors(item) for item in document.objects["rect"]],
+                expected_rects,
+            )
+
+            serialized = page.to_dict(["char", "rect"])
+            self.assertEqual(
+                [char_colors(item) for item in serialized["chars"]],
+                expected_chars,
+            )
+            self.assertEqual(
+                [rect_colors(item) for item in serialized["rects"]],
+                expected_rects,
+            )
+
+            json_page = json.loads(page.to_json(object_types=["char", "rect"]))
+            self.assertEqual(
+                [char_colors(item) for item in json_page["chars"]],
+                [
+                    (text, list(stroke), list(fill))
+                    for text, stroke, fill in expected_chars
+                ],
+            )
+            self.assertEqual(
+                [rect_colors(item) for item in json_page["rects"]],
+                [
+                    (
+                        list(stroke) if isinstance(stroke, tuple) else stroke,
+                        list(fill) if isinstance(fill, tuple) else fill,
+                    )
+                    for stroke, fill in expected_rects
+                ],
+            )
 
     def test_page_and_object_geometry_matches_exact_values(self) -> None:
         geometry_fields = (

@@ -88,7 +88,31 @@ fn color_to_py(py: Python<'_>, color: &Color) -> PyObject {
             .unwrap()
             .into_any()
             .unbind(),
-        Color::Other(vals) => vals.clone().into_pyobject(py).unwrap().into_any().unbind(),
+        Color::Pattern(name) => name.into_pyobject(py).unwrap().into_any().unbind(),
+        Color::PatternWithBase(base, name) => PyTuple::new(
+            py,
+            [
+                color_to_py(py, base),
+                name.into_pyobject(py).unwrap().into_any().unbind(),
+            ],
+        )
+        .unwrap()
+        .into_any()
+        .unbind(),
+        Color::Other(vals) => PyTuple::new(py, vals).unwrap().into_any().unbind(),
+    }
+}
+
+fn char_color_to_py(py: Python<'_>, color: &Color) -> PyObject {
+    let value = color_to_py(py, color);
+    match color {
+        Color::Gray(_) | Color::Pattern(_) => {
+            PyTuple::new(py, [value]).unwrap().into_any().unbind()
+        }
+        Color::Rgb(_, _, _)
+        | Color::Cmyk(_, _, _, _)
+        | Color::PatternWithBase(_, _)
+        | Color::Other(_) => value,
     }
 }
 
@@ -151,14 +175,14 @@ fn char_to_dict(
         "stroking_color",
         ch.stroking_color
             .as_ref()
-            .map(|c| color_to_py(py, c))
+            .map(|c| char_color_to_py(py, c))
             .unwrap_or_else(|| py.None()),
     )?;
     dict.set_item(
         "non_stroking_color",
         ch.non_stroking_color
             .as_ref()
-            .map(|c| color_to_py(py, c))
+            .map(|c| char_color_to_py(py, c))
             .unwrap_or_else(|| py.None()),
     )?;
     Ok(dict.into_any().unbind())
@@ -4713,6 +4737,13 @@ mod tests {
                 .extract()
                 .unwrap();
             assert_eq!(page_number, 7);
+            let non_stroking_color: (f32,) = dict
+                .get_item("non_stroking_color")
+                .unwrap()
+                .unwrap()
+                .extract()
+                .unwrap();
+            assert_eq!(non_stroking_color, (0.0,));
         });
     }
 

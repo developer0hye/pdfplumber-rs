@@ -248,12 +248,34 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "SC" | "SCN" => {
-                let components: Vec<f32> = op.operands.iter().filter_map(operand_to_f32).collect();
-                gstate.set_stroking_color(&components);
+                if gstate.stroking_color_space_is_pattern() {
+                    if let Some(Operand::Name(name)) = op.operands.last() {
+                        let components: Vec<f32> = op.operands[..op.operands.len() - 1]
+                            .iter()
+                            .filter_map(operand_to_f32)
+                            .collect();
+                        gstate.set_stroking_pattern(&components, name.clone());
+                    }
+                } else {
+                    let components: Vec<f32> =
+                        op.operands.iter().filter_map(operand_to_f32).collect();
+                    gstate.set_stroking_color(&components);
+                }
             }
             "sc" | "scn" => {
-                let components: Vec<f32> = op.operands.iter().filter_map(operand_to_f32).collect();
-                gstate.set_non_stroking_color(&components);
+                if gstate.non_stroking_color_space_is_pattern() {
+                    if let Some(Operand::Name(name)) = op.operands.last() {
+                        let components: Vec<f32> = op.operands[..op.operands.len() - 1]
+                            .iter()
+                            .filter_map(operand_to_f32)
+                            .collect();
+                        gstate.set_non_stroking_pattern(&components, name.clone());
+                    }
+                } else {
+                    let components: Vec<f32> =
+                        op.operands.iter().filter_map(operand_to_f32).collect();
+                    gstate.set_non_stroking_color(&components);
+                }
             }
 
             // --- Text state operators ---
@@ -1502,6 +1524,8 @@ fn emit_char_events(
             ascent,
             descent,
             vertical_origin,
+            stroking_color: gstate.graphics_state().stroke_color.clone(),
+            non_stroking_color: gstate.graphics_state().fill_color.clone(),
             mcid: marked_content_stack.iter().rev().find_map(|mc| mc.mcid),
             tag: marked_content_stack.last().map(|mc| mc.tag.clone()),
         });
