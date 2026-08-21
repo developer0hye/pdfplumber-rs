@@ -1593,6 +1593,77 @@ class NativeLayoutTests(unittest.TestCase):
             selected_crop = document.pages[0].crop(document.pages[0].bbox)
             self.assertEqual(repr(selected_crop), "<Page:3>")
 
+    def test_page_objects_are_lazily_cached_by_present_type(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        fixtures = (
+            (self.fixture(), ["char"], {"char": 258}),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf",
+                ["char", "rect", "curve"],
+                {"char": 1992, "rect": 208, "curve": 33},
+            ),
+            (
+                repository / "tests/fixtures/real-world/images/inline-image.pdf",
+                ["char", "image"],
+                {"char": 22, "image": 1},
+            ),
+            (
+                repository / "tests/fixtures/real-world/edge-cases/empty-page.pdf",
+                [],
+                {},
+            ),
+        )
+
+        for fixture, expected_keys, expected_counts in fixtures:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[0]
+                    self.assertNotIn("_objects", vars(page))
+                    objects = page.objects
+                    self.assertFalse(callable(objects))
+                    self.assertEqual(list(objects), expected_keys)
+                    self.assertEqual(
+                        {key: len(value) for key, value in objects.items()},
+                        expected_counts,
+                    )
+                    self.assertIs(page.objects, objects)
+                    self.assertIs(vars(page)["_objects"], objects)
+                    for key, values in objects.items():
+                        self.assertIs(page.objects[key], values)
+                    objects["marker"] = []
+                    self.assertIn("marker", page.objects)
+
+    def test_cropped_page_objects_preserve_parent_keys_in_distinct_cache(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        fixture = (
+            repository
+            / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf"
+        )
+        with pdfplumber.open(fixture) as document:
+            parent = document.pages[0]
+            parent_objects = parent.objects
+            cropped = parent.crop((0, 0, 20, 20))
+            self.assertNotIn("_objects", vars(cropped))
+            objects = cropped.objects
+            self.assertEqual(list(objects), ["char", "rect", "curve"])
+            self.assertEqual(
+                {key: len(value) for key, value in objects.items()},
+                {"char": 0, "rect": 0, "curve": 0},
+            )
+            self.assertIs(cropped.objects, objects)
+            self.assertIs(vars(cropped)["_objects"], objects)
+            for key in parent_objects:
+                self.assertIsNot(objects[key], parent_objects[key])
+
+            nested = cropped.crop((0, 0, 10, 10))
+            self.assertEqual(list(nested.objects), ["char", "rect", "curve"])
+            self.assertIsNot(nested.objects, objects)
+            objects["marker"] = []
+            self.assertIn("marker", cropped.objects)
+            self.assertNotIn("marker", parent.objects)
+            self.assertNotIn("marker", nested.objects)
+
     def test_open_accepts_and_validates_laparams(self) -> None:
         fixture = self.fixture()
         with pdfplumber.open(fixture, laparams={}) as defaults:

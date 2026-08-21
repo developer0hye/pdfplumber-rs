@@ -241,6 +241,11 @@ class Page:
         """Serialize page objects as CSV."""
         ...
 
+    @property
+    def objects(self) -> dict[str, list[dict[str, object]]]:
+        """Objects on this page grouped by their upstream type name."""
+        ...
+
     def chars(self) -> list[CharDict]:
         """Characters on this page as list[dict]."""
         ...
@@ -362,6 +367,11 @@ class CroppedPage:
     @property
     def height(self) -> float:
         """Height of the cropped region."""
+        ...
+
+    @property
+    def objects(self) -> dict[str, list[dict[str, object]]]:
+        """Objects in the cropped region grouped by type name."""
         ...
 
     def chars(self) -> list[CharDict]:

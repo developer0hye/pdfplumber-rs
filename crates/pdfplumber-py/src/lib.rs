@@ -917,6 +917,37 @@ impl PyCroppedPage {
         compatible_page_repr(py, page.bind(py).as_any())
     }
 
+    /// Objects in the cropped region grouped by their upstream type name.
+    #[getter]
+    fn objects(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        let page = page.bind(py);
+        if page.hasattr("_objects")? {
+            return Ok(page.getattr("_objects")?.unbind());
+        }
+
+        let parent_objects = page.getattr("parent_page")?.getattr("objects")?;
+        let parent_objects = parent_objects.downcast::<PyDict>()?;
+        let page_ref = page.borrow();
+        let values = [
+            ("char", page_ref.chars(py)?),
+            ("line", page_ref.lines(py)?),
+            ("rect", page_ref.rects(py)?),
+            ("curve", page_ref.curves(py)?),
+            ("image", page_ref.images(py)?),
+        ];
+        drop(page_ref);
+
+        let objects = PyDict::new(py);
+        for (kind, values) in values {
+            if parent_objects.contains(kind)? {
+                objects.set_item(kind, PyList::new(py, values)?)?;
+            }
+        }
+        page.setattr("_objects", &objects)?;
+        Ok(objects.into_any().unbind())
+    }
+
     /// Convert a PDF-space point to this page view's top-origin coordinates.
     #[pyo3(signature = (*args, **kwargs), text_signature = "($self, pt)")]
     fn point2coord(
@@ -2080,6 +2111,36 @@ impl PyPage {
     fn __repr__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<String> {
         let page: Py<Self> = slf.into();
         compatible_page_repr(py, page.bind(py).as_any())
+    }
+
+    /// Objects on this page grouped by their upstream type name.
+    #[getter]
+    fn objects(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<PyObject> {
+        let page: Py<Self> = slf.into();
+        let page = page.bind(py);
+        if page.hasattr("_objects")? {
+            return Ok(page.getattr("_objects")?.unbind());
+        }
+
+        let page_ref = page.borrow();
+        let values = [
+            ("char", page_ref.chars(py)?),
+            ("line", page_ref.lines(py)?),
+            ("rect", page_ref.rects(py)?),
+            ("curve", page_ref.curves(py)?),
+            ("image", page_ref.images(py)?),
+        ];
+        drop(page_ref);
+
+        let objects = PyDict::new(py);
+        for (kind, values) in values {
+            let values = PyList::new(py, values)?;
+            if !values.is_empty() {
+                objects.set_item(kind, values)?;
+            }
+        }
+        page.setattr("_objects", &objects)?;
+        Ok(objects.into_any().unbind())
     }
 
     /// Page width in points.
@@ -3412,9 +3473,12 @@ mod tests {
             content.contains("def flush_cache(self, properties: list[str] | None = None) -> None:"),
             "stubs must declare PDF.flush_cache"
         );
-        assert!(
-            content.contains("def objects(self) -> dict[str, list[dict[str, object]]]:"),
-            "stubs must declare PDF.objects"
+        assert_eq!(
+            content
+                .matches("def objects(self) -> dict[str, list[dict[str, object]]]:")
+                .count(),
+            3,
+            "stubs must declare PDF, Page, and CroppedPage.objects"
         );
         assert!(
             content.contains("def annots(self) -> list[AnnotDict]:"),
