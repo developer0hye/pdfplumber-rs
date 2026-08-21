@@ -1888,6 +1888,41 @@ class NativeLayoutTests(unittest.TestCase):
                         expected_boxes,
                     )
 
+    def test_page_close_flushes_only_the_target_page_cache(self) -> None:
+        with pdfplumber.open(self.fixture(), laparams={}) as document:
+            pages = document.pages
+            page = pages[0]
+            first_objects = page.objects
+            first_chars = page.chars
+            document_objects = document.objects
+            document_chars = document_objects["char"]
+            cropped = page.crop(page.bbox)
+            cropped_objects = cropped.objects
+            first_objects["marker"] = []
+            cropped_objects["marker"] = []
+
+            self.assertIsNone(page.close())
+            self.assertNotIn("_objects", vars(page))
+            self.assertIsNot(page.objects, first_objects)
+            self.assertIsNot(page.chars, first_chars)
+            self.assertNotIn("marker", page.objects)
+            self.assertIs(document.pages, pages)
+            self.assertIs(document.pages[0], page)
+            self.assertIs(document.objects, document_objects)
+            self.assertIs(document.objects["char"], document_chars)
+            self.assertIs(cropped.objects, cropped_objects)
+            self.assertIn("marker", cropped.objects)
+            self.assertFalse(document.stream.closed)
+
+            second_objects = page.objects
+            self.assertIsNone(page.close())
+            self.assertIsNot(page.objects, second_objects)
+
+            self.assertIsNone(cropped.close())
+            self.assertIsNot(cropped.objects, cropped_objects)
+            self.assertNotIn("marker", cropped.objects)
+            self.assertFalse(document.stream.closed)
+
     def test_open_uses_password_for_paths_and_external_streams(self) -> None:
         from pdfplumber.utils.exceptions import PdfminerException
 

@@ -861,6 +861,13 @@ fn compatible_page_object_list(
         .unbind())
 }
 
+fn clear_compatible_page_objects(page: &Bound<'_, PyAny>) -> PyResult<()> {
+    if page.hasattr("_objects")? {
+        page.delattr("_objects")?;
+    }
+    Ok(())
+}
+
 fn compatible_page_attribute<'py>(
     page: &Bound<'py, PyAny>,
     attribute: &str,
@@ -1252,6 +1259,12 @@ impl PyCroppedPage {
     fn __repr__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<String> {
         let page: Py<Self> = slf.into();
         compatible_page_repr(py, page.bind(py).as_any())
+    }
+
+    /// Discard cached objects for this derived page.
+    fn close(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<()> {
+        let page: Py<Self> = slf.into();
+        clear_compatible_page_objects(page.bind(py).as_any())
     }
 
     /// Objects in the cropped region grouped by their upstream type name.
@@ -2419,6 +2432,14 @@ impl PyPage {
         operation(page)
     }
 
+    fn clear_page_cache(&self) -> PyResult<()> {
+        self.page_cache
+            .lock()
+            .map_err(|_| PyRuntimeError::new_err("page cache lock poisoned"))?
+            .take();
+        Ok(())
+    }
+
     fn initial_doctop(&self) -> f64 {
         self.selected_doctop.unwrap_or_else(|| {
             (0..self.page_index)
@@ -2558,6 +2579,13 @@ impl PyPage {
     fn __repr__(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<String> {
         let page: Py<Self> = slf.into();
         compatible_page_repr(py, page.bind(py).as_any())
+    }
+
+    /// Discard cached parsed content and objects for this page.
+    fn close(slf: PyRef<'_, Self>, py: Python<'_>) -> PyResult<()> {
+        slf.clear_page_cache()?;
+        let page: Py<Self> = slf.into();
+        clear_compatible_page_objects(page.bind(py).as_any())
     }
 
     /// Objects on this page grouped by their upstream type name.
@@ -3117,6 +3145,49 @@ mod tests {
                     .extract::<(f64, f64, f64, f64)>()
                     .unwrap(),
                 (0.0, 0.0, 612.0, 792.0)
+            );
+        });
+    }
+
+    #[test]
+    fn test_pypage_close_clears_native_page_cache() {
+        let bytes = minimal_pdf_bytes();
+        let pdf = Pdf::open(&bytes, None).expect("open");
+        let page = PyPage::from_pdf_for_test(pdf, 0);
+        Python::with_gil(|py| {
+            let page = page.into_py_for_test(py).expect("Python page");
+            page.bind(py).getattr("chars").expect("materialize objects");
+            {
+                let page_ref = page.bind(py).borrow();
+                let cache = page_ref.page_cache.lock().expect("page cache");
+                assert!(cache.is_some());
+            }
+            assert!(
+                page.bind(py)
+                    .getattr("__dict__")
+                    .expect("page dictionary")
+                    .downcast::<PyDict>()
+                    .expect("dictionary")
+                    .contains("_objects")
+                    .expect("object cache presence")
+            );
+
+            page.bind(py).call_method0("close").expect("close page");
+
+            {
+                let page_ref = page.bind(py).borrow();
+                let cache = page_ref.page_cache.lock().expect("page cache");
+                assert!(cache.is_none());
+            }
+            assert!(
+                !page
+                    .bind(py)
+                    .getattr("__dict__")
+                    .expect("page dictionary")
+                    .downcast::<PyDict>()
+                    .expect("dictionary")
+                    .contains("_objects")
+                    .expect("object cache presence")
             );
         });
     }
@@ -3961,6 +4032,11 @@ mod tests {
         assert!(
             content.contains("def flush_cache(self, properties: list[str] | None = None) -> None:"),
             "stubs must declare PDF.flush_cache"
+        );
+        assert_eq!(
+            content.matches("    def close(self) -> None:").count(),
+            2,
+            "stubs must declare Page and CroppedPage.close"
         );
         assert_eq!(
             content

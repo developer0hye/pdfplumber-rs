@@ -261,6 +261,10 @@ class Page:
         """Serialize page objects as CSV."""
         ...
 
+    def close(self) -> None:
+        """Discard cached parsed content and objects for this page."""
+        ...
+
     @property
     def objects(self) -> dict[str, list[dict[str, object]]]:
         """Objects on this page grouped by their upstream type name."""
@@ -412,6 +416,10 @@ class CroppedPage:
     @property
     def height(self) -> float:
         """Height of the cropped region."""
+        ...
+
+    def close(self) -> None:
+        """Discard cached objects for this derived page."""
         ...
 
     @property

@@ -81,6 +81,7 @@ Passing `laparams={}` to `pdfplumber.open` enables native horizontal layout anal
 | `repr(page)` | Return `<Page:N>` using the 1-based document page number |
 | `.objects` | Cached mutable dictionary of present page objects keyed by type |
 | `.textboxhorizontals` / `.textlinehorizontals` | Cached horizontal layout objects when `laparams` is supplied |
+| `.close()` | Discard this original or derived page's cached objects |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |
