@@ -222,6 +222,110 @@ class NativeLayoutTests(unittest.TestCase):
         return b"".join(parts)
 
     @staticmethod
+    def build_inline_pdf(objects: tuple[bytes, ...]) -> bytes:
+        parts = [b"%PDF-1.4\n"]
+        offsets = []
+        for number, body in enumerate(objects, start=1):
+            offsets.append(sum(map(len, parts)))
+            parts.append(f"{number} 0 obj\n".encode() + body + b"\nendobj\n")
+        xref_offset = sum(map(len, parts))
+        parts.extend(
+            [
+                f"xref\n0 {len(objects) + 1}\n".encode(),
+                b"0000000000 65535 f \n",
+                *(f"{offset:010d} 00000 n \n".encode() for offset in offsets),
+                (
+                    f"trailer\n<< /Root 1 0 R /Size {len(objects) + 1} >>\n"
+                    f"startxref\n{xref_offset}\n%%EOF\n"
+                ).encode(),
+            ]
+        )
+        return b"".join(parts)
+
+    @classmethod
+    def split_level_page_tree_pdf(cls) -> bytes:
+        contents = (
+            b"BT /FRoot 12 Tf 30 40 Td (DEEP-A) Tj ET",
+            b"BT /FRoot 12 Tf 30 80 Td (DEEP-B) Tj ET",
+        )
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                (
+                    b"<< /Type /Pages /Kids [3 0 R] /Count 2 /Rotate -90 "
+                    b"/Resources 10 0 R >>"
+                ),
+                (
+                    b"<< /Type /Pages /Parent 2 0 R /Kids [4 0 R] /Count 2 "
+                    b"/MediaBox [10 20 110 220] >>"
+                ),
+                (
+                    b"<< /Type /Pages /Parent 3 0 R /Kids [5 0 R 7 0 R] "
+                    b"/Count 2 /CropBox [20 30 100 200] >>"
+                ),
+                b"<< /Type /Page /Parent 4 0 R /Contents 6 0 R >>",
+                f"<< /Length {len(contents[0])} >>\nstream\n".encode()
+                + contents[0]
+                + b"\nendstream",
+                b"<< /Type /Page /Parent 4 0 R /Contents 8 0 R >>",
+                f"<< /Length {len(contents[1])} >>\nstream\n".encode()
+                + contents[1]
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                b"<< /Font << /FRoot 9 0 R >> >>",
+            )
+        )
+
+    @classmethod
+    def nearest_override_page_tree_pdf(cls) -> bytes:
+        contents = (
+            b"BT /FBranch 12 Tf 30 80 Td (BRANCH) Tj ET",
+            b"BT /FPage 12 Tf 30 80 Td (PAGE) Tj ET",
+            b"BT /FRoot 12 Tf 30 80 Td (ROOT) Tj ET",
+        )
+        return cls.build_inline_pdf(
+            (
+                b"<< /Type /Catalog /Pages 2 0 R >>",
+                (
+                    b"<< /Type /Pages /Kids [3 0 R 9 0 R] /Count 3 "
+                    b"/MediaBox [0 0 100 200] /CropBox [5 10 95 190] "
+                    b"/Rotate 90 /Resources 14 0 R >>"
+                ),
+                (
+                    b"<< /Type /Pages /Parent 2 0 R /Kids [4 0 R 7 0 R] "
+                    b"/Count 2 /MediaBox [10 20 130 260] /Rotate 180 "
+                    b"/Resources 15 0 R >>"
+                ),
+                (
+                    b"<< /Type /Pages /Parent 3 0 R /Kids [5 0 R] /Count 1 "
+                    b"/CropBox [20 40 120 240] >>"
+                ),
+                b"<< /Type /Page /Parent 4 0 R /Contents 6 0 R >>",
+                f"<< /Length {len(contents[0])} >>\nstream\n".encode()
+                + contents[0]
+                + b"\nendstream",
+                (
+                    b"<< /Type /Page /Parent 3 0 R /MediaBox [0 0 140 280] "
+                    b"/CropBox [30 50 130 270] /Rotate 270 /Resources 16 0 R "
+                    b"/Contents 8 0 R >>"
+                ),
+                f"<< /Length {len(contents[1])} >>\nstream\n".encode()
+                + contents[1]
+                + b"\nendstream",
+                b"<< /Type /Page /Parent 2 0 R /Contents 10 0 R >>",
+                f"<< /Length {len(contents[2])} >>\nstream\n".encode()
+                + contents[2]
+                + b"\nendstream",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>",
+                b"<< /Type /Font /Subtype /Type1 /BaseFont /Times-Roman >>",
+                b"<< /Font << /FRoot 11 0 R >> >>",
+                b"<< /Font << /FBranch 12 0 R >> >>",
+                b"<< /Font << /FPage 13 0 R >> >>",
+            )
+        )
+
+    @staticmethod
     def optional_page_box_pdf(box_name: bytes) -> bytes:
         objects = (
             b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -1215,6 +1319,118 @@ class NativeLayoutTests(unittest.TestCase):
                 (1, (20, 10, 180, 90), (20, 10, 180, 90)),
                 (2, (20, 10, 180, 90), (20, 10, 180, 90)),
                 (3, (0, 0, 100, 200), (0, 0, 100, 200)),
+            ],
+        )
+
+    def test_nested_page_tree_inherits_split_resources_boxes_and_rotation(self) -> None:
+        with pdfplumber.open(io.BytesIO(self.split_level_page_tree_pdf())) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    page.rotation,
+                    page.mediabox,
+                    page.cropbox,
+                    page.bbox,
+                    page.width,
+                    page.height,
+                    "".join(char["text"] for char in page.chars),
+                    tuple(sorted({char["fontname"] for char in page.chars})),
+                    page.to_dict([])["rotation"],
+                    page.to_dict([])["mediabox"],
+                    page.to_dict([])["cropbox"],
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    1,
+                    270,
+                    (20, -10, 220, 90),
+                    (30, 0, 200, 80),
+                    (20, -10, 220, 90),
+                    200,
+                    100,
+                    "DEEP-A",
+                    ("Helvetica",),
+                    270,
+                    (20, -10, 220, 90),
+                    (30, 0, 200, 80),
+                ),
+                (
+                    2,
+                    270,
+                    (20, -10, 220, 90),
+                    (30, 0, 200, 80),
+                    (20, -10, 220, 90),
+                    200,
+                    100,
+                    "DEEP-B",
+                    ("Helvetica",),
+                    270,
+                    (20, -10, 220, 90),
+                    (30, 0, 200, 80),
+                ),
+            ],
+        )
+
+    def test_nested_page_tree_prefers_nearest_inheritable_values(self) -> None:
+        with pdfplumber.open(
+            io.BytesIO(self.nearest_override_page_tree_pdf())
+        ) as document:
+            snapshots = [
+                (
+                    page.page_number,
+                    page.rotation,
+                    page.mediabox,
+                    page.cropbox,
+                    page.bbox,
+                    page.width,
+                    page.height,
+                    "".join(char["text"] for char in page.chars),
+                    tuple(sorted({char["fontname"] for char in page.chars})),
+                )
+                for page in document.pages
+            ]
+
+        self.assertEqual(
+            snapshots,
+            [
+                (
+                    1,
+                    180,
+                    (10, -20, 130, 220),
+                    (20, 0, 120, 200),
+                    (10, -20, 130, 220),
+                    120,
+                    240,
+                    "BRANCH",
+                    ("Courier",),
+                ),
+                (
+                    2,
+                    270,
+                    (0, 0, 280, 140),
+                    (50, 10, 270, 110),
+                    (0, 0, 280, 140),
+                    280,
+                    140,
+                    "PAGE",
+                    ("Times-Roman",),
+                ),
+                (
+                    3,
+                    90,
+                    (0, 0, 200, 100),
+                    (10, 5, 190, 95),
+                    (0, 0, 200, 100),
+                    200,
+                    100,
+                    "ROOT",
+                    ("Helvetica",),
+                ),
             ],
         )
 
