@@ -74,6 +74,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 | `.bleedbox` | Direct rotation-aware BleedBox when present; absent otherwise |
 | `.artbox` | Direct rotation-aware ArtBox when present; absent otherwise |
 | `.initial_doctop` | Cumulative height of preceding pages in the current page view |
+| `.point2coord(pt)` | Convert a PDF-space point to top-origin page coordinates |
 | `.to_dict(object_types=None)` | Page geometry and requested object dictionaries |
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |
@@ -98,7 +99,7 @@ The top-level `pdfplumber.open` alias is available for filesystem paths. Other c
 
 ### CroppedPage
 
-Supports the same content methods as `Page`: `chars()`, `extract_text()`, `extract_words()`, `find_tables()`, `extract_tables()`, `lines()`, `rects()`, `curves()`, `images()`, plus further `crop()`, `within_bbox()`, `outside_bbox()`.
+Supports the same content methods as `Page`: `chars()`, `extract_text()`, `extract_words()`, `find_tables()`, `extract_tables()`, `lines()`, `rects()`, `curves()`, `images()`, and `point2coord()`, plus further `crop()`, `within_bbox()`, `outside_bbox()`.
 
 ## Rust-Native Extensions
 
