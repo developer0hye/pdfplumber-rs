@@ -87,11 +87,11 @@ Passing `laparams={}` to `pdfplumber.open` enables native horizontal layout anal
 | `.to_json(...)` | JSON string or text-stream serialization of `.to_dict()` |
 | `.to_csv(...)` | CSV string or text-stream serialization of page objects |
 | `.extract_text(layout=False)` | Extract all text |
-| `.extract_words(x_tolerance=3.0, y_tolerance=3.0)` | Extract words with bounding boxes |
-| `.chars` | Character-level data with font info |
+| `.extract_words(x_tolerance=3.0, y_tolerance=3.0)` | Extract words with bounding boxes, width, height, and doctop |
+| `.chars` | Character-level data with font info and complete bounding-box geometry |
 | `.find_tables()` | Detect tables, returns `Table` objects |
 | `.extract_tables()` | Extract all table content |
-| `.lines` / `.rects` / `.curves` / `.images` | Geometric objects |
+| `.lines` / `.rects` / `.curves` / `.images` | Geometric objects with top- and bottom-origin coordinates |
 | `.crop(bbox)` | Crop to region `(x0, top, x1, bottom)` |
 | `.within_bbox(bbox)` / `.outside_bbox(bbox)` | Spatial filtering |
 | `.search(pattern, regex=True, case=True)` | Search for text |
