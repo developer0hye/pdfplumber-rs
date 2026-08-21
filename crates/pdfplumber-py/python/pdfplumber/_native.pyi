@@ -180,6 +180,7 @@ class PDF:
 class Page:
     """A single page from a PDF document."""
 
+    cached_properties: ClassVar[list[str]]
     is_original: ClassVar[bool]
     mediabox: tuple[float, float, float, float]
     root_page: Page
@@ -263,6 +264,10 @@ class Page:
 
     def close(self) -> None:
         """Discard cached parsed content and objects for this page."""
+        ...
+
+    def flush_cache(self, properties: list[str] | None = None) -> None:
+        """Discard selected cached properties for this page."""
         ...
 
     @property
@@ -402,6 +407,7 @@ class Table:
 class CroppedPage:
     """A spatially filtered view of a PDF page."""
 
+    cached_properties: ClassVar[list[str]]
     is_original: ClassVar[bool]
     mediabox: tuple[float, float, float, float]
     page_number: int
@@ -420,6 +426,10 @@ class CroppedPage:
 
     def close(self) -> None:
         """Discard cached objects for this derived page."""
+        ...
+
+    def flush_cache(self, properties: list[str] | None = None) -> None:
+        """Discard selected cached properties for this derived page."""
         ...
 
     @property

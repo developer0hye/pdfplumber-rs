@@ -1923,6 +1923,87 @@ class NativeLayoutTests(unittest.TestCase):
             self.assertNotIn("marker", cropped.objects)
             self.assertFalse(document.stream.closed)
 
+    def test_page_flush_cache_matches_selective_container_behavior(self) -> None:
+        with pdfplumber.open(self.fixture(), laparams={}) as document:
+            page = document.pages[0]
+            cropped = page.crop(page.bbox)
+            cached_properties = type(page).cached_properties
+            self.assertEqual(
+                cached_properties,
+                ["_rect_edges", "_curve_edges", "_edges", "_objects", "_layout"],
+            )
+            self.assertIs(cached_properties, page.cached_properties)
+            self.assertIs(cached_properties, type(cropped).cached_properties)
+            self.assertIs(cached_properties, cropped.cached_properties)
+
+            page_objects = page.objects
+            cropped_objects = cropped.objects
+            document_objects = document.objects
+            page.marker = object()
+            cropped.marker = object()
+
+            for properties in ([], ["_missing"], "_objects"):
+                with self.subTest(properties=properties):
+                    self.assertIsNone(page.flush_cache(properties))
+                    self.assertIs(page.objects, page_objects)
+
+            self.assertIsNone(page.flush_cache(["marker"]))
+            self.assertFalse(hasattr(page, "marker"))
+            self.assertTrue(hasattr(cropped, "marker"))
+
+            self.assertIsNone(page.flush_cache(["_objects"]))
+            second_objects = page.objects
+            self.assertIsNot(second_objects, page_objects)
+            self.assertIs(cropped.objects, cropped_objects)
+            self.assertIs(document.objects, document_objects)
+
+            self.assertIsNone(page.flush_cache(["_layout"]))
+            self.assertIs(page.objects, second_objects)
+            self.assertIsNone(page.flush_cache())
+            self.assertIsNot(page.objects, second_objects)
+            self.assertIs(cropped.objects, cropped_objects)
+            self.assertIs(document.objects, document_objects)
+            self.assertFalse(document.stream.closed)
+
+            self.assertIsNone(cropped.flush_cache(None))
+            self.assertIsNot(cropped.objects, cropped_objects)
+            self.assertTrue(hasattr(cropped, "marker"))
+            self.assertFalse(document.stream.closed)
+
+    def test_page_flush_cache_honors_dynamic_properties_and_error_order(self) -> None:
+        with pdfplumber.open(self.fixture()) as document:
+            page = document.pages[0]
+            first_objects = page.objects
+
+            with self.assertRaisesRegex(TypeError, "^'int' object is not iterable$"):
+                page.flush_cache(1)
+            self.assertIs(page.objects, first_objects)
+
+            page.marker = object()
+            with self.assertRaisesRegex(
+                TypeError, "^attribute name must be string, not 'int'$"
+            ):
+                page.flush_cache(["_objects", 1, "marker"])
+            self.assertIsNot(page.objects, first_objects)
+            self.assertTrue(hasattr(page, "marker"))
+
+            second_objects = page.objects
+            self.assertIsNone(page.flush_cache(value for value in ["_objects"]))
+            self.assertIsNot(page.objects, second_objects)
+
+            third_objects = page.objects
+            page.cached_properties = ["marker"]
+            self.assertIsNone(page.flush_cache())
+            self.assertFalse(hasattr(page, "marker"))
+            self.assertIs(page.objects, third_objects)
+
+            page.cached_properties = ["_objects"]
+            self.assertIsNone(page.flush_cache(None))
+            fourth_objects = page.objects
+            self.assertIsNot(fourth_objects, third_objects)
+            self.assertIsNone(page.close())
+            self.assertIsNot(page.objects, fourth_objects)
+
     def test_open_uses_password_for_paths_and_external_streams(self) -> None:
         from pdfplumber.utils.exceptions import PdfminerException
 
