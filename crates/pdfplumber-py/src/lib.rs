@@ -380,9 +380,18 @@ fn word_to_dict(py: Python<'_>, word: &Word) -> PyResult<PyObject> {
     dict.set_item("x1", word.bbox.x1)?;
     dict.set_item("bottom", word.bbox.bottom)?;
     dict.set_item("doctop", word.doctop)?;
+    // The current Python API exposes only the upstream default word directions:
+    // upright characters use `char_dir="ltr"`, while rotated characters use
+    // the flipped `char_dir_rotated="ttb"`. Keep the core's richer TRM-derived
+    // direction on `Word`, but normalize the compatibility dictionary boundary.
+    let direction = match word.chars.first() {
+        Some(character) if character.upright => ::pdfplumber::TextDirection::Ltr,
+        Some(_) => ::pdfplumber::TextDirection::Ttb,
+        None => word.direction,
+    };
     dict.set_item(
         "direction",
-        match word.direction {
+        match direction {
             ::pdfplumber::TextDirection::Ltr => "ltr",
             ::pdfplumber::TextDirection::Rtl => "rtl",
             ::pdfplumber::TextDirection::Ttb => "ttb",
