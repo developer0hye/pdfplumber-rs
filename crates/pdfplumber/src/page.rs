@@ -15,6 +15,40 @@ use pdfplumber_core::{
 
 use crate::cropped_page::{CroppedPage, FilterMode, PageData, filter_and_build, from_page_data};
 
+/// A base page-object family in content-stream encounter order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageObjectKind {
+    /// A text character.
+    Char,
+    /// A straight painted line.
+    Line,
+    /// A painted rectangle.
+    Rect,
+    /// A non-rectangular painted path.
+    Curve,
+    /// An inline image or image XObject.
+    Image,
+}
+
+fn default_object_order(
+    chars: &[Char],
+    lines: &[Line],
+    rects: &[Rect],
+    curves: &[Curve],
+    images: &[Image],
+) -> Vec<PageObjectKind> {
+    [
+        (!chars.is_empty()).then_some(PageObjectKind::Char),
+        (!lines.is_empty()).then_some(PageObjectKind::Line),
+        (!rects.is_empty()).then_some(PageObjectKind::Rect),
+        (!curves.is_empty()).then_some(PageObjectKind::Curve),
+        (!images.is_empty()).then_some(PageObjectKind::Image),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
 /// A single page from a PDF document.
 ///
 /// Provides access to characters, words, lines, rects, curves, and edges
@@ -48,6 +82,8 @@ pub struct Page {
     curves: Vec<Curve>,
     /// Images extracted from Do operator (Image XObjects).
     images: Vec<Image>,
+    /// First-encounter order of base object families in the content stream.
+    object_order: Vec<PageObjectKind>,
     /// Annotations extracted from the page's /Annots array.
     annotations: Vec<Annotation>,
     /// Hyperlinks extracted from Link annotations with resolved URIs.
@@ -66,6 +102,7 @@ impl Page {
     /// Create a new page with the given metadata and characters.
     pub fn new(page_number: usize, width: f64, height: f64, chars: Vec<Char>) -> Self {
         let media_box = BBox::new(0.0, 0.0, width, height);
+        let object_order = default_object_order(&chars, &[], &[], &[], &[]);
         Self {
             page_number,
             width,
@@ -81,6 +118,7 @@ impl Page {
             rects: Vec::new(),
             curves: Vec::new(),
             images: Vec::new(),
+            object_order,
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             uri_hyperlinks: Vec::new(),
@@ -101,6 +139,7 @@ impl Page {
         curves: Vec<Curve>,
     ) -> Self {
         let media_box = BBox::new(0.0, 0.0, width, height);
+        let object_order = default_object_order(&chars, &lines, &rects, &curves, &[]);
         Self {
             page_number,
             width,
@@ -116,6 +155,7 @@ impl Page {
             rects,
             curves,
             images: Vec::new(),
+            object_order,
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             uri_hyperlinks: Vec::new(),
@@ -138,6 +178,7 @@ impl Page {
         images: Vec<Image>,
     ) -> Self {
         let media_box = BBox::new(0.0, 0.0, width, height);
+        let object_order = default_object_order(&chars, &lines, &rects, &curves, &images);
         Self {
             page_number,
             width,
@@ -153,6 +194,7 @@ impl Page {
             rects,
             curves,
             images,
+            object_order,
             annotations: Vec::new(),
             hyperlinks: Vec::new(),
             uri_hyperlinks: Vec::new(),
@@ -182,6 +224,7 @@ impl Page {
         rects: Vec<Rect>,
         curves: Vec<Curve>,
         images: Vec<Image>,
+        object_order: Vec<PageObjectKind>,
         annotations: Vec<Annotation>,
         hyperlinks: Vec<Hyperlink>,
         uri_hyperlinks: Vec<Hyperlink>,
@@ -204,6 +247,7 @@ impl Page {
             rects,
             curves,
             images,
+            object_order,
             annotations,
             hyperlinks,
             uri_hyperlinks,
@@ -216,6 +260,11 @@ impl Page {
     /// Returns the page index (0-based).
     pub fn page_number(&self) -> usize {
         self.page_number
+    }
+
+    /// Returns base object families in first content-stream encounter order.
+    pub fn object_order(&self) -> &[PageObjectKind] {
+        &self.object_order
     }
 
     /// Rebase character document-top coordinates for a filtered document view.

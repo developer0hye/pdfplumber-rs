@@ -2970,6 +2970,140 @@ class NativeLayoutTests(unittest.TestCase):
                         expected_boxes,
                     )
 
+    def test_laparams_preserves_page_and_document_layout_order(self) -> None:
+        fixture = self.annotation_fixture("issue-1181.pdf")
+        with pdfplumber.open(fixture) as document:
+            self.assertEqual(list(document.pages[0].objects), ["rect", "char", "line"])
+            self.assertEqual(list(document.objects), ["rect", "char", "line"])
+
+        mixed_shape_fixture = self.annotation_fixture(
+            "issue-71-duplicate-chars-2.pdf"
+        )
+        with pdfplumber.open(mixed_shape_fixture) as document:
+            self.assertEqual(
+                [list(page.objects) for page in document.pages[:3]],
+                [
+                    ["line", "char", "image", "curve", "rect"],
+                    ["char", "rect", "line", "curve"],
+                    ["char", "rect", "curve", "line"],
+                ],
+            )
+
+        expected_lines = [
+            "FooCol1\n",
+            "FooCol2\n",
+            "FooCol3\n",
+            "BarCol1\n",
+            "BarCol2\n",
+            "BarCol3\n",
+            "Foo4\n",
+            "Foo7\n",
+            "Foo5\n",
+            "Foo8\n",
+            "Foo10\n",
+            "Foo11\n",
+            "Foo6\n",
+            "Foo9\n",
+            "Foo12\n",
+            "Bar4\n",
+            "Bar7\n",
+            "Bar5\n",
+            "Bar8\n",
+            "Bar10\n",
+            "Bar11\n",
+            "Bar6\n",
+            "Bar9\n",
+            "Bar12\n",
+        ]
+        expected_chars = "".join(line.rstrip("\n") for line in expected_lines)
+
+        with pdfplumber.open(
+            fixture,
+            laparams={"detect_vertical": True},
+        ) as document:
+            for page in document.pages:
+                self.assertEqual(
+                    list(page.objects),
+                    [
+                        "textboxhorizontal",
+                        "textlinehorizontal",
+                        "char",
+                        "rect",
+                        "line",
+                    ],
+                )
+                for object_type in ("textboxhorizontal", "textlinehorizontal"):
+                    self.assertEqual(
+                        [item["text"] for item in page.objects[object_type]],
+                        expected_lines,
+                    )
+                self.assertEqual(
+                    "".join(item["text"] for item in page.objects["char"]),
+                    expected_chars,
+                )
+                self.assertEqual(
+                    [item["text"] for item in page.to_dict()["chars"]],
+                    list(expected_chars),
+                )
+
+            self.assertEqual(list(document.objects), list(document.pages[0].objects))
+            self.assertEqual(
+                [item["text"] for item in document.objects["textboxhorizontal"]],
+                expected_lines * 2,
+            )
+            self.assertEqual(
+                "".join(item["text"] for item in document.objects["char"]),
+                expected_chars * 2,
+            )
+            self.assertEqual(
+                [item["page_number"] for item in document.objects["char"]],
+                [1] * len(expected_chars) + [2] * len(expected_chars),
+            )
+            serialized = json.loads(document.to_json())
+            self.assertEqual(
+                [item["text"] for item in serialized["pages"][0]["chars"]],
+                list(expected_chars),
+            )
+
+        expected_geometric_lines = [
+            *expected_lines[:6],
+            "Foo4\n",
+            "Foo5\n",
+            "Foo6\n",
+            "Bar4\n",
+            "Bar5\n",
+            "Bar6\n",
+            "Foo7\n",
+            "Foo8\n",
+            "Foo9\n",
+            "Bar7\n",
+            "Bar8\n",
+            "Bar9\n",
+            "Foo10\n",
+            "Foo11\n",
+            "Foo12\n",
+            "Bar10\n",
+            "Bar11\n",
+            "Bar12\n",
+        ]
+        with pdfplumber.open(
+            fixture,
+            laparams={"detect_vertical": True, "boxes_flow": None},
+        ) as document:
+            for page in document.pages:
+                self.assertEqual(
+                    [item["text"] for item in page.textboxhorizontals],
+                    expected_geometric_lines,
+                )
+                self.assertEqual(
+                    [item["text"] for item in page.textlinehorizontals],
+                    expected_geometric_lines,
+                )
+                self.assertEqual(
+                    "".join(item["text"] for item in page.chars),
+                    "".join(line.rstrip("\n") for line in expected_geometric_lines),
+                )
+
     def test_page_close_flushes_only_the_target_page_cache(self) -> None:
         with pdfplumber.open(self.fixture(), laparams={}) as document:
             pages = document.pages
