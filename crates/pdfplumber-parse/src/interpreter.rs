@@ -1366,8 +1366,15 @@ fn emit_char_events(
                 })
             })
             .or_else(|| {
-                // 4. Try Adobe CID→Unicode mapping for CID fonts with known ordering
+                // 4. If no ToUnicode CMap was supplied, try the predefined
+                // Adobe CID→Unicode map for a known character collection.
+                // An explicit but incomplete ToUnicode CMap is authoritative:
+                // pdfminer reports its unmapped codes as `(cid:N)` instead of
+                // silently filling them from the collection map.
                 cached.and_then(|c| {
+                    if c.cmap.is_some() {
+                        return None;
+                    }
                     c.cid_metrics.as_ref().and_then(|cm| {
                         cm.system_info().and_then(|si| match si.ordering.as_str() {
                             "Japan1" => {

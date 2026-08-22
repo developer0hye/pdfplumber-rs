@@ -9638,8 +9638,35 @@ pub static ADOBE_JAPAN1_CID_TO_UNICODE: [(u32, u32); 9628] = [
 
 /// Look up a CID in the Adobe-Japan1 table and return the Unicode code point.
 pub fn lookup_japan1_unicode(cid: u32) -> Option<char> {
+    // The pinned pdfminer Adobe-Japan1 map includes the contiguous half-width
+    // Roman duplicate range from UniJIS-UCS2-HW. The primary UniJIS-UCS2
+    // column used to generate the table above leaves that range empty.
+    if (231..=325).contains(&cid) {
+        return char::from_u32(0x20 + cid - 231);
+    }
+
     ADOBE_JAPAN1_CID_TO_UNICODE
         .binary_search_by_key(&cid, |&(c, _)| c)
         .ok()
         .and_then(|idx| char::from_u32(ADOBE_JAPAN1_CID_TO_UNICODE[idx].1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lookup_japan1_unicode;
+
+    #[test]
+    fn half_width_roman_duplicate_range_maps_to_ascii() {
+        assert_eq!(lookup_japan1_unicode(231), Some(' '));
+        assert_eq!(lookup_japan1_unicode(247), Some('0'));
+        assert_eq!(lookup_japan1_unicode(264), Some('A'));
+        assert_eq!(lookup_japan1_unicode(296), Some('a'));
+        assert_eq!(lookup_japan1_unicode(325), Some('~'));
+    }
+
+    #[test]
+    fn primary_japan1_mapping_remains_available_outside_duplicate_range() {
+        assert_eq!(lookup_japan1_unicode(17), Some('0'));
+        assert_eq!(lookup_japan1_unicode(866), Some('す'));
+    }
 }

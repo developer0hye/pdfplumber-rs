@@ -2706,6 +2706,56 @@ class NativeLayoutTests(unittest.TestCase):
                             self.assertLessEqual(python_keys, item.keys())
                             self.assertTrue(native_keys.isdisjoint(item))
 
+    def test_character_text_matches_cid_fallback_and_identity_font_decoding(
+        self,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        fixture_root = (
+            repository / "crates/pdfplumber/tests/fixtures/pdfs/pdfjs"
+        )
+        cases = (
+            (
+                fixture_root / "issue7696.pdf",
+                [
+                    "(cid:2928)",
+                    "(cid:4455)",
+                    "(cid:6757)",
+                    "(cid:3059)",
+                ]
+                * 2,
+            ),
+            (
+                fixture_root / "noembed-identity-2.pdf",
+                list("あAbstract012"),
+            ),
+        )
+
+        for fixture, expected in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[0]
+                    page_dict = page.to_dict(["char"])
+                    page_json = json.loads(
+                        page.to_json(object_types=["char"])
+                    )
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    surfaces = (
+                        page.chars,
+                        page.crop(page.bbox).chars,
+                        document.objects["char"],
+                        page_dict["chars"],
+                        page_json["chars"],
+                        document_dict["pages"][0]["chars"],
+                        document_json["pages"][0]["chars"],
+                    )
+                    self.assertEqual(
+                        [[item["text"] for item in surface] for surface in surfaces],
+                        [expected] * len(surfaces),
+                    )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (
