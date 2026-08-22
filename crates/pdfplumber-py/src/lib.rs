@@ -116,6 +116,31 @@ fn char_color_to_py(py: Python<'_>, color: &Color) -> PyObject {
     }
 }
 
+/// Rust structs keep idiomatic field names while compatibility dictionaries
+/// expose the spellings used by the pinned Python implementation.
+#[derive(Clone, Copy)]
+enum NativeObjectField {
+    LineWidth,
+    StrokeColor,
+    FillColor,
+    SourceDimensions,
+    BitsPerComponent,
+    ColorSpace,
+}
+
+impl NativeObjectField {
+    const fn python_key(self) -> &'static str {
+        match self {
+            Self::LineWidth => "linewidth",
+            Self::StrokeColor => "stroking_color",
+            Self::FillColor => "non_stroking_color",
+            Self::SourceDimensions => "srcsize",
+            Self::BitsPerComponent => "bits",
+            Self::ColorSpace => "colorspace",
+        }
+    }
+}
+
 fn set_compatible_bbox_geometry(
     dict: &Bound<'_, PyDict>,
     x0: f64,
@@ -1008,8 +1033,11 @@ fn line_to_dict(
         page_height,
         Some(initial_doctop),
     )?;
-    dict.set_item("line_width", line.line_width)?;
-    dict.set_item("stroke_color", color_to_py(py, &line.stroke_color))?;
+    dict.set_item(NativeObjectField::LineWidth.python_key(), line.line_width)?;
+    dict.set_item(
+        NativeObjectField::StrokeColor.python_key(),
+        color_to_py(py, &line.stroke_color),
+    )?;
     dict.set_item(
         "orientation",
         match line.orientation {
@@ -1044,11 +1072,17 @@ fn rect_to_dict(
         page_height,
         Some(initial_doctop),
     )?;
-    dict.set_item("line_width", rect.line_width)?;
+    dict.set_item(NativeObjectField::LineWidth.python_key(), rect.line_width)?;
     dict.set_item("stroke", rect.stroke)?;
     dict.set_item("fill", rect.fill)?;
-    dict.set_item("stroke_color", color_to_py(py, &rect.stroke_color))?;
-    dict.set_item("fill_color", color_to_py(py, &rect.fill_color))?;
+    dict.set_item(
+        NativeObjectField::StrokeColor.python_key(),
+        color_to_py(py, &rect.stroke_color),
+    )?;
+    dict.set_item(
+        NativeObjectField::FillColor.python_key(),
+        color_to_py(py, &rect.fill_color),
+    )?;
     Ok(dict.into_any().unbind())
 }
 
@@ -1076,20 +1110,23 @@ fn curve_to_dict(
         Some(initial_doctop),
     )?;
     dict.set_item("pts", &curve.pts)?;
-    dict.set_item("line_width", curve.line_width)?;
+    dict.set_item(NativeObjectField::LineWidth.python_key(), curve.line_width)?;
     dict.set_item("stroke", curve.stroke)?;
     dict.set_item("fill", curve.fill)?;
-    dict.set_item("stroke_color", color_to_py(py, &curve.stroke_color))?;
-    dict.set_item("fill_color", color_to_py(py, &curve.fill_color))?;
+    dict.set_item(
+        NativeObjectField::StrokeColor.python_key(),
+        color_to_py(py, &curve.stroke_color),
+    )?;
+    dict.set_item(
+        NativeObjectField::FillColor.python_key(),
+        color_to_py(py, &curve.fill_color),
+    )?;
     Ok(dict.into_any().unbind())
 }
 
-fn image_to_dict(py: Python<'_>, img: &Image, page_number: Option<usize>) -> PyResult<PyObject> {
+fn native_image_to_dict(py: Python<'_>, img: &Image) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
     dict.set_item("object_type", "image")?;
-    if let Some(page_number) = page_number {
-        dict.set_item("page_number", page_number)?;
-    }
     dict.set_item("x0", img.x0)?;
     dict.set_item("top", img.top)?;
     dict.set_item("x1", img.x1)?;
@@ -1111,14 +1148,32 @@ fn page_image_to_dict(
     page_height: f64,
     initial_doctop: f64,
 ) -> PyResult<PyObject> {
-    let dict_object = image_to_dict(py, img, Some(page_number))?;
-    {
-        let dict = dict_object.bind(py).downcast::<PyDict>()?;
-        dict.set_item("y0", page_height - img.bottom)?;
-        dict.set_item("y1", page_height - img.top)?;
-        dict.set_item("doctop", initial_doctop + img.top)?;
-    }
-    Ok(dict_object)
+    let dict = PyDict::new(py);
+    dict.set_item("object_type", "image")?;
+    dict.set_item("page_number", page_number)?;
+    dict.set_item("x0", img.x0)?;
+    dict.set_item("top", img.top)?;
+    dict.set_item("x1", img.x1)?;
+    dict.set_item("bottom", img.bottom)?;
+    dict.set_item("width", img.width)?;
+    dict.set_item("height", img.height)?;
+    dict.set_item("name", &img.name)?;
+    dict.set_item(
+        NativeObjectField::SourceDimensions.python_key(),
+        (img.src_width, img.src_height),
+    )?;
+    dict.set_item(
+        NativeObjectField::BitsPerComponent.python_key(),
+        img.bits_per_component,
+    )?;
+    dict.set_item(
+        NativeObjectField::ColorSpace.python_key(),
+        img.color_space.as_deref(),
+    )?;
+    dict.set_item("y0", page_height - img.bottom)?;
+    dict.set_item("y1", page_height - img.top)?;
+    dict.set_item("doctop", initial_doctop + img.top)?;
+    Ok(dict.into_any().unbind())
 }
 
 fn annotation_to_dict(
@@ -1257,7 +1312,7 @@ fn extracted_image_to_dict(
     content: &ImageContent,
 ) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
-    dict.set_item("image", image_to_dict(py, image, None)?)?;
+    dict.set_item("image", native_image_to_dict(py, image)?)?;
     dict.set_item("data", PyBytes::new(py, &content.data))?;
     dict.set_item("format", content.format.extension())?;
     dict.set_item("width", content.width)?;
@@ -4886,13 +4941,13 @@ mod tests {
             let dict = dict_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             let name: String = dict.get_item("name").unwrap().unwrap().extract().unwrap();
             assert_eq!(name, "Im0");
-            let src_w: u32 = dict
-                .get_item("src_width")
+            let srcsize: (u32, u32) = dict
+                .get_item("srcsize")
                 .unwrap()
                 .unwrap()
                 .extract()
                 .unwrap();
-            assert_eq!(src_w, 200);
+            assert_eq!(srcsize, (200, 200));
             let page_number: usize = dict
                 .get_item("page_number")
                 .unwrap()
@@ -4907,10 +4962,143 @@ mod tests {
             let doctop: f64 = dict.get_item("doctop").unwrap().unwrap().extract().unwrap();
             assert_eq!(doctop, 100.0);
 
-            let raw_obj = image_to_dict(py, &img, None).expect("raw image_to_dict");
+            let raw_obj = native_image_to_dict(py, &img).expect("native_image_to_dict");
             let raw = raw_obj.downcast_bound::<PyDict>(py).expect("PyDict");
             for key in ["page_number", "y0", "y1", "doctop"] {
                 assert!(raw.get_item(key).unwrap().is_none());
+            }
+        });
+    }
+
+    #[test]
+    fn test_python_object_key_adapter_preserves_native_struct_names() {
+        let line = Line {
+            x0: 10.0,
+            top: 20.0,
+            x1: 100.0,
+            bottom: 20.0,
+            line_width: 1.5,
+            stroke_color: Color::Rgb(1.0, 0.0, 0.0),
+            orientation: ::pdfplumber::Orientation::Horizontal,
+        };
+        let rect = Rect {
+            x0: 50.0,
+            top: 100.0,
+            x1: 200.0,
+            bottom: 300.0,
+            line_width: 2.0,
+            stroke: true,
+            fill: false,
+            stroke_color: Color::Gray(0.0),
+            fill_color: Color::Gray(1.0),
+        };
+        let curve = Curve {
+            x0: 0.0,
+            top: 50.0,
+            x1: 100.0,
+            bottom: 100.0,
+            pts: vec![(0.0, 100.0), (100.0, 100.0)],
+            line_width: 1.0,
+            stroke: true,
+            fill: false,
+            stroke_color: Color::black(),
+            fill_color: Color::Gray(1.0),
+        };
+        let image = Image {
+            x0: 0.0,
+            top: 0.0,
+            x1: 100.0,
+            bottom: 100.0,
+            width: 100.0,
+            height: 100.0,
+            name: "Im0".to_string(),
+            src_width: Some(200),
+            src_height: Some(150),
+            bits_per_component: Some(8),
+            color_space: Some("DeviceRGB".to_string()),
+            data: None,
+            filter: None,
+            mime_type: None,
+        };
+
+        Python::with_gil(|py| {
+            let line_object = line_to_dict(py, &line, 7, 400.0, 100.0).expect("compatible line");
+            let line_dict = line_object.downcast_bound::<PyDict>(py).expect("line dict");
+            assert_eq!(
+                line_dict
+                    .get_item("linewidth")
+                    .unwrap()
+                    .unwrap()
+                    .extract::<f64>()
+                    .unwrap(),
+                1.5
+            );
+            assert!(line_dict.get_item("stroking_color").unwrap().is_some());
+            for native_key in ["line_width", "stroke_color"] {
+                assert!(line_dict.get_item(native_key).unwrap().is_none());
+            }
+
+            let rect_object = rect_to_dict(py, &rect, 7, 400.0, 100.0).expect("compatible rect");
+            let rect_dict = rect_object.downcast_bound::<PyDict>(py).expect("rect dict");
+            for python_key in ["linewidth", "stroking_color", "non_stroking_color"] {
+                assert!(rect_dict.get_item(python_key).unwrap().is_some());
+            }
+            for native_key in ["line_width", "stroke_color", "fill_color"] {
+                assert!(rect_dict.get_item(native_key).unwrap().is_none());
+            }
+
+            let curve_object =
+                curve_to_dict(py, &curve, 7, 400.0, 100.0).expect("compatible curve");
+            let curve_dict = curve_object
+                .downcast_bound::<PyDict>(py)
+                .expect("curve dict");
+            for python_key in ["linewidth", "stroking_color", "non_stroking_color"] {
+                assert!(curve_dict.get_item(python_key).unwrap().is_some());
+            }
+            for native_key in ["line_width", "stroke_color", "fill_color"] {
+                assert!(curve_dict.get_item(native_key).unwrap().is_none());
+            }
+
+            let page_image_object =
+                page_image_to_dict(py, &image, 7, 400.0, 100.0).expect("compatible page image");
+            let page_image = page_image_object
+                .downcast_bound::<PyDict>(py)
+                .expect("page image dict");
+            assert_eq!(
+                page_image
+                    .get_item("srcsize")
+                    .unwrap()
+                    .unwrap()
+                    .extract::<(u32, u32)>()
+                    .unwrap(),
+                (200, 150)
+            );
+            for python_key in ["bits", "colorspace"] {
+                assert!(page_image.get_item(python_key).unwrap().is_some());
+            }
+            for native_key in [
+                "src_width",
+                "src_height",
+                "bits_per_component",
+                "color_space",
+            ] {
+                assert!(page_image.get_item(native_key).unwrap().is_none());
+            }
+
+            let raw_image_object = native_image_to_dict(py, &image).expect("native raw image");
+            let raw_image = raw_image_object
+                .downcast_bound::<PyDict>(py)
+                .expect("raw image dict");
+            for native_key in [
+                "src_width",
+                "src_height",
+                "bits_per_component",
+                "color_space",
+            ] {
+                assert!(raw_image.get_item(native_key).unwrap().is_some());
+            }
+            for python_key in ["srcsize", "bits", "colorspace"] {
+                assert!(raw_image.get_item(python_key).unwrap().is_none());
             }
         });
     }
