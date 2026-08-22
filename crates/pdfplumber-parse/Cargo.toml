@@ -1,6 +1,6 @@
 [package]
 name = "pdfplumber-parse"
-version = "0.2.0"
+version = "0.3.0"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -13,7 +13,7 @@ categories = ["parser-implementations"]
 tracing = ["dep:tracing"]
 
 [dependencies]
-pdfplumber-core = { version = "0.2.0", path = "../pdfplumber-core" }
+pdfplumber-core = { version = "0.3.0", path = "../pdfplumber-core" }
 lopdf = { version = "0.39", default-features = false }
 thiserror = "2"
 encoding_rs = "0.8"

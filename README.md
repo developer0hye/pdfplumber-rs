@@ -15,7 +15,14 @@ Extract chars, words, lines, rects, and tables from PDF documents with precise c
 - **Text extraction** with spatial grouping into words, lines, and text blocks
 - **Table detection** using lattice (line-based), stream (text-alignment), and explicit strategies, choosable per axis
 - **Spatial filtering** via `crop`, `within_bbox`, and `outside_bbox`
-- **CJK support** including CID fonts, Identity-H/V CMaps, and CJK-aware word grouping
+- **Embedded font programs** parsed for glyph widths and encodings: CFF/Type1C, TrueType (`hmtx`/`vmtx`), Type1, and the 14 standard fonts
+- **CJK support** including CID fonts, Identity-H/V and predefined CMaps, the Adobe-Japan1/GB1/CNS1/Korea1 CID→Unicode tables, EUC-JP/Shift-JIS/JIS7, and vertical writing (`WMode 1`)
+- **Right-to-left text** via the Unicode BiDi algorithm with Arabic shaping
+- **Rotated pages** handled for text, word order, and tables at 90/180/270 degrees
+- **Tagged PDF** structure trees, with characters addressable by MCID for semantic reading order
+- **Reading order** for multi-column layouts, plus header/footer detection
+- **Images** located on the page and exported as raw stream data
+- **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input
 - **Page-level streaming** for memory-efficient processing of large documents
 - **WASM support** via `wasm32-unknown-unknown` target
 - **Optional serde** serialization for all data types
@@ -27,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pdfplumber = "0.1"
+pdfplumber = "0.3"
 ```
 
 ### Feature Flags
@@ -132,7 +139,7 @@ For `wasm32-unknown-unknown` targets, disable the default `std` feature:
 
 ```toml
 [dependencies]
-pdfplumber = { version = "0.1", default-features = false }
+pdfplumber = { version = "0.3", default-features = false }
 ```
 
 Use the bytes-based API:
@@ -177,9 +184,7 @@ Rust 1.85 or later.
 
 ## License
 
-Licensed under either of:
+Licensed under the [Apache License, Version 2.0](LICENSE).
 
-- [Apache License, Version 2.0](http://www.apache.org/licenses/LICENSE-2.0)
-- [MIT License](http://opensource.org/licenses/MIT)
-
-at your option.
+Releases up to and including `0.2.0` were published as `MIT OR Apache-2.0`; that
+grant still stands for those versions.
