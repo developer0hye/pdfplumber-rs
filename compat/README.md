@@ -24,6 +24,7 @@ Everything here exists to make that reproducible.
 | `harness/provenance.py` | Builds the provenance block stamped into golden artifacts |
 | `harness/environment.py` | Guards against importing the wrong `pdfplumber` |
 | `harness/api_snapshot.py` | Reflects the complete upstream module/export/class surface deterministically |
+| `harness/object_schema_snapshot.py` | Scans ordered object-dictionary schemas across every indexed fixture collection |
 | `harness/call_contract.py` | Executes argument-binding, default, invalid-call, and exception contracts |
 | `harness/approved_deltas.py` | Validates exact intentional differences and rejects unregistered or stale results |
 | `harness/machine_report.py` | Builds the versioned per-API/per-option/per-fixture/per-page JSON report |
@@ -40,6 +41,7 @@ Everything here exists to make that reproducible.
 | `requirements-upstream-tests.txt` | Hash-pinned minimal pytest/xdist/pandas dependency closure |
 | `upstream-tests/` | Ignored materialized copy of the verified upstream tests and their external fixture |
 | `snapshots/pdfplumber-v0.11.10-api.json` | Committed public API contract for the pinned upstream release |
+| `snapshots/pdfplumber-v0.11.10-object-schemas.json` | Ordered object schemas and collection observations for the pinned corpus |
 | `contracts/pdfplumber-v0.11.10-calls.json` | Pinned behavioral outcomes for representative public calls |
 | `tests/` | Structural gates on all of the above |
 
@@ -70,6 +72,13 @@ python3 scripts/setup_candidate_venv.py \
 
 # Fail if the committed API snapshot has drifted.
 .venv-reference/bin/python scripts/generate_api_snapshot.py --check
+
+# Regenerate or verify the complete pinned object-schema snapshot.
+.venv-reference/bin/python scripts/generate_object_schema_snapshot.py
+.venv-reference/bin/python scripts/generate_object_schema_snapshot.py --check
+
+# Compare candidate schemas and per-collection family presence with upstream.
+.venv-candidate/bin/python scripts/generate_object_schema_snapshot.py --candidate
 
 # Fail if pinned call binding, defaults, validation, or exceptions drift.
 .venv-reference/bin/python compat/api_contract.py
@@ -131,6 +140,13 @@ and call signatures. It also preserves inconsistencies in the pinned release:
 for example, v0.11.10 declares `set_debug` in top-level `__all__` without
 defining that attribute. Review snapshot diffs as compatibility changes; do not
 edit the generated JSON by hand.
+
+The object-schema snapshot attempts every indexed fixture and records failures
+instead of dropping them. It scans the first three pages with vertical layout
+detection enabled, then stores every ordered key schema plus object and fixture
+counts for all four collection classes. Candidate comparison ignores count
+noise but requires the same ordered schemas and family presence in each class.
+Review generated snapshot diffs; do not edit the JSON by hand.
 
 The executable call contract complements the surface snapshot. Its cases invoke
 real upstream callables positionally and by keyword, exercise options that are
