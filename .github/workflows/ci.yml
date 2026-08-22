@@ -143,6 +143,9 @@ jobs:
       - name: Verify the pinned upstream public API snapshot
         run: .venv-reference/bin/python scripts/generate_api_snapshot.py --check
 
+      - name: Verify the pinned upstream object-schema snapshot
+        run: .venv-reference/bin/python scripts/generate_object_schema_snapshot.py --check
+
       - name: Verify the pinned upstream text/table option matrix
         run: .venv-reference/bin/python scripts/generate_option_matrix.py --check
 

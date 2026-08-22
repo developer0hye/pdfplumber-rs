@@ -1,0 +1,697 @@
+{
+  "collections": {
+    "external-parser": {
+      "completed_fixture_count": 28,
+      "failures": [],
+      "fixture_count": 28
+    },
+    "project-generated": {
+      "completed_fixture_count": 26,
+      "failures": [],
+      "fixture_count": 26
+    },
+    "rust-regression": {
+      "completed_fixture_count": 72,
+      "failures": [
+        {
+          "error_type": "builtins.UnicodeDecodeError",
+          "message": "'utf-16-le' codec can't decode byte 0x80 in position 2: truncated data",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/annotations-unicode-issues.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/federal-register-2020-17221.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/4646567755972608.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "Bounding box contains non-number coordinate(s): [0, 0, 612, -1548, /b'\\xcb', 41]",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/4691742750474240.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/4715311080734720.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "Invalid dictionary construct: [/'Type', /'PF', /b'ages', /'Count', 1, /'Kids', [3, 0, /b'R']]",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/4736668896133120.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "unhashable type: 'dict'",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/5177159198507008.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/5592736912179200.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "Invalid octal b'477' (319)",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/5809779695484928.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/5903429863538688.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "No /Root object! - Is this really a PDF?",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/6013812888633344.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "Bounding box contains non-number coordinate(s): [0, 0, 612, /b\"'\", 92]",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/6085913544818688.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/6400141380878336.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "'DescendantFonts'",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/oss-fuzz/6515565732102144.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "",
+          "path": "crates/pdfplumber/tests/fixtures/pdfs/password-example.pdf"
+        },
+        {
+          "error_type": "builtins.UnicodeDecodeError",
+          "message": "'utf-16-le' codec can't decode byte 0x80 in position 2: truncated data",
+          "path": "tests/fixtures/downloaded/annotations-unicode-issues.pdf"
+        }
+      ],
+      "fixture_count": 88
+    },
+    "upstream-v0.11.10": {
+      "completed_fixture_count": 65,
+      "failures": [
+        {
+          "error_type": "builtins.UnicodeDecodeError",
+          "message": "'utf-16-le' codec can't decode byte 0x80 in position 2: truncated data",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/annotations-unicode-issues.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "No /Root object! - Is this really a PDF?",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/empty.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/federal-register-2020-17221.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4646567755972608.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "Bounding box contains non-number coordinate(s): [0, 0, 612, -1548, /b'\\xcb', 41]",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4691742750474240.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4715311080734720.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "Invalid dictionary construct: [/'Type', /'PF', /b'ages', /'Count', 1, /'Kids', [3, 0, /b'R']]",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/4736668896133120.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "unhashable type: 'dict'",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5177159198507008.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5592736912179200.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "Invalid octal b'477' (319)",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5809779695484928.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/5903429863538688.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "No /Root object! - Is this really a PDF?",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6013812888633344.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "Bounding box contains non-number coordinate(s): [0, 0, 612, /b\"'\", 92]",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6085913544818688.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.MalformedPDFException",
+          "message": "maximum recursion depth exceeded",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6400141380878336.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "'DescendantFonts'",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/from-oss-fuzz/load/6515565732102144.pdf"
+        },
+        {
+          "error_type": "pdfplumber.utils.exceptions.PdfminerException",
+          "message": "",
+          "path": "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/password-example.pdf"
+        }
+      ],
+      "fixture_count": 81
+    }
+  },
+  "configuration": {
+    "laparams": {
+      "detect_vertical": true
+    },
+    "page_limit": 3
+  },
+  "corpus": {
+    "fixture_count": 223,
+    "registry": "compat/fixture-provenance.toml",
+    "registry_sha256": "9f3ec1f7d15c71bd73cf585a906ba33ef67c5378029e5ea10be4005dd74db376"
+  },
+  "environment": {
+    "lockfile_sha256": "4694835f5cfe710011cc6c55f2518cf82e94588ec991dcff42911ca6e557c33a",
+    "python_version": "3.13"
+  },
+  "object_types": {
+    "annot": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 0,
+          "object_count": 0
+        },
+        "project-generated": {
+          "fixture_count": 1,
+          "object_count": 1
+        },
+        "rust-regression": {
+          "fixture_count": 19,
+          "object_count": 184
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 14,
+          "object_count": 141
+        }
+      },
+      "schemas": [
+        [
+          "page_number",
+          "object_type",
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "doctop",
+          "top",
+          "bottom",
+          "width",
+          "height",
+          "uri",
+          "title",
+          "contents",
+          "data"
+        ]
+      ]
+    },
+    "char": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 28,
+          "object_count": 2576
+        },
+        "project-generated": {
+          "fixture_count": 25,
+          "object_count": 4894
+        },
+        "rust-regression": {
+          "fixture_count": 68,
+          "object_count": 131058
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 61,
+          "object_count": 125134
+        }
+      },
+      "schemas": [
+        [
+          "matrix",
+          "fontname",
+          "adv",
+          "upright",
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "size",
+          "mcid",
+          "tag",
+          "object_type",
+          "page_number",
+          "ncs",
+          "text",
+          "stroking_color",
+          "non_stroking_color",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "curve": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 0,
+          "object_count": 0
+        },
+        "project-generated": {
+          "fixture_count": 0,
+          "object_count": 0
+        },
+        "rust-regression": {
+          "fixture_count": 12,
+          "object_count": 465
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 11,
+          "object_count": 429
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "pts",
+          "linewidth",
+          "stroke",
+          "fill",
+          "evenodd",
+          "stroking_color",
+          "non_stroking_color",
+          "mcid",
+          "tag",
+          "object_type",
+          "page_number",
+          "path",
+          "dash",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "figure": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 2,
+          "object_count": 4
+        },
+        "project-generated": {
+          "fixture_count": 2,
+          "object_count": 2
+        },
+        "rust-regression": {
+          "fixture_count": 21,
+          "object_count": 80
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 20,
+          "object_count": 75
+        }
+      },
+      "schemas": [
+        [
+          "name",
+          "matrix",
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "object_type",
+          "page_number",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "hyperlink": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 0,
+          "object_count": 0
+        },
+        "project-generated": {
+          "fixture_count": 1,
+          "object_count": 1
+        },
+        "rust-regression": {
+          "fixture_count": 5,
+          "object_count": 19
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 4,
+          "object_count": 16
+        }
+      },
+      "schemas": [
+        [
+          "page_number",
+          "object_type",
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "doctop",
+          "top",
+          "bottom",
+          "width",
+          "height",
+          "uri",
+          "title",
+          "contents",
+          "data"
+        ]
+      ]
+    },
+    "image": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 1,
+          "object_count": 1
+        },
+        "project-generated": {
+          "fixture_count": 2,
+          "object_count": 2
+        },
+        "rust-regression": {
+          "fixture_count": 18,
+          "object_count": 73
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 17,
+          "object_count": 68
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "name",
+          "stream",
+          "srcsize",
+          "imagemask",
+          "bits",
+          "colorspace",
+          "mcid",
+          "tag",
+          "object_type",
+          "page_number",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "line": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 2,
+          "object_count": 17
+        },
+        "project-generated": {
+          "fixture_count": 3,
+          "object_count": 20
+        },
+        "rust-regression": {
+          "fixture_count": 30,
+          "object_count": 2947
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 27,
+          "object_count": 2702
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "pts",
+          "linewidth",
+          "stroke",
+          "fill",
+          "evenodd",
+          "stroking_color",
+          "non_stroking_color",
+          "mcid",
+          "tag",
+          "object_type",
+          "page_number",
+          "path",
+          "dash",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "rect": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 7,
+          "object_count": 29
+        },
+        "project-generated": {
+          "fixture_count": 3,
+          "object_count": 70
+        },
+        "rust-regression": {
+          "fixture_count": 39,
+          "object_count": 3881
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 37,
+          "object_count": 3611
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "pts",
+          "linewidth",
+          "stroke",
+          "fill",
+          "evenodd",
+          "stroking_color",
+          "non_stroking_color",
+          "mcid",
+          "tag",
+          "object_type",
+          "page_number",
+          "path",
+          "dash",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "textboxhorizontal": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 26,
+          "object_count": 86
+        },
+        "project-generated": {
+          "fixture_count": 24,
+          "object_count": 247
+        },
+        "rust-regression": {
+          "fixture_count": 64,
+          "object_count": 3312
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 59,
+          "object_count": 3180
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "object_type",
+          "page_number",
+          "text",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "textboxvertical": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 3,
+          "object_count": 4
+        },
+        "project-generated": {
+          "fixture_count": 1,
+          "object_count": 1
+        },
+        "rust-regression": {
+          "fixture_count": 20,
+          "object_count": 325
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 17,
+          "object_count": 322
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "object_type",
+          "page_number",
+          "text",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "textlinehorizontal": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 26,
+          "object_count": 148
+        },
+        "project-generated": {
+          "fixture_count": 25,
+          "object_count": 252
+        },
+        "rust-regression": {
+          "fixture_count": 64,
+          "object_count": 9156
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 59,
+          "object_count": 7739
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "object_type",
+          "page_number",
+          "text",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    },
+    "textlinevertical": {
+      "collections": {
+        "external-parser": {
+          "fixture_count": 3,
+          "object_count": 4
+        },
+        "project-generated": {
+          "fixture_count": 1,
+          "object_count": 1
+        },
+        "rust-regression": {
+          "fixture_count": 21,
+          "object_count": 731
+        },
+        "upstream-v0.11.10": {
+          "fixture_count": 18,
+          "object_count": 728
+        }
+      },
+      "schemas": [
+        [
+          "x0",
+          "y0",
+          "x1",
+          "y1",
+          "width",
+          "height",
+          "object_type",
+          "page_number",
+          "text",
+          "top",
+          "bottom",
+          "doctop"
+        ]
+      ]
+    }
+  },
+  "schema_version": 1,
+  "target": {
+    "commit": "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62",
+    "project": "pdfplumber",
+    "repository": "https://github.com/jsvine/pdfplumber",
+    "tag": "v0.11.10",
+    "version": "0.11.10"
+  }
+}
