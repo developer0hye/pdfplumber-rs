@@ -1847,7 +1847,9 @@ class NativeLayoutTests(unittest.TestCase):
             )
 
         def rect_colors(rectangle: dict[str, object]) -> tuple[object, object]:
-            return rectangle["stroke_color"], rectangle["fill_color"]
+            self.assertNotIn("stroke_color", rectangle)
+            self.assertNotIn("fill_color", rectangle)
+            return rectangle["stroking_color"], rectangle["non_stroking_color"]
 
         with pdfplumber.open(io.BytesIO(self.color_value_shapes_pdf())) as document:
             page = document.pages[0]
@@ -2641,6 +2643,68 @@ class NativeLayoutTests(unittest.TestCase):
                             )
                     objects["marker"] = []
                     self.assertIn("marker", page.objects)
+
+    def test_native_object_field_names_are_adapted_across_python_surfaces(
+        self,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        table_fixture = (
+            repository
+            / "crates/pdfplumber/tests/fixtures/pdfs/table-curves-example.pdf"
+        )
+        cases = (
+            (
+                self.multipage_fixture(),
+                {"pages": (3,)},
+                "line",
+                {"linewidth", "stroking_color"},
+                {"line_width", "stroke_color"},
+            ),
+            (
+                table_fixture,
+                {},
+                "rect",
+                {"linewidth", "stroking_color", "non_stroking_color"},
+                {"line_width", "stroke_color", "fill_color"},
+            ),
+            (
+                table_fixture,
+                {},
+                "curve",
+                {"linewidth", "stroking_color", "non_stroking_color"},
+                {"line_width", "stroke_color", "fill_color"},
+            ),
+            (
+                repository / "tests/fixtures/real-world/images/inline-image.pdf",
+                {},
+                "image",
+                {"srcsize", "bits", "colorspace"},
+                {"src_width", "src_height", "bits_per_component", "color_space"},
+            ),
+        )
+
+        for fixture, open_kwargs, object_type, python_keys, native_keys in cases:
+            with self.subTest(object_type=object_type):
+                with pdfplumber.open(fixture, **open_kwargs) as document:
+                    page = document.pages[0]
+                    surfaces = (
+                        page.objects[object_type],
+                        page.crop(page.bbox).objects[object_type],
+                        [
+                            item
+                            for item in document.objects[object_type]
+                            if item["page_number"] == page.page_number
+                        ],
+                        page.to_dict([object_type])[f"{object_type}s"],
+                        json.loads(page.to_json(object_types=[object_type]))[
+                            f"{object_type}s"
+                        ],
+                    )
+                    self.assertTrue(all(surface for surface in surfaces))
+                    for surface in surfaces:
+                        for item in surface:
+                            self.assertLessEqual(python_keys, item.keys())
+                            self.assertTrue(native_keys.isdisjoint(item))
 
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
