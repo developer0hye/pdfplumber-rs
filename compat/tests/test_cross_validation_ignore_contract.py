@@ -1,4 +1,4 @@
-"""Scheduling contract for the recovered cases tracked by issue #217."""
+"""Scheduling contract for recovered cross-validation cases."""
 
 from __future__ import annotations
 
@@ -17,11 +17,10 @@ RECOVERED_CASES = {
     "cv_python_issue_1147",
     "cv_python_issue_1181",
     "cv_python_issue_1279",
-}
-
-RETAINED_IGNORED_CASES = {
     "cv_python_issue_848",
 }
+
+RETAINED_IGNORED_CASES: set[str] = set()
 
 
 def ignored_cross_validation_tests() -> set[str]:
