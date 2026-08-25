@@ -16,10 +16,10 @@ RECOVERED_CASES = {
     "cv_python_annotations_rot270",
     "cv_python_issue_1147",
     "cv_python_issue_1181",
+    "cv_python_issue_1279",
 }
 
 RETAINED_IGNORED_CASES = {
-    "cv_python_issue_1279",
     "cv_python_issue_848",
 }
 
