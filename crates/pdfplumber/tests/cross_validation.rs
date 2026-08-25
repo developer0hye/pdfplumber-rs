@@ -1304,8 +1304,8 @@ cross_validate!(
 cross_validate!(
     cv_pdfjs_noembed_identity_2,
     "pdfjs/noembed-identity-2.pdf",
-    0.50,
-    0.0
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfjs_noembed_identity,
