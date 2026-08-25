@@ -103,6 +103,12 @@ pub struct TextState {
     text_matrix: Ctm,
     /// The text line matrix (set by BT, Td, TD, T*, Tm — records the start of each line).
     line_matrix: Ctm,
+    /// Local render position relative to the current line matrix.
+    ///
+    /// pdfminer keeps this position separate and applies it to the stable line
+    /// matrix once per character. Tracking it explicitly preserves the same
+    /// floating-point operation order for character matrix serialization.
+    text_position: (f64, f64),
 }
 
 impl Default for TextState {
@@ -126,6 +132,7 @@ impl TextState {
             in_text_object: false,
             text_matrix: Ctm::identity(),
             line_matrix: Ctm::identity(),
+            text_position: (0.0, 0.0),
         }
     }
 
@@ -139,16 +146,37 @@ impl TextState {
         &self.text_matrix
     }
 
-    /// Get the current text matrix as a 6-element array.
+    /// Get the current character-rendering text matrix as a 6-element array.
+    ///
+    /// This applies the accumulated local render position to the stable line
+    /// matrix in the same arithmetic order as pdfminer's `translate_matrix`.
     pub fn text_matrix_array(&self) -> [f64; 6] {
+        let (x, y) = self.text_position;
         [
-            self.text_matrix.a,
-            self.text_matrix.b,
-            self.text_matrix.c,
-            self.text_matrix.d,
-            self.text_matrix.e,
-            self.text_matrix.f,
+            self.line_matrix.a,
+            self.line_matrix.b,
+            self.line_matrix.c,
+            self.line_matrix.d,
+            x * self.line_matrix.a + y * self.line_matrix.c + self.line_matrix.e,
+            x * self.line_matrix.b + y * self.line_matrix.d + self.line_matrix.f,
         ]
+    }
+
+    /// Snapshot the rendered matrix together with its pdfminer-style source
+    /// matrix and local position.
+    pub fn character_matrix_snapshot(&self) -> ([f64; 6], [f64; 6], (f64, f64)) {
+        (
+            self.text_matrix_array(),
+            [
+                self.line_matrix.a,
+                self.line_matrix.b,
+                self.line_matrix.c,
+                self.line_matrix.d,
+                self.line_matrix.e,
+                self.line_matrix.f,
+            ],
+            self.text_position,
+        )
     }
 
     /// Get the current line matrix.
@@ -170,6 +198,7 @@ impl TextState {
     pub fn begin_text(&mut self) {
         self.text_matrix = Ctm::identity();
         self.line_matrix = Ctm::identity();
+        self.text_position = (0.0, 0.0);
         self.in_text_object = true;
     }
 
@@ -243,6 +272,7 @@ impl TextState {
         let m = Ctm::new(a, b, c, d, e, f);
         self.text_matrix = m;
         self.line_matrix = m;
+        self.text_position = (0.0, 0.0);
     }
 
     // --- Td operator ---
@@ -255,6 +285,7 @@ impl TextState {
         let translation = Ctm::new(1.0, 0.0, 0.0, 1.0, tx, ty);
         self.line_matrix = translation.concat(&self.line_matrix);
         self.text_matrix = self.line_matrix;
+        self.text_position = (0.0, 0.0);
     }
 
     // --- TD operator ---
@@ -289,6 +320,7 @@ impl TextState {
         // Translate text matrix horizontally in text space
         let translation = Ctm::new(1.0, 0.0, 0.0, 1.0, tx, 0.0);
         self.text_matrix = translation.concat(&self.text_matrix);
+        self.text_position.0 += tx;
     }
 
     /// Advance the text matrix by a vertical displacement (for WMode=1).
@@ -299,6 +331,7 @@ impl TextState {
     pub fn advance_text_position_vertical(&mut self, ty: f64) {
         let translation = Ctm::new(1.0, 0.0, 0.0, 1.0, 0.0, ty);
         self.text_matrix = translation.concat(&self.text_matrix);
+        self.text_position.1 += ty;
     }
 
     // --- q/Q save/restore (graphics state portion) ---
@@ -575,6 +608,19 @@ mod tests {
         ts.set_text_matrix(12.0, 0.0, 0.0, 12.0, 72.0, 720.0);
 
         assert_eq!(ts.text_matrix_array(), [12.0, 0.0, 0.0, 12.0, 72.0, 720.0]);
+    }
+
+    #[test]
+    fn test_text_matrix_array_preserves_pdfminer_position_arithmetic() {
+        let mut ts = TextState::new();
+        ts.begin_text();
+        ts.set_text_matrix(12.0, 0.0, 0.0, 12.0, 72.0, 720.0);
+
+        ts.advance_text_position(0.1);
+        ts.advance_text_position(0.2);
+
+        assert_eq!(ts.text_matrix().e, 75.60000000000001);
+        assert_eq!(ts.text_matrix_array()[4], 75.6);
     }
 
     // --- Td operator ---

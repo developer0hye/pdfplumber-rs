@@ -167,6 +167,7 @@ fn char_to_dict(
     page_height: f64,
 ) -> PyResult<PyObject> {
     let dict = PyDict::new(py);
+    dict.set_item("matrix", PyTuple::new(py, ch.ctm)?)?;
     dict.set_item("object_type", "char")?;
     dict.set_item("page_number", page_number)?;
     dict.set_item("text", &ch.text)?;
@@ -4784,6 +4785,9 @@ mod tests {
                 .extract()
                 .unwrap();
             assert!(upright);
+            let matrix: (f64, f64, f64, f64, f64, f64) =
+                dict.get_item("matrix").unwrap().unwrap().extract().unwrap();
+            assert_eq!(matrix, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0));
             assert!(dict.get_item("mcid").unwrap().unwrap().is_none());
             assert!(dict.get_item("tag").unwrap().unwrap().is_none());
             let direction: String = dict

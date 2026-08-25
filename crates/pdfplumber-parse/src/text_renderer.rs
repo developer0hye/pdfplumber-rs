@@ -23,6 +23,10 @@ pub struct RawChar {
     pub displacement: f64,
     /// Snapshot of the text matrix at the moment this character was rendered.
     pub text_matrix: [f64; 6],
+    /// Stable source matrix before applying the local render position.
+    pub text_matrix_base: [f64; 6],
+    /// Local render position applied to `text_matrix_base`.
+    pub text_position: (f64, f64),
 }
 
 /// An element of a TJ array operand.
@@ -100,7 +104,7 @@ pub(crate) fn show_string_spaced(
         spacing.apply(text_state);
 
         // Snapshot the text matrix before advancing
-        let text_matrix = text_state.text_matrix_array();
+        let (text_matrix, text_matrix_base, text_position) = text_state.character_matrix_snapshot();
 
         // Calculate displacement in text space
         let w0 = get_width(char_code);
@@ -118,6 +122,8 @@ pub(crate) fn show_string_spaced(
             char_code,
             displacement: tx,
             text_matrix,
+            text_matrix_base,
+            text_position,
         });
 
         // Advance text position
@@ -178,7 +184,7 @@ pub(crate) fn show_string_cid_spaced(
         spacing.apply(text_state);
 
         // Snapshot the text matrix before advancing
-        let text_matrix = text_state.text_matrix_array();
+        let (text_matrix, text_matrix_base, text_position) = text_state.character_matrix_snapshot();
 
         // Calculate displacement in text space
         let w0 = get_width(char_code);
@@ -196,6 +202,8 @@ pub(crate) fn show_string_cid_spaced(
             char_code,
             displacement: tx,
             text_matrix,
+            text_matrix_base,
+            text_position,
         });
 
         // Advance text position
@@ -305,6 +313,8 @@ mod tests {
             char_code: 65,
             displacement: 7.2,
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 700.0],
+            text_matrix_base: [1.0, 0.0, 0.0, 1.0, 72.0, 700.0],
+            text_position: (0.0, 0.0),
         };
         assert_eq!(rc.char_code, 65);
         assert_approx(rc.displacement, 7.2);
@@ -317,6 +327,8 @@ mod tests {
             char_code: 65,
             displacement: 7.2,
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 700.0],
+            text_matrix_base: [1.0, 0.0, 0.0, 1.0, 72.0, 700.0],
+            text_position: (0.0, 0.0),
         };
         let cloned = rc.clone();
         assert_eq!(rc, cloned);

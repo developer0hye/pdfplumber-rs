@@ -512,6 +512,8 @@ mod tests {
                 font_name: "Times-Roman".to_string(),
                 font_size: 14.0,
                 text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+                text_matrix_base: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+                text_position: (0.0, 0.0),
                 ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 displacement: 722.0,
                 advance: 10.108,
