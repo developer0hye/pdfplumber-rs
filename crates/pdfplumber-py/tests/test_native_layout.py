@@ -3049,6 +3049,76 @@ class NativeLayoutTests(unittest.TestCase):
                         [expected] * len(surfaces),
                     )
 
+    def test_character_upright_matches_transforms_across_surfaces(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        upstream_root = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs"
+        )
+        cases = (
+            (
+                upstream_root / "issue-848.pdf",
+                (
+                    (True,) * 1506,
+                    (False,) * 1506,
+                    (True,) * 1506,
+                    (False,) * 1506,
+                    (False,) * 1506,
+                    (False,) * 1506,
+                    (False,) * 1506,
+                    (False,) * 1506,
+                ),
+            ),
+            (
+                upstream_root / "issue-982-example.pdf",
+                ((True,) * 4372 + (False,) * 40,),
+            ),
+            (upstream_root / "annotations-rotated-90.pdf", ((False,) * 14,)),
+            (upstream_root / "annotations-rotated-270.pdf", ((False,) * 14,)),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/pdfjs/vertical.pdf",
+                ((True,) * 8,),
+            ),
+        )
+
+        for fixture, expected_pages in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    document_chars = document.objects["char"]
+
+                    self.assertGreaterEqual(len(document.pages), len(expected_pages))
+                    for page_index, expected in enumerate(expected_pages):
+                        page = document.pages[page_index]
+                        page_dict = page.to_dict(["char"])
+                        page_json = json.loads(
+                            page.to_json(object_types=["char"])
+                        )
+                        surfaces = (
+                            page.chars,
+                            page.crop(page.bbox).chars,
+                            [
+                                item
+                                for item in document_chars
+                                if item["page_number"] == page.page_number
+                            ],
+                            page_dict["chars"],
+                            page_json["chars"],
+                            document_dict["pages"][page_index]["chars"],
+                            document_json["pages"][page_index]["chars"],
+                        )
+                        self.assertEqual(
+                            [
+                                tuple(char["upright"] for char in surface)
+                                for surface in surfaces
+                            ],
+                            [expected] * len(surfaces),
+                        )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (
