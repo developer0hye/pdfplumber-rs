@@ -125,8 +125,12 @@ pub fn char_from_event(
         max_y - min_y
     };
 
-    // Upright: no rotation/shear in the text rendering matrix
-    let upright = trm.b.abs() < 1e-6 && trm.c.abs() < 1e-6;
+    // Match pdfminer's LTChar orientation test. Horizontal scaling participates
+    // in the determinant test, while the text/page matrix supplies the axes.
+    // Reflections are not upright even when the glyph box remains axis-aligned.
+    let orientation_matrix = tm.concat(&ctm);
+    let upright = orientation_matrix.a * orientation_matrix.d * h_scaling > 0.0
+        && orientation_matrix.b * orientation_matrix.c <= 0.0;
 
     // Text direction from the dominant axis of the text rendering matrix
     let direction = if trm.a.abs() >= trm.b.abs() {
@@ -424,6 +428,26 @@ mod tests {
     fn not_upright_for_rotated_text() {
         let event = CharEvent {
             text_matrix: [0.0, 1.0, -1.0, 0.0, 100.0, 500.0],
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+        assert!(!ch.upright);
+    }
+
+    #[test]
+    fn not_upright_for_horizontally_mirrored_text() {
+        let event = CharEvent {
+            text_matrix: [-1.0, 0.0, 0.0, 1.0, 300.0, 720.0],
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+        assert!(!ch.upright);
+    }
+
+    #[test]
+    fn not_upright_for_vertically_mirrored_text() {
+        let event = CharEvent {
+            text_matrix: [1.0, 0.0, 0.0, -1.0, 300.0, 720.0],
             ..default_event()
         };
         let ch = char_from_event(&event, PAGE_HEIGHT, None, None);

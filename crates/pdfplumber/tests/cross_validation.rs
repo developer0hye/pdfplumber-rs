@@ -897,18 +897,6 @@ macro_rules! cross_validate {
     };
 }
 
-/// Generate an #[ignore] test for PDFs below threshold. Runs validation but doesn't assert.
-macro_rules! cross_validate_ignored {
-    ($name:ident, $path:expr, $reason:literal) => {
-        #[test]
-        #[ignore] // TODO: $reason
-        fn $name() {
-            let result = try_validate_pdf($path);
-            result.print_summary();
-        }
-    };
-}
-
 /// Generate a no-panic test for oss-fuzz PDFs: just open + extract without crashing.
 macro_rules! cross_validate_no_panic {
     ($name:ident, $path:expr) => {
@@ -1057,10 +1045,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_hello_structure,
     "hello_structure.pdf",
-    "chars 37% — tagged PDF TrueType font gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_1054,
@@ -1074,15 +1063,17 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_1147,
     "issue-1147-example.pdf",
-    "words 36.2% — word grouping algorithm gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_1279,
     "issue-1279-example.pdf",
-    "chars 64.4% — complex layout extraction gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_140,
@@ -1212,17 +1203,19 @@ cross_validate!(
     WORD_THRESHOLD
 );
 
-// ─── pdfplumber-python: ERROR tests (parse failures) ─────────────────────
+// ─── pdfplumber-python: rotation and parse-recovery regressions ──────────
 
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot180,
     "annotations-rotated-180.pdf",
-    "chars 100% but words 0% — rotation 180 word grouping gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_annotations_rot270,
     "annotations-rotated-270.pdf",
-    "chars 100% but words 0% — rotation 270 word grouping gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_annotations_rot90,
@@ -1236,9 +1229,25 @@ cross_validate!(
     CHAR_THRESHOLD,
     CHAR_THRESHOLD
 );
-cross_validate_ignored!(cv_python_issue_1181, "issue-1181.pdf", "PDF parse error");
+cross_validate!(
+    cv_python_issue_1181,
+    "issue-1181.pdf",
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
+);
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+#[test]
+fn cv_python_issue_848() {
+    let result = try_validate_pdf("issue-848.pdf");
+    assert!(
+        result.parse_error.is_none(),
+        "parse error: {:?}",
+        result.parse_error
+    );
+    assert_eq!(result.total_char_rate(), 1.0, "character parity regressed");
+    assert_eq!(result.total_word_rate(), 1.0, "word parity regressed");
+    assert_eq!(result.total_table_rate(), 1.0, "table parity regressed");
+}
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
@@ -1304,8 +1313,8 @@ cross_validate!(
 cross_validate!(
     cv_pdfjs_noembed_identity_2,
     "pdfjs/noembed-identity-2.pdf",
-    0.50,
-    0.0
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfjs_noembed_identity,
@@ -1331,10 +1340,11 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfjs_vertical,
     "pdfjs/vertical.pdf",
-    "chars 0% — CJK vertical writing gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 
 // ─── pdfbox: PASSING tests (chars/words >= 80%) ──────────────────────────
@@ -1366,10 +1376,11 @@ cross_validate!(
     EXTERNAL_CHAR_THRESHOLD,
     EXTERNAL_WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_pdfbox_3127_vfont,
     "pdfbox/pdfbox-3127-vfont-reduced.pdf",
-    "chars 0.3% — vertical font gap"
+    EXTERNAL_CHAR_THRESHOLD,
+    EXTERNAL_WORD_THRESHOLD
 );
 cross_validate!(
     cv_pdfbox_3833_japanese,

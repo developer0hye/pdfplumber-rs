@@ -81,19 +81,17 @@ impl WordExtractor {
     ///   preserve PDF content stream order.
     /// - `text_direction` controls sorting and gap logic for vertical text.
     ///
-    /// Horizontal chars (Ltr + Rtl) are merged and sorted spatially left-to-right,
-    /// matching Python pdfplumber behavior. Only vertical chars (Ttb/Btt) are
-    /// partitioned into separate groups with vertical sorting.
+    /// Upright and non-upright character runs are processed separately, matching
+    /// pdfplumber's `itertools.groupby(chars, itemgetter("upright"))` boundary.
+    /// Non-upright runs use the default rotated character direction (top-to-bottom).
     pub fn extract(chars: &[Char], options: &WordOptions) -> Vec<Word> {
         if chars.is_empty() {
             return Vec::new();
         }
 
-        let is_vertical =
-            |ch: &Char| matches!(ch.direction, TextDirection::Ttb | TextDirection::Btt);
+        let is_rotated = |ch: &Char| !ch.upright;
 
-        if !chars.iter().any(is_vertical) {
-            // All chars are horizontal (Ltr or Rtl) → spatial LTR sorting
+        if !chars.iter().any(is_rotated) {
             return Self::extract_group(chars, options, None);
         }
 
@@ -109,14 +107,14 @@ impl WordExtractor {
         let mut run_start = 0;
         for i in 1..=chars.len() {
             let run_ended =
-                i == chars.len() || is_vertical(&chars[i]) != is_vertical(&chars[run_start]);
+                i == chars.len() || is_rotated(&chars[i]) != is_rotated(&chars[run_start]);
             if !run_ended {
                 continue;
             }
             let run = &chars[run_start..i];
             // Sideways characters are read top to bottom within their line, the
             // way pdfplumber's `char_dir_rotated` (`ttb`) has it.
-            let forced = is_vertical(&run[0]).then_some(TextDirection::Ttb);
+            let forced = is_rotated(&run[0]).then_some(TextDirection::Ttb);
             words.extend(Self::extract_group(run, options, forced));
             run_start = i;
         }
@@ -164,7 +162,11 @@ impl WordExtractor {
             // If this is a blank and we're not keeping blanks, finish current word
             if is_blank && !options.keep_blank_chars {
                 if !current_chars.is_empty() {
-                    words.push(Self::make_word(&current_chars, options.expand_ligatures));
+                    words.push(Self::make_word(
+                        &current_chars,
+                        options.expand_ligatures,
+                        force_direction,
+                    ));
                     current_chars.clear();
                 }
                 continue;
@@ -174,12 +176,17 @@ impl WordExtractor {
             // and forms a word of its own, whatever its spacing.
             if Self::is_split_punctuation(&ch.text, options) {
                 if !current_chars.is_empty() {
-                    words.push(Self::make_word(&current_chars, options.expand_ligatures));
+                    words.push(Self::make_word(
+                        &current_chars,
+                        options.expand_ligatures,
+                        force_direction,
+                    ));
                     current_chars.clear();
                 }
                 words.push(Self::make_word(
                     std::slice::from_ref(ch),
                     options.expand_ligatures,
+                    force_direction,
                 ));
                 continue;
             }
@@ -198,7 +205,11 @@ impl WordExtractor {
             };
 
             if should_split {
-                words.push(Self::make_word(&current_chars, options.expand_ligatures));
+                words.push(Self::make_word(
+                    &current_chars,
+                    options.expand_ligatures,
+                    force_direction,
+                ));
                 current_chars.clear();
             }
 
@@ -206,7 +217,11 @@ impl WordExtractor {
         }
 
         if !current_chars.is_empty() {
-            words.push(Self::make_word(&current_chars, options.expand_ligatures));
+            words.push(Self::make_word(
+                &current_chars,
+                options.expand_ligatures,
+                force_direction,
+            ));
         }
 
         words
@@ -215,57 +230,57 @@ impl WordExtractor {
     /// Sort chars by clustering on the cross-direction coordinate (within
     /// tolerance), then sorting within each cluster by reading direction.
     ///
-    /// This matches Python pdfplumber's `cluster_objects` approach: chars are
-    /// first sorted by the cross-direction (e.g., `top` for horizontal text),
-    /// then consecutive chars within `tolerance` are grouped into the same
-    /// cluster ("line"). Within each cluster, chars are sorted by reading
-    /// direction (e.g., `x0` for LTR).
+    /// This matches Python pdfplumber's `cluster_objects` approach: sorted
+    /// cross-direction values (e.g., `top` for horizontal text) determine each
+    /// char's line-cluster ID. Chars are then stably grouped by that ID, so their
+    /// source order survives until the stable reading-direction sort within the
+    /// cluster (e.g., `x0` for LTR).
     fn cluster_sort(chars: &mut Vec<&Char>, options: &WordOptions) {
         let is_vertical = matches!(
             options.text_direction,
             TextDirection::Ttb | TextDirection::Btt
         );
 
-        // Step 1: Sort by cross-direction coordinate
-        if is_vertical {
-            // Vertical text: the columns are the lines, and they are taken left
-            // to right by x0. pdfplumber flips its two reading directions for
-            // text that is not upright — `line_dir_rotated` defaults to
-            // `char_dir`, which is `ltr` — so a sideways row of labels starts at
-            // the leftmost column, not the rightmost.
-            chars.sort_by(|a, b| {
-                a.bbox
-                    .x0
-                    .partial_cmp(&b.bbox.x0)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-        } else {
-            // Horizontal text: lines go top-to-bottom, so sort by top ascending
-            chars.sort_by(|a, b| {
-                a.bbox
-                    .top
-                    .partial_cmp(&b.bbox.top)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            });
-        }
-
-        // Step 2: Cluster consecutive chars within cross-direction tolerance
-        // Step 3: Sort within each cluster by reading-direction coordinate
         let cross_tolerance = if is_vertical {
             options.x_tolerance
         } else {
             options.y_tolerance
         };
+        let cross_value = |ch: &Char| {
+            if is_vertical { ch.bbox.x0 } else { ch.bbox.top }
+        };
+
+        // Assign cluster IDs from the spatially sorted cross-direction values.
+        // Keep this separate from `chars`: Python's cluster_objects maps the IDs
+        // back onto the original objects before its stable cluster-ID sort.
+        let original = chars.clone();
+        let mut cross_order: Vec<usize> = (0..original.len()).collect();
+        cross_order.sort_by(|&a, &b| {
+            cross_value(original[a])
+                .partial_cmp(&cross_value(original[b]))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let mut cluster_ids = vec![0usize; original.len()];
+        let mut cluster_id = 0usize;
+        for pair in cross_order.windows(2) {
+            let previous = cross_value(original[pair[0]]);
+            let current = cross_value(original[pair[1]]);
+            if (current - previous).abs() > cross_tolerance {
+                cluster_id += 1;
+            }
+            cluster_ids[pair[1]] = cluster_id;
+        }
+
+        // Stable grouping by cluster ID preserves source order within a line.
+        let mut grouped_order: Vec<usize> = (0..original.len()).collect();
+        grouped_order.sort_by_key(|&index| cluster_ids[index]);
+        *chars = grouped_order.iter().map(|&index| original[index]).collect();
 
         // Find cluster boundaries
         let mut cluster_starts: Vec<usize> = vec![0];
-        for i in 1..chars.len() {
-            let cross_diff = if is_vertical {
-                (chars[i - 1].bbox.x0 - chars[i].bbox.x0).abs()
-            } else {
-                (chars[i].bbox.top - chars[i - 1].bbox.top).abs()
-            };
-            if cross_diff > cross_tolerance {
+        for i in 1..grouped_order.len() {
+            if cluster_ids[grouped_order[i - 1]] != cluster_ids[grouped_order[i]] {
                 cluster_starts.push(i);
             }
         }
@@ -403,7 +418,11 @@ impl WordExtractor {
             || x_diff > Self::x_tolerance_for(last, options)
     }
 
-    fn make_word(chars: &[Char], expand_ligatures: bool) -> Word {
+    fn make_word(
+        chars: &[Char],
+        expand_ligatures: bool,
+        direction_override: Option<TextDirection>,
+    ) -> Word {
         let raw_text: String = chars.iter().map(|c| c.text.as_str()).collect();
         let text = if expand_ligatures {
             expand_ligatures_in_text(&raw_text)
@@ -416,7 +435,7 @@ impl WordExtractor {
             .reduce(|a, b| a.union(&b))
             .expect("make_word called with non-empty chars");
         let doctop = chars.iter().map(|c| c.doctop).fold(f64::INFINITY, f64::min);
-        let direction = chars[0].direction;
+        let direction = direction_override.unwrap_or(chars[0].direction);
         Word {
             text,
             bbox,
@@ -1089,6 +1108,25 @@ mod tests {
     }
 
     #[test]
+    fn test_equal_sort_keys_preserve_source_order_within_line_cluster() {
+        // pdfplumber assigns each char to a spatial line cluster, then performs
+        // a stable x sort within that cluster. Equal x positions therefore keep
+        // their content-stream order even when their tops differ. The bridge at
+        // top=103 makes all four chars one transitive line cluster.
+        let chars = vec![
+            make_char("A", 10.0, 100.0, 20.0, 112.0),
+            make_char("J", 10.0, 106.0, 20.0, 118.0),
+            make_char("B", 10.0, 100.0, 20.0, 112.0),
+            make_char("X", 50.0, 103.0, 60.0, 115.0),
+        ];
+
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        let texts: Vec<&str> = words.iter().map(|word| word.text.as_str()).collect();
+
+        assert_eq!(texts, ["A", "J", "B", "X"]);
+    }
+
+    #[test]
     fn test_different_y_beyond_tolerance_split() {
         // Chars at y=100 and y=120 (y_diff=20 >> y_tolerance=3) should be separate words.
         let chars = vec![
@@ -1348,6 +1386,32 @@ mod tests {
     }
 
     #[test]
+    fn test_non_upright_rtl_chars_follow_rotated_text_grouping() {
+        let mut chars = vec![
+            make_rtl_char("T", 534.0, 74.0, 540.0, 84.0),
+            make_rtl_char("h", 528.0, 74.0, 534.0, 84.0),
+            make_rtl_char("e", 523.0, 74.0, 528.0, 84.0),
+        ];
+        for ch in &mut chars {
+            ch.upright = false;
+        }
+
+        let words = WordExtractor::extract(&chars, &WordOptions::default());
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["e", "h", "T"]
+        );
+        assert!(
+            words
+                .iter()
+                .all(|word| word.direction == TextDirection::Ttb)
+        );
+    }
+
+    #[test]
     fn test_per_char_rtl_two_words() {
         // "Hello World" with Rtl direction — two words separated by space.
         // In 180° rotation, first word at right, second word at left.
@@ -1398,7 +1462,9 @@ mod tests {
         );
         // Spatial top-to-bottom: o(512), l(520), l(526), e(532), H(540) → "olleH"
         assert_eq!(words[0].text, "olleH");
-        assert_eq!(words[0].direction, TextDirection::Btt);
+        // Pinned pdfplumber exposes its configured rotated character direction,
+        // `ttb`, rather than the richer direction inferred from the matrix.
+        assert_eq!(words[0].direction, TextDirection::Ttb);
     }
 
     #[test]
