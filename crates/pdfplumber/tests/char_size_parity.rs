@@ -56,10 +56,14 @@ fn a_scaled_text_matrix_reports_the_rendered_size() {
     assert_eq!(
         sizes("downloaded", "nics-firearm-checks.pdf"),
         vec![
-            ("S".to_string(), "Helvetica-Bold".to_string(), 6.96),
-            ("P".to_string(), "ArialMT".to_string(), 5.76),
-            ("N".to_string(), "Times-Bold".to_string(), 5.76),
-            ("*".to_string(), "TimesNewRomanPSMT".to_string(), 5.76),
+            ("S".to_string(), "DCLTEC+Helvetica-Bold".to_string(), 6.96,),
+            ("P".to_string(), "WEVZII+ArialMT".to_string(), 5.76),
+            ("N".to_string(), "PFBTDJ+Times-Bold".to_string(), 5.76),
+            (
+                "*".to_string(),
+                "PXYBBS+TimesNewRomanPSMT".to_string(),
+                5.76,
+            ),
         ]
     );
 }

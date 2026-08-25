@@ -32,7 +32,7 @@ use pdfplumber_core::{
 struct CachedFont {
     metrics: FontMetrics,
     cmap: Option<CMap>,
-    base_name: String,
+    font_name: String,
     /// CID font metrics (present for Type0/CID fonts).
     cid_metrics: Option<CidFontMetrics>,
     /// Whether this is a CID (composite/Type0) font.
@@ -684,7 +684,7 @@ fn load_font_if_needed(
     let (
         metrics,
         cmap,
-        base_name,
+        emitted_font_name,
         cid_metrics,
         is_cid_font,
         writing_mode,
@@ -730,20 +730,12 @@ fn load_font_if_needed(
             // Extract ToUnicode CMap if present
             let cmap = extract_tounicode_cmap(doc, fd);
 
-            let raw_base_name_owned;
-            let raw_base_name =
-                if let Some(n) = fd.get(b"BaseFont").ok().and_then(|o| o.as_name().ok()) {
-                    raw_base_name_owned = String::from_utf8_lossy(n).into_owned();
-                    raw_base_name_owned.as_str()
-                } else {
-                    font_name
-                };
-            let base_name = strip_subset_prefix(raw_base_name).to_string();
+            let emitted_font_name = pdfminer_font_name(doc, fd);
 
             (
                 metrics,
                 cmap,
-                base_name,
+                emitted_font_name,
                 cid_met,
                 true,
                 wm,
@@ -779,7 +771,7 @@ fn load_font_if_needed(
                 } else {
                     font_name
                 };
-            let base_name = strip_subset_prefix(raw_base_name).to_string();
+            let metrics_base_name = strip_subset_prefix(raw_base_name).to_string();
 
             // A font with no /Encoding of its own may still carry one inside its
             // font program, which is how TeX ships Computer Modern.
@@ -789,7 +781,7 @@ fn load_font_if_needed(
             // apply StandardEncoding as the implicit base encoding per PDF spec.
             // Symbol and ZapfDingbats have their own built-in encodings.
             let encoding = encoding.or_else(|| {
-                if is_standard_latin_font(&base_name) {
+                if is_standard_latin_font(&metrics_base_name) {
                     Some(FontEncoding::from_standard(StandardEncoding::Standard))
                 } else {
                     None
@@ -803,7 +795,7 @@ fn load_font_if_needed(
             let metrics = if fd.get(b"Widths").is_err() {
                 if let Some(ref enc) = encoding {
                     if let Some(remapped) =
-                        crate::standard_fonts::build_remapped_widths(&base_name, |code| {
+                        crate::standard_fonts::build_remapped_widths(&metrics_base_name, |code| {
                             enc.decode(code)
                         })
                     {
@@ -827,7 +819,15 @@ fn load_font_if_needed(
             };
 
             (
-                metrics, cmap, base_name, None, false, 0, encoding, None, false,
+                metrics,
+                cmap,
+                pdfminer_font_name(doc, fd),
+                None,
+                false,
+                0,
+                encoding,
+                None,
+                false,
             )
         }
     } else {
@@ -860,7 +860,7 @@ fn load_font_if_needed(
         CachedFont {
             metrics,
             cmap,
-            base_name,
+            font_name: emitted_font_name,
             cid_metrics,
             is_cid_font,
             writing_mode,
@@ -986,6 +986,155 @@ fn is_standard_latin_font(base_name: &str) -> bool {
             | "Times-Italic"
             | "Times-BoldItalic"
     )
+}
+
+/// Return the character-facing font name chosen by pinned pdfminer.
+///
+/// Type 1 and TrueType fonts use built-in descriptors for the standard 14
+/// fonts. Other simple fonts use their `/FontDescriptor`, while Type0 fonts
+/// use the descriptor on the descendant CID font. This value is intentionally
+/// separate from the normalized base name used for width and encoding lookup.
+fn pdfminer_font_name(doc: &lopdf::Document, font_dict: &lopdf::Dictionary) -> String {
+    let descriptor_owner = if is_type0_font(font_dict) {
+        match get_descendant_font(doc, font_dict) {
+            Some(descendant) => descendant,
+            None => return "unknown".to_string(),
+        }
+    } else {
+        font_dict
+    };
+
+    let subtype = resolved_name_bytes(doc, descriptor_owner, b"Subtype");
+    let uses_type1_metrics = !matches!(subtype, Some(b"Type3" | b"CIDFontType0" | b"CIDFontType2"));
+    if uses_type1_metrics {
+        if let Some(font_name) = resolved_name_bytes(doc, descriptor_owner, b"BaseFont")
+            .and_then(|name| std::str::from_utf8(name).ok())
+            .and_then(pdfminer_builtin_font_name)
+        {
+            return font_name.to_string();
+        }
+    }
+
+    let descriptor = descriptor_owner
+        .get(b"FontDescriptor")
+        .ok()
+        .map(|object| resolve_ref(doc, object))
+        .and_then(|object| object.as_dict().ok());
+    let Some(font_name) = descriptor
+        .and_then(|value| value.get(b"FontName").ok())
+        .map(|object| resolve_ref(doc, object))
+    else {
+        return "unknown".to_string();
+    };
+
+    match font_name {
+        lopdf::Object::Name(name) => pdfminer_literal_name(name),
+        lopdf::Object::String(name, _) => pdfplumber_fix_fontname_bytes(name),
+        _ => "unknown".to_string(),
+    }
+}
+
+fn resolved_name_bytes<'a>(
+    doc: &'a lopdf::Document,
+    dictionary: &'a lopdf::Dictionary,
+    key: &[u8],
+) -> Option<&'a [u8]> {
+    dictionary
+        .get(key)
+        .ok()
+        .map(|object| resolve_ref(doc, object))
+        .and_then(|object| object.as_name().ok())
+}
+
+fn pdfminer_builtin_font_name(font_name: &str) -> Option<&'static str> {
+    match font_name {
+        "Arial" | "Helvetica" => Some("Helvetica"),
+        "Arial,Bold" | "Helvetica-Bold" => Some("Helvetica-Bold"),
+        "Arial,Italic" | "Helvetica-Oblique" => Some("Helvetica-Oblique"),
+        "Arial,BoldItalic" | "Helvetica-BoldOblique" => Some("Helvetica-BoldOblique"),
+        "Courier" | "CourierNew" => Some("Courier"),
+        "Courier-Bold" | "CourierNew,Bold" => Some("Courier-Bold"),
+        "Courier-Oblique" | "CourierNew,Italic" => Some("Courier-Oblique"),
+        "Courier-BoldOblique" | "CourierNew,BoldItalic" => Some("Courier-BoldOblique"),
+        "Times-Roman" | "TimesNewRoman" => Some("Times-Roman"),
+        "Times-Bold" | "TimesNewRoman,Bold" => Some("Times-Bold"),
+        "Times-Italic" | "TimesNewRoman,Italic" => Some("Times-Italic"),
+        "Times-BoldItalic" | "TimesNewRoman,BoldItalic" => Some("Times-BoldItalic"),
+        "Symbol" => Some("Symbol"),
+        "ZapfDingbats" => Some("ZapfDingbats"),
+        _ => None,
+    }
+}
+
+fn pdfminer_literal_name(name: &[u8]) -> String {
+    match std::str::from_utf8(name) {
+        Ok(name) => name.to_string(),
+        Err(_) => python_bytes_repr(name),
+    }
+}
+
+fn pdfplumber_fix_fontname_bytes(font_name: &[u8]) -> String {
+    let split_at = font_name
+        .iter()
+        .position(|byte| *byte == b'+')
+        .map_or(0, |index| index + 1);
+    let (prefix, suffix) = font_name.split_at(split_at);
+    let fixed_suffix = match suffix {
+        b"\xcb\xce\xcc\xe5" => "SimSun,Regular".to_string(),
+        b"\xba\xda\xcc\xe5" => "SimHei,Regular".to_string(),
+        b"\xbf\xac\xcc\xe5_GB2312" => "SimKai,Regular".to_string(),
+        b"\xb7\xc2\xcb\xce_GB2312" => "SimFang,Regular".to_string(),
+        b"\xc1\xa5\xca\xe9" => "SimLi,Regular".to_string(),
+        _ => python_bytes_repr_inner(suffix),
+    };
+    python_bytes_repr_inner(prefix) + &fixed_suffix
+}
+
+fn python_bytes_repr(bytes: &[u8]) -> String {
+    let quote = if bytes.contains(&b'\'') && !bytes.contains(&b'"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut result = String::with_capacity(bytes.len() + 3);
+    result.push('b');
+    result.push(quote);
+    push_python_bytes_repr_body(&mut result, bytes, quote);
+    result.push(quote);
+    result
+}
+
+fn python_bytes_repr_inner(bytes: &[u8]) -> String {
+    let quote = if bytes.contains(&b'\'') && !bytes.contains(&b'"') {
+        '"'
+    } else {
+        '\''
+    };
+    let mut result = String::with_capacity(bytes.len());
+    push_python_bytes_repr_body(&mut result, bytes, quote);
+    result
+}
+
+fn push_python_bytes_repr_body(result: &mut String, bytes: &[u8], quote: char) {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    for &byte in bytes {
+        match byte {
+            b'\\' => result.push_str("\\\\"),
+            b'\t' => result.push_str("\\t"),
+            b'\n' => result.push_str("\\n"),
+            b'\r' => result.push_str("\\r"),
+            byte if byte == quote as u8 => {
+                result.push('\\');
+                result.push(quote);
+            }
+            0x20..=0x7e => result.push(char::from(byte)),
+            _ => {
+                result.push_str("\\x");
+                result.push(char::from(HEX[(byte >> 4) as usize]));
+                result.push(char::from(HEX[(byte & 0x0f) as usize]));
+            }
+        }
+    }
 }
 
 /// Parse a PDF /Differences array into (code, char) pairs.
@@ -1329,7 +1478,7 @@ fn emit_char_events(
     marked_content_stack: &[MarkedContentEntry],
 ) {
     let ctm = gstate.ctm_array();
-    let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.base_name.clone());
+    let font_name = cached.map_or_else(|| tstate.font_name.clone(), |c| c.font_name.clone());
 
     for rc in raw_chars {
         // Unicode resolution chain: CMap → FontEncoding → CJK encoding → char::from_u32
@@ -2074,6 +2223,108 @@ mod tests {
         ExtractOptions::default()
     }
 
+    #[test]
+    fn pdfminer_font_name_prefers_descriptor_and_resolves_indirect_names() {
+        use lopdf::{Object, dictionary};
+
+        let mut doc = lopdf::Document::with_version("1.5");
+        let descriptor_name_id = doc.add_object(Object::Name(b"ABCDEF+Arial".to_vec()));
+        let descriptor_id = doc.add_object(Object::Dictionary(dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => Object::Reference(descriptor_name_id),
+        }));
+        let base_name_id = doc.add_object(Object::Name(b"ArialMT".to_vec()));
+        let font = dictionary! {
+            "Type" => "Font",
+            "Subtype" => "TrueType",
+            "BaseFont" => Object::Reference(base_name_id),
+            "FontDescriptor" => Object::Reference(descriptor_id),
+        };
+
+        assert_eq!(pdfminer_font_name(&doc, &font), "ABCDEF+Arial");
+    }
+
+    #[test]
+    fn pdfminer_font_name_uses_all_builtin_font_metrics_descriptors() {
+        use lopdf::dictionary;
+
+        let doc = lopdf::Document::with_version("1.5");
+        let cases = [
+            ("Arial", "Helvetica"),
+            ("Arial,Bold", "Helvetica-Bold"),
+            ("Arial,Italic", "Helvetica-Oblique"),
+            ("Arial,BoldItalic", "Helvetica-BoldOblique"),
+            ("Courier", "Courier"),
+            ("Courier-Bold", "Courier-Bold"),
+            ("Courier-Oblique", "Courier-Oblique"),
+            ("Courier-BoldOblique", "Courier-BoldOblique"),
+            ("CourierNew", "Courier"),
+            ("CourierNew,Bold", "Courier-Bold"),
+            ("CourierNew,Italic", "Courier-Oblique"),
+            ("CourierNew,BoldItalic", "Courier-BoldOblique"),
+            ("Helvetica", "Helvetica"),
+            ("Helvetica-Bold", "Helvetica-Bold"),
+            ("Helvetica-Oblique", "Helvetica-Oblique"),
+            ("Helvetica-BoldOblique", "Helvetica-BoldOblique"),
+            ("Symbol", "Symbol"),
+            ("Times-Roman", "Times-Roman"),
+            ("Times-Bold", "Times-Bold"),
+            ("Times-Italic", "Times-Italic"),
+            ("Times-BoldItalic", "Times-BoldItalic"),
+            ("TimesNewRoman", "Times-Roman"),
+            ("TimesNewRoman,Bold", "Times-Bold"),
+            ("TimesNewRoman,Italic", "Times-Italic"),
+            ("TimesNewRoman,BoldItalic", "Times-BoldItalic"),
+            ("ZapfDingbats", "ZapfDingbats"),
+        ];
+
+        for (base_font, expected_font_name) in cases {
+            let font = dictionary! {
+                "Type" => "Font",
+                "Subtype" => "TrueType",
+                "BaseFont" => base_font,
+                "FontDescriptor" => lopdf::Object::Dictionary(dictionary! {
+                    "Type" => "FontDescriptor",
+                    "FontName" => "IgnoredDescriptorName",
+                }),
+            };
+
+            assert_eq!(
+                pdfminer_font_name(&doc, &font),
+                expected_font_name,
+                "BaseFont={base_font}"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_pdf_names_match_python_bytes_representation() {
+        assert_eq!(
+            pdfminer_literal_name(b"ABCDEE+\xcb\xce\xcc\xe5"),
+            "b'ABCDEE+\\xcb\\xce\\xcc\\xe5'"
+        );
+        assert_eq!(pdfminer_literal_name(b"ABC\xff'\\"), "b\"ABC\\xff'\\\\\"");
+    }
+
+    #[test]
+    fn literal_string_font_names_match_pdfplumber_cp936_fixups() {
+        let cases: &[(&[u8], &str)] = &[
+            (b"\xcb\xce\xcc\xe5", "SimSun,Regular"),
+            (b"\xba\xda\xcc\xe5", "SimHei,Regular"),
+            (b"\xbf\xac\xcc\xe5_GB2312", "SimKai,Regular"),
+            (b"\xb7\xc2\xcb\xce_GB2312", "SimFang,Regular"),
+            (b"\xc1\xa5\xca\xe9", "SimLi,Regular"),
+        ];
+
+        for (font_name, expected) in cases {
+            assert_eq!(pdfplumber_fix_fontname_bytes(font_name), *expected);
+            assert_eq!(
+                pdfplumber_fix_fontname_bytes(&[b"ABCDEF+".as_slice(), font_name].concat()),
+                format!("ABCDEF+{expected}")
+            );
+        }
+    }
+
     // --- Basic text interpretation tests ---
 
     #[test]
@@ -2268,11 +2519,17 @@ mod tests {
         let tounicode_stream = Stream::new(dictionary! {}, tounicode_data.to_vec());
         let tounicode_id = doc.add_object(Object::Stream(tounicode_stream));
 
+        let descriptor_id = doc.add_object(Object::Dictionary(dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "MSGothic",
+        }));
+
         // CIDFont dictionary
         let cid_font_dict = dictionary! {
             "Type" => "Font",
             "Subtype" => "CIDFontType2",
             "BaseFont" => "MSGothic",
+            "FontDescriptor" => Object::Reference(descriptor_id),
             "DW" => Object::Integer(1000),
             "CIDToGIDMap" => "Identity",
             "CIDSystemInfo" => Object::Dictionary(dictionary! {
@@ -2367,7 +2624,7 @@ mod tests {
     }
 
     #[test]
-    fn interpret_subset_font_name_stripped() {
+    fn interpret_subset_font_name_preserved_from_descendant_descriptor() {
         let mut doc = lopdf::Document::with_version("1.5");
 
         use lopdf::{Object, Stream, dictionary};
@@ -2380,11 +2637,17 @@ mod tests {
         let tounicode_stream = Stream::new(dictionary! {}, tounicode_data.to_vec());
         let tounicode_id = doc.add_object(Object::Stream(tounicode_stream));
 
+        let descriptor_id = doc.add_object(Object::Dictionary(dictionary! {
+            "Type" => "FontDescriptor",
+            "FontName" => "ABCDEF+MSGothic",
+        }));
+
         // CIDFont with subset prefix
         let cid_font_dict = dictionary! {
             "Type" => "Font",
             "Subtype" => "CIDFontType2",
             "BaseFont" => "ABCDEF+MSGothic",
+            "FontDescriptor" => Object::Reference(descriptor_id),
             "DW" => Object::Integer(1000),
             "CIDToGIDMap" => "Identity",
         };
@@ -2426,8 +2689,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(handler.chars.len(), 1);
-        // Subset prefix should be stripped
-        assert_eq!(handler.chars[0].font_name, "MSGothic");
+        assert_eq!(handler.chars[0].font_name, "ABCDEF+MSGothic");
     }
 
     /// Build resources for Identity-V (vertical writing mode).

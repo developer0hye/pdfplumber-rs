@@ -2756,6 +2756,71 @@ class NativeLayoutTests(unittest.TestCase):
                         [expected] * len(surfaces),
                     )
 
+    def test_character_fontname_matches_descriptor_names_across_surfaces(
+        self,
+    ) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        fixture_root = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs"
+        )
+        malformed_simsun = "b'ABCDEE+\\xcb\\xce\\xcc\\xe5'"
+        cases = (
+            (
+                fixture_root / "annotations.pdf",
+                ["BAAAAA+Arial-BoldMT"] * 14,
+            ),
+            (
+                fixture_root / "WARN-Report-for-7-1-2015-to-03-25-2016.pdf",
+                ["Helvetica-Bold"] * 11 + ["Helvetica"] * 14,
+            ),
+            (
+                fixture_root / "issue-90-example.pdf",
+                ["AAAAAA+Arial,Bold"] * 198 + ["AAAAAB+Arial"] * 54,
+            ),
+            (
+                fixture_root / "issue-336-example.pdf",
+                [malformed_simsun] * 12 + ["Times New Roman"] * 4,
+            ),
+            (
+                fixture_root / "pr-136-example.pdf",
+                ["SimSun"] * 16 + ["Times New Roman"] * 4,
+            ),
+        )
+
+        for fixture, expected in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[0]
+                    page_dict = page.to_dict(["char"])
+                    page_json = json.loads(
+                        page.to_json(object_types=["char"])
+                    )
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    surfaces = (
+                        page.chars,
+                        page.crop(page.bbox).chars,
+                        [
+                            item
+                            for item in document.objects["char"]
+                            if item["page_number"] == page.page_number
+                        ],
+                        page_dict["chars"],
+                        page_json["chars"],
+                        document_dict["pages"][0]["chars"],
+                        document_json["pages"][0]["chars"],
+                    )
+                    self.assertEqual(
+                        [
+                            [item["fontname"] for item in surface[: len(expected)]]
+                            for surface in surfaces
+                        ],
+                        [expected] * len(surfaces),
+                    )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (
