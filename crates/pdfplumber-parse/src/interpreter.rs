@@ -1654,17 +1654,21 @@ fn emit_char_events(
         // For WMode=1 fonts, the text position is the vertical origin,
         // displaced from the horizontal origin by (vx, vy) in glyph space.
         let is_vertical = cached.is_some_and(|c| c.writing_mode == 1);
-        let vertical_origin = if is_vertical {
+        let (vertical_origin, advance_width) = if is_vertical {
             cached
                 .and_then(|c| c.cid_metrics.as_ref())
                 .map(|cm| {
                     let vm = cm.get_vertical_metric(rc.char_code);
-                    (vm.vx, vm.vy)
+                    ((vm.vx, vm.vy), vm.w1y)
                 })
-                .unwrap_or((0.0, 0.0))
+                .unwrap_or(((0.0, 0.0), -1000.0))
         } else {
-            (0.0, 0.0)
+            ((0.0, 0.0), displacement)
         };
+        // pdfminer exposes LTChar.adv before applying the layout matrix. It
+        // uses W/DW for horizontal fonts and W2/DW2 for vertical fonts, while
+        // excluding character spacing, word spacing, and TJ adjustments.
+        let advance = (advance_width * 0.001) * tstate.font_size * tstate.h_scaling_normalized();
 
         handler.on_char(CharEvent {
             char_code: rc.char_code,
@@ -1674,6 +1678,7 @@ fn emit_char_events(
             text_matrix: rc.text_matrix,
             ctm,
             displacement,
+            advance,
             char_spacing: tstate.char_spacing,
             word_spacing: tstate.word_spacing,
             h_scaling: tstate.h_scaling_normalized(),

@@ -27,6 +27,7 @@ fn chars_with_a_two_point_gap(size: f64) -> Vec<Char> {
         bbox: BBox::new(x0, 100.0, x1, 100.0 + size),
         fontname: "Helvetica".to_string(),
         size,
+        advance: x1 - x0,
         doctop: 100.0,
         upright: true,
         direction: TextDirection::Ltr,

@@ -2916,6 +2916,139 @@ class NativeLayoutTests(unittest.TestCase):
                         [expected] * len(surfaces),
                     )
 
+    def test_character_advance_matches_font_metrics_across_surfaces(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        upstream_root = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs"
+        )
+        cases = (
+            (
+                upstream_root / "150109DSP-Milw-505-90D.pdf",
+                tuple(range(24)),
+                [
+                    ("D", 0.722),
+                    ("C", 0.722),
+                    ("F", 0.611),
+                    ("-", 0.333),
+                    ("F", 0.611),
+                    ("-", 0.333),
+                    ("2", 0.556),
+                    ("4", 0.556),
+                    ("7", 0.556),
+                    ("6", 0.556),
+                    ("-", 0.333),
+                    ("E", 0.667),
+                    (" ", 0.278),
+                    (" ", 0.278),
+                    ("(", 0.333),
+                    ("R", 0.722),
+                    (".", 0.278),
+                    (" ", 0.278),
+                    ("0", 0.556),
+                    ("4", 0.556),
+                    ("/", 0.278),
+                    ("2", 0.556),
+                    ("0", 0.556),
+                    ("1", 0.556),
+                ],
+            ),
+            (
+                upstream_root / "annotations-rotated-90.pdf",
+                tuple(range(14)),
+                [
+                    ("D", 11.6242),
+                    ("u", 9.821000000000002),
+                    ("m", 14.3129),
+                    ("m", 14.3129),
+                    ("y", 8.951600000000001),
+                    (" ", 4.459700000000001),
+                    ("P", 10.722600000000002),
+                    ("D", 11.6242),
+                    ("F", 9.821000000000002),
+                    (" ", 4.459700000000001),
+                    ("f", 5.361300000000001),
+                    ("i", 4.459700000000001),
+                    ("l", 4.459700000000001),
+                    ("e", 8.951600000000001),
+                ],
+            ),
+            (
+                upstream_root / "annotations-rotated-270.pdf",
+                tuple(range(14)),
+                [
+                    ("D", 11.6242),
+                    ("u", 9.821000000000002),
+                    ("m", 14.3129),
+                    ("m", 14.3129),
+                    ("y", 8.951600000000001),
+                    (" ", 4.459700000000001),
+                    ("P", 10.722600000000002),
+                    ("D", 11.6242),
+                    ("F", 9.821000000000002),
+                    (" ", 4.459700000000001),
+                    ("f", 5.361300000000001),
+                    ("i", 4.459700000000001),
+                    ("l", 4.459700000000001),
+                    ("e", 8.951600000000001),
+                ],
+            ),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/pdfjs/vertical.pdf",
+                tuple(range(8)),
+                [(text, -9.212) for text in "あいうえお日本語"],
+            ),
+            (
+                upstream_root / "issue-982-example.pdf",
+                tuple(range(8)),
+                [
+                    ("1", 3.4869),
+                    ("C", 8.631654399999999),
+                    ("r", 5.3081088),
+                    ("e", 5.3081088),
+                    ("a", 5.9776),
+                    ("t", 3.9810816),
+                    ("i", 3.3235456),
+                    ("v", 5.9776),
+                ],
+            ),
+        )
+
+        for fixture, indices, expected in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[0]
+                    page_dict = page.to_dict(["char"])
+                    page_json = json.loads(page.to_json(object_types=["char"]))
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    surfaces = (
+                        page.chars,
+                        page.crop(page.bbox).chars,
+                        [
+                            item
+                            for item in document.objects["char"]
+                            if item["page_number"] == page.page_number
+                        ],
+                        page_dict["chars"],
+                        page_json["chars"],
+                        document_dict["pages"][0]["chars"],
+                        document_json["pages"][0]["chars"],
+                    )
+                    self.assertEqual(
+                        [
+                            [
+                                (surface[index]["text"], surface[index].get("adv"))
+                                for index in indices
+                            ]
+                            for surface in surfaces
+                        ],
+                        [expected] * len(surfaces),
+                    )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (

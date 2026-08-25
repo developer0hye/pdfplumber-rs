@@ -59,6 +59,7 @@ fn test_serde_char() {
         bbox: BBox::new(10.0, 20.0, 20.0, 32.0),
         fontname: "Helvetica".to_string(),
         size: 12.0,
+        advance: 10.0,
         doctop: 20.0,
         upright: true,
         direction: TextDirection::Ltr,
@@ -79,6 +80,7 @@ fn test_serde_char_no_colors() {
         bbox: BBox::new(0.0, 0.0, 10.0, 12.0),
         fontname: "Courier".to_string(),
         size: 10.0,
+        advance: 10.0,
         doctop: 0.0,
         upright: false,
         direction: TextDirection::Ttb,
@@ -252,6 +254,7 @@ fn test_serde_word() {
             bbox: BBox::new(10.0, 100.0, 20.0, 112.0),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            advance: 10.0,
             doctop: 100.0,
             upright: true,
             direction: TextDirection::Ltr,
@@ -383,6 +386,7 @@ fn test_char_json_fields() {
         bbox: BBox::new(1.0, 2.0, 3.0, 4.0),
         fontname: "Arial".to_string(),
         size: 14.0,
+        advance: 2.0,
         doctop: 2.0,
         upright: true,
         direction: TextDirection::Ltr,
@@ -397,6 +401,7 @@ fn test_char_json_fields() {
     assert_eq!(json["text"], "X");
     assert_eq!(json["fontname"], "Arial");
     assert_eq!(json["size"], 14.0);
+    assert_eq!(json["advance"], 2.0);
     assert_eq!(json["upright"], true);
     assert_eq!(json["char_code"], 88);
     assert!(json["bbox"].is_object());

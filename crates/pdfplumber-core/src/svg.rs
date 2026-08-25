@@ -546,6 +546,7 @@ mod tests {
             bbox: BBox::new(x0, top, x1, bottom),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            advance: x1 - x0,
             doctop: top,
             upright: true,
             direction: TextDirection::Ltr,
