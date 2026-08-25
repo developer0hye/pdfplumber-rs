@@ -2821,6 +2821,101 @@ class NativeLayoutTests(unittest.TestCase):
                         [expected] * len(surfaces),
                     )
 
+    def test_character_size_matches_page_transforms_across_surfaces(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        upstream_root = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs"
+        )
+        cases = (
+            (
+                upstream_root / "150109DSP-Milw-505-90D.pdf",
+                0,
+                tuple(range(24)),
+                [(text, 8.04) for text in "DCF-F-2476-E  (R. 04/201"],
+            ),
+            (
+                upstream_root / "annotations-rotated-90.pdf",
+                0,
+                (2, 3, 5, 6, 7, 8, 9, 10, 11, 12),
+                [
+                    ("m", 14.312900000000013),
+                    ("m", 14.312900000000013),
+                    (" ", 4.459699999999998),
+                    ("P", 10.7226),
+                    ("D", 11.624199999999973),
+                    ("F", 9.821000000000026),
+                    (" ", 4.459699999999998),
+                    ("f", 5.361300000000028),
+                    ("i", 4.459699999999998),
+                    ("l", 4.459699999999998),
+                ],
+            ),
+            (
+                upstream_root / "annotations-rotated-270.pdf",
+                0,
+                tuple(range(14)),
+                list(
+                    zip(
+                        "Dummy PDF file",
+                        (
+                            11.624200000000002,
+                            9.820999999999998,
+                            14.312899999999999,
+                            14.312899999999999,
+                            8.9516,
+                            4.459699999999998,
+                            10.7226,
+                            11.624200000000002,
+                            9.820999999999998,
+                            4.459699999999998,
+                            5.3613,
+                            4.459699999999998,
+                            4.459699999999998,
+                            8.951600000000013,
+                        ),
+                        strict=True,
+                    )
+                ),
+            ),
+        )
+
+        for fixture, page_index, indices, expected in cases:
+            with self.subTest(fixture=fixture.name):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[page_index]
+                    page_dict = page.to_dict(["char"])
+                    page_json = json.loads(
+                        page.to_json(object_types=["char"])
+                    )
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    surfaces = (
+                        page.chars,
+                        page.crop(page.bbox).chars,
+                        [
+                            item
+                            for item in document.objects["char"]
+                            if item["page_number"] == page.page_number
+                        ],
+                        page_dict["chars"],
+                        page_json["chars"],
+                        document_dict["pages"][page_index]["chars"],
+                        document_json["pages"][page_index]["chars"],
+                    )
+                    self.assertEqual(
+                        [
+                            [
+                                (surface[index]["text"], surface[index]["size"])
+                                for index in indices
+                            ]
+                            for surface in surfaces
+                        ],
+                        [expected] * len(surfaces),
+                    )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (

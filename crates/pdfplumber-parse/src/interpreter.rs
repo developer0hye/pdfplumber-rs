@@ -1653,7 +1653,8 @@ fn emit_char_events(
         // Vertical origin displacement for vertical writing mode.
         // For WMode=1 fonts, the text position is the vertical origin,
         // displaced from the horizontal origin by (vx, vy) in glyph space.
-        let vertical_origin = if cached.is_some_and(|c| c.writing_mode == 1) {
+        let is_vertical = cached.is_some_and(|c| c.writing_mode == 1);
+        let vertical_origin = if is_vertical {
             cached
                 .and_then(|c| c.cid_metrics.as_ref())
                 .map(|cm| {
@@ -1679,6 +1680,7 @@ fn emit_char_events(
             rise: tstate.rise,
             ascent,
             descent,
+            is_vertical,
             vertical_origin,
             stroking_color: gstate.graphics_state().stroke_color.clone(),
             non_stroking_color: gstate.graphics_state().fill_color.clone(),

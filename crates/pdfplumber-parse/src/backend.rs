@@ -520,6 +520,7 @@ mod tests {
                 rise: 0.0,
                 ascent: 750.0,
                 descent: -250.0,
+                is_vertical: false,
                 vertical_origin: (0.0, 0.0),
                 stroking_color: Color::Gray(0.0),
                 non_stroking_color: Color::Gray(0.0),

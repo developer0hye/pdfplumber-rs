@@ -46,19 +46,19 @@ pub fn char_from_event(
     // NOT the full advance width which includes char_spacing and word_spacing.
     // Those inter-glyph spacings affect text position advance (handled in
     // text_renderer.rs) but not the individual character's visual bbox.
-    let w_norm = event.displacement / 1000.0;
+    let w_norm = event.displacement * 0.001;
 
     // Ascent/descent from per-font metrics carried in the event
-    let ascent_norm = event.ascent / 1000.0;
-    let descent_norm = event.descent / 1000.0;
+    let ascent_norm = event.ascent * 0.001;
+    let descent_norm = event.descent * 0.001;
 
     // Vertical origin displacement in glyph-normalized space.
     // For vertical writing (WMode=1), the text position is the vertical origin,
     // displaced from the horizontal origin by (vx, vy). Shift the bbox
     // by (-vx/1000, -vy/1000) to position relative to the horizontal origin.
     let (vx, vy) = event.vertical_origin;
-    let ox = -vx / 1000.0;
-    let oy = -vy / 1000.0;
+    let ox = -vx * 0.001;
+    let oy = -vy * 0.001;
 
     // Vertical extent of the glyph box in glyph-normalized space.
     //
@@ -67,21 +67,35 @@ pub fn char_from_event(
     // char's height always equals its font size. Vertical writing keeps the
     // ascent/descent span, where the glyph is placed relative to its vertical
     // origin instead of a baseline.
-    let is_vertical = event.vertical_origin != (0.0, 0.0);
-    let (box_bottom, box_top) = if is_vertical {
+    let (box_bottom, box_top) = if event.is_vertical {
         (oy + descent_norm, oy + ascent_norm)
     } else {
         (oy + descent_norm, oy + descent_norm + 1.0)
     };
 
-    // Four corners of the character rectangle in glyph-normalized space,
-    // transformed through Trm to page space (PDF bottom-left origin).
-    let corners = [
-        trm.transform_point(Point::new(ox, box_bottom)),
-        trm.transform_point(Point::new(ox + w_norm, box_bottom)),
-        trm.transform_point(Point::new(ox + w_norm, box_top)),
-        trm.transform_point(Point::new(ox, box_top)),
-    ];
+    // Match pdfminer's arithmetic order as well as its geometry. Horizontal
+    // LTChar boxes are built in text-space units before the text matrix is
+    // applied. Keeping font size out of the matrix prevents a mathematically
+    // equivalent reordering from changing the exact reported `size` bits.
+    let corners = if event.is_vertical {
+        [
+            trm.transform_point(Point::new(ox, box_bottom)),
+            trm.transform_point(Point::new(ox + w_norm, box_bottom)),
+            trm.transform_point(Point::new(ox + w_norm, box_top)),
+            trm.transform_point(Point::new(ox, box_top)),
+        ]
+    } else {
+        let matrix = tm.concat(&ctm);
+        let advance = (event.displacement * 0.001) * font_size * h_scaling;
+        let text_bottom = (event.descent * 0.001) * font_size + event.rise;
+        let text_top = text_bottom + font_size;
+        [
+            matrix.transform_point(Point::new(0.0, text_bottom)),
+            matrix.transform_point(Point::new(advance, text_bottom)),
+            matrix.transform_point(Point::new(advance, text_top)),
+            matrix.transform_point(Point::new(0.0, text_top)),
+        ]
+    };
 
     // Axis-aligned bounding box in PDF page space
     let min_x = corners.iter().map(|p| p.x).fold(f64::INFINITY, f64::min);
@@ -105,10 +119,10 @@ pub fn char_from_event(
     // than the operand of `Tf`: a PDF may select a font at 1pt and scale the
     // text matrix instead. Vertical writing measures across the box, since that
     // is the direction an em spans there.
-    let size = if is_vertical {
-        bbox.x1 - bbox.x0
+    let size = if event.is_vertical {
+        max_x - min_x
     } else {
-        bbox.bottom - bbox.top
+        max_y - min_y
     };
 
     // Upright: no rotation/shear in the text rendering matrix
@@ -178,6 +192,7 @@ mod tests {
             rise: 0.0,
             ascent: 750.0,
             descent: -250.0,
+            is_vertical: false,
             vertical_origin: (0.0, 0.0),
             stroking_color: Color::Gray(0.0),
             non_stroking_color: Color::Gray(0.0),
@@ -240,6 +255,21 @@ mod tests {
         assert_approx(ch.bbox.width(), 16.008, "width");
         assert_approx(ch.bbox.height(), 24.0, "height");
         assert_eq!(ch.size, 24.0);
+    }
+
+    #[test]
+    fn size_uses_pdfminer_font_metric_scaling_order() {
+        let event = CharEvent {
+            font_size: 10.44,
+            text_matrix: [1.0, 0.0, 0.0, 1.0, 30.48, 28.8],
+            displacement: 556.0,
+            ascent: 793.0,
+            descent: -207.0,
+            ..default_event()
+        };
+        let ch = char_from_event(&event, 612.0, None, None);
+
+        assert_eq!(ch.size, 10.439999999999998);
     }
 
     // ===== Test 3: Text with rise (superscript) =====
@@ -525,6 +555,23 @@ mod tests {
         assert_approx(ch.bbox.height(), 12.0, "height with default metrics");
         // Width = 12 * 0.667 = 8.004
         assert_approx(ch.bbox.width(), 8.004, "width with default metrics");
+    }
+
+    #[test]
+    fn vertical_writing_mode_controls_size_even_with_zero_origin() {
+        let event = CharEvent {
+            displacement: 500.0,
+            ascent: 1000.0,
+            descent: 0.0,
+            is_vertical: true,
+            vertical_origin: (0.0, 0.0),
+            ..default_event()
+        };
+        let ch = char_from_event(&event, PAGE_HEIGHT, None, None);
+
+        assert_approx(ch.bbox.width(), 6.0, "vertical box width");
+        assert_approx(ch.bbox.height(), 12.0, "vertical box height");
+        assert_approx(ch.size, 6.0, "vertical size uses width");
     }
 
     // ===== Test 15: CTM scaling =====
