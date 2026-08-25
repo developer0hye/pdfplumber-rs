@@ -725,6 +725,7 @@ impl Pdf {
                     Some(event.non_stroking_color.clone()),
                 );
                 if needs_rotation {
+                    let unrotated_width = ch.bbox.width();
                     // char_from_event applied a simple y-flip using the raw page height.
                     // Undo it to recover PDF native coordinates, then apply the full
                     // rotation + y-flip transform via PageGeometry.
@@ -734,6 +735,25 @@ impl Pdf {
                         geometry.normalize_bbox(ch.bbox.x0, native_min_y, ch.bbox.x1, native_max_y),
                         page_origin,
                     );
+                    // Page rotation is folded into pdfminer's layout matrix before
+                    // LTChar measures `size`. Our equivalent page transform runs
+                    // later, so recover the same dimension here. For 270-degree
+                    // horizontal text, keep the pre-transform width: subtracting
+                    // the normalized coordinates again is geometrically equal but
+                    // changes the last floating-point bits.
+                    if rotation == 90 {
+                        ch.size = if event.is_vertical {
+                            ch.bbox.width()
+                        } else {
+                            ch.bbox.height()
+                        };
+                    } else if rotation == 270 {
+                        ch.size = if event.is_vertical {
+                            ch.bbox.width()
+                        } else {
+                            unrotated_width
+                        };
+                    }
                     ch.doctop = ch.bbox.top;
                     ch.direction = rotate_direction(ch.direction, rotation);
                     // 90°/270° rotation turns upright text non-upright and vice versa

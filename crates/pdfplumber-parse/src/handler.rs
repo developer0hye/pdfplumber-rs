@@ -50,6 +50,8 @@ pub struct CharEvent {
     pub ascent: f64,
     /// Font descent in glyph space units (1/1000 of text space, negative below baseline).
     pub descent: f64,
+    /// Whether the selected font uses vertical writing mode (`WMode=1`).
+    pub is_vertical: bool,
     /// Vertical origin displacement in glyph space units (1/1000 of text space).
     /// For vertical writing mode (WMode=1), the glyph is positioned relative to its
     /// vertical origin, which is displaced from the horizontal origin by (vx, vy).
@@ -218,6 +220,7 @@ mod tests {
             rise: 0.0,
             ascent: 750.0,
             descent: -250.0,
+            is_vertical: false,
             vertical_origin: (0.0, 0.0),
             stroking_color: Color::Gray(0.0),
             non_stroking_color: Color::Gray(0.0),
