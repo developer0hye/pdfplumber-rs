@@ -897,18 +897,6 @@ macro_rules! cross_validate {
     };
 }
 
-/// Generate an #[ignore] test for PDFs below threshold. Runs validation but doesn't assert.
-macro_rules! cross_validate_ignored {
-    ($name:ident, $path:expr, $reason:literal) => {
-        #[test]
-        #[ignore] // TODO: $reason
-        fn $name() {
-            let result = try_validate_pdf($path);
-            result.print_summary();
-        }
-    };
-}
-
 /// Generate a no-panic test for oss-fuzz PDFs: just open + extract without crashing.
 macro_rules! cross_validate_no_panic {
     ($name:ident, $path:expr) => {
@@ -1248,7 +1236,18 @@ cross_validate!(
     WORD_THRESHOLD
 );
 cross_validate!(cv_python_issue_297, "issue-297-example.pdf", 1.0, 1.0);
-cross_validate_ignored!(cv_python_issue_848, "issue-848.pdf", "PDF parse error");
+#[test]
+fn cv_python_issue_848() {
+    let result = try_validate_pdf("issue-848.pdf");
+    assert!(
+        result.parse_error.is_none(),
+        "parse error: {:?}",
+        result.parse_error
+    );
+    assert_eq!(result.total_char_rate(), 1.0, "character parity regressed");
+    assert_eq!(result.total_word_rate(), 1.0, "word parity regressed");
+    assert_eq!(result.total_table_rate(), 1.0, "table parity regressed");
+}
 cross_validate!(cv_python_pr_136, "pr-136-example.pdf", 0.15, 0.05);
 cross_validate!(cv_python_pr_138, "pr-138-example.pdf", 0.15, 0.05);
 
