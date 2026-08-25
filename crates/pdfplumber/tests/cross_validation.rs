@@ -1081,10 +1081,11 @@ cross_validate!(
     CHAR_THRESHOLD,
     WORD_THRESHOLD
 );
-cross_validate_ignored!(
+cross_validate!(
     cv_python_issue_1279,
     "issue-1279-example.pdf",
-    "words 42.8% — complex layout word-grouping gap"
+    CHAR_THRESHOLD,
+    WORD_THRESHOLD
 );
 cross_validate!(
     cv_python_issue_140,
