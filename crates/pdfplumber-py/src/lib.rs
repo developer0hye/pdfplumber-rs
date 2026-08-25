@@ -185,6 +185,7 @@ fn char_to_dict(
     )?;
     dict.set_item("fontname", &ch.fontname)?;
     dict.set_item("size", ch.size)?;
+    dict.set_item("adv", ch.advance)?;
     dict.set_item("doctop", ch.doctop)?;
     dict.set_item("upright", ch.upright)?;
     dict.set_item("mcid", ch.mcid)?;
@@ -4747,6 +4748,7 @@ mod tests {
             bbox: BBox::new(10.0, 20.0, 20.0, 32.0),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            advance: 10.0,
             doctop: 20.0,
             upright: true,
             direction: ::pdfplumber::TextDirection::Ltr,
@@ -4773,6 +4775,8 @@ mod tests {
             assert_eq!(fontname, "Helvetica");
             let size: f64 = dict.get_item("size").unwrap().unwrap().extract().unwrap();
             assert!((size - 12.0).abs() < 0.01);
+            let advance: f64 = dict.get_item("adv").unwrap().unwrap().extract().unwrap();
+            assert_eq!(advance, 10.0);
             let upright: bool = dict
                 .get_item("upright")
                 .unwrap()

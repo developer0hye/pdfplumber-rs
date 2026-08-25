@@ -13,6 +13,8 @@ pub struct Char {
     pub fontname: String,
     /// Font size in points.
     pub size: f64,
+    /// Glyph advance in text-space units, excluding character and word spacing.
+    pub advance: f64,
     /// Distance from the top of the first page (accumulates across pages).
     pub doctop: f64,
     /// Whether the character is upright (not rotated).
@@ -110,6 +112,7 @@ mod tests {
             bbox: BBox::new(10.0, 20.0, 20.0, 32.0),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            advance: 10.0,
             doctop: 20.0,
             upright: true,
             direction: TextDirection::Ltr,
@@ -142,6 +145,7 @@ mod tests {
             bbox: BBox::new(30.0, 20.0, 40.0, 32.0),
             fontname: "Times-Roman".to_string(),
             size: 14.0,
+            advance: 10.0,
             doctop: 820.0,
             upright: true,
             direction: TextDirection::Ltr,
@@ -168,6 +172,7 @@ mod tests {
             bbox: BBox::new(50.0, 100.0, 62.0, 110.0),
             fontname: "Courier".to_string(),
             size: 10.0,
+            advance: 12.0,
             doctop: 100.0,
             upright: false,
             direction: TextDirection::Ttb,
@@ -237,6 +242,7 @@ mod tests {
             bbox: BBox::new(0.0, 0.0, 10.0, 10.0),
             fontname: "Helvetica".to_string(),
             size: 12.0,
+            advance: 10.0,
             doctop: 0.0,
             upright: true,
             direction: TextDirection::Ltr,

@@ -153,6 +153,7 @@ pub fn char_from_event(
         bbox,
         fontname: event.font_name.clone(),
         size,
+        advance: event.advance,
         doctop: top,
         upright,
         direction,
@@ -186,6 +187,7 @@ mod tests {
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             displacement: 667.0, // glyph width in 1/1000 units
+            advance: 8.004000000000001,
             char_spacing: 0.0,
             word_spacing: 0.0,
             h_scaling: 1.0,
@@ -270,6 +272,21 @@ mod tests {
         let ch = char_from_event(&event, 612.0, None, None);
 
         assert_eq!(ch.size, 10.439999999999998);
+    }
+
+    #[test]
+    fn advance_retains_the_event_metric_without_bbox_scaling() {
+        let event = CharEvent {
+            font_size: 1.0,
+            text_matrix: [8.04, 0.0, 0.0, 8.04, 23.76, 25.68],
+            displacement: 722.0,
+            advance: 0.722,
+            ..default_event()
+        };
+        let ch = char_from_event(&event, 792.0, None, None);
+
+        assert_eq!(ch.advance, 0.722);
+        assert_eq!(ch.bbox.width(), 5.804880000000001);
     }
 
     // ===== Test 3: Text with rise (superscript) =====

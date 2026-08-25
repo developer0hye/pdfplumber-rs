@@ -75,6 +75,7 @@ mod tests {
             bbox: BBox::new(0.0, 0.0, 10.0, 12.0),
             fontname: "TestFont".to_string(),
             size: 12.0,
+            advance: 10.0,
             doctop: 0.0,
             upright: true,
             direction: TextDirection::Ltr,

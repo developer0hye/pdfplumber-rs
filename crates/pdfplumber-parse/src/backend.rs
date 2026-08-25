@@ -514,6 +514,7 @@ mod tests {
                 text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
                 ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                 displacement: 722.0,
+                advance: 10.108,
                 char_spacing: 0.0,
                 word_spacing: 0.0,
                 h_scaling: 1.0,

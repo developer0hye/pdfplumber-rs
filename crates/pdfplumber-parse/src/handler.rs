@@ -38,6 +38,8 @@ pub struct CharEvent {
     pub ctm: [f64; 6],
     /// Glyph displacement (advance width) in glyph space units (1/1000 of text space).
     pub displacement: f64,
+    /// Glyph advance in text-space units, excluding character and word spacing.
+    pub advance: f64,
     /// Character spacing value (Tc operator).
     pub char_spacing: f64,
     /// Word spacing value (Tw operator), applied for space characters.
@@ -214,6 +216,7 @@ mod tests {
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             displacement: 667.0,
+            advance: 8.004000000000001,
             char_spacing: 0.0,
             word_spacing: 0.0,
             h_scaling: 1.0,
