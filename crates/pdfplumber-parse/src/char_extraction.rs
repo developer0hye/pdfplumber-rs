@@ -163,7 +163,14 @@ pub fn char_from_event(
         direction,
         stroking_color,
         non_stroking_color,
-        ctm: event.ctm,
+        ctm: [
+            orientation_matrix.a,
+            orientation_matrix.b,
+            orientation_matrix.c,
+            orientation_matrix.d,
+            orientation_matrix.e,
+            orientation_matrix.f,
+        ],
         char_code: event.char_code,
         mcid: event.mcid,
         tag: event.tag.clone(),
@@ -189,6 +196,8 @@ mod tests {
             font_name: "Helvetica".to_string(),
             font_size: 12.0,
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+            text_matrix_base: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+            text_position: (0.0, 0.0),
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             displacement: 667.0, // glyph width in 1/1000 units
             advance: 8.004000000000001,
@@ -238,7 +247,7 @@ mod tests {
         assert!(ch.upright);
         assert_eq!(ch.direction, TextDirection::Ltr);
         assert_eq!(ch.char_code, 65);
-        assert_eq!(ch.ctm, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0]);
+        assert_eq!(ch.ctm, [1.0, 0.0, 0.0, 1.0, 72.0, 720.0]);
     }
 
     // ===== Test 2: Scaled text (font_size = 24) =====

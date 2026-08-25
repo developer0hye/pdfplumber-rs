@@ -25,7 +25,10 @@ pub struct Char {
     pub stroking_color: Option<Color>,
     /// Non-stroking (fill) color, if any.
     pub non_stroking_color: Option<Color>,
-    /// Current transformation matrix `[a, b, c, d, e, f]` at time of rendering.
+    /// Character layout matrix `[a, b, c, d, e, f]` at time of rendering.
+    ///
+    /// This is the text matrix concatenated with the active graphics and page
+    /// matrices, matching the matrix carried by pdfminer's `LTChar`.
     pub ctm: [f64; 6],
     /// Raw character code from the PDF content stream.
     pub char_code: u32,

@@ -3119,6 +3119,129 @@ class NativeLayoutTests(unittest.TestCase):
                             [expected] * len(surfaces),
                         )
 
+    def test_character_matrix_matches_transforms_across_surfaces(self) -> None:
+        repository = Path(__file__).resolve().parents[3]
+        upstream_root = (
+            repository
+            / "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs"
+        )
+        issue_848 = upstream_root / "issue-848.pdf"
+        cases = [
+            (
+                repository / "tests/fixtures/generated/basic_text.pdf",
+                0,
+                (0, 1, -1),
+                (
+                    (1, 0, 0, 1, 31.18, 801.44),
+                    (1, 0, 0, 1, 38.512, 801.44),
+                    (1, 0, 0, 1, 413.40400000000045, 716.4),
+                ),
+            ),
+            (
+                upstream_root / "issue-982-example.pdf",
+                0,
+                (0, 4371, 4372, 4411),
+                (
+                    (1, 0, 0, 1, 551.187, 810.669),
+                    (1.02, 0.0, 0.0, 1.0, 549.5927895120002, 96.007),
+                    (0.0, 1.0, -1.0, 0.0, 32.0, 232.0),
+                    (0.0, 1.0, -1.0, 0.0, 32.0, 567.52),
+                ),
+            ),
+            (
+                upstream_root / "annotations-rotated-90.pdf",
+                0,
+                (0, 1, -1),
+                (
+                    (0, -1, 1, 0, 758.1, 538.2),
+                    (0, -1, 1, 0, 758.1, 526.5758000000001),
+                    (0, -1, 1, 0, 758.1, 423.7403),
+                ),
+            ),
+            (
+                upstream_root / "annotations-rotated-270.pdf",
+                0,
+                (0, 1, -1),
+                (
+                    (0, 1, -1, 0, 83.89999999999998, 56.8),
+                    (0, 1, -1, 0, 83.89999999999998, 68.4242),
+                    (0, 1, -1, 0, 83.89999999999998, 171.2597),
+                ),
+            ),
+            (
+                repository
+                / "crates/pdfplumber/tests/fixtures/pdfs/pdfjs/vertical.pdf",
+                0,
+                tuple(range(8)),
+                tuple(
+                    (1.0, 0.0, 0.0, 1.0, x, y)
+                    for x, y in (
+                        (233.86, 299.05),
+                        (233.86, 289.838),
+                        (233.86, 280.62600000000003),
+                        (233.86, 271.414),
+                        (233.86, 262.202),
+                        (218.27, 299.05),
+                        (218.27, 289.838),
+                        (218.27, 280.62600000000003),
+                    )
+                ),
+            ),
+        ]
+        issue_848_first_matrices = (
+            (1.0, 0.0, 0.0, 1.0, 72.0, 710.498),
+            (-1.0, 0.0, 0.0, 1.0, 540.0, 710.498),
+            (-1.0, 0.0, 0.0, -1.0, 540.0, 81.502),
+            (1.0, 0.0, 0.0, -1.0, 72.0, 81.502),
+            (0.0, -1.0, 1.0, 0.0, 710.498, 540.0),
+            (0.0, 1.0, 1.0, 0.0, 710.498, 72.0),
+            (0.0, 1.0, -1.0, 0.0, 81.502, 72.0),
+            (0.0, -1.0, -1.0, 0.0, 81.502, 540.0),
+        )
+        cases.extend(
+            (issue_848, page_index, (0,), (expected,))
+            for page_index, expected in enumerate(issue_848_first_matrices)
+        )
+
+        for fixture, page_index, indices, expected in cases:
+            with self.subTest(fixture=fixture.name, page=page_index + 1):
+                with pdfplumber.open(fixture) as document:
+                    page = document.pages[page_index]
+                    page_dict = page.to_dict(["char"])
+                    page_json = json.loads(page.to_json(object_types=["char"]))
+                    document_dict = document.to_dict(["char"])
+                    document_json = json.loads(
+                        document.to_json(object_types=["char"])
+                    )
+                    surfaces = (
+                        page.chars,
+                        page.crop(page.bbox).chars,
+                        [
+                            item
+                            for item in document.objects["char"]
+                            if item["page_number"] == page.page_number
+                        ],
+                        page_dict["chars"],
+                        page_json["chars"],
+                        document_dict["pages"][page_index]["chars"],
+                        document_json["pages"][page_index]["chars"],
+                    )
+                    for surface_index, surface in enumerate(surfaces):
+                        expected_values = (
+                            [list(matrix) for matrix in expected]
+                            if surface_index in (4, 6)
+                            else list(expected)
+                        )
+                        actual = [
+                            surface[index].get("matrix", "MISSING")
+                            for index in indices
+                        ]
+                        self.assertEqual(actual, expected_values)
+                        expected_type = list if surface_index in (4, 6) else tuple
+                        self.assertTrue(
+                            all(type(value) is expected_type for value in actual)
+                        )
+
     def test_page_image_geometry_matches_exact_upstream_values(self) -> None:
         repository = Path(__file__).resolve().parents[3]
         geometry_fields = (

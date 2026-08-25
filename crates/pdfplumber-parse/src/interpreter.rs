@@ -1222,7 +1222,7 @@ fn show_string_cjk(
     for dc in decoded {
         spacing.apply(text_state);
 
-        let text_matrix = text_state.text_matrix_array();
+        let (text_matrix, text_matrix_base, text_position) = text_state.character_matrix_snapshot();
         let w0 = get_width(dc.char_code);
         let font_size = text_state.font_size;
         let word_spacing = if dc.char_code == 32 {
@@ -1237,6 +1237,8 @@ fn show_string_cjk(
             char_code: dc.char_code,
             displacement: tx,
             text_matrix,
+            text_matrix_base,
+            text_position,
         });
 
         text_state.advance_text_position(tx);
@@ -1268,7 +1270,7 @@ fn show_string_cid_vertical(
             code
         };
 
-        let text_matrix = text_state.text_matrix_array();
+        let (text_matrix, text_matrix_base, text_position) = text_state.character_matrix_snapshot();
 
         // For vertical mode, use the full em square (1000 glyph units) as the
         // displacement for bbox width. In vertical writing, the glyph occupies
@@ -1280,6 +1282,8 @@ fn show_string_cid_vertical(
             char_code,
             displacement,
             text_matrix,
+            text_matrix_base,
+            text_position,
         });
 
         // Vertical advance: ty = (w1y / 1000) * font_size
@@ -1676,6 +1680,8 @@ fn emit_char_events(
             font_name: font_name.clone(),
             font_size: tstate.font_size,
             text_matrix: rc.text_matrix,
+            text_matrix_base: rc.text_matrix_base,
+            text_position: rc.text_position,
             ctm,
             displacement,
             advance,

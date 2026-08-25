@@ -34,6 +34,10 @@ pub struct CharEvent {
     pub font_size: f64,
     /// The text rendering matrix at the time of rendering (6-element affine).
     pub text_matrix: [f64; 6],
+    /// Stable source text matrix before applying the local render position.
+    pub text_matrix_base: [f64; 6],
+    /// Local render position applied to `text_matrix_base`.
+    pub text_position: (f64, f64),
     /// The current transformation matrix at the time of rendering.
     pub ctm: [f64; 6],
     /// Glyph displacement (advance width) in glyph space units (1/1000 of text space).
@@ -214,6 +218,8 @@ mod tests {
             font_name: "Helvetica".to_string(),
             font_size: 12.0,
             text_matrix: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+            text_matrix_base: [1.0, 0.0, 0.0, 1.0, 72.0, 720.0],
+            text_position: (0.0, 0.0),
             ctm: [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
             displacement: 667.0,
             advance: 8.004000000000001,

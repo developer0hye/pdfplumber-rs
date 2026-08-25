@@ -713,6 +713,7 @@ impl Pdf {
         let doctop_offset: f64 = self.page_heights[..index].iter().sum();
         let needs_rotation = geometry.rotation() != 0;
         let page_origin = rotated_page_origin(media_box, geometry.rotation());
+        let page_layout_ctm = pdfminer_page_ctm(media_box, geometry.rotation());
 
         let mut chars: Vec<Char> = handler
             .chars
@@ -724,6 +725,15 @@ impl Pdf {
                     Some(event.stroking_color.clone()),
                     Some(event.non_stroking_color.clone()),
                 );
+                let character_matrix = pdfminer_character_matrix(event, page_layout_ctm);
+                ch.ctm = [
+                    character_matrix.a,
+                    character_matrix.b,
+                    character_matrix.c,
+                    character_matrix.d,
+                    character_matrix.e,
+                    character_matrix.f,
+                ];
                 if needs_rotation {
                     let unrotated_width = ch.bbox.width();
                     // char_from_event applied a simple y-flip using the raw page height.
@@ -1232,6 +1242,59 @@ fn rotated_page_origin(media_box: BBox, rotation: i32) -> (f64, f64) {
     }
 }
 
+/// Build the page matrix passed to pdfminer before content interpretation.
+///
+/// Content-stream matrices are concatenated on top of this value. Keeping the
+/// page transform separate lets the parser remain page-agnostic while the
+/// final character matrix still matches `PDFPageInterpreter.process_page`.
+fn pdfminer_page_ctm(media_box: BBox, rotation: i32) -> Ctm {
+    let x0 = media_box.x0;
+    let y0 = media_box.top;
+    let x1 = media_box.x1;
+    let y1 = media_box.bottom;
+    match rotation.rem_euclid(360) {
+        90 => Ctm::new(0.0, -1.0, 1.0, 0.0, -y0, x1),
+        180 => Ctm::new(-1.0, 0.0, 0.0, -1.0, x1, y1),
+        270 => Ctm::new(0.0, 1.0, -1.0, 0.0, y1, -x0),
+        _ => Ctm::new(1.0, 0.0, 0.0, 1.0, -x0, -y0),
+    }
+}
+
+/// Reproduce pdfminer's LTChar layout matrix construction order.
+///
+/// pdfminer first combines the stable text, graphics, and page matrices, then
+/// applies the glyph's local text position once. Keeping that order avoids
+/// last-bit differences caused by composing an already-translated matrix with
+/// the page transform.
+fn pdfminer_character_matrix(event: &CharEvent, page_ctm: Ctm) -> Ctm {
+    let text_matrix = Ctm::new(
+        event.text_matrix_base[0],
+        event.text_matrix_base[1],
+        event.text_matrix_base[2],
+        event.text_matrix_base[3],
+        event.text_matrix_base[4],
+        event.text_matrix_base[5],
+    );
+    let graphics_ctm = Ctm::new(
+        event.ctm[0],
+        event.ctm[1],
+        event.ctm[2],
+        event.ctm[3],
+        event.ctm[4],
+        event.ctm[5],
+    );
+    let base = text_matrix.concat(&graphics_ctm).concat(&page_ctm);
+    let (x, y) = event.text_position;
+    Ctm::new(
+        base.a,
+        base.b,
+        base.c,
+        base.d,
+        x * base.a + y * base.c + base.e,
+        x * base.b + y * base.d + base.f,
+    )
+}
+
 fn offset_bbox(bbox: BBox, origin: (f64, f64)) -> BBox {
     BBox::new(
         bbox.x0 + origin.0,
@@ -1262,6 +1325,31 @@ fn classify_orientation(line: &Line) -> Orientation {
 mod tests {
     use super::*;
     use pdfplumber_core::TextOptions;
+
+    #[test]
+    fn pdfminer_page_ctm_matches_nonzero_origin_rotation_contract() {
+        let media_box = BBox::new(10.0, 20.0, 610.0, 820.0);
+        assert_eq!(
+            pdfminer_page_ctm(media_box, 0),
+            Ctm::new(1.0, 0.0, 0.0, 1.0, -10.0, -20.0)
+        );
+        assert_eq!(
+            pdfminer_page_ctm(media_box, 90),
+            Ctm::new(0.0, -1.0, 1.0, 0.0, -20.0, 610.0)
+        );
+        assert_eq!(
+            pdfminer_page_ctm(media_box, 180),
+            Ctm::new(-1.0, 0.0, 0.0, -1.0, 610.0, 820.0)
+        );
+        assert_eq!(
+            pdfminer_page_ctm(media_box, 270),
+            Ctm::new(0.0, 1.0, -1.0, 0.0, 820.0, -10.0)
+        );
+        assert_eq!(
+            pdfminer_page_ctm(media_box, 450),
+            pdfminer_page_ctm(media_box, 90)
+        );
+    }
 
     /// Helper: create a minimal single-page PDF with the given text content stream.
     fn create_pdf_with_content(content: &[u8]) -> Vec<u8> {
