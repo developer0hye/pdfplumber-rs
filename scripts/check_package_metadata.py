@@ -20,6 +20,13 @@ MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
 LICENSE_POLICY_PATH = REPO_ROOT / "license-policy.toml"
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 SURFACE_IDS = ("rust", "python", "cli", "wasm")
+RELEASE_CHANGE_CATEGORIES = (
+    "API",
+    "Platform",
+    "Performance",
+    "Migration",
+    "Compatibility",
+)
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 DESCRIPTION_MARKER = "evidence-driven pdf extraction"
 FORBIDDEN_DESCRIPTION_CLAIMS = (
@@ -129,6 +136,54 @@ def validate_public_description(
         require(phrase not in lowered, f"{context} overclaims {phrase!r}")
 
 
+def markdown_anchors(path: Path) -> set[str]:
+    anchors: set[str] = set()
+    for heading in re.findall(
+        r"^#{1,6}\s+(?P<heading>.+?)\s*$",
+        path.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    ):
+        plain = re.sub(r"[`*_]", "", heading).lower()
+        anchors.add(re.sub(r"[^a-z0-9 -]", "", plain).strip().replace(" ", "-"))
+    return anchors
+
+
+def validate_claim_evidence_path(value: str, context: str) -> None:
+    path_value, separator, fragment = value.partition("#")
+    path = repository_path(path_value, context)
+    require(path.is_file(), f"{context} does not exist: {path_value}")
+    relative = path.relative_to(REPO_ROOT)
+    has_stable_anchor = bool(separator and fragment)
+    if has_stable_anchor:
+        require(
+            fragment in markdown_anchors(path),
+            f"{context} references missing Markdown anchor {fragment!r}",
+        )
+    is_support_entry = relative == Path("docs/support.md") and has_stable_anchor
+    is_readiness_scorecard = (
+        relative.parts[:2] == ("docs", "readiness")
+        and relative.suffix == ".md"
+        and has_stable_anchor
+    )
+    is_test = (
+        relative.parts[:2] == ("compat", "tests")
+        and relative.name.startswith("test_")
+        and relative.suffix == ".py"
+    )
+    is_benchmark_artifact = (
+        "benches" in relative.parts
+        and relative.name == "README.md"
+        and has_stable_anchor
+    )
+    require(
+        is_support_entry
+        or is_readiness_scorecard
+        or is_test
+        or is_benchmark_artifact,
+        f"{context} must link a test, scorecard, benchmark artifact, or support entry",
+    )
+
+
 def load_matrix() -> dict[str, Any]:
     matrix = load_toml(MATRIX_PATH)
     require(matrix.get("schema_version") == 1, "matrix schema_version must be 1")
@@ -165,12 +220,40 @@ def load_matrix() -> dict[str, Any]:
         matrix["release_notes"] == f"docs/releases/v{version}.md",
         "matrix release_notes must be versioned from release_version",
     )
-    require_string_list(
+    upgrade_guidance = require_string_list(
         matrix,
         "release_upgrade_guidance",
         "matrix",
         minimum=3,
     )
+    upgrade_evidence = require_string_list(
+        matrix,
+        "release_upgrade_evidence",
+        "matrix",
+        minimum=3,
+    )
+    require(
+        len(upgrade_guidance) == len(upgrade_evidence),
+        "matrix release upgrade guidance and evidence counts must match",
+    )
+    for index, path in enumerate(upgrade_evidence):
+        validate_claim_evidence_path(path, f"matrix.release_upgrade_evidence[{index}]")
+
+    change_evidence = matrix.get("release_change_evidence")
+    require(
+        isinstance(change_evidence, dict),
+        "matrix.release_change_evidence must be a table",
+    )
+    require(
+        set(change_evidence) == set(RELEASE_CHANGE_CATEGORIES),
+        "matrix.release_change_evidence must cover every release change category",
+    )
+    for category in RELEASE_CHANGE_CATEGORIES:
+        path = require_string(change_evidence, category, "release change evidence")
+        validate_claim_evidence_path(
+            path,
+            f"matrix.release_change_evidence.{category}",
+        )
 
     surfaces = matrix.get("surfaces")
     require(isinstance(surfaces, list), "matrix surfaces must be an array")
@@ -248,6 +331,41 @@ def changelog_release(matrix: dict[str, Any]) -> tuple[str, str]:
     return match.group("date"), release_body
 
 
+def repository_evidence_url(matrix: dict[str, Any], evidence_path: str) -> str:
+    return f"{matrix['repository']}/blob/main/{evidence_path}"
+
+
+def render_release_change_evidence(
+    matrix: dict[str, Any], release_changes: str
+) -> str:
+    evidence_by_category = matrix["release_change_evidence"]
+    seen_categories: set[str] = set()
+    item_pattern = re.compile(
+        r"^- \*\*(?P<category>[^*:]+):\*\*.*?(?=^- \*\*|^### |\Z)",
+        re.MULTILINE | re.DOTALL,
+    )
+
+    def add_evidence(match: re.Match[str]) -> str:
+        category = match.group("category")
+        require(
+            category in evidence_by_category,
+            f"release change category {category!r} has no evidence mapping",
+        )
+        seen_categories.add(category)
+        block = match.group(0)
+        stripped = block.rstrip()
+        trailing = block[len(stripped) :]
+        target = repository_evidence_url(matrix, evidence_by_category[category])
+        return f"{stripped} ([evidence]({target})){trailing}"
+
+    rendered = item_pattern.sub(add_evidence, release_changes)
+    require(
+        seen_categories == set(evidence_by_category),
+        "release change evidence contains an unused category",
+    )
+    return rendered
+
+
 def resolved_package_value(
     package: dict[str, Any],
     workspace_package: dict[str, Any],
@@ -272,6 +390,7 @@ def package_maturity(package: dict[str, Any], context: str) -> str:
 
 def render_release_notes(matrix: dict[str, Any]) -> str:
     surfaces = surfaces_by_id(matrix)
+    repository_files = f"{matrix['repository']}/blob/main"
     identity_rows = []
     artifact_rows = []
     limitation_rows = []
@@ -280,8 +399,13 @@ def render_release_notes(matrix: dict[str, Any]) -> str:
         interface = (
             surface["executable"] if surface_id == "cli" else surface["import_name"]
         )
+        support_anchor = {
+            "cli": "command-line-interface",
+            "wasm": "webassembly",
+        }.get(surface_id, surface_id)
+        support_entry = f"{repository_files}/docs/support.md#{support_anchor}"
         identity_rows.append(
-            f"| {surface['name']} | `{surface['package']}` | "
+            f"| [{surface['name']}]({support_entry}) | `{surface['package']}` | "
             f"`{interface}` | {surface['maturity'].title()} |"
         )
         release_state = (
@@ -290,35 +414,49 @@ def render_release_notes(matrix: dict[str, Any]) -> str:
             else "Not published for this release"
         )
         artifact_rows.append(
-            f"| {surface['name']} | [`{surface['package']}`]({surface['registry_url']}) "
+            f"| [{surface['name']}]({support_entry}) | "
+            f"[`{surface['package']}`]({surface['registry_url']}) "
             f"({surface['registry']}) | `{surface['source_version']}` | "
             f"`{surface['registry_version']}` | {release_state} | "
             f"{surface['ci_verified_platforms'][0]} |"
         )
         limitation_rows.extend(
-            f"- **{surface['name']}:** {limitation}"
+            f"- **{surface['name']}:** {limitation} "
+            f"([support evidence]({support_entry}))"
             for limitation in surface["known_limitations"]
         )
     release_date, release_changes = changelog_release(matrix)
+    release_changes = render_release_change_evidence(matrix, release_changes)
     changelog_anchor = matrix["release_version"].replace(".", "") + "---" + release_date
-    repository_files = f"{matrix['repository']}/blob/main"
     wasm = surfaces["wasm"]
+    upgrade_rows = [
+        f"- {guidance} ([evidence]({repository_evidence_url(matrix, evidence)}))"
+        for guidance, evidence in zip(
+            matrix["release_upgrade_guidance"],
+            matrix["release_upgrade_evidence"],
+            strict=True,
+        )
+    ]
+    support_summary = f"{repository_files}/docs/support.md#surface-summary"
     return (
         f"# v{matrix['release_version']} release notes\n\n"
         "<!-- Generated by scripts/generate_release_notes.py from "
         "support-matrix.toml and CHANGELOG.md. Do not edit directly. -->\n\n"
-        f"- Version: `{matrix['release_version']}`\n"
-        f"- License: `{matrix['license']}`\n"
-        f"- Repository: {matrix['repository']}\n\n"
+        f"- Version: `{matrix['release_version']}` "
+        f"([support evidence]({support_summary}))\n"
+        f"- License: `{matrix['license']}` "
+        f"([support evidence]({support_summary}))\n"
+        f"- Repository: {matrix['repository']} "
+        f"([support evidence]({support_summary}))\n\n"
         "| Surface | Package | Import or executable | Maturity |\n"
         "|---|---|---|---|\n" + "\n".join(identity_rows) + "\n\n"
         "This GitHub release is a prerelease because its public surfaces are "
         "classified as alpha or experimental. "
         f"The WebAssembly source is version `{wasm['source_version']}`, but the "
         f"observed npm package remains at `{wasm['registry_version']}` because it "
-        "was not published with this release.\n\n"
+        f"was not published with this release. ([support evidence]({support_summary}))\n\n"
         "## Who should upgrade?\n\n"
-        + "\n".join(f"- {guidance}" for guidance in matrix["release_upgrade_guidance"])
+        + "\n".join(upgrade_rows)
         + "\n\n"
         "## Behavior changes\n\n"
         f"The [v{matrix['release_version']} changelog entry]"

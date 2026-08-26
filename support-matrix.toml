@@ -14,6 +14,19 @@ release_upgrade_guidance = [
     "Upgrade the source-built Command-Line Interface if its expanded extraction commands are useful and you do not require prebuilt binaries or stable structured-output schemas.",
     "Do not adopt this release as a complete Python drop-in replacement, a browser-verified WebAssembly release, or evidence of a cross-project performance advantage.",
 ]
+release_upgrade_evidence = [
+    "docs/support.md#rust",
+    "docs/support.md#python",
+    "docs/support.md#command-line-interface",
+    "docs/support.md#features-and-known-limitations",
+]
+
+[release_change_evidence]
+API = "docs/readiness/v0.3.0.md#ready-workflows"
+Platform = "docs/support.md#surface-summary"
+Performance = "crates/pdfplumber/benches/README.md#benchmark-suite"
+Migration = "docs/support.md#python"
+Compatibility = "docs/readiness/v0.3.0.md#ready-workflows"
 
 [[surfaces]]
 id = "rust"
@@ -37,8 +50,9 @@ release_configured_targets = [
     "crates.io source package; no target-specific binary or installed-registry matrix",
 ]
 features = [
-    "Text, character, word, geometry, image, metadata, and table extraction",
-    "Path, byte, page-iteration, cropping, serialization, and resource-budget APIs",
+    "Text, character, word, geometry, image, metadata, and lattice, stream, or explicit table extraction",
+    "Cropping, embedded-font metrics, CJK, right-to-left, rotated-page, tagged-PDF, and reading-order handling",
+    "Path, byte, page-at-a-time iteration, serialization, and resource-budget APIs",
     "Optional serde and parallel features",
 ]
 known_limitations = [

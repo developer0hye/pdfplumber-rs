@@ -7,43 +7,45 @@
 [![License](https://img.shields.io/crates/l/pdfplumber.svg)](https://github.com/developer0hye/pdfplumber-rs/blob/main/LICENSE)
 
 **Evidence-driven PDF extraction for Rust, with an alpha Python `pdfplumber` migration path.**
+([evidence](docs/support.md#surface-summary))
 
 Use the Rust crate to extract text, words, coordinates, graphics, images, and tables from machine-generated PDFs. The Python package uses the same Rust core and targets ordinary [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) v0.11.10 workflows.
+[Surface evidence](docs/support.md#features-and-known-limitations) records the exact features and boundaries behind those claims.
 
-**Maturity: `0.3.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement.
+**Maturity: `0.3.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement. See the [maturity evidence](docs/support.md#surface-summary).
 
-**Release `0.3.0`.** Rust crate `pdfplumber` (import `pdfplumber`) is alpha. Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha. CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha. The npm package `pdfplumber-wasm` is experimental. Every surface uses the `Apache-2.0` license and the canonical repository `https://github.com/developer0hye/pdfplumber-rs`; see the [versioned release notes](docs/releases/v0.3.0.md).
+**Release `0.3.0`.** Rust crate `pdfplumber` (import `pdfplumber`) is alpha. Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha. CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha. The npm package `pdfplumber-wasm` is experimental. Every surface uses the `Apache-2.0` license and the canonical repository `https://github.com/developer0hye/pdfplumber-rs`; see the [versioned release notes](docs/releases/v0.3.0.md) and [support evidence](docs/support.md#surface-summary).
 
-Compatibility work is checked against the pinned upstream release on an indexed corpus of 223 PDFs. User-visible release changes are curated in the [changelog](CHANGELOG.md). Product direction is in the [public roadmap](ROADMAP.md); exact results and remaining gaps stay in the [detailed evidence ledger](PRD.md#13-evidence-ledger).
+Compatibility work is checked against the pinned upstream release on an [indexed corpus of 223 PDFs](compat/tests/test_corpus_index.py). User-visible release changes are curated in the [changelog](CHANGELOG.md). Product direction is in the [public roadmap](ROADMAP.md); exact results and remaining gaps stay in the [detailed evidence ledger](PRD.md#13-evidence-ledger).
 
 ## Choose `pdfplumber-rs` when…
 
-- You need a native Rust library for structured PDF text extraction.
-- You are evaluating a scoped migration from Python `pdfplumber` v0.11.10 and can verify your workflow against the current alpha support boundary.
-- Tables, bounding boxes, and coordinate-rich page geometry matter to your application.
-- You are building local services, batch pipelines, or command-line automation around structured extraction.
+- You need a native Rust library for structured PDF text extraction. ([evidence](docs/support.md#rust))
+- You are evaluating a scoped migration from Python `pdfplumber` v0.11.10 and can verify your workflow against the current alpha support boundary. ([evidence](docs/readiness/v0.3.0.md#ready-workflows))
+- Tables, bounding boxes, and coordinate-rich page geometry matter to your application. ([evidence](docs/support.md#rust))
+- You are building local services, batch pipelines, or command-line automation around structured extraction. ([evidence](docs/readiness/v0.3.0.md#ready-workflows))
 
-`pdfplumber-rs` does not perform Optical Character Recognition (OCR). For scanned or image-only PDFs, run an OCR tool first and process the resulting searchable PDF.
+`pdfplumber-rs` does not perform Optical Character Recognition (OCR). For scanned or image-only PDFs, run an OCR tool first and process the resulting searchable PDF. ([evidence](docs/support.md#rust))
 
 For common extraction and migration questions, see the [Frequently Asked Questions](docs/faq.md). [Privacy and local processing](docs/privacy.md) documents the document-upload, telemetry, host-application, and optional-executable boundaries. The [dated adoption baseline](docs/adoption/baseline-2026-08-26.md) separates observed registry, traffic, issue, dependent, and evaluator signals from unavailable measurements and future targets. For tradeoffs against other Rust and Python choices, see the [evidence-separated comparison guide](docs/comparison.md). Current maturity, verified platforms, versions, and limitations are in the [generated support matrix](docs/support.md). The versioned [“What is ready today?” snapshot](docs/readiness/v0.3.0.md) is generated from checked task state and named test contracts.
 
 ## Features
 
-- **Text extraction** with spatial grouping into words, lines, and text blocks
-- **Table detection** using lattice (line-based), stream (text-alignment), and explicit strategies, choosable per axis
-- **Spatial filtering** via `crop`, `within_bbox`, and `outside_bbox`
-- **Embedded font programs** parsed for glyph widths and encodings: CFF/Type1C, TrueType (`hmtx`/`vmtx`), Type1, and the 14 standard fonts
-- **CJK support** including CID fonts, Identity-H/V and predefined CMaps, the Adobe-Japan1/GB1/CNS1/Korea1 CID→Unicode tables, EUC-JP/Shift-JIS/JIS7, and vertical writing (`WMode 1`)
-- **Right-to-left text** via the Unicode BiDi algorithm with Arabic shaping
-- **Rotated pages** handled for text, word order, and tables at 90/180/270 degrees
-- **Tagged PDF** structure trees, with characters addressable by MCID for semantic reading order
-- **Reading order** for multi-column layouts, plus header/footer detection
-- **Images** located on the page and exported as raw stream data
-- **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input
-- **Page iteration** with caller-controlled page-at-a-time processing
-- **WASM support** via `wasm32-unknown-unknown` target
-- **Optional serde** serialization for all data types
-- **Optional parallel** processing via rayon
+- **Text extraction** with spatial grouping into words, lines, and text blocks ([evidence](docs/support.md#rust))
+- **Table detection** using lattice (line-based), stream (text-alignment), and explicit strategies, choosable per axis ([evidence](docs/support.md#rust))
+- **Spatial filtering** via `crop`, `within_bbox`, and `outside_bbox` ([evidence](docs/support.md#rust))
+- **Embedded font programs** parsed for glyph widths and encodings: CFF/Type1C, TrueType (`hmtx`/`vmtx`), Type1, and the 14 standard fonts ([evidence](docs/support.md#rust))
+- **CJK support** including CID fonts, Identity-H/V and predefined CMaps, the Adobe-Japan1/GB1/CNS1/Korea1 CID→Unicode tables, EUC-JP/Shift-JIS/JIS7, and vertical writing (`WMode 1`) ([evidence](docs/support.md#rust))
+- **Right-to-left text** via the Unicode BiDi algorithm with Arabic shaping ([evidence](docs/support.md#rust))
+- **Rotated pages** handled for text, word order, and tables at 90/180/270 degrees ([evidence](docs/support.md#rust))
+- **Tagged PDF** structure trees, with characters addressable by MCID for semantic reading order ([evidence](docs/support.md#rust))
+- **Reading order** for multi-column layouts, plus header/footer detection ([evidence](docs/support.md#rust))
+- **Images** located on the page and exported as raw stream data ([evidence](docs/support.md#rust))
+- **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input ([evidence](docs/support.md#rust))
+- **Page iteration** with caller-controlled page-at-a-time processing ([evidence](docs/support.md#rust))
+- **WASM support** via `wasm32-unknown-unknown` target ([evidence](docs/support.md#webassembly))
+- **Optional serde** serialization for all data types ([evidence](docs/support.md#rust))
+- **Optional parallel** processing via rayon ([evidence](docs/support.md#rust))
 
 ## Installation
 
@@ -152,7 +154,7 @@ fn main() {
 
 ## WASM Support
 
-For `wasm32-unknown-unknown` targets, disable the default `std` feature:
+For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [WebAssembly support entry](docs/support.md#webassembly) records the current build and execution boundary:
 
 ```toml
 [dependencies]
@@ -197,7 +199,7 @@ The library is split into three crates:
 
 ## Minimum Supported Rust Version
 
-Rust 1.85 or later.
+[Rust 1.85 or later](docs/support.md#rust).
 
 ## License
 

@@ -10,11 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Keep public claims evidence-backed
+### Make the first Rust result obvious
 
-Attach stable evidence to every major claim in the README and release notes.
+Provide one short, compiled quick start and one obvious high-level entry path for
+ordinary Rust extraction work.
 
-Detailed task: [`ADOPT-018`](PRD.md#822-p0--adoption-trust-and-positioning).
+Detailed tasks: [`DX-001`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-002`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 

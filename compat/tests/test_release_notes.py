@@ -51,6 +51,15 @@ def normalize_markdown(value: str) -> str:
     return " ".join(value.split())
 
 
+def without_claim_evidence(value: str) -> str:
+    return re.sub(
+        r" \(\[evidence\]\(https://github\.com/developer0hye/"
+        r"pdfplumber-rs/blob/main/[^)]+\)\)",
+        "",
+        value,
+    )
+
+
 class ReleaseNoteContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -94,7 +103,7 @@ class ReleaseNoteContractTests(unittest.TestCase):
         behavior_changes = markdown_section(self.notes, "Behavior changes")
         self.assertIn(
             normalize_markdown(release_changes),
-            normalize_markdown(behavior_changes),
+            normalize_markdown(without_claim_evidence(behavior_changes)),
         )
 
     def test_limitations_and_artifacts_match_the_support_matrix(self) -> None:

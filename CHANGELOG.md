@@ -11,6 +11,10 @@ commit list.
 
 ### Added
 
+- **Documentation:** Major README and versioned release-note claims now carry
+  adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
+  generated support entries, with a contract test that rejects missing or stale
+  targets.
 - **Documentation:** Added a dated adoption baseline for registry downloads, public
   dependent repositories, documentation traffic, activation-failure observability,
   issues, and confirmed external adopters before defining growth targets.

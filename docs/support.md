@@ -81,8 +81,9 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Features**
 
-- Text, character, word, geometry, image, metadata, and table extraction
-- Path, byte, page-iteration, cropping, serialization, and resource-budget APIs
+- Text, character, word, geometry, image, metadata, and lattice, stream, or explicit table extraction
+- Cropping, embedded-font metrics, CJK, right-to-left, rotated-page, tagged-PDF, and reading-order handling
+- Path, byte, page-at-a-time iteration, serialization, and resource-budget APIs
 - Optional serde and parallel features
 
 **Known limitations**
