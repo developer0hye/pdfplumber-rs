@@ -26,12 +26,14 @@ jobs:
           ref: main
           fetch-depth: 0
 
-      - name: Verify and decode updater
+      - name: Reconstruct and validate updater
         shell: bash
         run: |
           set -euo pipefail
           test "$(find .github/prd-update -maxdepth 1 -type f -name 'chunk-*.txt' | wc -l)" -eq 6
-          cat .github/prd-update/chunk-*.txt > /tmp/prd-updater.b64
+          cat .github/prd-update/chunk-*.txt \
+            | tr -d '\r\n\t ' \
+            > /tmp/prd-updater.b64
           python - <<'PY'
           import base64
           import gzip
@@ -49,15 +51,16 @@ jobs:
           PY
           python -m py_compile /tmp/apply_prd_adoption_update.py
 
-      - name: Apply and validate PRD update
+      - name: Apply update and run repository validation
         shell: bash
         run: |
           set -euo pipefail
           python /tmp/apply_prd_adoption_update.py --path PRD.md --no-backup
           python /tmp/apply_prd_adoption_update.py --path PRD.md --check
+          python scripts/check_prd.py
           git diff --check -- PRD.md
 
-      - name: Commit PRD and remove temporary updater
+      - name: Commit the validated PRD and remove payload chunks
         shell: bash
         run: |
           set -euo pipefail
@@ -65,7 +68,6 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PRD.md
           git rm -r .github/prd-update
-          git rm .github/workflows/apply-prd-adoption-update.yml
           git diff --cached --check
           git commit -m "docs: add adoption-first product roadmap"
           git push origin HEAD:main
