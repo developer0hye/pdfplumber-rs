@@ -18,6 +18,7 @@ import tomllib
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
 LICENSE_POLICY_PATH = REPO_ROOT / "license-policy.toml"
+CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 SURFACE_IDS = ("rust", "python", "cli", "wasm")
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 PYTHON_MATURITY_CLASSIFIERS = {
@@ -74,9 +75,35 @@ def require_string(mapping: dict[str, Any], key: str, context: str) -> str:
     return value
 
 
+def require_string_list(
+    mapping: dict[str, Any],
+    key: str,
+    context: str,
+    *,
+    minimum: int = 1,
+) -> list[str]:
+    value = mapping.get(key)
+    require(
+        isinstance(value, list)
+        and len(value) >= minimum
+        and all(isinstance(item, str) and bool(item.strip()) for item in value),
+        f"{context}.{key} must contain at least {minimum} non-empty strings",
+    )
+    require(
+        len(value) == len(set(value)),
+        f"{context}.{key} must not contain duplicate strings",
+    )
+    return value
+
+
 def load_matrix() -> dict[str, Any]:
     matrix = load_toml(MATRIX_PATH)
     require(matrix.get("schema_version") == 1, "matrix schema_version must be 1")
+    observed_at = require_string(matrix, "observed_at", "matrix")
+    require(
+        bool(re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", observed_at)),
+        "matrix observed_at must use YYYY-MM-DD",
+    )
     version = require_string(matrix, "release_version", "matrix")
     require(bool(VERSION_PATTERN.fullmatch(version)), "invalid matrix release_version")
     for key in ("license", "repository", "release_notes"):
@@ -88,6 +115,12 @@ def load_matrix() -> dict[str, Any]:
     require(
         matrix["release_notes"] == f"docs/releases/v{version}.md",
         "matrix release_notes must be versioned from release_version",
+    )
+    require_string_list(
+        matrix,
+        "release_upgrade_guidance",
+        "matrix",
+        minimum=3,
     )
 
     surfaces = matrix.get("surfaces")
@@ -107,8 +140,13 @@ def load_matrix() -> dict[str, Any]:
             "manifest",
             "manifest_package",
             "source_version",
+            "registry",
+            "registry_url",
+            "registry_version",
         ):
             require_string(surface, key, context)
+        require_string_list(surface, "ci_verified_platforms", context)
+        require_string_list(surface, "known_limitations", context)
         require(
             surface["source_version"] == version,
             f"{context}.source_version disagrees with release_version",
@@ -129,6 +167,29 @@ def load_matrix() -> dict[str, Any]:
 
 def surfaces_by_id(matrix: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {surface["id"]: surface for surface in matrix["surfaces"]}
+
+
+def changelog_release(matrix: dict[str, Any]) -> tuple[str, str]:
+    try:
+        changelog = CHANGELOG_PATH.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise MetadataError(
+            f"cannot read changelog {CHANGELOG_PATH}: {error}"
+        ) from error
+
+    version = re.escape(matrix["release_version"])
+    match = re.search(
+        rf"^## \[{version}\] - (?P<date>\d{{4}}-\d{{2}}-\d{{2}})\n"
+        r"(?P<body>.*?)(?=^## |^\[Unreleased\]:|\Z)",
+        changelog,
+        re.MULTILINE | re.DOTALL,
+    )
+    require(
+        match is not None, f"CHANGELOG.md has no release {matrix['release_version']}"
+    )
+    release_body = match.group("body").strip()
+    require(bool(release_body), "changelog release entry must not be empty")
+    return match.group("date"), release_body
 
 
 def resolved_package_value(
@@ -155,32 +216,82 @@ def package_maturity(package: dict[str, Any], context: str) -> str:
 
 def render_release_notes(matrix: dict[str, Any]) -> str:
     surfaces = surfaces_by_id(matrix)
-    rows = []
+    identity_rows = []
+    artifact_rows = []
+    limitation_rows = []
     for surface_id in SURFACE_IDS:
         surface = surfaces[surface_id]
         interface = (
             surface["executable"] if surface_id == "cli" else surface["import_name"]
         )
-        rows.append(
+        identity_rows.append(
             f"| {surface['name']} | `{surface['package']}` | "
             f"`{interface}` | {surface['maturity'].title()} |"
         )
+        release_state = (
+            "Published for this release"
+            if surface["source_version"] == surface["registry_version"]
+            else "Not published for this release"
+        )
+        artifact_rows.append(
+            f"| {surface['name']} | [`{surface['package']}`]({surface['registry_url']}) "
+            f"({surface['registry']}) | `{surface['source_version']}` | "
+            f"`{surface['registry_version']}` | {release_state} | "
+            f"{surface['ci_verified_platforms'][0]} |"
+        )
+        limitation_rows.extend(
+            f"- **{surface['name']}:** {limitation}"
+            for limitation in surface["known_limitations"]
+        )
+    release_date, release_changes = changelog_release(matrix)
+    changelog_anchor = matrix["release_version"].replace(".", "") + "---" + release_date
+    repository_files = f"{matrix['repository']}/blob/main"
     wasm = surfaces["wasm"]
     return (
-        f"# v{matrix['release_version']} release metadata\n\n"
-        "<!-- Checked by scripts/check_package_metadata.py from support-matrix.toml. -->\n\n"
+        f"# v{matrix['release_version']} release notes\n\n"
+        "<!-- Generated by scripts/generate_release_notes.py from "
+        "support-matrix.toml and CHANGELOG.md. Do not edit directly. -->\n\n"
         f"- Version: `{matrix['release_version']}`\n"
         f"- License: `{matrix['license']}`\n"
         f"- Repository: {matrix['repository']}\n\n"
         "| Surface | Package | Import or executable | Maturity |\n"
-        "|---|---|---|---|\n" + "\n".join(rows) + "\n\n"
+        "|---|---|---|---|\n" + "\n".join(identity_rows) + "\n\n"
         "This GitHub release is a prerelease because its public surfaces are "
         "classified as alpha or experimental. "
         f"The WebAssembly source is version `{wasm['source_version']}`, but the "
         f"observed npm package remains at `{wasm['registry_version']}` because it "
         "was not published with this release.\n\n"
-        "These metadata notes are prepended to the automatically generated change "
-        "list by the release workflow.\n"
+        "## Who should upgrade?\n\n"
+        + "\n".join(f"- {guidance}" for guidance in matrix["release_upgrade_guidance"])
+        + "\n\n"
+        "## Behavior changes\n\n"
+        f"The [v{matrix['release_version']} changelog entry]"
+        f"({repository_files}/CHANGELOG.md#{changelog_anchor}) is the canonical "
+        "change record.\n\n"
+        f"{release_changes}\n\n"
+        "## Known limitations\n\n" + "\n".join(limitation_rows) + "\n\n"
+        "## Artifact matrix\n\n"
+        f"Registry versions were observed on {matrix['observed_at']}. Required CI "
+        "evidence is narrower than release-configured targets.\n\n"
+        "| Surface | Registry artifact | Source version | Observed registry version | "
+        "Release state | Required CI evidence |\n"
+        "|---|---|---|---|---|---|\n" + "\n".join(artifact_rows) + "\n\n"
+        "## Evidence\n\n"
+        f"- [Changelog]({repository_files}/CHANGELOG.md#{changelog_anchor}) — curated "
+        "user-visible changes and migration notes.\n"
+        f"- [Support matrix]({repository_files}/docs/support.md) — dated registry, "
+        "platform, maturity, feature, and limitation evidence.\n"
+        f"- [Readiness snapshot]({repository_files}/docs/readiness/"
+        f"v{matrix['release_version']}.md) — test-backed workflows that are ready to "
+        "evaluate.\n"
+        f"- [Evidence ledger]({repository_files}/PRD.md#13-evidence-ledger) — exact "
+        "task, pull request, and gate evidence.\n"
+        f"- [Continuous Integration gates]({repository_files}/.github/workflows/"
+        "ci.yml) — required source and artifact checks.\n"
+        f"- [Release workflow]({repository_files}/.github/workflows/release.yml) — "
+        "tag validation and registry publication configuration.\n\n"
+        "These curated sections are prepended to the automatically generated pull-"
+        "request list by the release workflow.\n"
     )
 
 

@@ -6,6 +6,12 @@ license = "Apache-2.0"
 repository = "https://github.com/developer0hye/pdfplumber-rs"
 release_notes = "docs/releases/v0.3.0.md"
 github_prerelease = true
+release_upgrade_guidance = [
+    "Upgrade from Rust `0.2.x` if you need the new text-line, per-axis table, CJK, right-to-left, rotation, tagged-PDF, or malformed-content handling and can accept an alpha API.",
+    "Evaluate the Python `pdfplumber-rs` package if you are migrating a scoped Python `pdfplumber` v0.11.10 workflow, can validate it against the published compatibility gaps, and will use an isolated environment.",
+    "Upgrade the source-built Command-Line Interface if its expanded extraction commands are useful and you do not require prebuilt binaries or stable structured-output schemas.",
+    "Do not adopt this release as a complete Python drop-in replacement, a browser-verified WebAssembly release, or evidence of a cross-project performance advantage.",
+]
 
 [[surfaces]]
 id = "rust"

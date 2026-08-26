@@ -49,8 +49,8 @@ commit list.
 ### Changed
 
 - **Performance:** Changed word-to-line clustering to use y-coordinate buckets so it
-  avoids repeatedly comparing words from unrelated rows. This release does not claim
-  a cross-project speedup ratio.
+  avoids repeatedly comparing words from unrelated rows. No cross-project performance
+  result is claimed by this release.
 - **Migration:** Breaking: `UnicodeNorm::default()` changed from no normalization to
   NFC. Select `UnicodeNorm::None` explicitly when byte-for-byte preservation of
   decomposed text is required. The Rust `MarkdownOptions`, `MarkdownRenderer`, and
