@@ -161,9 +161,12 @@ wasm-pack build --target web crates/pdfplumber-wasm
 | Runs in browser | Yes | Yes | Yes |
 | Runs in Node.js | Yes | Yes | Yes |
 
-## Performance
+## Performance evidence
 
-pdfplumber-wasm is compiled from Rust to WebAssembly, offering near-native performance for PDF extraction tasks. Benchmarks show 2-5x speedup over pure JavaScript PDF processing libraries for text and table extraction.
+No browser, Node.js, or cross-project performance result is currently claimed for
+this WebAssembly surface. Bundle size, startup, and memory remain ungated.
+Cross-project results remain deferred until `SCORE-001` through `SCORE-009`
+satisfy the [comparison policy](../../docs/comparison.md).
 
 ## License
 
