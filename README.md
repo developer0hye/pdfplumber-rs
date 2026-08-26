@@ -6,9 +6,13 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://github.com/developer0hye/pdfplumber-rs)
 [![License](https://img.shields.io/crates/l/pdfplumber.svg)](https://github.com/developer0hye/pdfplumber-rs/blob/main/LICENSE)
 
-Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates.
+**Evidence-driven PDF extraction for Rust, with a Python `pdfplumber` migration path under active development.**
 
-**pdfplumber-rs** is a Rust port of Python's [pdfplumber](https://github.com/jsvine/pdfplumber). It extracts structured content from PDF files with coordinate-accurate positioning, including characters, words, lines, rectangles, curves, images, and tables.
+Use the Rust crate to extract text, words, coordinates, graphics, images, and tables from machine-generated PDFs. The Python package uses the same Rust core and targets ordinary [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) v0.11.10 workflows.
+
+**Maturity: `0.3.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement.
+
+Compatibility work is checked against the pinned upstream release on an indexed corpus of 223 PDFs. Exact evidence and remaining gaps stay visible in the [roadmap and evidence ledger](PRD.md#13-evidence-ledger).
 
 ## Features
 
