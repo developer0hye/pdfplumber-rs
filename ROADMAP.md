@@ -12,9 +12,9 @@ The current focus is making the `0.3.x` alpha release easy to evaluate and hard 
 
 ### Make upgrade decisions explicit
 
-Publish one user-visible history of compatibility, API, performance, platform, and migration changes. Release notes will explain who should upgrade, behavior changes, known limitations, the artifact matrix, and the evidence behind the release.
+Maintain the changelog as the user-visible history of compatibility, API, performance, platform, and migration changes. Release notes will explain who should upgrade, behavior changes, known limitations, the artifact matrix, and the evidence behind the release.
 
-Detailed tasks: [`ADOPT-012`](PRD.md#822-p0--adoption-trust-and-positioning), [`ADOPT-013`](PRD.md#822-p0--adoption-trust-and-positioning).
+Detailed task: [`ADOPT-013`](PRD.md#822-p0--adoption-trust-and-positioning).
 
 ### Answer evaluation and privacy questions
 
