@@ -153,6 +153,18 @@ fn main() {
 }
 ```
 
+## Rust API Boundary
+
+The root `pdfplumber` crate is the only dependency for ordinary extraction, and
+`Pdf` is the canonical high-level entry point. Its page methods accept the
+options and return the errors and extracted data re-exported at the same root,
+as enforced by the [facade contract](compat/tests/test_rust_facade.py).
+
+For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
+`pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser
+internals for advanced contributors; they are not additional steps in the
+high-level path.
+
 ## WASM Support
 
 For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [WebAssembly support entry](docs/support.md#webassembly) records the current build and execution boundary:
@@ -196,7 +208,7 @@ The library is split into three crates:
 |---------------------|--------------------------------------------------|
 | `pdfplumber-core`   | Backend-independent data types and algorithms    |
 | `pdfplumber-parse`  | PDF parsing and content stream interpretation    |
-| `pdfplumber`        | Public API facade (this is what you depend on)   |
+| `pdfplumber`        | High-level public API facade for applications    |
 
 ## Minimum Supported Rust Version
 

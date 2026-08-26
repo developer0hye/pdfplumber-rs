@@ -12,15 +12,23 @@
 //! ```no_run
 //! use pdfplumber::{Pdf, TextOptions};
 //!
-//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
-//! for page_result in pdf.pages_iter() {
-//!     let page = page_result.unwrap();
-//!     let text = page.extract_text(&TextOptions::default());
-//!     println!("Page {}: {}", page.page_number(), text);
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//!     let pdf = Pdf::open_file("document.pdf", None)?;
+//!     for page in pdf.pages_iter() {
+//!         let page = page?;
+//!         let text = page.extract_text(&TextOptions::default());
+//!         println!("Page {}: {}", page.page_number(), text);
+//!     }
+//!     Ok(())
 //! }
 //! ```
 //!
 //! # Architecture
+//!
+//! The high-level boundary is simple: ordinary applications should depend only on this crate.
+//! [`Pdf`] is the canonical high-level entry point. Its options, errors, and extracted data are
+//! re-exported here. Parser-internal types are intentionally not re-exported. Advanced parser work
+//! can depend on the separate `pdfplumber-parse` crate explicitly.
 //!
 //! The library is split into three crates:
 //!
@@ -74,7 +82,7 @@
 //!
 //! ```toml
 //! [dependencies]
-//! pdfplumber = { version = "0.1", default-features = false }
+//! pdfplumber = { version = "0.3", default-features = false }
 //! ```
 //!
 //! Then use [`Pdf::open`] with a byte slice:
@@ -125,11 +133,6 @@ pub use pdfplumber_core::{
     split_lines_at_columns, words_to_edges_h, words_to_edges_stream, words_to_edges_v,
     words_to_text,
 };
-pub use pdfplumber_parse::{
-    self, CharEvent, ContentHandler, ImageEvent, LopdfBackend, LopdfDocument, LopdfPage,
-    PageGeometry, PaintOp, PathEvent, PdfBackend,
-};
-
 #[cfg(test)]
 mod tests {
     #[test]

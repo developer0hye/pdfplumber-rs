@@ -10,11 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Make the first Rust result obvious
+### Make Rust inputs coherent
 
-Provide one obvious high-level entry path for ordinary Rust extraction work.
+Make path, byte-buffer, and supported reader inputs discoverable through the same
+high-level Rust API family, with consistent errors and ownership guidance.
 
-Detailed task: [`DX-002`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-003`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 

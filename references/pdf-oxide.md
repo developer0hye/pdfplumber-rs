@@ -20,9 +20,19 @@ The observed README reports a 3,830-PDF corpus assembled from veraPDF, Mozilla p
 - Multi-language bindings over the Rust core
 - Extraction, creation, editing, Command-Line Interface, and local Model Context Protocol surfaces
 
+## High-Level Rust Entry Pattern
+
+The observed README starts ordinary Rust extraction with one root import,
+`use pdf_oxide::PdfDocument`, followed by `PdfDocument::open("paper.pdf")` and
+document methods such as `extract_text(0)`. The example does not require users to
+name parser, backend, content-stream, or event types. This is a useful facade
+boundary pattern independent of the project's self-published performance claims.
+
 ## Relevance to pdfplumber-rs
 
 - A broad Rust-core competitor, but not a like-for-like Python `pdfplumber` compatibility project
+- Its root `PdfDocument` open-and-extract path is a reference for keeping ordinary
+  consumers out of parser-internal crates and types
 - Its current feature breadth includes table detection, so tables alone are not an honest differentiator
 - Its corpus description is useful input for `SCORE-001` through `SCORE-009`, but only materially equivalent outputs and independently reproducible raw results can support a `pdfplumber-rs` performance claim
 - Re-audit the live repository before reusing status, adoption, or feature observations
