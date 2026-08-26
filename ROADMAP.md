@@ -16,11 +16,11 @@ Attach stable evidence to every major claim in the README and release notes.
 
 Detailed task: [`ADOPT-018`](PRD.md#822-p0--adoption-trust-and-positioning).
 
-### Answer evaluation and privacy questions
+### State the local-processing privacy boundary
 
-Add a maintained Frequently Asked Questions page for common extraction and migration questions, plus a precise statement about local processing, telemetry, document upload, and optional external executables.
+Publish a precise statement about local processing, telemetry, document upload, and optional external executables.
 
-Detailed tasks: [`ADOPT-015`](PRD.md#822-p0--adoption-trust-and-positioning), [`ADOPT-016`](PRD.md#822-p0--adoption-trust-and-positioning).
+Detailed task: [`ADOPT-016`](PRD.md#822-p0--adoption-trust-and-positioning).
 
 ### Turn compatibility results into a public scorecard
 
