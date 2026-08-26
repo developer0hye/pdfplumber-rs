@@ -141,6 +141,9 @@ jobs:
       - name: Validate the versioned readiness page
         run: python scripts/generate_readiness.py --check
 
+      - name: Validate the dated adoption baseline
+        run: python scripts/generate_adoption_baseline.py --check
+
       - name: Validate the versioned release notes
         run: python scripts/generate_release_notes.py --check
 

@@ -11,6 +11,9 @@ commit list.
 
 ### Added
 
+- **Documentation:** Added a dated adoption baseline for registry downloads, public
+  dependent repositories, documentation traffic, activation-failure observability,
+  issues, and confirmed external adopters before defining growth targets.
 - **Documentation:** Added a privacy and local-processing statement covering local
   extraction, document uploads, usage telemetry, host applications, and the optional
   Python Ghostscript repair process.
