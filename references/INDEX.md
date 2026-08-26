@@ -50,3 +50,9 @@ Projects organized by domain. Read the specific file matching your current probl
 | [unicode-bidi](https://github.com/servo/unicode-bidi) | BiDi text (UAX #9) |
 | [jieba-rs](https://github.com/messense/jieba-rs) | Chinese word segmentation |
 | [unicode-segmentation](https://crates.io/crates/unicode-segmentation) | Unicode word boundaries (UAX #29) |
+
+## Product Documentation
+
+| Project | Language | File | Use When |
+|---------|----------|------|----------|
+| [Polars](https://github.com/pola-rs/polars) | Rust/Python | [polars.md](polars.md) | Keeping product or performance claims adjacent to their evidence |
