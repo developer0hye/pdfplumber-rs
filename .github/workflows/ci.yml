@@ -49,6 +49,15 @@ jobs:
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
 
+      - name: Build and verify Rust crate license artifacts
+        if: matrix.rust == 'stable'
+        run: |
+          cargo package -p pdfplumber-core --no-verify
+          cargo package -p pdfplumber-parse --no-verify
+          cargo package -p pdfplumber --no-verify
+          cargo package -p pdfplumber-cli --no-verify
+          python scripts/check_package_licenses.py --rust target/package/*.crate
+
   python-native-layout:
     name: Python native package layout
     runs-on: ubuntu-latest
@@ -64,6 +73,9 @@ jobs:
           python -m pip install 'maturin==1.14.1'
           maturin build --manifest-path crates/pdfplumber-py/Cargo.toml --interpreter python --out dist
           maturin sdist --manifest-path crates/pdfplumber-py/Cargo.toml --out dist
+
+      - name: Verify Python package license artifacts
+        run: python scripts/check_package_licenses.py --python dist/*.whl dist/*.tar.gz
 
       - name: Build and verify isolated candidate environment
         run: python scripts/setup_candidate_venv.py --python python --wheel dist/*.whl
@@ -113,6 +125,9 @@ jobs:
       - name: Validate the generated support matrix
         run: python scripts/generate_support_matrix.py --check
 
+      - name: Validate the source package license policy
+        run: python scripts/check_package_licenses.py --source
+
       - name: Validate PDF fixture provenance and licenses
         run: python scripts/check_fixture_licenses.py
 
@@ -160,3 +175,17 @@ jobs:
 
       - name: Verify the pinned upstream call contracts
         run: .venv-reference/bin/python compat/api_contract.py
+
+  wasm-package-license:
+    name: WASM package license
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: jetli/wasm-pack-action@v0.4.0
+
+      - name: Build WASM bundler package
+        run: wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm
+
+      - name: Verify npm package license artifact
+        run: python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg
