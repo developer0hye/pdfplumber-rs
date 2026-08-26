@@ -65,4 +65,3 @@ Detailed tasks: [`DIST-013`](PRD.md#824-p1--distribution-and-installation), [`EC
 Publish a security and private-reporting process, then complete documented production pilots with independent users across multiple workload classes before calling the project stable.
 
 Detailed tasks: [`GOV-003`](PRD.md#827-p1--community-governance-and-external-validation), [`GOV-016`](PRD.md#827-p1--community-governance-and-external-validation).
-
