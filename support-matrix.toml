@@ -1,0 +1,146 @@
+schema_version = 1
+observed_at = "2026-08-26"
+release_version = "0.3.0"
+rust_version = "1.85"
+
+[[surfaces]]
+id = "rust"
+name = "Rust"
+maturity = "alpha"
+package = "pdfplumber"
+registry = "crates.io"
+registry_url = "https://crates.io/crates/pdfplumber"
+manifest = "crates/pdfplumber/Cargo.toml"
+manifest_package = "pdfplumber"
+source_version = "0.3.0"
+registry_version = "0.3.0"
+ci_verified_platforms = [
+    "Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)",
+]
+release_configured_targets = [
+    "crates.io source package; no target-specific binary or installed-registry matrix",
+]
+features = [
+    "Text, character, word, geometry, image, metadata, and table extraction",
+    "Path, byte, page-iteration, cropping, serialization, and resource-budget APIs",
+    "Optional serde and parallel features",
+]
+known_limitations = [
+    "The 0.3.x API is alpha and may change before the stable contract is complete.",
+    "Required CI verifies Ubuntu Linux only; registry installation and other targets are not smoke-tested.",
+    "Image-only PDFs require a separate Optical Character Recognition stage.",
+]
+evidence = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "crates/pdfplumber/Cargo.toml",
+    "README.md",
+    "PRD.md",
+]
+
+[[surfaces]]
+id = "python"
+name = "Python"
+maturity = "alpha"
+package = "pdfplumber-rs"
+registry = "PyPI"
+registry_url = "https://pypi.org/project/pdfplumber-rs/"
+manifest = "crates/pdfplumber-py/Cargo.toml"
+manifest_package = "pdfplumber-py"
+source_version = "0.3.0"
+registry_version = "0.3.0"
+ci_verified_platforms = [
+    "Ubuntu Linux x86_64 with CPython 3.13 (installed wheel and source distribution)",
+]
+release_configured_targets = [
+    "CPython 3.9-3.13 wheels for Linux x86_64/aarch64, macOS x86_64/aarch64, and Windows x86_64",
+    "Source distribution built on Ubuntu Linux",
+]
+features = [
+    "A native pdfplumber package targeting Python pdfplumber v0.11.10 workflows",
+    "PDF and Page objects backed by the same Rust extraction core",
+    "Installed wheel and source-distribution layout checks",
+]
+known_limitations = [
+    "Compatibility is incomplete and is not yet a full drop-in replacement.",
+    "Required installed-artifact CI covers only CPython 3.13 on Ubuntu; the broader release wheel matrix is build-configured, not install-verified.",
+    "Distribution/import-name conflicts and the complete supported-Python policy remain open.",
+]
+evidence = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "crates/pdfplumber-py/Cargo.toml",
+    "crates/pdfplumber-py/pyproject.toml",
+    "compat/upstream.toml",
+    "PRD.md",
+]
+
+[[surfaces]]
+id = "cli"
+name = "Command-Line Interface"
+maturity = "alpha"
+package = "pdfplumber-cli"
+registry = "crates.io"
+registry_url = "https://crates.io/crates/pdfplumber-cli"
+manifest = "crates/pdfplumber-cli/Cargo.toml"
+manifest_package = "pdfplumber-cli"
+source_version = "0.3.0"
+registry_version = "0.3.0"
+ci_verified_platforms = [
+    "Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)",
+]
+release_configured_targets = [
+    "crates.io source package; no prebuilt binary or cross-platform installation matrix",
+]
+features = [
+    "Text, character, word, table, annotation, form, link, bookmark, image, search, validation, and debug commands",
+    "Page selection plus text, JSON, and CSV outputs where implemented",
+    "Password and repair options on applicable commands",
+]
+known_limitations = [
+    "The Rust-native subcommand interface does not yet match Python pdfplumber's positional Command-Line Interface contract.",
+    "Required CI verifies source builds and tests on Ubuntu only; published installation is not smoke-tested.",
+    "Stable structured-output schemas, exit codes, and prebuilt binaries remain open work.",
+]
+evidence = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "crates/pdfplumber-cli/Cargo.toml",
+    "crates/pdfplumber-cli/src/cli.rs",
+    "PRD.md",
+]
+
+[[surfaces]]
+id = "wasm"
+name = "WebAssembly"
+maturity = "experimental"
+package = "pdfplumber-wasm"
+registry = "npm"
+registry_url = "https://www.npmjs.com/package/pdfplumber-wasm"
+manifest = "crates/pdfplumber-wasm/Cargo.toml"
+manifest_package = "pdfplumber-wasm"
+source_version = "0.3.0"
+registry_version = "0.2.0"
+ci_verified_platforms = [
+    "None in required CI; the WebAssembly crate is excluded from current workspace gates",
+]
+release_configured_targets = [
+    "npm bundler package built on Ubuntu during tagged releases",
+]
+features = [
+    "Byte-based PDF opening for browser and Node.js callers",
+    "Text, character, word, table, metadata, and search bindings",
+    "Generated JavaScript package plus hand-authored TypeScript declarations",
+]
+known_limitations = [
+    "The surface is experimental and has no required browser or Node.js end-to-end CI lane.",
+    "The observed npm release is 0.2.0 while the repository source is 0.3.0.",
+    "Bundle size, startup time, memory, browser compatibility, and published-package installation are not gated.",
+]
+evidence = [
+    ".github/workflows/ci.yml",
+    ".github/workflows/release.yml",
+    "crates/pdfplumber-wasm/Cargo.toml",
+    "crates/pdfplumber-wasm/README.md",
+    "PRD.md",
+]
