@@ -71,13 +71,14 @@ pdfplumber = "0.3"
 ```rust,no_run
 use pdfplumber::{Pdf, TextOptions};
 
-fn main() {
-    let pdf = Pdf::open_file("document.pdf", None).unwrap();
-    for page_result in pdf.pages_iter() {
-        let page = page_result.unwrap();
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let pdf = Pdf::open_file("document.pdf", None)?;
+    for page in pdf.pages_iter() {
+        let page = page?;
         let text = page.extract_text(&TextOptions::default());
         println!("Page {}: {}", page.page_number(), text);
     }
+    Ok(())
 }
 ```
 

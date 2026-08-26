@@ -12,10 +12,9 @@ The current focus is making the `0.3.x` alpha release easy to evaluate and hard 
 
 ### Make the first Rust result obvious
 
-Provide one short, compiled quick start and one obvious high-level entry path for
-ordinary Rust extraction work.
+Provide one obvious high-level entry path for ordinary Rust extraction work.
 
-Detailed tasks: [`DX-001`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-002`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-002`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
