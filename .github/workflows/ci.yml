@@ -59,6 +59,10 @@ jobs:
           python scripts/check_package_licenses.py --rust target/package/*.crate
           python scripts/check_package_metadata.py --rust target/package/*.crate
 
+      - name: Test rendered Rust and CLI quick starts
+        if: matrix.rust == 'stable'
+        run: python scripts/check_doc_quickstarts.py --rust --cli
+
   python-native-layout:
     name: Python native package layout
     runs-on: ubuntu-latest
@@ -88,6 +92,9 @@ jobs:
           python -m venv .venv-native-wheel
           .venv-native-wheel/bin/python -m pip install --no-deps dist/*.whl
           .venv-native-wheel/bin/python -m unittest discover -s crates/pdfplumber-py/tests -p 'test_native_layout.py' -v
+
+      - name: Test rendered Python quick start
+        run: python scripts/check_doc_quickstarts.py --python --wheel dist/*.whl
 
       - name: Test installed source distribution layout
         run: |
@@ -121,6 +128,9 @@ jobs:
       # so a broken harness fails in seconds instead of after a full install.
       - name: Test the harness
         run: python -m unittest discover -s compat/tests -t . -v
+
+      - name: Validate rendered documentation quick starts
+        run: python scripts/check_doc_quickstarts.py --check
 
       - name: Validate the PRD checklist and evidence contract
         run: python scripts/check_prd.py
@@ -193,7 +203,13 @@ jobs:
       - name: Build WASM bundler package
         run: wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm
 
+      - name: Build WASM Node package
+        run: wasm-pack build --target nodejs --out-dir pkg-node crates/pdfplumber-wasm
+
       - name: Verify npm package artifact
         run: |
           python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg
           python scripts/check_package_metadata.py --npm crates/pdfplumber-wasm/pkg
+
+      - name: Test rendered Node/WebAssembly quick start
+        run: python scripts/check_doc_quickstarts.py --wasm-node --npm-package crates/pdfplumber-wasm/pkg-node

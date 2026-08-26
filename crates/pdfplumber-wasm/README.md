@@ -57,7 +57,7 @@ const page = pdf.page(0);
 const text = page.extractText();
 ```
 
-## Node.js Usage
+## Quick Start (Node.js)
 
 ```javascript
 import { readFileSync } from 'fs';
