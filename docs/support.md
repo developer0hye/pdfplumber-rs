@@ -69,7 +69,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 bundler package build with wasm-pack and license metadata/file inspection
+- Ubuntu Linux x86_64 bundler and Node.js package builds with license metadata/file inspection and an executed Node.js Quick Start
 
 **Release-configured targets**
 
@@ -155,7 +155,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Known limitations**
 
-- The surface is experimental; required CI packages the module but does not run browser or Node.js end-to-end behavior.
+- The surface is experimental; the Node.js Quick Start is CI-contracted, but browser end-to-end behavior is not gated.
 - The observed npm release is 0.2.0 while the repository source is 0.3.0.
 - Bundle size, startup time, memory, browser compatibility, and published-package installation are not gated.
 
