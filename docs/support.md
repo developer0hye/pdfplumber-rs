@@ -98,7 +98,8 @@ A release-configured target is not considered supported or CI-verified until an 
 
 - Compatibility is incomplete and is not yet a full drop-in replacement.
 - Required installed-artifact CI covers only CPython 3.13 on Ubuntu; the broader release wheel matrix is build-configured, not install-verified.
-- Distribution/import-name conflicts and the complete supported-Python policy remain open.
+- Co-installation with the Python `pdfplumber` distribution is unsupported; use a fresh environment containing exactly one distribution.
+- The complete supported-Python policy remains open.
 
 **Evidence**
 

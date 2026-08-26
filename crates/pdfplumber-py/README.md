@@ -12,6 +12,24 @@ Distribution `pdfplumber-rs` installs import package `pdfplumber` and native mod
 pip install pdfplumber-rs
 ```
 
+## Distribution and import names
+
+The installable distribution is `pdfplumber-rs`. The Python import package is
+`pdfplumber`. The private native module is `pdfplumber._native`.
+
+Do not install `pdfplumber-rs` and Python `pdfplumber` in the same environment.
+Both distributions write files under `pdfplumber/`. `pip` treats their distribution
+names as different, so it does not resolve this shared-file conflict; `pip check`
+can still succeed while installation order can silently select a mixed package.
+
+Before installing, inspect the environment with `python -m pip show pdfplumber`
+and `python -m pip show pdfplumber-rs`. Use a new, dedicated virtual environment
+that contains exactly one of these distributions. Uninstalling only one
+distribution is not a repair: either uninstaller can remove shared files recorded
+by the other distribution. If both distributions have ever been installed in
+one environment, discard that environment and create a new one, then install
+only the distribution you intend to import.
+
 ## Quick Start
 
 ```python
