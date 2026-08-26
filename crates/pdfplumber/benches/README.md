@@ -1,6 +1,10 @@
-# pdfplumber-rs Benchmarks
+# pdfplumber-rs Local Regression Benchmarks
 
-Performance benchmarks comparing pdfplumber-rs against Python pdfplumber.
+This Criterion suite measures changes within the current Rust implementation on
+synthetic fixtures. It does not request materially equivalent outputs from another
+library and publishes no cross-project result. Cross-project measurements remain
+deferred until `SCORE-001` through `SCORE-009` satisfy the
+[comparison policy](../../../docs/comparison.md).
 
 ## Running Benchmarks
 
@@ -34,37 +38,6 @@ All PDFs are generated programmatically using lopdf:
 | Complex | 10 | Header (Courier) + 15 body lines (Helvetica) + 5x4 lattice table per page |
 | Lattice table | 1 | 20x5 grid with visible borders and cell text |
 | Stream table | 1 | 20x5 text grid (no visible borders) |
-
-## Baseline: Python pdfplumber
-
-Measured with Python pdfplumber 0.11.x on equivalent programmatic PDFs (Apple M-series, Python 3.12).
-These are representative baselines from published benchmarks and community measurements.
-
-| Operation | Python pdfplumber | pdfplumber-rs | Speedup |
-|---|---|---|---|
-| Text extraction (1 page, simple) | ~5 ms | ~0.12 ms | ~40x |
-| Text extraction (10 pages, medium) | ~50 ms | ~4.8 ms | ~10x |
-| Text extraction (10 pages, complex) | ~80 ms | ~2.9 ms | ~27x |
-| Table detection, lattice (1 page, 20x5) | ~15 ms | ~0.12 ms | ~125x |
-| Table detection, stream (1 page, 20x5) | ~20 ms | ~0.20 ms | ~100x |
-| Table detection, lattice (10 pages, complex) | ~120 ms | ~2.3 ms | ~52x |
-
-> **Note**: Python baselines are approximate. Python pdfplumber performs PDF parsing (via
-> pdfminer.six), object extraction, and algorithm processing in Python, whereas pdfplumber-rs
-> does all processing in compiled Rust. The speedup is expected to be 10x-100x+ depending
-> on the operation — I/O-bound operations (PDF parsing) show smaller gains, while CPU-bound
-> operations (table detection, text grouping) show larger gains.
-
-### How Python baselines were estimated
-
-1. Created equivalent PDF fixtures using `reportlab` / `fpdf2`
-2. Timed with `timeit` (100 iterations, best-of-3):
-   ```python
-   import pdfplumber, timeit
-   pdf = pdfplumber.open("fixture.pdf")
-   timeit.timeit(lambda: pdf.pages[0].extract_text(), number=100)
-   ```
-3. Published community benchmarks confirm similar ranges for pdfplumber on simple documents.
 
 ## Interpreting Results
 

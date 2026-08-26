@@ -1,6 +1,6 @@
 # pdfplumber-rs
 
-High-performance PDF text, table, and geometry extraction for Python — powered by Rust.
+PDF text, table, and geometry extraction for Python — powered by Rust.
 
 `pdfplumber-rs` is a Rust-native reimplementation of [pdfplumber](https://github.com/jsvine/pdfplumber) exposed to Python via [PyO3](https://pyo3.rs). The Rust extension is installed as the private `pdfplumber._native` submodule so the public package can provide a Python compatibility layer separately.
 
@@ -141,15 +141,12 @@ Rust API's 0-based convention.
 | Text search | Yes | Yes |
 | Type stubs | No | Yes (.pyi) |
 
-### Performance
+### Performance evidence
 
-`pdfplumber-rs` benefits from Rust's zero-cost abstractions and compiled performance:
-
-- **Text extraction**: Typically 5-20x faster than Python pdfplumber
-- **Table detection**: Typically 3-10x faster for lattice-based tables
-- **Memory usage**: Lower memory footprint due to Rust's ownership model
-
-Actual speedups depend on document complexity and system configuration.
+No text-extraction, table-detection, or memory advantage is currently claimed for
+the Python surface. The compatibility corpus measures behavior, not a fair timing
+comparison. Cross-project results remain deferred until `SCORE-001` through
+`SCORE-009` satisfy the [comparison policy](../../docs/comparison.md).
 
 ## License
 

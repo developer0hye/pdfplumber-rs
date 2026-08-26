@@ -40,7 +40,7 @@ For tradeoffs against other Rust and Python choices, see the [evidence-separated
 - **Reading order** for multi-column layouts, plus header/footer detection
 - **Images** located on the page and exported as raw stream data
 - **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input
-- **Page-level streaming** for memory-efficient processing of large documents
+- **Page iteration** with caller-controlled page-at-a-time processing
 - **WASM support** via `wasm32-unknown-unknown` target
 - **Optional serde** serialization for all data types
 - **Optional parallel** processing via rayon
