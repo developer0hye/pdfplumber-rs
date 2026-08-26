@@ -24,6 +24,22 @@ Low-level PDF document manipulation: read, create, modify PDF files at the objec
 - PDF 1.5+ object streams and xref streams
 - Font dictionary access (but no font-program-level parsing)
 
+## Input Loading Pattern
+
+Verified against lopdf 0.39.0 source commit
+[`6cd9a622fbbb727f392c156311d13eb7ab461e04`](https://github.com/J-F-Liu/lopdf/blob/6cd9a622fbbb727f392c156311d13eb7ab461e04/src/reader.rs),
+the version resolved by this workspace:
+
+- `Document::load` opens a filesystem path and reads the file into an owned buffer.
+- `Document::load_from<R: Read>` accepts a synchronous reader without requiring
+  `Seek` and reads from its current position through end-of-file.
+- `Document::load_mem` parses a borrowed byte slice into an owned `Document`.
+
+This supports a source-named high-level family while keeping backend types private:
+`Pdf::open_path`, `Pdf::open_bytes`, and `Pdf::open_reader`. The facade applies its
+own input budget before parsing so path and reader sources share the public
+`PdfError` boundary rather than leaking lopdf errors.
+
 ## Limitations
 
 - No text-level semantics — purely structural

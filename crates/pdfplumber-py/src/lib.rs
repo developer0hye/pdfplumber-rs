@@ -2720,8 +2720,10 @@ impl PyPdf {
             .map_err(|error| map_stream_error(path_or_fp.py(), error))?;
         let bytes = data.downcast::<PyBytes>()?;
         let pdf_result = match password.as_deref() {
-            Some(password) => Pdf::open_with_password(bytes.as_bytes(), password.as_bytes(), None),
-            None => Pdf::open(bytes.as_bytes(), None),
+            Some(password) => {
+                Pdf::open_bytes_with_password(bytes.as_bytes(), password.as_bytes(), None)
+            }
+            None => Pdf::open_bytes(bytes.as_bytes(), None),
         };
         let pdf = match pdf_result {
             Ok(pdf) => pdf,
@@ -2763,7 +2765,7 @@ impl PyPdf {
     /// Open a PDF from bytes in memory.
     #[staticmethod]
     fn open_bytes(py: Python<'_>, data: &[u8]) -> PyResult<Self> {
-        let pdf = Pdf::open(data, None).map_err(to_py_err)?;
+        let pdf = Pdf::open_bytes(data, None).map_err(to_py_err)?;
         log_metadata_warnings(py, &pdf)?;
         let stream = py
             .import("io")?

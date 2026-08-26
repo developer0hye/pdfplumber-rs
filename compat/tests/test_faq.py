@@ -73,7 +73,7 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
                 "not a guarantee",
             ),
             EXPECTED_QUESTIONS[2]: (
-                "`Pdf::open_with_password`",
+                "`Pdf::open_bytes_with_password`",
                 "`password=`",
                 "`--password`",
                 "wrong password",

@@ -55,7 +55,7 @@ impl ExactSizeIterator for PagesIter<'_> {}
 /// # Example
 ///
 /// ```ignore
-/// let pdf = Pdf::open(bytes, None)?;
+/// let pdf = Pdf::open_bytes(bytes, None)?;
 /// let page = pdf.page(0)?;
 /// let text = page.extract_text(&TextOptions::default());
 /// ```
@@ -164,11 +164,11 @@ impl ContentHandler for CollectingHandler {
 }
 
 impl Pdf {
-    /// Open a PDF document from a file path.
+    /// Open a PDF document from a filesystem path.
     ///
-    /// This is a convenience wrapper around [`Pdf::open`] that reads the file
-    /// into memory first. For WASM or no-filesystem environments, use
-    /// [`Pdf::open`] with a byte slice instead.
+    /// The file is read into memory and closed before this method returns. The
+    /// returned `Pdf` owns its parsed document and does not retain the path or a
+    /// file handle. For inputs already in memory, use [`Pdf::open_bytes`].
     ///
     /// # Arguments
     ///
@@ -177,21 +177,24 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError`] if the file cannot be read or is not a valid PDF.
+    /// Returns [`PdfError::IoError`] if the file cannot be opened or read,
+    /// [`PdfError::ParseError`] if its contents are not a valid PDF, and the
+    /// same password and resource-limit errors as [`Pdf::open_bytes`].
     #[cfg(feature = "std")]
-    pub fn open_file(
+    pub fn open_path(
         path: impl AsRef<std::path::Path>,
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        let bytes = std::fs::read(path.as_ref()).map_err(|e| PdfError::IoError(e.to_string()))?;
-        Self::open(&bytes, options)
+        let file = std::fs::File::open(path.as_ref()).map_err(PdfError::from)?;
+        Self::open_reader(file, options)
     }
 
-    /// Open a PDF document from bytes.
+    /// Open a PDF document from a byte buffer.
     ///
-    /// This is the primary API for opening PDFs and works in all environments,
-    /// including WASM. For file-path convenience, see [`Pdf::open_file`] (requires
-    /// the `std` feature, enabled by default).
+    /// The byte slice is borrowed only for the duration of this call. The
+    /// returned `Pdf` owns the parsed document and does not retain or borrow
+    /// `bytes`. This method works in all supported environments, including
+    /// WebAssembly. For filesystem inputs, use [`Pdf::open_path`].
     ///
     /// # Arguments
     ///
@@ -203,52 +206,46 @@ impl Pdf {
     /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted with a
     /// non-empty password. PDFs encrypted with an empty user password are
     /// auto-decrypted.
-    /// Returns [`PdfError`] if the bytes are not a valid PDF document.
-    pub fn open(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
-        // Check max_input_bytes before parsing
-        if let Some(ref opts) = options {
-            if let Some(max_bytes) = opts.max_input_bytes {
-                if bytes.len() > max_bytes {
-                    return Err(PdfError::ResourceLimitExceeded {
-                        limit_name: "max_input_bytes".to_string(),
-                        limit_value: max_bytes,
-                        actual_value: bytes.len(),
-                    });
-                }
-            }
-        }
+    /// Returns [`PdfError::ParseError`] if the bytes are not a valid PDF
+    /// document and [`PdfError::ResourceLimitExceeded`] if `max_input_bytes`
+    /// is smaller than the supplied buffer.
+    pub fn open_bytes(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
+        Self::check_input_limit(bytes.len(), options.as_ref())?;
         let doc = LopdfBackend::open(bytes).map_err(PdfError::from)?;
         Self::from_doc(doc, options)
     }
 
-    /// Open an encrypted PDF document from bytes with a password.
+    /// Open a PDF document from a synchronous reader.
     ///
-    /// Supports both user and owner passwords. If the PDF is not encrypted,
-    /// the password is ignored and the document opens normally.
+    /// The reader needs only [`std::io::Read`], not `Seek`. It is consumed from
+    /// its current position through end-of-file and read into memory. The
+    /// returned `Pdf` owns its parsed document and does not retain the reader.
+    /// Passing `&mut reader` lets the caller keep using that reader after this
+    /// method returns.
     ///
     /// # Arguments
     ///
-    /// * `bytes` - Raw PDF file bytes.
-    /// * `password` - The password to decrypt the PDF.
+    /// * `reader` - A byte reader positioned at the start of the PDF data to read.
     /// * `options` - Extraction options (resource limits, etc.). Uses defaults if `None`.
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::InvalidPassword`] if the password is incorrect.
-    /// Returns [`PdfError`] if the bytes are not a valid PDF document.
-    pub fn open_with_password(
-        bytes: &[u8],
-        password: &[u8],
+    /// Returns [`PdfError::IoError`] if the reader fails,
+    /// [`PdfError::ParseError`] if the bytes read are not a valid PDF, and the
+    /// same password and resource-limit errors as [`Pdf::open_bytes`].
+    pub fn open_reader<R: std::io::Read>(
+        reader: R,
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        let doc = LopdfBackend::open_with_password(bytes, password).map_err(PdfError::from)?;
-        Self::from_doc(doc, options)
+        let bytes = Self::read_input(reader, options.as_ref())?;
+        Self::open_bytes(&bytes, options)
     }
 
-    /// Open an encrypted PDF document from a file path with a password.
+    /// Open an encrypted PDF document from a filesystem path with a password.
     ///
-    /// Convenience wrapper around [`Pdf::open_with_password`] that reads the file
-    /// into memory first.
+    /// The file is read into memory and closed before this method returns. The
+    /// returned `Pdf` owns its parsed document and does not retain the path or a
+    /// file handle.
     ///
     /// # Arguments
     ///
@@ -258,19 +255,112 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError`] if the file cannot be read, is not a valid PDF,
-    /// or the password is incorrect.
+    /// Returns [`PdfError::IoError`] for file failures,
+    /// [`PdfError::InvalidPassword`] for an incorrect password,
+    /// [`PdfError::ParseError`] for invalid PDF data, and
+    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    #[cfg(feature = "std")]
+    pub fn open_path_with_password(
+        path: impl AsRef<std::path::Path>,
+        password: &[u8],
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        let file = std::fs::File::open(path.as_ref()).map_err(PdfError::from)?;
+        Self::open_reader_with_password(file, password, options)
+    }
+
+    /// Open an encrypted PDF document from a byte buffer with a password.
+    ///
+    /// Supports both user and owner passwords. If the PDF is not encrypted,
+    /// the password is ignored and the document opens normally. The byte slice
+    /// is borrowed only for this call; the returned `Pdf` does not retain it.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - Raw PDF file bytes.
+    /// * `password` - The password to decrypt the PDF.
+    /// * `options` - Extraction options (resource limits, etc.). Uses defaults if `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError::InvalidPassword`] if the password is incorrect,
+    /// [`PdfError::ParseError`] if the bytes are not a valid PDF, and
+    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    pub fn open_bytes_with_password(
+        bytes: &[u8],
+        password: &[u8],
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        Self::check_input_limit(bytes.len(), options.as_ref())?;
+        let doc = LopdfBackend::open_with_password(bytes, password).map_err(PdfError::from)?;
+        Self::from_doc(doc, options)
+    }
+
+    /// Open an encrypted PDF document from a synchronous reader with a password.
+    ///
+    /// Like [`Pdf::open_reader`], this accepts any [`std::io::Read`] source,
+    /// consumes it from the current position through end-of-file, and does not
+    /// retain the reader after returning.
+    ///
+    /// # Arguments
+    ///
+    /// * `reader` - A byte reader positioned at the start of the PDF data to read.
+    /// * `password` - The password to decrypt the PDF.
+    /// * `options` - Extraction options (resource limits, etc.). Uses defaults if `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError::IoError`] if the reader fails,
+    /// [`PdfError::InvalidPassword`] if the password is incorrect,
+    /// [`PdfError::ParseError`] for invalid PDF data, and
+    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    pub fn open_reader_with_password<R: std::io::Read>(
+        reader: R,
+        password: &[u8],
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        let bytes = Self::read_input(reader, options.as_ref())?;
+        Self::open_bytes_with_password(&bytes, password, options)
+    }
+
+    /// Compatibility alias for [`Pdf::open_path`].
+    #[doc(hidden)]
+    #[cfg(feature = "std")]
+    pub fn open_file(
+        path: impl AsRef<std::path::Path>,
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        Self::open_path(path, options)
+    }
+
+    /// Compatibility alias for [`Pdf::open_bytes`].
+    #[doc(hidden)]
+    pub fn open(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
+        Self::open_bytes(bytes, options)
+    }
+
+    /// Compatibility alias for [`Pdf::open_bytes_with_password`].
+    #[doc(hidden)]
+    pub fn open_with_password(
+        bytes: &[u8],
+        password: &[u8],
+        options: Option<ExtractOptions>,
+    ) -> Result<Self, PdfError> {
+        Self::open_bytes_with_password(bytes, password, options)
+    }
+
+    /// Compatibility alias for [`Pdf::open_path_with_password`].
+    #[doc(hidden)]
     #[cfg(feature = "std")]
     pub fn open_file_with_password(
         path: impl AsRef<std::path::Path>,
         password: &[u8],
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        let bytes = std::fs::read(path.as_ref()).map_err(|e| PdfError::IoError(e.to_string()))?;
-        Self::open_with_password(&bytes, password, options)
+        Self::open_path_with_password(path, password, options)
     }
 
-    /// Open a PDF document with best-effort repair of common issues.
+    /// Open PDF bytes with best-effort repair of common issues.
     ///
     /// Attempts to fix common PDF issues (broken xref, wrong stream lengths,
     /// broken references) before opening the document. Returns the opened
@@ -285,16 +375,61 @@ impl Pdf {
     /// # Errors
     ///
     /// Returns [`PdfError`] if the PDF is too corrupted to repair or open.
+    pub fn open_bytes_with_repair(
+        bytes: &[u8],
+        options: Option<ExtractOptions>,
+        repair_opts: Option<RepairOptions>,
+    ) -> Result<(Self, RepairResult), PdfError> {
+        Self::check_input_limit(bytes.len(), options.as_ref())?;
+        let repair_opts = repair_opts.unwrap_or_default();
+        let (repaired_bytes, result) =
+            LopdfBackend::repair(bytes, &repair_opts).map_err(PdfError::from)?;
+        let pdf = Self::open_bytes(&repaired_bytes, options)?;
+        Ok((pdf, result))
+    }
+
+    /// Compatibility alias for [`Pdf::open_bytes_with_repair`].
+    #[doc(hidden)]
     pub fn open_with_repair(
         bytes: &[u8],
         options: Option<ExtractOptions>,
         repair_opts: Option<RepairOptions>,
     ) -> Result<(Self, RepairResult), PdfError> {
-        let repair_opts = repair_opts.unwrap_or_default();
-        let (repaired_bytes, result) =
-            LopdfBackend::repair(bytes, &repair_opts).map_err(PdfError::from)?;
-        let pdf = Self::open(&repaired_bytes, options)?;
-        Ok((pdf, result))
+        Self::open_bytes_with_repair(bytes, options, repair_opts)
+    }
+
+    fn check_input_limit(
+        actual_value: usize,
+        options: Option<&ExtractOptions>,
+    ) -> Result<(), PdfError> {
+        if let Some(max_bytes) = options.and_then(|options| options.max_input_bytes) {
+            if actual_value > max_bytes {
+                return Err(PdfError::ResourceLimitExceeded {
+                    limit_name: "max_input_bytes".to_string(),
+                    limit_value: max_bytes,
+                    actual_value,
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn read_input<R: std::io::Read>(
+        reader: R,
+        options: Option<&ExtractOptions>,
+    ) -> Result<Vec<u8>, PdfError> {
+        let mut bytes = Vec::new();
+        if let Some(max_bytes) = options.and_then(|options| options.max_input_bytes) {
+            let observed_limit = max_bytes.saturating_add(1);
+            let read_limit = u64::try_from(observed_limit).unwrap_or(u64::MAX);
+            let mut limited = std::io::Read::take(reader, read_limit);
+            std::io::Read::read_to_end(&mut limited, &mut bytes).map_err(PdfError::from)?;
+            Self::check_input_limit(bytes.len(), options)?;
+        } else {
+            let mut reader = reader;
+            std::io::Read::read_to_end(&mut reader, &mut bytes).map_err(PdfError::from)?;
+        }
+        Ok(bytes)
     }
 
     /// Internal helper to construct a `Pdf` from a loaded `LopdfDocument`.
@@ -638,7 +773,7 @@ impl Pdf {
     /// # Example
     ///
     /// ```ignore
-    /// let pdf = Pdf::open(bytes, None)?;
+    /// let pdf = Pdf::open_bytes(bytes, None)?;
     /// for result in pdf.pages_iter() {
     ///     let page = result?;
     ///     println!("Page {}: {}", page.page_number(), page.extract_text(&TextOptions::default()));
@@ -662,7 +797,7 @@ impl Pdf {
     /// # Example
     ///
     /// ```ignore
-    /// let pdf = Pdf::open(bytes, None)?;
+    /// let pdf = Pdf::open_bytes(bytes, None)?;
     /// let pages: Vec<Page> = pdf.pages_parallel()
     ///     .into_iter()
     ///     .collect::<Result<Vec<_>, _>>()?;

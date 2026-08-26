@@ -13,7 +13,7 @@
 //! use pdfplumber::{Pdf, TextOptions};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     let pdf = Pdf::open_file("document.pdf", None)?;
+//!     let pdf = Pdf::open_path("document.pdf", None)?;
 //!     for page in pdf.pages_iter() {
 //!         let page = page?;
 //!         let text = page.extract_text(&TextOptions::default());
@@ -36,11 +36,26 @@
 //! - **pdfplumber-parse**: PDF parsing (Layer 1) and content stream interpreter (Layer 2)
 //! - **pdfplumber** (this crate): Public API facade that ties everything together
 //!
+//! # Opening inputs
+//!
+//! The canonical input family names the source explicitly:
+//!
+//! - [`Pdf::open_path`] reads a filesystem path (default `std` feature).
+//! - [`Pdf::open_bytes`] parses an in-memory byte slice and works in WebAssembly.
+//! - [`Pdf::open_reader`] consumes any synchronous [`std::io::Read`] source from
+//!   its current position through end-of-file; it does not require `Seek`.
+//!
+//! All three return an owned [`Pdf`]. The document does not borrow the path,
+//! byte slice, or reader after the constructor returns. Path and reader failures
+//! use [`PdfError::IoError`]; invalid PDF data uses [`PdfError::ParseError`].
+//! Password-protected inputs use the matching `open_*_with_password` methods.
+//! Best-effort repair is currently byte-only via [`Pdf::open_bytes_with_repair`].
+//!
 //! # Feature Flags
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
-//! | `std` | Yes | Enables file-path APIs ([`Pdf::open_file`]). Disable for WASM. |
+//! | `std` | Yes | Enables file-path APIs ([`Pdf::open_path`]). Disable for WASM. |
 //! | `serde` | No | Adds `Serialize`/`Deserialize` to all public data types. |
 //! | `parallel` | No | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible. |
 //!
@@ -48,7 +63,7 @@
 //!
 //! ```no_run
 //! # use pdfplumber::{Pdf, TextOptions};
-//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
+//! let pdf = Pdf::open_path("document.pdf", None).unwrap();
 //! let page = pdf.page(0).unwrap();
 //!
 //! // Simple text extraction
@@ -62,7 +77,7 @@
 //!
 //! ```no_run
 //! # use pdfplumber::{Pdf, TableSettings};
-//! let pdf = Pdf::open_file("document.pdf", None).unwrap();
+//! let pdf = Pdf::open_path("document.pdf", None).unwrap();
 //! let page = pdf.page(0).unwrap();
 //! let tables = page.find_tables(&TableSettings::default());
 //! for table in &tables {
@@ -85,10 +100,10 @@
 //! pdfplumber = { version = "0.3", default-features = false }
 //! ```
 //!
-//! Then use [`Pdf::open`] with a byte slice:
+//! Then use [`Pdf::open_bytes`] with a byte slice:
 //!
 //! ```ignore
-//! let pdf = Pdf::open(pdf_bytes, None)?;
+//! let pdf = Pdf::open_bytes(pdf_bytes, None)?;
 //! let page = pdf.page(0)?;
 //! let text = page.extract_text(&TextOptions::default());
 //! ```

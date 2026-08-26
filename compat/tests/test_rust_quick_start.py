@@ -17,7 +17,7 @@ class RustQuickStartContractTests(unittest.TestCase):
         snippet = self.primary_snippet()
 
         self.assertLessEqual(len(snippet.splitlines()), 15)
-        self.assertIn('Pdf::open_file("document.pdf", None)?', snippet)
+        self.assertIn('Pdf::open_path("document.pdf", None)?', snippet)
         self.assertIn("let page = page?;", snippet)
         self.assertIn("extract_text(&TextOptions::default())", snippet)
         self.assertRegex(snippet, r"print(?:ln)?!")

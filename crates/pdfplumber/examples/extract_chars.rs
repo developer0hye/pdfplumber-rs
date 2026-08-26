@@ -10,7 +10,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    let pdf = Pdf::open_file(&path, None).unwrap_or_else(|e| {
+    let pdf = Pdf::open_path(&path, None).unwrap_or_else(|e| {
         eprintln!("Error opening PDF: {e}");
         std::process::exit(1);
     });

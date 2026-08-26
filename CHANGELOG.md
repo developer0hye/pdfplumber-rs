@@ -29,6 +29,10 @@ commit list.
   WebAssembly readiness.
 - **API:** Python character dictionaries now expose the six-value PDF transformation
   `matrix` used for each glyph.
+- **API:** Added the coherent `Pdf::open_path`, `Pdf::open_bytes`, and
+  `Pdf::open_reader` Rust input family, with matching password methods and
+  documented ownership and error behavior. Existing open methods remain
+  source-compatible aliases during the alpha line.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 
