@@ -1,0 +1,49 @@
+schema_version = 1
+release_version = "0.3.0"
+support_source = "support-matrix.toml"
+milestone_source = "PRD.md"
+
+[[workflows]]
+id = "rust"
+name = "Install the current Rust source and execute all five rendered quick starts."
+task_ids = ["ADOPT-004", "ADOPT-005", "ADOPT-006", "ADOPT-008"]
+test_ids = [
+    "compat.tests.test_documentation_quickstarts.DocumentationQuickStartContractTests.test_checker_and_ci_cover_every_surface",
+    "compat.tests.test_support_matrix.SupportMatrixContractTests.test_generated_matrix_is_current_and_complete",
+    "compat.tests.test_package_licenses.PackageLicenseContractTests.test_ci_checks_source_and_every_built_artifact_family",
+    "compat.tests.test_package_metadata.PackageMetadataContractTests.test_ci_and_release_workflows_enforce_metadata",
+]
+
+[[workflows]]
+id = "python"
+name = "Build an isolated wheel, execute the rendered quick start, and apply the non-coinstallation policy."
+task_ids = ["ADOPT-004", "ADOPT-005", "ADOPT-006", "ADOPT-008", "ADOPT-009"]
+test_ids = [
+    "compat.tests.test_documentation_quickstarts.DocumentationQuickStartContractTests.test_checker_and_ci_cover_every_surface",
+    "compat.tests.test_support_matrix.SupportMatrixContractTests.test_generated_matrix_is_current_and_complete",
+    "compat.tests.test_package_licenses.PackageLicenseContractTests.test_ci_checks_source_and_every_built_artifact_family",
+    "compat.tests.test_package_metadata.PackageMetadataContractTests.test_ci_and_release_workflows_enforce_metadata",
+    "compat.tests.test_python_distribution_conflicts.PythonDistributionConflictContractTests.test_generated_support_state_matches_the_conflict_policy",
+]
+
+[[workflows]]
+id = "cli"
+name = "Install the current Command-Line Interface source and execute its rendered quick start."
+task_ids = ["ADOPT-004", "ADOPT-005", "ADOPT-006", "ADOPT-008"]
+test_ids = [
+    "compat.tests.test_documentation_quickstarts.DocumentationQuickStartContractTests.test_checker_and_ci_cover_every_surface",
+    "compat.tests.test_support_matrix.SupportMatrixContractTests.test_generated_matrix_is_current_and_complete",
+    "compat.tests.test_package_licenses.PackageLicenseContractTests.test_ci_checks_source_and_every_built_artifact_family",
+    "compat.tests.test_package_metadata.PackageMetadataContractTests.test_ci_and_release_workflows_enforce_metadata",
+]
+
+[[workflows]]
+id = "wasm"
+name = "Build a Node package, install it in a fresh npm project, and execute the rendered quick start."
+task_ids = ["ADOPT-004", "ADOPT-005", "ADOPT-006", "ADOPT-008"]
+test_ids = [
+    "compat.tests.test_documentation_quickstarts.DocumentationQuickStartContractTests.test_checker_and_ci_cover_every_surface",
+    "compat.tests.test_support_matrix.SupportMatrixContractTests.test_generated_matrix_is_current_and_complete",
+    "compat.tests.test_package_licenses.PackageLicenseContractTests.test_ci_checks_source_and_every_built_artifact_family",
+    "compat.tests.test_package_metadata.PackageMetadataContractTests.test_ci_and_release_workflows_enforce_metadata",
+]
