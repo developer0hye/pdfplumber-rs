@@ -16,13 +16,6 @@ Attach stable evidence to every major claim in the README and release notes.
 
 Detailed task: [`ADOPT-018`](PRD.md#822-p0--adoption-trust-and-positioning).
 
-### Measure adoption before setting growth targets
-
-Record the current registry, documentation, activation, issue, dependent-project, and
-external-adopter baselines before choosing quarterly growth targets.
-
-Detailed task: [`ADOPT-017`](PRD.md#822-p0--adoption-trust-and-positioning).
-
 ### Turn compatibility results into a public scorecard
 
 Publish machine-readable and workflow-oriented views of the compatibility harness. Results will distinguish exact matches, approved deltas, unsupported behavior, reference failures, candidate failures, and cases that have not been tested.

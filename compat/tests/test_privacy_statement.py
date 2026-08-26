@@ -109,7 +109,6 @@ class PrivacyStatementContractTests(unittest.TestCase):
 
         roadmap = ROADMAP_PATH.read_text(encoding="utf-8")
         self.assertNotIn("ADOPT-016", roadmap)
-        self.assertIn("[`ADOPT-017`]", roadmap)
 
     def test_statement_defines_local_processing_without_blanket_promises(self) -> None:
         statement = self.statement()

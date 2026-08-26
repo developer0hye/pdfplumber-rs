@@ -1,0 +1,196 @@
+schema_version = 1
+snapshot_date = "2026-08-26"
+observed_at_utc = "2026-08-26T12:43:44Z"
+release_version = "0.3.0"
+output_path = "docs/adoption/baseline-2026-08-26.md"
+
+[[registry_packages]]
+ecosystem = "crates.io"
+package = "pdfplumber"
+release_version = "0.3.0"
+published_at_utc = "2026-08-22T15:27:31.637933Z"
+downloads_all_time = 23305
+downloads_recent = 21719
+downloads_release = 29
+source_kind = "registry-api"
+source_url = "https://crates.io/api/v1/crates/pdfplumber"
+limitations = [
+  "Counters include automated downloads, caches, and prior releases.",
+  "The recent-download window is registry-defined rather than fixed by this snapshot.",
+]
+
+[[registry_packages]]
+ecosystem = "crates.io"
+package = "pdfplumber-core"
+release_version = "0.3.0"
+published_at_utc = "2026-08-22T15:25:56.066850Z"
+downloads_all_time = 23472
+downloads_recent = 21798
+downloads_release = 40
+source_kind = "registry-api"
+source_url = "https://crates.io/api/v1/crates/pdfplumber-core"
+limitations = [
+  "This internal package is normally downloaded transitively with higher-level crates.",
+  "Counters include automated downloads, caches, and prior releases.",
+]
+
+[[registry_packages]]
+ecosystem = "crates.io"
+package = "pdfplumber-parse"
+release_version = "0.3.0"
+published_at_utc = "2026-08-22T15:26:50.049332Z"
+downloads_all_time = 23385
+downloads_recent = 21752
+downloads_release = 33
+source_kind = "registry-api"
+source_url = "https://crates.io/api/v1/crates/pdfplumber-parse"
+limitations = [
+  "This internal package is normally downloaded transitively with the public Rust crate.",
+  "Counters include automated downloads, caches, and prior releases.",
+]
+
+[[registry_packages]]
+ecosystem = "crates.io"
+package = "pdfplumber-cli"
+release_version = "0.3.0"
+published_at_utc = "2026-08-22T15:28:19.152792Z"
+downloads_all_time = 52
+downloads_recent = 31
+downloads_release = 19
+source_kind = "registry-api"
+source_url = "https://crates.io/api/v1/crates/pdfplumber-cli"
+limitations = [
+  "Downloads do not prove that the command was installed or successfully activated.",
+  "Counters include automated downloads and caches.",
+]
+
+[[registry_packages]]
+ecosystem = "PyPI"
+package = "pdfplumber-rs"
+release_version = "0.3.0"
+published_at_utc = "2026-08-22T15:30:17.880866Z"
+downloads_window = 584
+window_start = "2026-08-22"
+window_end = "2026-08-25"
+mirrors_included = false
+official_json_downloads = -1
+source_kind = "secondary-bigquery-proxy"
+source_url = "https://pypistats.org/api/packages/pdfplumber-rs/overall?mirrors=false"
+upstream_source_url = "https://docs.pypi.org/api/bigquery/"
+query_transform = "Sum without_mirrors rows whose date is from 2026-08-22 through 2026-08-25 inclusive."
+limitations = [
+  "The PyPI JSON API exposes only -1 placeholder download values.",
+  "The fixed-window value comes from a secondary API over PyPI's public BigQuery data and can include automation.",
+]
+
+[[registry_packages]]
+ecosystem = "npm"
+package = "pdfplumber-wasm"
+release_version = "0.2.0"
+downloads_window = 14
+window_start = "2026-08-19"
+window_end = "2026-08-25"
+source_kind = "registry-api"
+source_url = "https://api.npmjs.org/downloads/point/2026-08-19:2026-08-25/pdfplumber-wasm"
+limitations = [
+  "The published npm package is 0.2.0 while repository source is 0.3.0.",
+  "The count includes automated downloads and does not prove browser execution.",
+]
+
+[dependent_repositories]
+observed_count = 3
+crates_io_external_count = 0
+python_manifest_count = 0
+search_source_url = "https://api.github.com/search/code"
+search_queries = [
+  "pdfplumber filename:Cargo.toml",
+  "pdfplumber-rs filename:pyproject.toml OR filename:requirements.txt",
+  "pdfplumber-wasm filename:package.json",
+]
+crates_io_source_urls = [
+  "https://crates.io/api/v1/crates/pdfplumber/reverse_dependencies",
+  "https://crates.io/api/v1/crates/pdfplumber-core/reverse_dependencies",
+  "https://crates.io/api/v1/crates/pdfplumber-parse/reverse_dependencies",
+  "https://crates.io/api/v1/crates/pdfplumber-cli/reverse_dependencies",
+]
+limitations = [
+  "GitHub public-code search is index-dependent and is a lower bound, not a complete dependency graph.",
+  "Repository manifests prove a declared dependency, not active use or production adoption.",
+  "crates.io reverse dependencies contained only packages from this repository, so the external published-crate count is zero.",
+]
+
+[[dependent_repositories.entries]]
+repository = "moyangzhan/mango-finder"
+surface = "rust"
+requirement = 'pdfplumber = "0.2.0"'
+manifest_url = "https://github.com/moyangzhan/mango-finder/blob/a516ebac5809f5bdd8e57953ab2ba497c8156dc5/src-tauri/Cargo.toml"
+
+[[dependent_repositories.entries]]
+repository = "RyderFreeman4Logos/verbatim"
+surface = "rust"
+requirement = 'pdfplumber = { version = "0.2", optional = true }'
+manifest_url = "https://github.com/RyderFreeman4Logos/verbatim/blob/a7225cd882c90a6824033d0d0a851ddaa20b2561/crates/verbatim-core/Cargo.toml"
+
+[[dependent_repositories.entries]]
+repository = "zcaceres/markitdown-ts"
+surface = "wasm"
+requirement = '"pdfplumber-wasm": "^0.2.0"'
+manifest_url = "https://github.com/zcaceres/markitdown-ts/blob/aef38727df0c552ddc225e107086d3e4ef47fbd9/package.json"
+
+[documentation_visits]
+window_start = "2026-08-12"
+window_end = "2026-08-25"
+views = 71
+unique_visitors = 20
+overview_views = 29
+overview_uniques = 16
+readme_views = 1
+readme_uniques = 1
+docs_paths_in_top_ten = 0
+views_source_url = "https://api.github.com/repos/developer0hye/pdfplumber-rs/traffic/views"
+paths_source_url = "https://api.github.com/repos/developer0hye/pdfplumber-rs/traffic/popular/paths"
+limitations = [
+  "GitHub retains this traffic view for only 14 days and reports only the ten most popular paths.",
+  "The traffic endpoints require authenticated push access, so unauthenticated readers cannot requery them.",
+  "The Overview path renders the README, while direct README views may overlap with the same visitors.",
+  "No docs path appearing in the top ten does not establish zero documentation visits.",
+]
+
+[activation_failures]
+measurement_status = "not-instrumented"
+public_issue_proxy_count = 0
+candidate_issue_numbers = [74, 155]
+source_url = "https://api.github.com/search/issues"
+query_terms = ["install", "installation", "activate", "activation", "import", "wheel", "sdist", "npm", "crates.io", "pypi"]
+query_expression = '(?i)install|installation|activate|activation|import|wheel|sdist|npm|crates\.io|pypi'
+query_scope = "All 54 GitHub issues through observed_at_utc, with pull requests excluded."
+limitations = [
+  "The project collects no activation telemetry.",
+  "Keyword review found issue 74 about Unicode normalization and issue 155 about Markdown removal; neither reports activation failure.",
+  "Zero classified public issues does not establish zero activation failures.",
+]
+
+[issues]
+total = 54
+open = 0
+closed = 54
+external_reporter_count = 2
+source_url = "https://api.github.com/search/issues?q=repo%3Adeveloper0hye%2Fpdfplumber-rs+is%3Aissue"
+limitations = [
+  "Pull requests are excluded.",
+  "Issue counts measure tracker activity, not successful activation or adoption.",
+]
+
+[external_adopters]
+confirmed_count = 0
+external_evaluator_count = 1
+evaluator_issue_number = 286
+evaluator_issue_url = "https://github.com/developer0hye/pdfplumber-rs/issues/286"
+limitations = [
+  "Issue 286 reports evaluation against a real PDF but has no follow-up confirming current success or production use.",
+  "Public dependent repositories and evaluators are not counted as confirmed adopters without permissioned production-use evidence.",
+]
+
+[targets]
+quarterly_growth_targets_defined = false
+reason = "This snapshot establishes measurement semantics before any growth target is selected."
