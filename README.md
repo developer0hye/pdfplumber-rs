@@ -23,7 +23,7 @@ Compatibility work is checked against the pinned upstream release on an indexed 
 
 `pdfplumber-rs` does not perform Optical Character Recognition (OCR). For scanned or image-only PDFs, run an OCR tool first and process the resulting searchable PDF.
 
-For tradeoffs against other Rust and Python choices, see the [evidence-separated comparison guide](docs/comparison.md).
+For tradeoffs against other Rust and Python choices, see the [evidence-separated comparison guide](docs/comparison.md). Current maturity, verified platforms, versions, and limitations are in the [generated support matrix](docs/support.md).
 
 ## Features
 

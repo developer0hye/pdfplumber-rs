@@ -110,6 +110,9 @@ jobs:
       - name: Validate the PRD checklist and evidence contract
         run: python scripts/check_prd.py
 
+      - name: Validate the generated support matrix
+        run: python scripts/generate_support_matrix.py --check
+
       - name: Validate PDF fixture provenance and licenses
         run: python scripts/check_fixture_licenses.py
 
