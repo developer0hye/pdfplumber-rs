@@ -16,6 +16,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RUST_FIXTURE = ROOT / "tests/fixtures/generated/basic_text.pdf"
 CLI_FIXTURE = ROOT / "tests/fixtures/generated/long_document.pdf"
+PRIMARY_RUST_QUICK_START_MAX_LINES = 15
+PRIMARY_RUST_OUTPUT_MARKER = "The quick brown fox jumps over the lazy dog."
 FENCE = re.compile(r"^```([^\n]*)\n(.*?)^```\s*$", re.MULTILINE | re.DOTALL)
 
 
@@ -105,10 +107,66 @@ def surface_snippets(name: str) -> tuple[str, list[str]]:
     return installation[0][1], [body for _, body in quick_starts]
 
 
+def validate_primary_rust_quick_start(snippet: str) -> None:
+    failures: list[str] = []
+    line_count = len(snippet.splitlines())
+    if line_count > PRIMARY_RUST_QUICK_START_MAX_LINES:
+        failures.append(
+            f"has {line_count} lines; maximum is {PRIMARY_RUST_QUICK_START_MAX_LINES}"
+        )
+    required = (
+        'Pdf::open_file("document.pdf", None)?',
+        "let page = page?;",
+        "extract_text(&TextOptions::default())",
+        "Ok(())",
+    )
+    for fragment in required:
+        if fragment not in snippet:
+            failures.append(f"missing {fragment!r}")
+    if not re.search(
+        r"fn main\(\) -> Result<\(\), Box<dyn std::error::Error>>", snippet
+    ):
+        failures.append("main does not return Result<(), Box<dyn std::error::Error>>")
+    if snippet.count("?") < 2:
+        failures.append("file and page errors are not both propagated with ?")
+    if re.search(r"\.(?:unwrap|expect)\(", snippet):
+        failures.append("contains unwrap() or expect()")
+    if not re.search(r"print(?:ln)?!", snippet):
+        failures.append("does not print extracted output")
+    if PRIMARY_RUST_OUTPUT_MARKER in snippet:
+        failures.append("hard-codes the fixture output marker")
+    if failures:
+        raise QuickStartError(
+            "README.md: primary Rust quick start contract failed: "
+            + "; ".join(failures)
+        )
+
+
+def require_useful_rust_output(output: str) -> None:
+    if PRIMARY_RUST_OUTPUT_MARKER not in output:
+        raise QuickStartError(
+            "primary Rust quick start did not print extracted fixture text: "
+            f"missing {PRIMARY_RUST_OUTPUT_MARKER!r}"
+        )
+
+
+def require_reported_rust_error(
+    completed: subprocess.CompletedProcess[str],
+) -> None:
+    if completed.returncode == 0:
+        raise QuickStartError("primary Rust quick start accepted a missing input file")
+    if not completed.stderr.strip():
+        raise QuickStartError("primary Rust quick start reported no error message")
+    if "panicked at" in completed.stderr:
+        raise QuickStartError("primary Rust quick start panicked on a missing input file")
+
+
 def check_static_contract() -> None:
     counts = []
     for name in SURFACES:
         _, quick_starts = surface_snippets(name)
+        if name == "rust":
+            validate_primary_rust_quick_start(quick_starts[0])
         counts.append(f"{name}={len(quick_starts)}")
 
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
@@ -123,7 +181,7 @@ def run(
     *,
     cwd: Path,
     env: dict[str, str] | None = None,
-) -> None:
+) -> subprocess.CompletedProcess[str]:
     completed = subprocess.run(
         command,
         cwd=cwd,
@@ -138,6 +196,7 @@ def run(
             f"command failed ({completed.returncode}) in {cwd}: {rendered}\n"
             f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
         )
+    return completed
 
 
 def rust_program(snippet: str) -> str:
@@ -184,8 +243,22 @@ def run_rust_quick_starts() -> None:
 
         env = os.environ.copy()
         env["CARGO_TARGET_DIR"] = str(ROOT / "target/doc-quickstarts/rust")
-        for name in names:
-            run(["cargo", "run", "--quiet", "--bin", name], cwd=consumer, env=env)
+        for index, name in enumerate(names, start=1):
+            completed = run(
+                ["cargo", "run", "--quiet", "--bin", name], cwd=consumer, env=env
+            )
+            if index == 1:
+                require_useful_rust_output(completed.stdout)
+        (consumer / "document.pdf").unlink()
+        failed = subprocess.run(
+            ["cargo", "run", "--quiet", "--bin", names[0]],
+            cwd=consumer,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        require_reported_rust_error(failed)
     print(f"rendered Rust quick starts passed: {len(snippets)}")
 
 

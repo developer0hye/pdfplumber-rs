@@ -56,3 +56,4 @@ Projects organized by domain. Read the specific file matching your current probl
 | Project | Language | File | Use When |
 |---------|----------|------|----------|
 | [Polars](https://github.com/pola-rs/polars) | Rust/Python | [polars.md](polars.md) | Keeping product or performance claims adjacent to their evidence |
+| [reqwest](https://github.com/seanmonstar/reqwest) | Rust | [reqwest.md](reqwest.md) | Writing a concise, complete, fallible Rust quick start |
