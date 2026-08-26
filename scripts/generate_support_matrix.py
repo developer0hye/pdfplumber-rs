@@ -209,7 +209,7 @@ def render(source: dict[str, Any]) -> str:
         "",
         f"This snapshot describes repository release `{source['release_version']}` and registry state observed on {source['observed_at']}. It distinguishes required CI evidence from targets that release automation is merely configured to build.",
         "",
-        f"All current surfaces use `{source['license']}` and the canonical repository [{source['repository']}]({source['repository']}). The [versioned release metadata]({release_notes_href}) is checked from the same source.",
+        f"All current surfaces use `{source['license']}` and the canonical repository [{source['repository']}]({source['repository']}). The [versioned release notes]({release_notes_href}) are checked from the same source.",
         "",
         "Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.",
         "",

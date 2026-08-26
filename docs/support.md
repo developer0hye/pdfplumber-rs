@@ -4,7 +4,7 @@
 
 This snapshot describes repository release `0.3.0` and registry state observed on 2026-08-26. It distinguishes required CI evidence from targets that release automation is merely configured to build.
 
-All current surfaces use `Apache-2.0` and the canonical repository [https://github.com/developer0hye/pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs). The [versioned release metadata](releases/v0.3.0.md) is checked from the same source.
+All current surfaces use `Apache-2.0` and the canonical repository [https://github.com/developer0hye/pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs). The [versioned release notes](releases/v0.3.0.md) are checked from the same source.
 
 Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.
 

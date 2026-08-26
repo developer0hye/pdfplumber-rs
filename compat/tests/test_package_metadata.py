@@ -152,7 +152,7 @@ class PackageMetadataContractTests(unittest.TestCase):
             return
         notes = RELEASE_NOTES_PATH.read_text(encoding="utf-8")
         for phrase in (
-            "# v0.3.0 release metadata",
+            "# v0.3.0 release notes",
             "Apache-2.0",
             "https://github.com/developer0hye/pdfplumber-rs",
             "`pdfplumber` | `pdfplumber` | Alpha",
