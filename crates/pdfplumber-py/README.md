@@ -151,4 +151,4 @@ Actual speedups depend on document complexity and system configuration.
 
 ## License
 
-Dual-licensed under MIT or Apache 2.0 at your option.
+Licensed under the [Apache License, Version 2.0](../../LICENSE).

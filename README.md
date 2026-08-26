@@ -202,4 +202,5 @@ Rust 1.85 or later.
 Licensed under the [Apache License, Version 2.0](LICENSE).
 
 Releases up to and including `0.2.0` were published as `MIT OR Apache-2.0`; that
-grant still stands for those versions.
+grant still stands for those versions. See the repository-wide
+[license policy](docs/license.md) for source and package-artifact requirements.

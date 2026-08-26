@@ -165,4 +165,4 @@ pdfplumber-wasm is compiled from Rust to WebAssembly, offering near-native perfo
 
 ## License
 
-MIT OR Apache-2.0
+Licensed under the [Apache License, Version 2.0](../../LICENSE).

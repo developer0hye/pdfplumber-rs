@@ -19,6 +19,9 @@ wasm-bindgen = "0.2"
 serde-wasm-bindgen = "0.6"
 pdfplumber = { path = "../pdfplumber", default-features = false, features = ["serde"] }
 
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.3.4", features = ["wasm_js"] }
+
 [dev-dependencies]
 lopdf = "0.34"
 wasm-bindgen-test = "0.3"

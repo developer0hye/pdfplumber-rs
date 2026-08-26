@@ -54,7 +54,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- None in required CI; the WebAssembly crate is excluded from current workspace gates
+- Ubuntu Linux x86_64 bundler package build with wasm-pack and license metadata/file inspection
 
 **Release-configured targets**
 
@@ -139,7 +139,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Known limitations**
 
-- The surface is experimental and has no required browser or Node.js end-to-end CI lane.
+- The surface is experimental; required CI packages the module but does not run browser or Node.js end-to-end behavior.
 - The observed npm release is 0.2.0 while the repository source is 0.3.0.
 - Bundle size, startup time, memory, browser compatibility, and published-package installation are not gated.
 
