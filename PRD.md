@@ -1,18 +1,171 @@
 ---
-document: "Python pdfplumber Compatibility and Replacement Roadmap"
+document: "Adoption-First Product and Python pdfplumber Compatibility Roadmap"
 repository: "developer0hye/pdfplumber-rs"
 status: "ACTIVE"
+product_strategy: "ADOPTION_FIRST"
+rust_current_main: "297052e2d2e29f83653de83e40e494e90ebc3711"
+last_product_review: "2026-08-26"
 last_full_audit: "2026-08-16"
 rust_audit_baseline: "da0663ce27f35bfc641055c0cebf8fae97932ac4"
 python_compatibility_target: "jsvine/pdfplumber v0.11.10"
 python_target_commit: "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
 ---
 
-# Product Requirements Document (PRD) — Make `pdfplumber-rs` a Drop-in Replacement for Python `pdfplumber`
+# Product Requirements Document (PRD) — Make `pdfplumber-rs` the Most Trusted PDF Extraction Library for Rust and Python
 
 > **Living document. Keep this file at the repository root as `PRD.md`.**
 >
 > This is the source of truth for Claude, Codex, and human contributors working on Python `pdfplumber` compatibility. Update this file in the same pull request as the code and tests that change a task's status.
+
+<!-- ADOPTION-STRATEGY:START -->
+## 0. Product Direction — Win Developer Adoption
+
+This document has two equally important responsibilities:
+
+1. Preserve the exact, evidence-driven Python `pdfplumber` compatibility program already defined below.
+2. Turn that engineering advantage into a product that Rust, Python, Command-Line Interface, and WebAssembly developers can discover, evaluate, install, trust, and keep using.
+
+The project must not win by publishing the largest feature list or the most aggressive speed claim. It must win by making a narrower promise and proving it continuously:
+
+> **`pdfplumber-rs` is the compatibility-verified PDF extraction engine for developers who need deterministic text, word, geometry, and table output from one Rust core across Rust and Python, with Command-Line Interface and WebAssembly surfaces where they are explicitly supported.**
+
+### 0.1 Strategic wedge
+
+The primary wedge is **verified compatibility with Python `pdfplumber` plus an idiomatic Rust core**.
+
+That wedge is stronger than a generic “fast PDF parser” position because it gives developers:
+
+- A migration path from an established Python workflow.
+- A behavioral oracle and differential test target.
+- Deterministic, coordinate-aware extraction rather than text-only output.
+- A single implementation that can serve native Rust and Python workloads.
+- Evidence that speed improvements do not silently change output.
+
+Rust-native extensions, WebAssembly support, image export, validation, forms, bookmarks, signatures, and richer layout analysis remain valuable. They are expansion surfaces, not the first adoption message.
+
+### 0.2 Competitive snapshot as of 2026-08-26
+
+| Project | Public strength | Public adoption message | Opportunity for `pdfplumber-rs` |
+|---|---|---|---|
+| `pdf_oxide` | Broad native, WebAssembly, Command-Line Interface, extraction, visualization, and benchmark story | Wide feature coverage and strong performance claims | Its public repository is archived. Compete on maintained releases, reproducible correctness, and a clearer support contract rather than copying breadth. |
+| `pdfsink-rs` | Small, understandable, pure-Rust extraction surface with no required system dependency | Simple installation and fast path to text, words, images, bookmarks, annotations, and metadata | Match or exceed its first-five-minute Rust experience while differentiating through tables, coordinate fidelity, Python migration, and public compatibility evidence. |
+| `pdfplumber-rs` | Deep compatibility corpus, strict output contracts, six distribution surfaces/crates, active implementation work | Currently dominated by internal parity work and partially verified performance claims | Convert the compatibility machinery into a public scorecard, simplify the Rust entry path, remove trust inconsistencies, and publish installable, smoke-tested artifacts. |
+
+Competitor information is an observation used for product planning, not a permanent claim. Re-audit before each major milestone.
+
+### 0.3 Product pillars
+
+#### Pillar A — Trust before breadth
+
+- Every support claim maps to an automated test.
+- Every performance claim maps to a reproducible benchmark artifact.
+- Every declared platform maps to an installed-artifact smoke test.
+- License, version, package name, executable name, and maturity wording are consistent across all registries and documentation.
+- An unsupported surface is labeled experimental or omitted rather than implied.
+
+#### Pillar B — Five-minute activation
+
+A new developer must be able to choose one of the primary paths and obtain a useful result from a clean environment within five minutes:
+
+- Rust crate: open a PDF and extract page text, words with bounding boxes, or a table.
+- Python distribution: run a documented compatibility example and understand package-name/import-name behavior.
+- Command-Line Interface: install or download one executable and emit text or structured output.
+- WebAssembly: run one maintained browser example when that surface reaches beta.
+
+The measured **Time to First Value (TTFV)** includes installation, code copy, execution, and interpretation of the first result.
+
+#### Pillar C — One core, explicit surfaces
+
+- Parsing and extraction rules live in the Rust core.
+- Language-specific adapters provide idiomatic behavior without changing core semantics.
+- Python compatibility behavior is isolated from Rust-native extensions.
+- Command-Line Interface and WebAssembly maturity can lag the Rust core without blocking honest releases.
+- Surface-specific limitations are generated from tests rather than hand-maintained marketing text.
+
+#### Pillar D — Compatibility is a public product
+
+The existing compatibility harness must become visible to users through a versioned scorecard that reports:
+
+- Supported upstream Python `pdfplumber` version.
+- API and behavior coverage by use-case tier.
+- Exact matches, approved deltas, unsupported cases, and processing failures.
+- Fixture classes and option matrices included in the result.
+- Wheel, source distribution, and platform artifact status.
+- The exact commit, toolchain, corpus fingerprint, and command used.
+
+A single percentage is insufficient. The scorecard must let a developer determine whether their workflow is covered.
+
+#### Pillar E — Stable evolution
+
+- Semantic Versioning governs every public Rust crate and executable.
+- Breaking changes require migration notes and a documented deprecation window whenever technically possible.
+- The Minimum Supported Rust Version is tested.
+- Feature flags are additive, documented, and tested in representative combinations.
+- Experimental surfaces cannot silently become part of the stable compatibility contract.
+
+### 0.4 Target users and priority
+
+| Priority | User | Primary job | Adoption blocker to remove |
+|---|---|---|---|
+| 1 | Rust backend or data-pipeline developer | Extract text, words, coordinates, tables, and metadata without a Python runtime | Complex product story, incomplete high-level API guidance, and weak public stability contract |
+| 1 | Python team using `pdfplumber` | Reduce runtime or deployment cost without rewriting ordinary extraction code | Unclear compatibility boundary, package conflict policy, and incomplete public scorecard |
+| 2 | Batch and automation developer | Run deterministic extraction through a binary and consume structured output | No first-class prebuilt-binary experience or stable machine-output contract |
+| 2 | Document intelligence or Machine Learning engineer | Produce reproducible geometry-rich data for downstream systems | Unclear schema versioning, examples, and corpus-backed quality evidence |
+| 3 | Browser or edge developer | Extract supported data in WebAssembly | Experimental surface, bundle/startup uncertainty, and missing end-to-end sample |
+| 3 | Open-source contributor | Understand architecture and land a verified change quickly | Very large internal roadmap, fragmented setup instructions, and no contributor activation target |
+
+### 0.5 Adoption funnel
+
+The project measures and improves the complete developer journey:
+
+| Stage | Developer question | Required project response |
+|---|---|---|
+| Discover | “Is this relevant to my PDF workload?” | Outcome-led README, use-case matrix, honest comparison, search-friendly examples |
+| Evaluate | “Will it produce the output I need?” | Compatibility scorecard, schemas, benchmark methodology, known limitations |
+| Activate | “Can I make it work now?” | Tested quick starts, clean installation, sample files, actionable errors |
+| Expand | “Can I use it safely in production?” | Stable API policy, resource limits, platform matrix, security policy, release notes |
+| Advocate | “Can my team rely on and contribute to it?” | Maintainer responsiveness, roadmap, contribution path, case studies, predictable releases |
+
+### 0.6 Surface maturity contract
+
+Every public release must classify each surface independently as `experimental`, `alpha`, `beta`, or `stable`.
+
+| Maturity | Allowed claim | Required evidence |
+|---|---|---|
+| Experimental | API and behavior may change without migration guarantees | Build succeeds; minimal smoke test; limitations prominently documented |
+| Alpha | Useful for evaluation; incomplete and potentially breaking | Installed-artifact tests; known-gap list; no false completeness claim |
+| Beta | Suitable for production pilots with stated boundaries | Supported-platform matrix; compatibility or schema scorecard; SemVer review; security policy |
+| Stable | Supported production contract | Public API compatibility gate; deprecation policy; release artifact attestation; external validation |
+
+The README, package metadata, documentation site, and release notes must display the same maturity for a given version.
+
+### 0.7 Product success metrics
+
+The following are release gates, not vanity metrics:
+
+- **Activation:** every primary quick start succeeds from a clean supported environment and has a measured TTFV of no more than five minutes.
+- **Documentation:** every published code example is compiled or executed in Continuous Integration.
+- **Trust:** zero performance, compatibility, safety, or platform claims exist without a linked artifact or test.
+- **Distribution:** 100% of declared release artifacts are installed and smoke-tested before publication; post-publication installation is also checked.
+- **Rust API quality:** every stable public Rust item has useful documentation and examples; public API changes pass a Semantic Versioning check.
+- **Compatibility:** every release publishes a machine-readable and human-readable compatibility scorecard.
+- **Reliability:** no first-party panic occurs on the indexed corpus; resource-limit and malformed-input behavior are deterministic.
+- **Community:** contributor setup is documented to complete in 15 minutes or less; a scoped “good first issue” should be verifiable and mergeable without understanding the entire parser.
+- **External validation:** General Availability requires independent use by at least three external repositories or teams across at least two distinct workload classes, with permission to cite or anonymize the result.
+
+Downloads, stars, dependents, and external citations are tracked as lagging indicators. They do not replace the gates above.
+
+### 0.8 Delivery order
+
+| Horizon | Product focus | What must become true |
+|---|---|---|
+| Now — `0.3.x` trust reset | Correct positioning, consistency, installation, visible evidence | Remove unsupported claims; align license/version/classifiers; publish support matrix; test every quick start; expose compatibility status |
+| Next — Rust developer beta | Best first-five-minute Rust experience in the comparison set | Coherent high-level API, typed errors, complete Rust documentation, stable schema, SemVer and Minimum Supported Rust Version gates |
+| Next — Python migration beta | Credible replacement for defined `pdfplumber` workflows | Compatibility tiers, installed wheel matrix, migration guide, exact public scorecard, no hidden runtime dependency |
+| Then — distribution and ecosystem | Easy adoption in automation, services, data workflows, and browser pilots | Prebuilt binaries, structured output contract, maintained recipes, WebAssembly example, post-publish smoke tests |
+| General Availability — `1.0` | Stable, externally validated product | Every promised surface meets its maturity contract; security and fuzz gates are green; reproducible performance and external validation are published |
+
+<!-- ADOPTION-STRATEGY:END -->
 
 ## Terminology
 
@@ -62,6 +215,14 @@ python_target_commit: "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
 | National Instant Criminal Background Check System | NICS |
 | Open Source Software | OSS |
 | Identifier | ID |
+| Developer Experience | DX |
+| Key Performance Indicator | KPI |
+| Service-Level Objective | SLO |
+| Minimum Supported Rust Version | MSRV |
+| General Availability | GA |
+| Time to First Value | TTFV |
+| Request for Comments | RFC |
+| JavaScript Object Notation Lines | JSONL |
 
 ## 1. Goal
 
@@ -107,6 +268,84 @@ The following are not required for parity because Python `pdfplumber` does not p
 - Semantic document understanding beyond the PDF structure tree.
 
 Rust-only features such as image export, signatures, bookmarks, Hypertext Markup Language (HTML) export, Scalable Vector Graphics (SVG) export, WebAssembly (WASM), parallel page processing, and table quality scores are welcome, but they must not alter compatibility-mode behavior.
+
+<!-- ADOPTION-GOALS:START -->
+### 1.3 Adoption goal
+
+By `1.0`, a developer evaluating text, word, geometry, or table extraction should be able to choose `pdfplumber-rs` for one of two clear reasons:
+
+1. It is the most trustworthy way to obtain Python `pdfplumber`-compatible behavior from a Rust implementation for the explicitly supported compatibility tier.
+2. It provides an idiomatic, stable Rust extraction API whose correctness and performance are demonstrated on the same public corpus.
+
+The product is successful only when external developers can obtain these benefits without reading the internal compatibility backlog.
+
+### 1.4 Primary use-case tiers
+
+#### Tier A — Stable Rust extraction
+
+Required workflows:
+
+- Open from path, bytes, and supported readers.
+- Iterate selected pages.
+- Extract plain text.
+- Extract characters and words with stable coordinate schemas.
+- Extract lines, rectangles, curves, images, and metadata where supported.
+- Detect and extract tables with documented settings.
+- Serialize stable, versioned output.
+- Process documents without uncontrolled panic or resource use.
+
+#### Tier B — Python migration
+
+Required workflows:
+
+- Install the `pdfplumber-rs` distribution in a clean environment.
+- Import the documented compatibility package.
+- Run the supported upstream README-style examples unchanged.
+- Understand conflicts with the Python `pdfplumber` distribution before installation.
+- Determine compatibility from a versioned use-case matrix rather than a blanket claim.
+- Reach Rust-native extensions only through an explicit namespace.
+
+#### Tier C — Automation and Command-Line Interface
+
+Required workflows:
+
+- Install from a package registry or download a prebuilt binary.
+- Extract text or versioned structured output.
+- Select pages and object types.
+- Receive stable exit codes and actionable diagnostics.
+- Pipe output without progress noise on standard output.
+
+#### Tier D — WebAssembly
+
+This remains experimental until bundle size, startup time, memory, browser compatibility, and end-to-end examples meet the beta gate. WebAssembly must not delay stable Rust or Python releases.
+
+### 1.5 Adoption-specific non-goals
+
+The project will not:
+
+- Chase every feature exposed by a competing PDF library before the core adoption tiers are trustworthy.
+- Add PDF editing or generation to make the feature list appear broader.
+- Add Optical Character Recognition to the core parser.
+- Claim “fastest” based on a workload whose output is not first proven equivalent.
+- Add asynchronous APIs around Central Processing Unit-bound work merely for marketing; integrations should document appropriate blocking-task patterns.
+- Hide system dependencies, optional subprocesses, or package-name conflicts.
+- Collect usage telemetry from local document processing.
+- Treat internal task count, commit count, or benchmark micro-results as evidence of user adoption.
+
+### 1.6 Product requirement hierarchy
+
+When requirements conflict, use this order:
+
+1. Safety and controlled resource use.
+2. Correctness and declared compatibility.
+3. Stable, understandable public behavior.
+4. Installation and developer activation.
+5. Performance and memory efficiency.
+6. Additional feature breadth.
+
+A faster result that violates a higher requirement is a regression.
+
+<!-- ADOPTION-GOALS:END -->
 
 ---
 
@@ -404,6 +643,85 @@ Reasons:
 - The Rust core can retain idiomatic zero-based indexes and Rust-native extension types while the shim presents exact Python semantics.
 - A native module named only `pdfplumber` cannot cleanly provide the full package/submodule surface.
 - Compatibility adapters can preserve the existing Rust API rather than forcing a SemVer-breaking rewrite.
+
+<!-- ADOPTION-AUDIT:START -->
+### 7.2 Adoption audit at the current main branch
+
+The compatibility implementation is substantially more rigorous than the public product story. The following gaps prevent that work from converting into adoption:
+
+| Area | Current signal | Adoption risk | Required response |
+|---|---|---|---|
+| Positioning | “High performance” and “drop-in” themes appear before a public support boundary | Developers cannot tell what is production-ready | Lead with supported outcomes and surface maturity; link every claim to evidence |
+| Performance | Root and Python documentation use different broad speed ranges | Unverified or inconsistent numbers reduce trust | Remove ranges until one reproducible, output-equivalent benchmark suite publishes raw artifacts |
+| License | Workspace/package metadata and Python README do not use one consistent license statement | Legal review can block adoption | Choose and enforce one repository-wide policy in metadata, artifacts, and documentation |
+| Architecture documentation | The workspace contains six crates while the root architecture summary is incomplete | Evaluators misread scope and maintenance cost | Generate or test the architecture inventory from the workspace |
+| Python support metadata | Classifiers can imply runtimes not covered by installed-artifact tests | Installation failures appear as broken promises | Make classifiers a generated consequence of the release test matrix |
+| Continuous Integration | Core Rust lanes exclude Python and WebAssembly crates; strict all-feature commands remain unresolved | Published surfaces can drift independently | Give every published surface a required build and installed-artifact gate |
+| Release engineering | Registry publication relies on fixed waits and token-based publishing without complete provenance | Partial releases and supply-chain concerns | Add dependency polling, trusted publishing, attestations, checksums, and post-publish smoke tests |
+| Product roadmap | Hundreds of parity tasks dominate the root document | External contributors cannot identify the user-facing sequence | Preserve task identifiers and evidence while adding an adoption layer, surface milestones, and scoped contribution paths |
+
+### 7.3 Architecture policy for adoption
+
+The six-crate workspace is retained, but each crate must have one clear public role:
+
+| Crate or package | Public role | Maturity can advance independently |
+|---|---|---|
+| `pdfplumber-core` | Backend-independent data models and extraction algorithms | Yes |
+| `pdfplumber-parse` | PDF parsing, fonts, character maps, and content interpretation | Yes, primarily internal |
+| `pdfplumber` | Idiomatic public Rust facade | Yes; first stable target |
+| `pdfplumber-cli` | Native automation and debugging interface | Yes |
+| `pdfplumber-py` | Python compatibility package and explicit Rust extensions | Yes |
+| `pdfplumber-wasm` | Browser and JavaScript/TypeScript surface | Yes; experimental until beta gates pass |
+
+Rules:
+
+- The public Rust facade must not force ordinary users to understand parser-internal crates.
+- The default Rust feature set must support the primary workflows without optional integration dependencies.
+- Every cross-language object schema must have an explicit version or compatibility contract.
+- Native extension fields cannot leak into strict Python compatibility dictionaries.
+- A failure in an experimental surface may block publishing that surface without unnecessarily blocking a safe patch release of an independent stable surface, provided versions and shared dependencies remain valid.
+
+### 7.4 Public API lifecycle
+
+Before any Rust crate or surface is labeled stable:
+
+- Publish an API stability document.
+- Add `cargo-semver-checks` or an equivalent public API compatibility gate.
+- Define the Minimum Supported Rust Version and test it on every pull request.
+- Define deprecation behavior; retain deprecated public names for at least two minor releases when feasible.
+- Document feature-flag effects, defaults, and compatibility.
+- Reject public types whose ownership or lifetime design makes common extraction unnecessarily difficult.
+- Keep error variants typed and preserve source chains.
+- Add a migration note for every intentional breaking change.
+
+### 7.5 Benchmark and comparison contract
+
+A benchmark is publishable only when:
+
+1. The exact source revisions, compiler, target, operating system, hardware, options, and fixture hashes are recorded.
+2. Each compared implementation is asked for materially equivalent output.
+3. Output equivalence is checked before timing; incompatible cases are reported separately, not timed as wins.
+4. Warm and cold runs are distinguished.
+5. Parsing, extraction, table detection, serialization, and language-boundary conversion are measured separately where relevant.
+6. Wall time, Central Processing Unit time, peak resident memory, allocations where measurable, binary size, and WebAssembly bundle size are reported.
+7. Raw results and the command to reproduce them are retained as release artifacts.
+8. Results include Python `pdfplumber`, `pdf_oxide`, and `pdfsink-rs` for the overlapping supported workloads; other libraries may be added when the comparison remains fair.
+9. Documentation states that archived or version-pinned competitors are historical comparison points, not claims about active maintenance.
+10. No benchmark result can override a failed semantic gate.
+
+### 7.6 Detailed compatibility registry preservation
+
+The existing compatibility task identifiers, Active Work records, Evidence Ledger, and approved-delta process remain authoritative. They must not be deleted or renumbered merely to make this document shorter.
+
+Until `scripts/check_prd.py` supports a multi-file registry with integrity checks, the detailed compatibility checklist stays in this root document. A future split may move it to `docs/compatibility/` only when:
+
+- Stable identifiers and links remain unchanged.
+- The linter validates both files atomically.
+- Existing evidence rows continue to resolve.
+- Agents cannot accidentally read the strategic roadmap without the applicable compatibility contract.
+- Git history preserves the move.
+
+<!-- ADOPTION-AUDIT:END -->
 
 ---
 
@@ -1481,7 +1799,126 @@ Reasons:
 - [ ] **DOC-027** Clearly state that OCR is out of scope and recommend a composable OCR workflow.
 - [ ] **DOC-028** Document platform/Python support based on tested artifacts, not classifiers alone.
 
-### 8.22 P3 — Rust-Native Extensions
+<!-- ADOPTION-TASKS:START -->
+### 8.22 P0 — Adoption Trust and Positioning
+
+- [ ] **ADOPT-001** Rewrite the root README opening so the first screen states the primary Rust and Python outcomes, current maturity, and one evidence-backed differentiator without an unverified speed claim.
+- [ ] **ADOPT-002** Add a concise “Choose `pdfplumber-rs` when…” section covering Rust extraction, Python migration, tables/geometry, automation, and explicitly unsupported scanned-image-only workflows.
+- [ ] **ADOPT-003** Add an honest comparison page for `pdf_oxide`, `pdfsink-rs`, Python `pdfplumber`, and relevant alternatives; separate observed facts, reproducible measurements, and product interpretation.
+- [ ] **ADOPT-004** Publish a generated support matrix for Rust, Python, Command-Line Interface, and WebAssembly surfaces, with maturity, platforms, versions, features, and known limitations.
+- [ ] **ADOPT-005** Make README, crate metadata, Python metadata, Node Package Manager metadata, documentation, and release notes agree on license, version, repository, package names, executable names, and maturity.
+- [ ] **ADOPT-006** Resolve the current repository-wide license-policy inconsistency and add an artifact test that verifies the chosen license files and metadata in every package.
+- [ ] **ADOPT-007** Remove or qualify all broad performance ranges until `SCORE-001` through `SCORE-009` provide reproducible evidence.
+- [ ] **ADOPT-008** Test every installation and quick-start snippet from the rendered documentation in clean environments; documentation drift must fail Continuous Integration.
+- [ ] **ADOPT-009** Document the Python distribution-name/import-name relationship and the exact conflict policy when Python `pdfplumber` is already installed.
+- [ ] **ADOPT-010** Add a versioned “What is ready today?” page generated from tests and milestone state rather than manually maintained prose.
+- [ ] **ADOPT-011** Add a user-facing `ROADMAP.md` with `Now`, `Next`, and `Later`; link detailed task identifiers without reproducing the entire internal backlog.
+- [ ] **ADOPT-012** Add a `CHANGELOG.md` following Keep a Changelog principles, with user-visible compatibility, API, performance, platform, and migration changes.
+- [ ] **ADOPT-013** Add release-note sections for “Who should upgrade?”, “Behavior changes”, “Known limitations”, “Artifact matrix”, and “Evidence”.
+- [ ] **ADOPT-014** Ensure search-engine and registry descriptions use the same concise positioning and avoid claiming complete drop-in compatibility before its gate passes.
+- [ ] **ADOPT-015** Add a maintained Frequently Asked Questions page covering scanned PDFs, Optical Character Recognition, tables, passwords, malformed files, coordinates, Python replacement, and WebAssembly.
+- [ ] **ADOPT-016** Add a privacy statement confirming local processing, no document upload, and no usage telemetry; document any optional external executable invocation.
+- [ ] **ADOPT-017** Record a baseline for registry downloads, dependent repositories, documentation visits, activation failures, issues, and external adopters before setting quarterly growth targets.
+- [ ] **ADOPT-018** Require every major product claim in README and release notes to include a stable link to a test, scorecard, benchmark artifact, or support-matrix entry.
+
+### 8.23 P0 — Rust Developer Experience and API Stability
+
+- [ ] **DX-001** Provide a copy-paste Rust quick start of no more than fifteen lines that opens a file, extracts useful output, handles errors, and is compiled in Continuous Integration.
+- [ ] **DX-002** Define one obvious high-level entry path through the `pdfplumber` crate so ordinary users do not need parser-internal crates or types.
+- [ ] **DX-003** Make path, byte-buffer, and supported reader inputs discoverable through one coherent API family with consistent errors and ownership documentation.
+- [ ] **DX-004** Provide ergonomic page selection and iteration without requiring eager extraction of every page or unnecessary full-document cloning.
+- [ ] **DX-005** Define stable public data models for characters, words, geometry, tables, metadata, warnings, and extraction options; document units, coordinate origins, ordering, and optional fields.
+- [ ] **DX-006** Version any serialized Rust-native schema or provide a compatibility policy that prevents silent field renames and type changes.
+- [ ] **DX-007** Expose typed errors with preserved sources, page/object context where available, actionable messages, and no sensitive document content by default.
+- [ ] **DX-008** Document thread-safety and concurrency guarantees for documents, pages, shared caches, parallel processing, and Python bindings.
+- [ ] **DX-009** Ensure all stable public Rust items have useful rustdoc; fail Continuous Integration on missing documentation for the stable facade.
+- [ ] **DX-010** Add compiled examples for text, words with bounding boxes, tables, geometry, metadata, encrypted input, malformed-input handling, serialization, and parallel batch processing.
+- [ ] **DX-011** Add compile-fail documentation tests for common misuse where the compiler error alone would otherwise be confusing.
+- [ ] **DX-012** Add `cargo-semver-checks` or equivalent to release pull requests and require migration notes for approved breaking changes.
+- [ ] **DX-013** Define and test the Minimum Supported Rust Version; prevent dependencies from raising it without a reviewed task and changelog entry.
+- [ ] **DX-014** Audit feature flags so defaults serve primary workflows, flags are additive, combinations are tested, and enabling one integration does not silently change extraction semantics.
+- [ ] **DX-015** Add a deprecation policy with a minimum two-minor-release window where feasible and explicit exceptions for safety or unsoundness.
+- [ ] **DX-016** Publish an architecture guide explaining facade, parser, core algorithms, bindings, caches, extension boundaries, and how one extraction request flows through the workspace.
+- [ ] **DX-017** Add API-design review criteria for ownership, allocations, iterator behavior, determinism, error composition, extension traits, and future compatibility.
+- [ ] **DX-018** Measure Rust TTFV from a clean project and remove every setup step or conceptual dependency not required for the first useful extraction.
+
+### 8.24 P1 — Distribution and Installation
+
+- [ ] **DIST-001** Build and smoke-test every crates.io package with `cargo package` and `cargo publish --dry-run` from the exact release commit.
+- [ ] **DIST-002** Replace fixed registry sleep intervals with bounded polling and retry logic that verifies the expected version is resolvable before publishing dependents.
+- [ ] **DIST-003** Produce prebuilt Command-Line Interface binaries for Linux x86-64/AArch64, macOS x86-64/Apple Silicon, and Windows x86-64, subject to platform support gates.
+- [ ] **DIST-004** Smoke-test each prebuilt binary on its target operating system using a real fixture and exact output assertion.
+- [ ] **DIST-005** Publish SHA-256 checksums, a Software Bill of Materials, build provenance, and artifact attestations for release archives, wheels, source distributions, and binaries.
+- [ ] **DIST-006** Use trusted publishing or short-lived identity-based credentials for crates.io, the Python Package Index, the Node Package Manager registry, and GitHub where supported.
+- [ ] **DIST-007** Run post-publish installation tests from the public registries and fail or immediately mark the release incomplete if any artifact cannot be installed.
+- [ ] **DIST-008** Make Python classifiers and `requires-python` values derive from the exact wheel/source-distribution test matrix; remove PyPy or version claims that are not tested.
+- [ ] **DIST-009** Add and test Python 3.14 support or explicitly state its exclusion before publishing metadata that users could interpret as support.
+- [ ] **DIST-010** Verify Linux wheel compatibility tags and system-library independence with `auditwheel` or an equivalent inspection.
+- [ ] **DIST-011** Verify macOS deployment targets and architectures with installed-wheel tests on Intel and Apple Silicon.
+- [ ] **DIST-012** Verify Windows wheel runtime dependencies and long/non-ASCII path behavior from an installed artifact.
+- [ ] **DIST-013** Build, type-check, install, and execute the WebAssembly/TypeScript package in Node and a maintained browser runner before publication.
+- [ ] **DIST-014** Synchronize workspace crate versions, Python version, Node Package Manager version, native `__version__`, documentation selector, and Git tag through one release source of truth.
+- [ ] **DIST-015** Provide a reproducible development container or equivalent clean setup that can run the Rust quick start and focused contributor tests.
+- [ ] **DIST-016** Add a release rollback and partial-publication runbook covering registry lag, one-package failure, compromised credentials, and incorrect compatibility claims.
+
+### 8.25 P1 — Public Benchmarks and Compatibility Scorecards
+
+- [ ] **SCORE-001** Define a redistributable benchmark corpus covering text-only, word geometry, table-heavy, graphics-heavy, CJK, right-to-left, image-heavy, encrypted, malformed, small, and large documents.
+- [ ] **SCORE-002** Implement an output-equivalence preflight that rejects timing comparisons when requested outputs or semantics are materially different.
+- [ ] **SCORE-003** Benchmark overlapping workloads against pinned Python `pdfplumber`, `pdf_oxide`, and `pdfsink-rs` revisions using identical fixtures and materially equivalent options.
+- [ ] **SCORE-004** Separate document open, page materialization, character extraction, word grouping, table detection, serialization, and language-boundary conversion timings.
+- [ ] **SCORE-005** Report wall time, Central Processing Unit time, peak resident memory, allocations where measurable, binary size, and WebAssembly bundle/startup cost.
+- [ ] **SCORE-006** Distinguish cold, warm, cache-hit, single-page, full-document, and parallel batch workloads.
+- [ ] **SCORE-007** Record hardware, operating system, compiler/interpreter versions, build flags, dependency locks, fixture hashes, commands, repetitions, and statistical summaries.
+- [ ] **SCORE-008** Publish raw machine-readable benchmark results and a concise human report as release artifacts; documentation must link to the exact versioned artifact.
+- [ ] **SCORE-009** Remove any result that cannot be reproduced from the committed harness or whose output-equivalence gate fails.
+- [ ] **SCORE-010** Publish a machine-readable compatibility scorecard by API, option, fixture class, page, platform, and artifact type.
+- [ ] **SCORE-011** Publish a human scorecard organized by common workflows: open, text, words, crop, search, tables, serialization, annotations, structure, rendering, and Command-Line Interface.
+- [ ] **SCORE-012** Distinguish `exact`, `approved delta`, `unsupported`, `reference failure`, `candidate failure`, and `not tested`; never collapse them into one success percentage.
+- [ ] **SCORE-013** Add benchmark-regression alerts with a documented noise policy; a performance regression cannot be fixed by weakening semantic checks.
+- [ ] **SCORE-014** Re-run competitor and compatibility scorecards for release candidates and retain historical results so users can evaluate trends rather than one favorable snapshot.
+
+### 8.26 P1 — Ecosystem Integration and Example Quality
+
+- [ ] **ECOSYS-001** Create an examples index organized by user outcome rather than crate/module name; every example must state its supported maturity.
+- [ ] **ECOSYS-002** Add a service integration showing how to run Central Processing Unit-bound extraction safely from an asynchronous Rust web server without blocking the executor.
+- [ ] **ECOSYS-003** Add a bounded parallel batch-processing example with deterministic output ordering, cancellation guidance, and memory considerations.
+- [ ] **ECOSYS-004** Define and demonstrate a stable Serde-based extraction envelope including schema version, document/page identity, coordinates, warnings, and extension fields.
+- [ ] **ECOSYS-005** Add Python recipes for lists/dictionaries, pandas, Polars, and writing normalized table data without making those packages runtime dependencies.
+- [ ] **ECOSYS-006** Add a maintained Vite or equivalent WebAssembly example that opens a user-selected local PDF without uploading it and displays supported text/geometry.
+- [ ] **ECOSYS-007** Add Command-Line Interface recipes for shell pipelines, standard input where supported, standard output, JSON Lines, page selection, and error-code handling.
+- [ ] **ECOSYS-008** Add a table extraction cookbook that explains strategy choice, tolerances, visual debugging, merged cells, rotated pages, and failure diagnosis.
+- [ ] **ECOSYS-009** Add a coordinate-system guide with generated diagrams and examples covering MediaBox, CropBox, rotation, top/bottom, y0/y1, and document-top coordinates.
+- [ ] **ECOSYS-010** Add an Optical Character Recognition composition guide for scanned PDFs that keeps Optical Character Recognition outside the core and preserves coordinate provenance.
+- [ ] **ECOSYS-011** Add an example that compares Python `pdfplumber` and `pdfplumber-rs` outputs for a supported migration workflow and explains how to inspect a delta.
+- [ ] **ECOSYS-012** Add examples for encrypted documents, externally owned streams, malformed inputs, resource limits, and safe error reporting.
+- [ ] **ECOSYS-013** Add a minimal-fixture generator cookbook so bug reports and contributions do not depend on confidential customer documents.
+- [ ] **ECOSYS-014** Test examples against packaged artifacts, not only workspace source, to catch missing files, features, metadata, and runtime dependencies.
+- [ ] **ECOSYS-015** Provide copy-paste integration snippets for Cargo, Python virtual environments, containers, and browser bundlers with version pins appropriate to the current maturity.
+- [ ] **ECOSYS-016** Maintain an external integrations page listing independent projects only with their permission and without implying endorsement or compatibility beyond tested facts.
+
+### 8.27 P1 — Community, Governance, and External Validation
+
+- [ ] **GOV-001** Add `CONTRIBUTING.md` with a 15-minute setup path, focused test selection, fixture policy, pull-request expectations, and links to the agent operating contract.
+- [ ] **GOV-002** Add a Code of Conduct and identify an enforceable reporting path.
+- [ ] **GOV-003** Add `SECURITY.md` with supported versions, private reporting, response process, disclosure policy, and document-data handling expectations.
+- [ ] **GOV-004** Add issue forms for extraction bugs, compatibility deltas, performance regressions, installation failures, API proposals, and security concerns.
+- [ ] **GOV-005** Require extraction bug reports to include versions, options, expected/reference output, actual output, and a minimal redistributable fixture or generator.
+- [ ] **GOV-006** Maintain a curated `good first issue` queue whose tasks have bounded scope, exact acceptance tests, and no prerequisite knowledge of the entire parser.
+- [ ] **GOV-007** Measure contributor TTFV: a new contributor should be able to run one focused test and understand one small change within 30 minutes.
+- [ ] **GOV-008** Define maintainer ownership for parser, Rust facade, Python compatibility, Command-Line Interface, WebAssembly, release engineering, security, and fixture licensing.
+- [ ] **GOV-009** Define a Request for Comments process for public API, schema, compatibility-target, dependency, license, and architecture changes.
+- [ ] **GOV-010** Publish a realistic release cadence and support window; missed cadence is documented rather than hidden behind silent inactivity.
+- [ ] **GOV-011** Set a public target of initial triage within seven calendar days for reproducible bugs and security acknowledgment within two business days.
+- [ ] **GOV-012** Protect `main` with required exact-head format, lint, test, compatibility, artifact, and sign-off checks.
+- [ ] **GOV-013** Credit external contributors and fixture authors in release notes while respecting anonymity requests.
+- [ ] **GOV-014** Document the Developer Certificate of Origin, licensing, generated-code, and Artificial Intelligence-assisted contribution policy in one place.
+- [ ] **GOV-015** Recruit and document at least one additional release-capable maintainer before General Availability; test the release runbook without the original maintainer.
+- [ ] **GOV-016** Complete production pilots with at least three independent external repositories or teams across at least two workload classes before the `1.0` stable claim; record anonymized success criteria and unresolved blockers.
+
+<!-- ADOPTION-TASKS:END -->
+
+### 8.28 P3 — Rust-Native Extensions
 
 These items do not block Python parity but should remain well-tested and clearly separated.
 
@@ -1585,6 +2022,61 @@ maturin sdist --manifest-path crates/pdfplumber-py/Cargo.toml
 ---
 
 ## 11. Milestone Gates
+
+<!-- ADOPTION-MILESTONE-GATES:START -->
+### 11.0 Adoption gates that apply to every milestone
+
+A milestone is not complete merely because internal implementation tasks are complete. It must also satisfy the applicable product gate:
+
+- A clean supported environment can install the artifact and run its milestone quick start.
+- Documentation describes the exact supported boundary and known limitations.
+- Every public claim has a linked test, scorecard, or benchmark artifact.
+- Package metadata and support classifiers match tested reality.
+- User-visible changes have migration and release notes.
+- No new first-party panic or uncontrolled resource behavior is introduced.
+- The milestone has at least one external or independently reproduced evaluation before it is promoted beyond alpha.
+
+Add the following adoption requirements to the existing milestone definitions:
+
+#### M0 adoption additions — Trustworthy alpha
+
+- Root positioning, maturity, license, versions, package names, and install snippets are consistent.
+- Unsupported performance ranges are removed.
+- A generated support matrix and first compatibility scorecard are published.
+- Rust, Python, and WebAssembly release surfaces have explicit maturity rather than one project-wide status.
+- The contributor setup and focused-test path are documented.
+
+#### M1 adoption additions — Rust developer beta
+
+- The high-level Rust quick start completes within five minutes from a clean project.
+- The stable-candidate Rust facade has complete documentation, compiled examples, typed errors, a Minimum Supported Rust Version gate, and a Semantic Versioning report.
+- A reproducible comparison suite reports correctness before performance.
+- Crates and prebuilt Command-Line Interface artifacts pass install/smoke gates for every declared target.
+
+#### M2 adoption additions — Python migration beta
+
+- The package conflict policy and supported upstream workflow tiers are explicit.
+- Installed wheels and source distributions publish a versioned compatibility scorecard.
+- Common supported migration examples run unchanged.
+- All unsupported or approved-delta behaviors are visible and searchable.
+- At least one external Python migration pilot has completed.
+
+#### M3 adoption additions — Ecosystem beta
+
+- Stable structured-output contracts and maintained Rust, Python, Command-Line Interface, and WebAssembly examples exist for supported surfaces.
+- Post-publish registry smoke tests, checksums, Software Bill of Materials, and provenance are operational.
+- At least two independent external integrations exercise different workload classes.
+- Community triage, Request for Comments, and release processes operate according to the documented targets.
+
+#### M4 adoption additions — Production `1.0`
+
+- Three independent external repositories or teams across at least two workload classes have validated the release candidate.
+- Every stable surface meets the stable maturity contract.
+- No unverified public performance, compatibility, safety, platform, or dependency claim remains.
+- A second maintainer can execute the complete release and security process.
+- Historical scorecards and migration notes make the path from the latest beta to `1.0` auditable.
+
+<!-- ADOPTION-MILESTONE-GATES:END -->
 
 ### M0 — Deterministic Baseline
 
@@ -1797,6 +2289,13 @@ No checklist item outside the source-level inventory may be marked `[x]` without
 | `DEC-007` | Proposed | Preserve the current rebased-center crop only under an explicit Rust-extension API | Current behavior conflicts with Python `pdfplumber` crop semantics |
 | `DEC-008` | Proposed | Keep the rich Rust subcommand CLI under a separate executable/mode and make `pdfplumber` upstream-compatible | Avoids sacrificing useful Rust functionality while restoring drop-in behavior |
 | `DEC-009` | Accepted | Agents may autonomously merge focused PRs after exact-head CI, DCO, final-diff, and mergeability checks all pass | Completes the requested PR lifecycle while preserving red gates, stacked-PR ordering, and post-merge verification |
+| `DEC-010` | Accepted | Lead public positioning with verified developer outcomes; treat exact Python compatibility as the moat and performance as evidence-backed support | Differentiates the project without relying on feature-count or unverified-speed competition |
+| `DEC-011` | Accepted | Keep the detailed compatibility registry in root `PRD.md` until the PRD linter can validate a multi-file registry atomically | Preserves 721+ stable identifiers, evidence links, and agent coordination while adding a product-level roadmap |
+| `DEC-012` | Accepted | Publish no comparative performance result unless materially equivalent output passes a preflight check | Prevents faster-but-wrong output from becoming a marketing advantage |
+| `DEC-013` | Proposed | Advance Rust, Python, Command-Line Interface, and WebAssembly maturity independently under one generated support matrix | Allows honest releases without making experimental surfaces block or inherit stable claims |
+| `DEC-014` | Proposed | Reserve `pdfplumber` invocation/import names for explicitly compatible behavior and expose richer native behavior under collision-resistant names | Preserves migration value while preventing future upstream-name conflicts |
+| `DEC-015` | Accepted | Collect no document or usage telemetry from local extraction paths | Privacy and offline operation are product advantages and reduce adoption risk |
+| `DEC-016` | Proposed | Require three independent external validations across two workload classes before the `1.0` stable claim | Converts internal correctness into evidence that real developers can adopt the product |
 
 Agents may change a proposed decision only in a focused design pull request with tests and an updated rationale.
 
@@ -1818,6 +2317,33 @@ A good task is independently testable and small enough for one focused pull requ
 ---
 
 ## 16. Final Compatibility Claim Template
+
+<!-- ADOPTION-CLAIM-GUARDRAIL:START -->
+### Adoption claim guardrail
+
+Before General Availability, public descriptions must use the current support matrix and may not imply that every surface is complete.
+
+Do not claim any of the following without the corresponding versioned evidence:
+
+- “Fastest”
+- “Drop-in replacement”
+- “Production-ready”
+- “No external dependencies”
+- “Supports Python/Rust/platform X”
+- “Safe for malformed or untrusted PDFs”
+- “Fully compatible”
+- “Lower memory”
+
+A valid pre-`1.0` product description is:
+
+> `pdfplumber-rs` is an actively developed Rust PDF extraction project with an idiomatic Rust facade and a test-driven Python `pdfplumber` compatibility layer. Supported workflows, platforms, exact matches, known gaps, and reproducible benchmarks are published in the versioned support matrix and scorecards.
+
+When M4 and the adoption additions are complete, the project may combine the compatibility claim below with:
+
+> The stable Rust and supported Python compatibility surfaces are distributed as smoke-tested, attested artifacts and have been independently validated on multiple production workload classes.
+
+<!-- ADOPTION-CLAIM-GUARDRAIL:END -->
+
 
 Do not publish this claim until M4 is complete:
 
