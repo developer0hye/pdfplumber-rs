@@ -1,0 +1,48 @@
+# Choosing a PDF extraction library
+
+This page is an evaluation aid, not a benchmark or a claim that one library wins every workload. External project facts were observed on 2026-08-26 from the revision-pinned primary sources below. Features and maintenance state can change, so re-check the linked projects before making a long-lived dependency decision.
+
+## Observed facts
+
+| Project | Public surface observed in its own documentation | Evidence boundary |
+|---|---|---|
+| `pdfplumber-rs` | A native Rust extraction API for text, words, coordinates, graphics, images, and tables. The workspace also contains Python, Command-Line Interface, and WebAssembly packages. | The project is at `0.3.x` alpha. Its Python `pdfplumber` v0.11.10 compatibility is incomplete, and the readiness of the four surfaces is not uniform. See the [root README](../README.md), [workspace manifest](../Cargo.toml), and [roadmap](../PRD.md). |
+| `pdf_oxide` | A Rust core with extraction, creation, editing, many language bindings, WebAssembly, a Command-Line Interface, and a Model Context Protocol server. Its documentation also publishes its own benchmark and corpus results. | This is a broader toolkit than the current `pdfplumber-rs` adoption target. Its published speed and pass-rate figures are project-reported, not results reproduced by this repository. |
+| `pdfsink-rs` | A pure-Rust library and Command-Line Interface exposing text, word, table, layout, image, metadata, serialization, rendering, and `pdfplumber`-inspired geometry APIs. Its repository includes benchmark scripts and reported results. | API resemblance is not exact Python compatibility. Its performance and accuracy figures are project-reported, not results reproduced by this repository. |
+| Python `pdfplumber` | A Python library and Command-Line Interface built on `pdfminer.six`, with detailed PDF-object access, customizable text and table extraction, cropping, and visual debugging. | It is the behavior target for this project's Python migration work. Its own documentation says it works best on machine-generated PDFs and does not provide Optical Character Recognition. |
+| `pdf-extract` | A Rust library whose public README presents a small in-memory plain-text extraction API. | It is an adjacent choice for narrower text-only needs, not a documented table, geometry, or Python-compatibility substitute. |
+
+The external observations above come from these immutable source snapshots:
+
+| Project | Revision-pinned primary source |
+|---|---|
+| `pdf_oxide` | [`3be1951b171edb9d69a10f42ef72ee73f52e51bf`](https://github.com/yfedoseev/pdf_oxide/blob/3be1951b171edb9d69a10f42ef72ee73f52e51bf/README.md) |
+| `pdfsink-rs` | [`980d9f7b8ec44456f3d54427f4ced747b6eb6154`](https://github.com/clark-labs-inc/pdfsink-rs/blob/980d9f7b8ec44456f3d54427f4ced747b6eb6154/README.md) |
+| Python `pdfplumber` | [`4c64b92d5caccd71c645e98e0fabb0c4dba7ff45`](https://github.com/jsvine/pdfplumber/blob/4c64b92d5caccd71c645e98e0fabb0c4dba7ff45/README.md) |
+| `pdf-extract` | [`b95bf9f6268772d5088f09b0034e488e64294835`](https://github.com/jrmuizel/pdf-extract/blob/b95bf9f6268772d5088f09b0034e488e64294835/README.md) |
+
+At the observation date, GitHub repository metadata reported all four external repositories as public and not archived. That metadata is time-sensitive; the immutable README links preserve only the feature snapshot.
+
+## Reproducible measurements
+
+No cross-project performance result is currently claimed by `pdfplumber-rs`.
+
+`pdf_oxide` and `pdfsink-rs` publish performance and accuracy figures in their own revision-pinned READMEs. Those figures describe their authors' fixtures, requested outputs, environments, and methods. This project has not independently reproduced them and therefore does not repeat them as a ranking.
+
+The current `pdfplumber-rs` corpus provides compatibility evidence, not a fair speed comparison. It indexes 223 PDFs and pins Python `pdfplumber` v0.11.10, but known parse failures and incomplete API/schema parity remain explicit in the [Evidence Ledger](../PRD.md#13-evidence-ledger).
+
+A future cross-project result becomes publishable only after `SCORE-001` through `SCORE-009` provide a redistributable shared corpus, pinned revisions, materially equivalent outputs, an equivalence preflight, separated cold/warm stages, complete environment and command metadata, and raw artifacts. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
+
+## Product interpretation
+
+The guidance in this section is the `pdfplumber-rs` maintainers' interpretation of the observed facts, not a measured winner declaration.
+
+- Choose `pdfplumber-rs` when you need native Rust text/table/geometry extraction and value an explicit path toward Python `pdfplumber` behavior, and you can validate your workflow against an alpha support boundary.
+- Choose Python `pdfplumber` when you need its established Python behavior today, especially its visual debugging and mature customizable table workflow.
+- Evaluate `pdf_oxide` when broad language bindings, Markdown conversion, PDF creation/editing, or its Command-Line Interface and Model Context Protocol surfaces matter more than a narrow Python `pdfplumber` compatibility contract.
+- Evaluate `pdfsink-rs` when you want a pure-Rust, `pdfplumber`-inspired library and Command-Line Interface with a broad extraction and rendering surface; validate its output and published benchmark method against your own documents.
+- Evaluate `pdf-extract` when a small Rust plain-text extraction API is sufficient and you do not need the richer table, geometry, or migration surfaces above.
+
+None of these observations makes a non-OCR extractor suitable for image-only PDFs by itself. For scanned documents, add an OCR stage and evaluate the searchable result with representative files.
+
+When updating this page, refresh the observation date and exact source revisions, keep external claims attributed, and do not promote a self-published number into a `pdfplumber-rs` claim without satisfying the benchmark contract.
