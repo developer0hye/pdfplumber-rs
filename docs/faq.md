@@ -39,7 +39,8 @@ repair implicitly. The Rust API offers best-effort native repair through
 `--repair`. In the Python compatibility
 facade, `repair=True` invokes the external Ghostscript executable selected by
 `gs_path` or found on the system path. Repair may still fail for severely damaged
-files, so retain the original input and treat repaired output as data to verify.
+files, so retain the original input and treat repaired output as data to verify. The
+[privacy statement](privacy.md) documents the child-process and data boundary.
 
 ## Which coordinate system does the project use?
 

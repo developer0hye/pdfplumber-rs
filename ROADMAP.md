@@ -16,11 +16,12 @@ Attach stable evidence to every major claim in the README and release notes.
 
 Detailed task: [`ADOPT-018`](PRD.md#822-p0--adoption-trust-and-positioning).
 
-### State the local-processing privacy boundary
+### Measure adoption before setting growth targets
 
-Publish a precise statement about local processing, telemetry, document upload, and optional external executables.
+Record the current registry, documentation, activation, issue, dependent-project, and
+external-adopter baselines before choosing quarterly growth targets.
 
-Detailed task: [`ADOPT-016`](PRD.md#822-p0--adoption-trust-and-positioning).
+Detailed task: [`ADOPT-017`](PRD.md#822-p0--adoption-trust-and-positioning).
 
 ### Turn compatibility results into a public scorecard
 
