@@ -7,6 +7,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PYTHON_README = REPO_ROOT / "crates" / "pdfplumber-py" / "README.md"
+SUPPORT_SOURCE = REPO_ROOT / "support-matrix.toml"
+SUPPORT_DOC = REPO_ROOT / "docs" / "support.md"
 
 
 class PythonDistributionConflictContractTests(unittest.TestCase):
@@ -46,6 +48,21 @@ class PythonDistributionConflictContractTests(unittest.TestCase):
         ):
             with self.subTest(statement=statement):
                 self.assertIn(statement, self.readme)
+
+    def test_generated_support_state_matches_the_conflict_policy(self) -> None:
+        supported_policy = (
+            "Co-installation with the Python `pdfplumber` distribution is unsupported; "
+            "use a fresh environment containing exactly one distribution."
+        )
+        stale_limitation = (
+            "Distribution/import-name conflicts and the complete supported-Python "
+            "policy remain open."
+        )
+        for path in (SUPPORT_SOURCE, SUPPORT_DOC):
+            rendered = " ".join(path.read_text(encoding="utf-8").split())
+            with self.subTest(path=path.relative_to(REPO_ROOT)):
+                self.assertIn(supported_policy, rendered)
+                self.assertNotIn(stale_limitation, rendered)
 
 
 if __name__ == "__main__":
