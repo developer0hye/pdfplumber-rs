@@ -60,7 +60,7 @@ pdfplumber = "0.3"
 
 | Feature    | Default | Description                                                    |
 |------------|---------|----------------------------------------------------------------|
-| `std`      | Yes     | Enables file-path APIs (`Pdf::open_file`). Disable for WASM.  |
+| `std`      | Yes     | Enables file-path APIs (`Pdf::open_path`). Disable for WASM.  |
 | `serde`    | No      | Adds `Serialize`/`Deserialize` to all public data types.       |
 | `parallel` | No      | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible.|
 
@@ -72,7 +72,7 @@ pdfplumber = "0.3"
 use pdfplumber::{Pdf, TextOptions};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let pdf = Pdf::open_file("document.pdf", None)?;
+    let pdf = Pdf::open_path("document.pdf", None)?;
     for page in pdf.pages_iter() {
         let page = page?;
         let text = page.extract_text(&TextOptions::default());
@@ -92,7 +92,7 @@ them separately.
 use pdfplumber::{Pdf, TextOptions};
 
 fn main() {
-    let pdf = Pdf::open_file("document.pdf", None).unwrap();
+    let pdf = Pdf::open_path("document.pdf", None).unwrap();
     let page = pdf.page(0).unwrap();
     for line in page.extract_text_lines(&TextOptions::default()) {
         println!("{} at top={:.1}", line.text(), line.bbox.top);
@@ -106,7 +106,7 @@ fn main() {
 use pdfplumber::{Pdf, TableSettings};
 
 fn main() {
-    let pdf = Pdf::open_file("document.pdf", None).unwrap();
+    let pdf = Pdf::open_path("document.pdf", None).unwrap();
     let page = pdf.page(0).unwrap();
     let tables = page.find_tables(&TableSettings::default());
     for table in &tables {
@@ -142,7 +142,7 @@ let settings = TableSettings {
 use pdfplumber::Pdf;
 
 fn main() {
-    let pdf = Pdf::open_file("document.pdf", None).unwrap();
+    let pdf = Pdf::open_path("document.pdf", None).unwrap();
     let page = pdf.page(0).unwrap();
     for ch in page.chars() {
         println!(
@@ -165,6 +165,27 @@ For ordinary applications, do not add direct dependencies on `pdfplumber-core` o
 internals for advanced contributors; they are not additional steps in the
 high-level path.
 
+## Rust Input API
+
+The canonical constructors form one source-named family:
+
+| Input | Constructor | Availability |
+|-------|-------------|--------------|
+| Filesystem path | `Pdf::open_path` | Default `std` feature |
+| In-memory byte slice | `Pdf::open_bytes` | All supported targets, including WebAssembly |
+| Synchronous reader | `Pdf::open_reader` | Any `std::io::Read`; `Seek` is not required |
+
+Each constructor returns an owned `Pdf` that does not borrow its path, byte
+slice, or reader. Path files are closed, byte slices need to live only for the
+call, and reader input is consumed from the current reader position through
+end-of-file without being retained. Reader and path I/O failures use
+`PdfError::IoError`; bytes that cannot be parsed as a PDF use
+`PdfError::ParseError`. Resource-limit and password errors use the same variants
+for every input kind. Encrypted inputs use the parallel
+`Pdf::open_path_with_password`, `Pdf::open_bytes_with_password`, and
+`Pdf::open_reader_with_password` family. Best-effort repair is currently
+byte-only through `Pdf::open_bytes_with_repair`.
+
 ## WASM Support
 
 For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [WebAssembly support entry](docs/support.md#webassembly) records the current build and execution boundary:
@@ -177,7 +198,7 @@ pdfplumber = { version = "0.3", default-features = false }
 Use the bytes-based API:
 
 ```rust,ignore
-let pdf = Pdf::open(pdf_bytes, None)?;
+let pdf = Pdf::open_bytes(pdf_bytes, None)?;
 let page = pdf.page(0)?;
 let text = page.extract_text(&TextOptions::default());
 ```

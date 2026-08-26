@@ -13,7 +13,7 @@ Projects organized by domain. Read the specific file matching your current probl
 
 | Project | Stars | File | Use When |
 |---------|-------|------|----------|
-| [lopdf](https://github.com/J-F-Liu/lopdf) | 2.1k | [lopdf.md](lopdf.md) | PDF object access, content stream decoding (current backend) |
+| [lopdf](https://github.com/J-F-Liu/lopdf) | 2.1k | [lopdf.md](lopdf.md) | PDF object access, content stream decoding, and supported input readers (current backend) |
 | [pdf-rs](https://github.com/pdf-rs/pdf) | 1.6k | [pdf-rs.md](pdf-rs.md) | Typed PDF object model, derive-macro patterns |
 | [pdf-extract](https://github.com/jrmuizel/pdf-extract) | 571 | [pdf-extract.md](pdf-extract.md) | CMap/CFF/Type1 parsing crate ecosystem on lopdf |
 | [pdf_oxide](https://github.com/yfedoseev/pdf_oxide) | 975 | [pdf-oxide.md](pdf-oxide.md) | High-level Rust facade design, competitive analysis, or self-published benchmark methodology |

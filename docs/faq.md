@@ -25,10 +25,12 @@ or the [Command-Line Interface guide](../crates/pdfplumber-cli/README.md).
 
 ## Can it open password-protected PDFs?
 
-The Rust API accepts user or owner passwords through `Pdf::open_with_password` and
-`Pdf::open_file_with_password`. The Python facade accepts `password=`, and applicable
-Command-Line Interface commands accept `--password`. A missing password produces a
-password-required error and a wrong password produces an invalid-password error.
+The Rust API accepts user or owner passwords through the matching
+`Pdf::open_bytes_with_password`, `Pdf::open_path_with_password`, and
+`Pdf::open_reader_with_password` input family. The Python facade accepts
+`password=`, and applicable Command-Line Interface commands accept `--password`.
+A missing password produces a password-required error and a wrong password
+produces an invalid-password error.
 The current high-level WebAssembly wrapper exposes only passwordless `WasmPdf.open`.
 
 ## What happens with malformed PDFs?

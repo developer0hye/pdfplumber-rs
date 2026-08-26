@@ -48,7 +48,7 @@ fn open_pdf_impl(
 
         // If password is provided with repair, fall back to password-only open
         if let Some(pw) = password {
-            return Pdf::open_with_password(&bytes, pw.as_bytes(), options).map_err(|e| {
+            return Pdf::open_bytes_with_password(&bytes, pw.as_bytes(), options).map_err(|e| {
                 eprintln!("Error: failed to open PDF: {e}");
                 1
             });
@@ -70,9 +70,9 @@ fn open_pdf_impl(
         Ok(pdf)
     } else {
         let result = if let Some(pw) = password {
-            Pdf::open_file_with_password(file, pw.as_bytes(), options)
+            Pdf::open_path_with_password(file, pw.as_bytes(), options)
         } else {
-            Pdf::open_file(file, options)
+            Pdf::open_path(file, options)
         };
 
         result.map_err(|e| {

@@ -27,7 +27,7 @@ pub struct WasmPdf {
 impl WasmPdf {
     /// Open a PDF from raw bytes (Uint8Array in JavaScript).
     pub fn open(data: &[u8]) -> Result<WasmPdf, JsError> {
-        let pdf = Pdf::open(data, None).map_err(|e| JsError::new(&e.to_string()))?;
+        let pdf = Pdf::open_bytes(data, None).map_err(|e| JsError::new(&e.to_string()))?;
         Ok(WasmPdf { inner: pdf })
     }
 

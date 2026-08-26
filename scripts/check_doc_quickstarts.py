@@ -115,7 +115,7 @@ def validate_primary_rust_quick_start(snippet: str) -> None:
             f"has {line_count} lines; maximum is {PRIMARY_RUST_QUICK_START_MAX_LINES}"
         )
     required = (
-        'Pdf::open_file("document.pdf", None)?',
+        'Pdf::open_path("document.pdf", None)?',
         "let page = page?;",
         "extract_text(&TextOptions::default())",
         "Ok(())",
