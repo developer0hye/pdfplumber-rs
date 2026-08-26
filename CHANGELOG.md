@@ -11,6 +11,9 @@ commit list.
 
 ### Added
 
+- **Documentation:** Added a privacy and local-processing statement covering local
+  extraction, document uploads, usage telemetry, host applications, and the optional
+  Python Ghostscript repair process.
 - **Documentation:** Added a maintained Frequently Asked Questions page for scanned
   documents, tables, passwords, malformed files, coordinates, Python migration, and
   WebAssembly readiness.
