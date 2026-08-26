@@ -18,6 +18,9 @@ commit list.
 
 ### Changed
 
+- **Platform:** Search and package-registry descriptions now share the same
+  evidence-driven Rust extraction position, label each surface's maturity, and keep
+  the Python migration claim explicitly alpha and incomplete.
 - **Performance:** Public guidance no longer repeats unverified cross-project speed or
   memory ranges. No cross-project performance advantage is claimed until the
   benchmark and artifact gates in the detailed roadmap are complete.

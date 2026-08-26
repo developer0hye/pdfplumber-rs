@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Alpha command-line tool for PDF text, geometry, image, and table extraction"
+description = "Alpha CLI for evidence-driven PDF extraction: text, geometry, images, and tables"
 keywords = ["pdf", "cli", "table", "text-extraction"]
 categories = ["command-line-utilities"]
 

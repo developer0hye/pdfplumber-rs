@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Alpha PDF parsing and content stream interpreter for pdfplumber-rs"
+description = "Alpha parser and content-stream interpreter for evidence-driven PDF extraction"
 keywords = ["pdf", "parser", "content-stream", "pdfplumber"]
 categories = ["parser-implementations"]
 

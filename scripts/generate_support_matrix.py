@@ -18,6 +18,14 @@ OUTPUT_PATH = REPO_ROOT / "docs" / "support.md"
 SURFACE_IDS = ("rust", "python", "cli", "wasm")
 MATURITIES = {"experimental", "alpha", "beta", "stable"}
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+DESCRIPTION_MARKER = "evidence-driven pdf extraction"
+FORBIDDEN_DESCRIPTION_CLAIMS = (
+    "100% compatible",
+    "complete drop-in",
+    "complete replacement",
+    "fully compatible",
+    "full drop-in",
+)
 
 
 class MatrixError(ValueError):
@@ -54,6 +62,25 @@ def require_string_list(mapping: dict[str, Any], key: str, context: str) -> list
     return value
 
 
+def validate_public_description(
+    description: str, maturity: str, context: str, maximum_length: int = 200
+) -> None:
+    lowered = description.lower()
+    if DESCRIPTION_MARKER not in lowered:
+        raise MatrixError(
+            f"{context} must use the evidence-driven PDF extraction position"
+        )
+    if maturity not in lowered:
+        raise MatrixError(f"{context} must display {maturity} maturity")
+    if len(description) > maximum_length:
+        raise MatrixError(f"{context} exceeds {maximum_length} characters")
+    if "`" in description or "\n" in description:
+        raise MatrixError(f"{context} must be plain single-line metadata")
+    for phrase in FORBIDDEN_DESCRIPTION_CLAIMS:
+        if phrase in lowered:
+            raise MatrixError(f"{context} overclaims {phrase!r}")
+
+
 def repository_path(value: str, context: str) -> Path:
     relative = Path(value)
     if relative.is_absolute() or ".." in relative.parts:
@@ -84,6 +111,13 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
     license_expression = require_string(source, "license", "matrix")
     repository = require_string(source, "repository", "matrix")
     release_notes = require_string(source, "release_notes", "matrix")
+    positioning = require_string(source, "positioning", "matrix")
+    github_description = require_string(source, "github_description", "matrix")
+    if github_description != positioning:
+        raise MatrixError(
+            "matrix GitHub description must equal the canonical positioning"
+        )
+    validate_public_description(positioning, "alpha", "matrix.positioning", 160)
     if not isinstance(source.get("github_prerelease"), bool):
         raise MatrixError("matrix.github_prerelease must be a boolean")
     repository_path(release_notes, "matrix.release_notes")
@@ -122,6 +156,8 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
             "readme",
             "registry",
             "registry_url",
+            "registry_description",
+            "observed_registry_description",
             "manifest",
             "manifest_package",
             "source_version",
@@ -132,6 +168,11 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
         maturity = require_string(surface, "maturity", context)
         if maturity not in MATURITIES:
             raise MatrixError(f"{context}.maturity must be one of {sorted(MATURITIES)}")
+        validate_public_description(
+            surface["registry_description"],
+            maturity,
+            f"{context}.registry_description",
+        )
 
         if surface_id == "cli":
             require_string(surface, "executable", context)
@@ -165,6 +206,10 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
                 f"{context}.source_version {source_version} "
                 f"!= manifest {package.get('version')}"
             )
+        if package.get("description") != surface["registry_description"]:
+            raise MatrixError(
+                f"{context}.registry_description does not match its manifest"
+            )
 
         for key in (
             "ci_verified_platforms",
@@ -183,6 +228,15 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
 
 def escape_cell(value: str) -> str:
     return value.replace("|", "\\|").replace("\n", " ")
+
+
+def public_observed_description(value: str) -> str:
+    return re.sub(
+        r"\bhigh[- ]performance\b",
+        "[unverified performance wording omitted]",
+        value,
+        flags=re.IGNORECASE,
+    )
 
 
 def render_list(values: list[str]) -> list[str]:
@@ -213,11 +267,49 @@ def render(source: dict[str, Any]) -> str:
         "",
         "Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.",
         "",
-        "## Surface summary",
+        "## Positioning and registry descriptions",
         "",
-        "| Surface | Maturity | Package | Import or executable | Source version | Observed registry version |",
-        "|---|---|---|---|---|---|",
+        source["positioning"],
+        "",
+        "The GitHub search description must match that sentence exactly. Package descriptions keep the same evidence-driven extraction position while naming each surface and its maturity. Published description observations are historical metadata for the named registry version; when they differ, the configured description takes effect only with a later publication. Unverified promotional wording is omitted from this public rendering, while the exact dated observation remains in the machine-readable source.",
+        "",
+        "| Surface | Configured description | Observed published description | Status |",
+        "|---|---|---|---|",
     ]
+
+    for surface in source["surfaces"]:
+        status = (
+            "Current"
+            if surface["registry_description"]
+            == surface["observed_registry_description"]
+            else "Awaiting next publication"
+        )
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    escape_cell(surface["name"]),
+                    escape_cell(surface["registry_description"]),
+                    escape_cell(
+                        public_observed_description(
+                            surface["observed_registry_description"]
+                        )
+                    ),
+                    status,
+                )
+            )
+            + " |"
+        )
+
+    lines.extend(
+        (
+            "",
+            "## Surface summary",
+            "",
+            "| Surface | Maturity | Package | Import or executable | Source version | Observed registry version |",
+            "|---|---|---|---|---|---|",
+        )
+    )
 
     for surface in source["surfaces"]:
         package = (

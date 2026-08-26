@@ -8,6 +8,19 @@ All current surfaces use `Apache-2.0` and the canonical repository [https://gith
 
 Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.
 
+## Positioning and registry descriptions
+
+Evidence-driven PDF extraction for Rust, with an alpha Python pdfplumber migration path.
+
+The GitHub search description must match that sentence exactly. Package descriptions keep the same evidence-driven extraction position while naming each surface and its maturity. Published description observations are historical metadata for the named registry version; when they differ, the configured description takes effect only with a later publication. Unverified promotional wording is omitted from this public rendering, while the exact dated observation remains in the machine-readable source.
+
+| Surface | Configured description | Observed published description | Status |
+|---|---|---|---|
+| Rust | Alpha evidence-driven PDF extraction for Rust: text, geometry, images, and tables | Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates | Awaiting next publication |
+| Python | Alpha Python migration path for pdfplumber workflows, powered by evidence-driven PDF extraction in Rust | [unverified performance wording omitted] PDF text, table, and geometry extraction — Rust-powered Python bindings for pdfplumber-rs | Awaiting next publication |
+| Command-Line Interface | Alpha CLI for evidence-driven PDF extraction: text, geometry, images, and tables | Command-line tool to extract text, characters, words, and tables from PDF documents | Awaiting next publication |
+| WebAssembly | Experimental WebAssembly bindings for evidence-driven PDF extraction | WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction | Awaiting next publication |
+
 ## Surface summary
 
 | Surface | Maturity | Package | Import or executable | Source version | Observed registry version |

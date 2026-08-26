@@ -21,6 +21,14 @@ LICENSE_POLICY_PATH = REPO_ROOT / "license-policy.toml"
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 SURFACE_IDS = ("rust", "python", "cli", "wasm")
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
+DESCRIPTION_MARKER = "evidence-driven pdf extraction"
+FORBIDDEN_DESCRIPTION_CLAIMS = (
+    "100% compatible",
+    "complete drop-in",
+    "complete replacement",
+    "fully compatible",
+    "full drop-in",
+)
 PYTHON_MATURITY_CLASSIFIERS = {
     "experimental": "Development Status :: 2 - Pre-Alpha",
     "alpha": "Development Status :: 3 - Alpha",
@@ -96,6 +104,31 @@ def require_string_list(
     return value
 
 
+def validate_public_description(
+    description: str,
+    maturity: str,
+    context: str,
+    *,
+    maximum_length: int = 200,
+) -> None:
+    lowered = description.lower()
+    require(
+        DESCRIPTION_MARKER in lowered,
+        f"{context} must use the evidence-driven PDF extraction position",
+    )
+    require(maturity in lowered, f"{context} must display {maturity} maturity")
+    require(
+        len(description) <= maximum_length,
+        f"{context} exceeds {maximum_length} characters",
+    )
+    require(
+        "`" not in description and "\n" not in description,
+        f"{context} must be plain single-line metadata",
+    )
+    for phrase in FORBIDDEN_DESCRIPTION_CLAIMS:
+        require(phrase not in lowered, f"{context} overclaims {phrase!r}")
+
+
 def load_matrix() -> dict[str, Any]:
     matrix = load_toml(MATRIX_PATH)
     require(matrix.get("schema_version") == 1, "matrix schema_version must be 1")
@@ -106,8 +139,24 @@ def load_matrix() -> dict[str, Any]:
     )
     version = require_string(matrix, "release_version", "matrix")
     require(bool(VERSION_PATTERN.fullmatch(version)), "invalid matrix release_version")
-    for key in ("license", "repository", "release_notes"):
+    for key in (
+        "license",
+        "repository",
+        "release_notes",
+        "positioning",
+        "github_description",
+    ):
         require_string(matrix, key, "matrix")
+    require(
+        matrix["github_description"] == matrix["positioning"],
+        "matrix GitHub description must equal the canonical positioning",
+    )
+    validate_public_description(
+        matrix["positioning"],
+        "alpha",
+        "matrix.positioning",
+        maximum_length=160,
+    )
     require(
         isinstance(matrix.get("github_prerelease"), bool),
         "matrix.github_prerelease must be a boolean",
@@ -142,11 +191,18 @@ def load_matrix() -> dict[str, Any]:
             "source_version",
             "registry",
             "registry_url",
+            "registry_description",
+            "observed_registry_description",
             "registry_version",
         ):
             require_string(surface, key, context)
         require_string_list(surface, "ci_verified_platforms", context)
         require_string_list(surface, "known_limitations", context)
+        validate_public_description(
+            surface["registry_description"],
+            surface["maturity"],
+            f"{context}.registry_description",
+        )
         require(
             surface["source_version"] == version,
             f"{context}.source_version disagrees with release_version",
@@ -355,14 +411,19 @@ def check_source(matrix: dict[str, Any]) -> None:
             f"{relative} maturity {maturity} != {surface['maturity']}",
         )
         description = require_string(package, "description", f"{relative}.package")
-        require(
-            surface["maturity"] in description.lower(),
-            f"{relative} description does not display {surface['maturity']} maturity",
+        validate_public_description(
+            description,
+            surface["maturity"],
+            f"{relative} description",
         )
         if relative in surface_by_manifest:
             require(
                 package.get("name") == surface["manifest_package"],
                 f"{relative} manifest package name disagrees with support matrix",
+            )
+            require(
+                description == surface["registry_description"],
+                f"{relative} description disagrees with support matrix",
             )
 
     rust = surfaces["rust"]
@@ -414,8 +475,9 @@ def check_source(matrix: dict[str, Any]) -> None:
         "Python import and native module roots disagree",
     )
     require(
-        python["maturity"] in require_string(project, "description", "project").lower(),
-        "Python description does not display maturity",
+        require_string(project, "description", "project")
+        == python["registry_description"],
+        "Python registry description disagrees with support matrix",
     )
 
     wasm = surfaces["wasm"]
@@ -425,6 +487,11 @@ def check_source(matrix: dict[str, Any]) -> None:
     )
 
     root_readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    require(
+        f"**{matrix['positioning'].replace('pdfplumber', '`pdfplumber`')}**"
+        in root_readme,
+        "README.md opening disagrees with canonical positioning",
+    )
     root_phrases = (
         f"Release `{matrix['release_version']}`",
         f"Rust crate `{rust['package']}` (import `{rust['import_name']}`) is {rust['maturity']}",
@@ -463,6 +530,10 @@ def check_source(matrix: dict[str, Any]) -> None:
                 phrase in readme,
                 f"{surface['readme']} lacks {phrase!r}",
             )
+        require(
+            surface["registry_description"] in readme.replace("`", ""),
+            f"{surface['readme']} opening disagrees with registry description",
+        )
 
     release_notes_path = repository_path(matrix["release_notes"], "release notes")
     require(release_notes_path.is_file(), "versioned release notes are missing")
@@ -476,7 +547,9 @@ def check_source(matrix: dict[str, Any]) -> None:
         matrix["release_version"],
         matrix["license"],
         matrix["repository"],
+        matrix["positioning"],
         *(surface["package"] for surface in matrix["surfaces"]),
+        *(surface["registry_description"] for surface in matrix["surfaces"]),
     ):
         require(value in support_doc, f"docs/support.md lacks {value!r}")
 
@@ -493,6 +566,17 @@ def check_rust(matrix: dict[str, Any], paths: list[Path]) -> None:
     policy = load_toml(LICENSE_POLICY_PATH)
     expected = set(policy.get("rust_packages", []))
     require(bool(expected), "license policy Rust package list is missing")
+    workspace = load_toml(REPO_ROOT / "Cargo.toml")
+    source_descriptions = {}
+    for member in workspace.get("workspace", {}).get("members", []):
+        manifest = load_toml(REPO_ROOT / member / "Cargo.toml")
+        package = manifest.get("package", {})
+        if package.get("name") in expected:
+            source_descriptions[package["name"]] = package.get("description")
+    require(
+        set(source_descriptions) == expected,
+        "cannot resolve every publishable Rust package description",
+    )
     found: set[str] = set()
     for path in paths:
         require(path.is_file(), f"Rust artifact does not exist: {path}")
@@ -530,10 +614,15 @@ def check_rust(matrix: dict[str, Any], paths: list[Path]) -> None:
                 package_maturity(package, str(path)) == surface["maturity"],
                 f"{name} maturity mismatch",
             )
+            description = require_string(package, "description", str(path))
             require(
-                surface["maturity"]
-                in require_string(package, "description", str(path)).lower(),
-                f"{name} description does not display maturity",
+                description == source_descriptions[name],
+                f"{name} packaged description disagrees with source",
+            )
+            validate_public_description(
+                description,
+                surface["maturity"],
+                f"{name} packaged description",
             )
             if name == surfaces["cli"]["package"]:
                 require(
@@ -575,8 +664,8 @@ def check_python_metadata(matrix: dict[str, Any], metadata: Any, context: str) -
         f"{context} repository URL mismatch",
     )
     require(
-        python["maturity"] in (metadata.get("Summary") or "").lower(),
-        f"{context} summary does not display maturity",
+        metadata.get("Summary") == python["registry_description"],
+        f"{context} summary disagrees with support matrix",
     )
 
 
@@ -655,8 +744,8 @@ def check_npm(matrix: dict[str, Any], directory: Path) -> None:
         "npm package repository mismatch",
     )
     require(
-        wasm["maturity"] in (package.get("description") or "").lower(),
-        "npm package description does not display maturity",
+        package.get("description") == wasm["registry_description"],
+        "npm package description disagrees with support matrix",
     )
     readme = (directory / "README.md").read_text(encoding="utf-8")
     for phrase in (
