@@ -17,7 +17,7 @@ fn main() {
 
     let settings = TableSettings::default();
 
-    for page_result in pdf.pages_iter() {
+    for page_result in pdf.pages() {
         let page = page_result.unwrap();
         let tables = page.find_tables(&settings);
 

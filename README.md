@@ -73,7 +73,7 @@ use pdfplumber::{Pdf, TextOptions};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let pdf = Pdf::open_path("document.pdf", None)?;
-    for page in pdf.pages_iter() {
+    for page in pdf.pages() {
         let page = page?;
         let text = page.extract_text(&TextOptions::default());
         println!("Page {}: {}", page.page_number(), text);
@@ -93,7 +93,7 @@ use pdfplumber::{Pdf, TextOptions};
 
 fn main() {
     let pdf = Pdf::open_path("document.pdf", None).unwrap();
-    let page = pdf.page(0).unwrap();
+    let page = pdf.pages().get(0).unwrap();
     for line in page.extract_text_lines(&TextOptions::default()) {
         println!("{} at top={:.1}", line.text(), line.bbox.top);
     }
@@ -107,7 +107,7 @@ use pdfplumber::{Pdf, TableSettings};
 
 fn main() {
     let pdf = Pdf::open_path("document.pdf", None).unwrap();
-    let page = pdf.page(0).unwrap();
+    let page = pdf.pages().get(0).unwrap();
     let tables = page.find_tables(&TableSettings::default());
     for table in &tables {
         for row in &table.rows {
@@ -143,7 +143,7 @@ use pdfplumber::Pdf;
 
 fn main() {
     let pdf = Pdf::open_path("document.pdf", None).unwrap();
-    let page = pdf.page(0).unwrap();
+    let page = pdf.pages().get(0).unwrap();
     for ch in page.chars() {
         println!(
             "'{}' at ({:.1}, {:.1}) font={} size={:.1}",
@@ -186,6 +186,19 @@ for every input kind. Encrypted inputs use the parallel
 `Pdf::open_reader_with_password` family. Best-effort repair is currently
 byte-only through `Pdf::open_bytes_with_repair`.
 
+## Rust Page API
+
+`Pdf::pages()` returns a borrowed collection view. Creating that view does not
+clone the document or interpret any page content. Select a zero-based page
+directly with `pdf.pages().get(0)?`; only that page's content stream is
+interpreted, so selecting a later page does not process the pages before it.
+
+Use `for page in pdf.pages()` to process the document on demand, one independently
+owned `Page` at a time. The iterator is exact-sized and double-ended, supports
+normal iterator adapters, and does not retain pages after yielding them unless
+the caller chooses to collect them. `Pdf::page` and `Pdf::pages_iter` remain
+source-compatible shortcuts during the alpha line.
+
 ## WASM Support
 
 For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [WebAssembly support entry](docs/support.md#webassembly) records the current build and execution boundary:
@@ -199,7 +212,7 @@ Use the bytes-based API:
 
 ```rust,ignore
 let pdf = Pdf::open_bytes(pdf_bytes, None)?;
-let page = pdf.page(0)?;
+let page = pdf.pages().get(0)?;
 let text = page.extract_text(&TextOptions::default());
 ```
 

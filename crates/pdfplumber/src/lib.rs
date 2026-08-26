@@ -14,7 +14,7 @@
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     let pdf = Pdf::open_path("document.pdf", None)?;
-//!     for page in pdf.pages_iter() {
+//!     for page in pdf.pages() {
 //!         let page = page?;
 //!         let text = page.extract_text(&TextOptions::default());
 //!         println!("Page {}: {}", page.page_number(), text);
@@ -51,6 +51,15 @@
 //! Password-protected inputs use the matching `open_*_with_password` methods.
 //! Best-effort repair is currently byte-only via [`Pdf::open_bytes_with_repair`].
 //!
+//! # Selecting and iterating pages
+//!
+//! [`Pdf::pages`] returns a borrowed [`Pages`] collection view. Creating the
+//! view does not clone the document or interpret page content. Select one page
+//! directly with `pdf.pages().get(0)?`, or process owned [`Page`] values on
+//! demand with `for page in pdf.pages()` and propagate each result with `?`.
+//! The iterator is double-ended and exact-sized, so selection from either end
+//! does not require eagerly extracting every page.
+//!
 //! # Feature Flags
 //!
 //! | Feature | Default | Description |
@@ -64,7 +73,7 @@
 //! ```no_run
 //! # use pdfplumber::{Pdf, TextOptions};
 //! let pdf = Pdf::open_path("document.pdf", None).unwrap();
-//! let page = pdf.page(0).unwrap();
+//! let page = pdf.pages().get(0).unwrap();
 //!
 //! // Simple text extraction
 //! let text = page.extract_text(&TextOptions::default());
@@ -78,7 +87,7 @@
 //! ```no_run
 //! # use pdfplumber::{Pdf, TableSettings};
 //! let pdf = Pdf::open_path("document.pdf", None).unwrap();
-//! let page = pdf.page(0).unwrap();
+//! let page = pdf.pages().get(0).unwrap();
 //! let tables = page.find_tables(&TableSettings::default());
 //! for table in &tables {
 //!     for row in &table.rows {
@@ -104,7 +113,7 @@
 //!
 //! ```ignore
 //! let pdf = Pdf::open_bytes(pdf_bytes, None)?;
-//! let page = pdf.page(0)?;
+//! let page = pdf.pages().get(0)?;
 //! let text = page.extract_text(&TextOptions::default());
 //! ```
 //!
@@ -118,7 +127,7 @@ mod pdf;
 
 pub use cropped_page::CroppedPage;
 pub use page::{Page, PageObjectKind};
-pub use pdf::{PagesIter, Pdf};
+pub use pdf::{Pages, PagesIter, Pdf};
 
 /// A page view produced by [`Page::filter`] or [`CroppedPage::filter`].
 ///

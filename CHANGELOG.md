@@ -33,6 +33,10 @@ commit list.
   `Pdf::open_reader` Rust input family, with matching password methods and
   documented ownership and error behavior. Existing open methods remain
   source-compatible aliases during the alpha line.
+- **API:** Added the borrowed `Pdf::pages` collection view. `Pages::get`
+  selects one zero-based page directly, while exact-sized, double-ended
+  iteration extracts owned pages on demand without cloning the document.
+  Existing `Pdf::page` and `Pdf::pages_iter` methods remain source-compatible.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 

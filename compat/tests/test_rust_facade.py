@@ -32,7 +32,7 @@ class RustFacadeContractTests(unittest.TestCase):
     def test_crate_root_does_not_reexport_parser_internal_types(self) -> None:
         source = CRATE_ROOT.read_text(encoding="utf-8")
 
-        self.assertIn("pub use pdf::{PagesIter, Pdf};", source)
+        self.assertIn("pub use pdf::{Pages, PagesIter, Pdf};", source)
         self.assertIn("PdfError", source)
         self.assertNotIn("pub use pdfplumber_parse::", source)
         for parser_internal in (

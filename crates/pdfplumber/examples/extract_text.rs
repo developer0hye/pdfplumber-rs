@@ -18,7 +18,7 @@ fn main() {
     println!("Pages: {}", pdf.page_count());
     println!();
 
-    for page_result in pdf.pages_iter() {
+    for page_result in pdf.pages() {
         let page = page_result.unwrap();
         let text = page.extract_text(&TextOptions::default());
         println!("--- Page {} ---", page.page_number());
