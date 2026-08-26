@@ -34,6 +34,10 @@ commit list.
 
 ### Changed
 
+- **API:** `Pdf` is now the canonical high-level entry point from the root
+  `pdfplumber` crate. Parser backends and content-event types are no longer
+  re-exported at that root; advanced parser consumers can depend on the separate
+  `pdfplumber-parse` crate explicitly.
 - **Platform:** Search and package-registry descriptions now share the same
   evidence-driven Rust extraction position, label each surface's maturity, and keep
   the Python migration claim explicitly alpha and incomplete.
