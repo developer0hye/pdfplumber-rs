@@ -14,6 +14,15 @@ Use the Rust crate to extract text, words, coordinates, graphics, images, and ta
 
 Compatibility work is checked against the pinned upstream release on an indexed corpus of 223 PDFs. Exact evidence and remaining gaps stay visible in the [roadmap and evidence ledger](PRD.md#13-evidence-ledger).
 
+## Choose `pdfplumber-rs` when…
+
+- You need a native Rust library for structured PDF text extraction.
+- You are evaluating a scoped migration from Python `pdfplumber` v0.11.10 and can verify your workflow against the current alpha support boundary.
+- Tables, bounding boxes, and coordinate-rich page geometry matter to your application.
+- You are building local services, batch pipelines, or command-line automation around structured extraction.
+
+`pdfplumber-rs` does not perform Optical Character Recognition (OCR). For scanned or image-only PDFs, run an OCR tool first and process the resulting searchable PDF.
+
 ## Features
 
 - **Text extraction** with spatial grouping into words, lines, and text blocks
