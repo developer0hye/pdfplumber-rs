@@ -1,0 +1,68 @@
+# Changelog
+
+All notable user-visible changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/2.0.0/),
+and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+Release notes are derived from this canonical record rather than from an uncurated
+commit list.
+
+## [Unreleased]
+
+### Added
+
+- **API:** Python character dictionaries now expose the six-value PDF transformation
+  `matrix` used for each glyph.
+- **Platform:** Versioned readiness and generated support pages now distinguish the
+  alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
+
+### Changed
+
+- **Performance:** Public guidance no longer repeats unverified cross-project speed or
+  memory ranges. No cross-project performance advantage is claimed until the
+  benchmark and artifact gates in the detailed roadmap are complete.
+- **Migration:** Python installation guidance now calls out that `pdfplumber-rs` and
+  Python `pdfplumber` provide the same `pdfplumber` import. Use separate environments
+  when comparing them, and reinstall in a fresh environment after an accidental
+  co-install instead of treating package-manager order as a supported configuration.
+
+### Fixed
+
+- **Compatibility:** Python character dictionaries now match the pinned
+  `pdfplumber` v0.11.10 behavior for font names, reported size and advance, upright
+  state, and transformation matrices. Mirrored-text word grouping and stable source
+  ordering for tied word clusters were also restored.
+
+## [0.3.0] - 2026-08-22
+
+### Added
+
+- **API:** Added the Python `pdfplumber` facade with `open`, lazy `PDF.pages`, page
+  selection and geometry, crop relationships, cache flushing, object dictionaries,
+  annotations, hyperlinks, structure trees, and JSON/CSV serialization. The Python
+  extension remains alpha and is not yet a complete drop-in replacement.
+- **Platform:** Versioned the Rust crate, Python distribution, CLI crate, and
+  WebAssembly source at `0.3.0` under Apache-2.0. Rust, Python, and CLI are alpha;
+  WebAssembly is experimental, and its npm package was not published with this
+  release and therefore remained at `0.2.0`.
+
+### Changed
+
+- **Performance:** Changed word-to-line clustering to use y-coordinate buckets so it
+  avoids repeatedly comparing words from unrelated rows. This release does not claim
+  a cross-project speedup ratio.
+- **Migration:** Breaking: `UnicodeNorm::default()` changed from no normalization to
+  NFC. Select `UnicodeNorm::None` explicitly when byte-for-byte preservation of
+  decomposed text is required. The Rust `MarkdownOptions`, `MarkdownRenderer`, and
+  `Page::to_markdown` APIs, plus CLI Markdown output, were removed; render Markdown in
+  a downstream integration instead.
+
+### Fixed
+
+- **Compatibility:** Expanded text, word, table, page-geometry, font, CJK, RTL,
+  rotation, tagged-PDF, and malformed-content handling against Python
+  `pdfplumber`. The Python compatibility target is pinned to v0.11.10 and remains
+  evidence-scoped rather than a blanket parity claim.
+
+[Unreleased]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.2.0...v0.3.0
