@@ -5,9 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Command-line tool to extract text, characters, words, and tables from PDF documents"
+description = "Alpha command-line tool for PDF text, geometry, image, and table extraction"
 keywords = ["pdf", "cli", "table", "text-extraction"]
 categories = ["command-line-utilities"]
+
+[package.metadata.pdfplumber-rs]
+maturity = "alpha"
 
 [[bin]]
 name = "pdfplumber"

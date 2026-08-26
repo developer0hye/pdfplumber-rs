@@ -7,10 +7,10 @@ import argparse
 import difflib
 import re
 import sys
-import tomllib
 from pathlib import Path
 from typing import Any
 
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = REPO_ROOT / "support-matrix.toml"
@@ -41,9 +41,7 @@ def require_string(mapping: dict[str, Any], key: str, context: str) -> str:
     return value
 
 
-def require_string_list(
-    mapping: dict[str, Any], key: str, context: str
-) -> list[str]:
+def require_string_list(mapping: dict[str, Any], key: str, context: str) -> list[str]:
     value = mapping.get(key)
     if (
         not isinstance(value, list)
@@ -70,7 +68,9 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
     try:
         source: dict[str, Any] = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
-        raise MatrixError(f"cannot read {path.relative_to(REPO_ROOT)}: {error}") from error
+        raise MatrixError(
+            f"cannot read {path.relative_to(REPO_ROOT)}: {error}"
+        ) from error
 
     if source.get("schema_version") != 1:
         raise MatrixError("schema_version must be 1")
@@ -81,12 +81,29 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
     if not VERSION_PATTERN.fullmatch(release_version):
         raise MatrixError("matrix.release_version must be a semantic version")
     rust_version = require_string(source, "rust_version", "matrix")
+    license_expression = require_string(source, "license", "matrix")
+    repository = require_string(source, "repository", "matrix")
+    release_notes = require_string(source, "release_notes", "matrix")
+    if not isinstance(source.get("github_prerelease"), bool):
+        raise MatrixError("matrix.github_prerelease must be a boolean")
+    repository_path(release_notes, "matrix.release_notes")
 
     workspace = tomllib.loads((REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8"))
-    actual_rust_version = workspace["workspace"]["package"]["rust-version"]
+    workspace_package = workspace["workspace"]["package"]
+    actual_rust_version = workspace_package["rust-version"]
     if rust_version != actual_rust_version:
         raise MatrixError(
             f"matrix rust_version {rust_version} != workspace {actual_rust_version}"
+        )
+    if license_expression != workspace_package.get("license"):
+        raise MatrixError(
+            f"matrix license {license_expression} != workspace "
+            f"{workspace_package.get('license')}"
+        )
+    if repository != workspace_package.get("repository"):
+        raise MatrixError(
+            f"matrix repository {repository} != workspace "
+            f"{workspace_package.get('repository')}"
         )
 
     surfaces = source.get("surfaces")
@@ -102,6 +119,7 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
         for key in (
             "name",
             "package",
+            "readme",
             "registry",
             "registry_url",
             "manifest",
@@ -115,6 +133,13 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
         if maturity not in MATURITIES:
             raise MatrixError(f"{context}.maturity must be one of {sorted(MATURITIES)}")
 
+        if surface_id == "cli":
+            require_string(surface, "executable", context)
+        else:
+            require_string(surface, "import_name", context)
+        if surface_id == "python":
+            require_string(surface, "native_module", context)
+
         source_version = surface["source_version"]
         registry_version = surface["registry_version"]
         if not VERSION_PATTERN.fullmatch(source_version):
@@ -127,6 +152,7 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
             )
 
         manifest_path = repository_path(surface["manifest"], f"{context}.manifest")
+        repository_path(surface["readme"], f"{context}.readme")
         manifest = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
         package = manifest.get("package", {})
         if package.get("name") != surface["manifest_package"]:
@@ -163,7 +189,19 @@ def render_list(values: list[str]) -> list[str]:
     return [f"- {value}" for value in values]
 
 
+def interface_name(surface: dict[str, Any]) -> str:
+    if surface["id"] == "cli":
+        return f"`{surface['executable']}` executable"
+    if surface["id"] == "python":
+        return (
+            f"`{surface['import_name']}` import; "
+            f"`{surface['native_module']}` native module"
+        )
+    return f"`{surface['import_name']}` import"
+
+
 def render(source: dict[str, Any]) -> str:
+    release_notes_href = source["release_notes"].removeprefix("docs/")
     lines = [
         "# Support matrix",
         "",
@@ -171,12 +209,14 @@ def render(source: dict[str, Any]) -> str:
         "",
         f"This snapshot describes repository release `{source['release_version']}` and registry state observed on {source['observed_at']}. It distinguishes required CI evidence from targets that release automation is merely configured to build.",
         "",
+        f"All current surfaces use `{source['license']}` and the canonical repository [{source['repository']}]({source['repository']}). The [versioned release metadata]({release_notes_href}) is checked from the same source.",
+        "",
         "Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.",
         "",
         "## Surface summary",
         "",
-        "| Surface | Maturity | Package | Source version | Observed registry version |",
-        "|---|---|---|---|---|",
+        "| Surface | Maturity | Package | Import or executable | Source version | Observed registry version |",
+        "|---|---|---|---|---|---|",
     ]
 
     for surface in source["surfaces"]:
@@ -191,6 +231,7 @@ def render(source: dict[str, Any]) -> str:
                     escape_cell(surface["name"]),
                     surface["maturity"].title(),
                     escape_cell(package),
+                    escape_cell(interface_name(surface)),
                     f"`{surface['source_version']}`",
                     f"`{surface['registry_version']}` as of {source['observed_at']}",
                 )
@@ -208,7 +249,9 @@ def render(source: dict[str, Any]) -> str:
     )
 
     for surface in source["surfaces"]:
-        lines.extend(("", f"### {surface['name']}", "", "**CI-verified platforms**", ""))
+        lines.extend(
+            ("", f"### {surface['name']}", "", "**CI-verified platforms**", "")
+        )
         lines.extend(render_list(surface["ci_verified_platforms"]))
         lines.extend(("", "**Release-configured targets**", ""))
         lines.extend(render_list(surface["release_configured_targets"]))
@@ -235,7 +278,7 @@ def render(source: dict[str, Any]) -> str:
             "python3 scripts/generate_support_matrix.py --check",
             "```",
             "",
-            "The generator validates all four required surfaces, their source manifest names and versions, the workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.",
+            "The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.",
             "",
         )
     )

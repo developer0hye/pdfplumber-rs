@@ -12,11 +12,23 @@ jobs:
   ci:
     uses: ./.github/workflows/ci.yml
 
+  metadata:
+    name: Validate release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      release-notes: ${{ steps.metadata.outputs.release-notes }}
+      prerelease: ${{ steps.metadata.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Match the tag and release contract
+        id: metadata
+        run: python scripts/check_package_metadata.py --release-tag "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
+
   # ── crates.io ──────────────────────────────────────────────
 
   publish:
     name: Publish to crates.io
-    needs: ci
+    needs: [ci, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,19 +66,21 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: publish
+    needs: [publish, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: softprops/action-gh-release@v2
         with:
+          body_path: ${{ needs.metadata.outputs.release-notes }}
+          prerelease: ${{ needs.metadata.outputs.prerelease }}
           generate_release_notes: true
 
   # ── PyPI (maturin wheels + sdist) ──────────────────────────
 
   build-wheels:
     name: Build wheel (${{ matrix.os }}, ${{ matrix.target }})
-    needs: ci
+    needs: [ci, metadata]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -128,7 +142,7 @@ jobs:
 
   build-sdist:
     name: Build sdist
-    needs: ci
+    needs: [ci, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -163,7 +177,7 @@ jobs:
 
   publish-npm:
     name: Publish to npm
-    needs: ci
+    needs: [ci, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

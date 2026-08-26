@@ -5,9 +5,12 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Core data types and algorithms for pdfplumber-rs (backend-independent)"
+description = "Alpha core data types and algorithms for pdfplumber-rs (backend-independent)"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber"]
 categories = ["parser-implementations", "text-processing"]
+
+[package.metadata.pdfplumber-rs]
+maturity = "alpha"
 
 [features]
 serde = ["dep:serde"]

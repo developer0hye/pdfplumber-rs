@@ -5,10 +5,13 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction"
+description = "Experimental WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction"
 keywords = ["pdf", "wasm", "webassembly", "pdfplumber", "table-extraction"]
 categories = ["wasm", "parser-implementations"]
 publish = false
+
+[package.metadata.pdfplumber-rs]
+maturity = "experimental"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

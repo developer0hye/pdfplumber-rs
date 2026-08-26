@@ -4,16 +4,18 @@
 
 This snapshot describes repository release `0.3.0` and registry state observed on 2026-08-26. It distinguishes required CI evidence from targets that release automation is merely configured to build.
 
+All current surfaces use `Apache-2.0` and the canonical repository [https://github.com/developer0hye/pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs). The [versioned release metadata](releases/v0.3.0.md) is checked from the same source.
+
 Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.
 
 ## Surface summary
 
-| Surface | Maturity | Package | Source version | Observed registry version |
-|---|---|---|---|---|
-| Rust | Alpha | [`pdfplumber`](https://crates.io/crates/pdfplumber) (crates.io) | `0.3.0` | `0.3.0` as of 2026-08-26 |
-| Python | Alpha | [`pdfplumber-rs`](https://pypi.org/project/pdfplumber-rs/) (PyPI) | `0.3.0` | `0.3.0` as of 2026-08-26 |
-| Command-Line Interface | Alpha | [`pdfplumber-cli`](https://crates.io/crates/pdfplumber-cli) (crates.io) | `0.3.0` | `0.3.0` as of 2026-08-26 |
-| WebAssembly | Experimental | [`pdfplumber-wasm`](https://www.npmjs.com/package/pdfplumber-wasm) (npm) | `0.3.0` | `0.2.0` as of 2026-08-26 |
+| Surface | Maturity | Package | Import or executable | Source version | Observed registry version |
+|---|---|---|---|---|---|
+| Rust | Alpha | [`pdfplumber`](https://crates.io/crates/pdfplumber) (crates.io) | `pdfplumber` import | `0.3.0` | `0.3.0` as of 2026-08-26 |
+| Python | Alpha | [`pdfplumber-rs`](https://pypi.org/project/pdfplumber-rs/) (PyPI) | `pdfplumber` import; `pdfplumber._native` native module | `0.3.0` | `0.3.0` as of 2026-08-26 |
+| Command-Line Interface | Alpha | [`pdfplumber-cli`](https://crates.io/crates/pdfplumber-cli) (crates.io) | `pdfplumber` executable | `0.3.0` | `0.3.0` as of 2026-08-26 |
+| WebAssembly | Experimental | [`pdfplumber-wasm`](https://www.npmjs.com/package/pdfplumber-wasm) (npm) | `pdfplumber-wasm` import | `0.3.0` | `0.2.0` as of 2026-08-26 |
 
 A release-configured target is not considered supported or CI-verified until an installed artifact is exercised on that target. Registry versions are dated observations and may change independently of this repository snapshot.
 
@@ -160,4 +162,4 @@ python3 scripts/generate_support_matrix.py
 python3 scripts/generate_support_matrix.py --check
 ```
 
-The generator validates all four required surfaces, their source manifest names and versions, the workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.
+The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.

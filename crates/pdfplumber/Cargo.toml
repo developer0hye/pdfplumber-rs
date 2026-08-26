@@ -5,13 +5,17 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates"
+description = "Alpha PDF extraction for chars, words, geometry, images, and tables"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber", "document"]
 categories = ["parser-implementations", "text-processing"]
+
 # The fixture corpus is ~160 MB of golden JSON and sample PDFs used only by the
 # repository test suite. Shipping it would exceed the crates.io size limit and
 # force every downstream user to download it.
 exclude = ["tests/fixtures/"]
+
+[package.metadata.pdfplumber-rs]
+maturity = "alpha"
 
 [features]
 default = ["std"]
