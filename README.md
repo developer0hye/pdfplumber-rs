@@ -12,6 +12,8 @@ Use the Rust crate to extract text, words, coordinates, graphics, images, and ta
 
 **Maturity: `0.3.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement.
 
+**Release `0.3.0`.** Rust crate `pdfplumber` (import `pdfplumber`) is alpha. Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha. CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha. The npm package `pdfplumber-wasm` is experimental. Every surface uses the `Apache-2.0` license and the canonical repository `https://github.com/developer0hye/pdfplumber-rs`; see the [versioned release metadata](docs/releases/v0.3.0.md).
+
 Compatibility work is checked against the pinned upstream release on an indexed corpus of 223 PDFs. Exact evidence and remaining gaps stay visible in the [roadmap and evidence ledger](PRD.md#13-evidence-ledger).
 
 ## Choose `pdfplumber-rs` when…

@@ -5,8 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Python bindings for pdfplumber-rs via PyO3"
+description = "Alpha Python bindings for pdfplumber-rs via PyO3"
 publish = false
+
+[package.metadata.pdfplumber-rs]
+maturity = "alpha"
 
 [lib]
 name = "_native"

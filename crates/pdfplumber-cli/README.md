@@ -4,6 +4,8 @@ Command-line tool to extract text, characters, words, and tables from PDF docume
 
 **pdfplumber-cli** is the CLI frontend for [pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs), a Rust port of Python's [pdfplumber](https://github.com/jsvine/pdfplumber).
 
+Crate `pdfplumber-cli` installs executable `pdfplumber`. Release `0.3.0` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
+
 ## Installation
 
 ```bash
