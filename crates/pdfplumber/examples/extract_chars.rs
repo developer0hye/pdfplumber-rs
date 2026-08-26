@@ -15,7 +15,7 @@ fn main() {
         std::process::exit(1);
     });
 
-    for page_result in pdf.pages_iter() {
+    for page_result in pdf.pages() {
         let page = page_result.unwrap();
         println!(
             "--- Page {} ({:.0} x {:.0}, {} chars) ---",

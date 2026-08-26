@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Make page traversal explicit
+### Define stable public data models
 
-Make page selection and iteration ergonomic without eager whole-document extraction
-or unnecessary full-document cloning.
+Define stable Rust models for extracted text, geometry, tables, metadata, warnings,
+and options, including units, coordinate origins, ordering, and optional fields.
 
-Detailed task: [`DX-004`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-005`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -29,9 +29,10 @@ After the trust reset, Rust and Python advance toward beta independently. Neithe
 
 ### Establish a Rust developer beta contract
 
-Stabilize the public data models and error boundary, enforce Semantic Versioning review, and lock the Minimum Supported Rust Version so dependency updates cannot silently raise it.
+Stabilize the error boundary, enforce Semantic Versioning review, and lock the
+Minimum Supported Rust Version so dependency updates cannot silently raise it.
 
-Detailed tasks: [`DX-005`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-007`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-012`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed tasks: [`DX-007`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-012`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Define a credible Python migration beta
 

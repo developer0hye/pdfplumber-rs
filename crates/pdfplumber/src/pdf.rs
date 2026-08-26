@@ -17,36 +17,107 @@ use pdfplumber_parse::{
 
 use crate::{Page, PageObjectKind};
 
+/// A borrowed collection view over the pages in a [`Pdf`].
+///
+/// Created by [`Pdf::pages`]. The view borrows the document and does not clone
+/// it or extract any page content. Use [`Pages::get`] for direct zero-based
+/// selection or iterate over the view to process pages on demand.
+#[derive(Clone, Copy)]
+pub struct Pages<'a> {
+    pdf: &'a Pdf,
+}
+
+impl<'a> Pages<'a> {
+    /// Return the number of pages without interpreting their content streams.
+    pub fn len(&self) -> usize {
+        self.pdf.page_count()
+    }
+
+    /// Return `true` when the document contains no pages.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Extract one page by zero-based index without processing earlier pages.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] if the index is out of range or the selected page's
+    /// content cannot be interpreted.
+    pub fn get(&self, index: usize) -> Result<Page, PdfError> {
+        self.pdf.page(index)
+    }
+
+    /// Return a lazy iterator over all pages from front to back.
+    ///
+    /// The iterator also implements [`DoubleEndedIterator`], so callers can
+    /// select from the back without processing earlier pages.
+    pub fn iter(&self) -> PagesIter<'a> {
+        PagesIter::new(self.pdf)
+    }
+}
+
+impl<'a> IntoIterator for Pages<'a> {
+    type Item = Result<Page, PdfError>;
+    type IntoIter = PagesIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 /// Iterator over pages of a PDF document, yielding each page on demand.
 ///
-/// Created by [`Pdf::pages_iter()`]. Each call to [`next()`](Iterator::next)
-/// processes one page from the PDF content stream. Pages are not retained
-/// after being yielded — the caller owns the `Page` value.
+/// Created by [`Pages::iter`] or [`Pages::into_iter`]. Each call to
+/// [`next()`](Iterator::next) or [`next_back()`](DoubleEndedIterator::next_back)
+/// processes one page from the PDF content stream. Pages are not retained after
+/// being yielded — the caller owns the [`Page`] value.
 pub struct PagesIter<'a> {
     pdf: &'a Pdf,
-    current: usize,
-    count: usize,
+    front: usize,
+    back: usize,
+}
+
+impl<'a> PagesIter<'a> {
+    fn new(pdf: &'a Pdf) -> Self {
+        Self {
+            pdf,
+            front: 0,
+            back: pdf.page_count(),
+        }
+    }
 }
 
 impl<'a> Iterator for PagesIter<'a> {
     type Item = Result<Page, PdfError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current >= self.count {
+        if self.front >= self.back {
             return None;
         }
-        let result = self.pdf.page(self.current);
-        self.current += 1;
+        let result = self.pdf.page(self.front);
+        self.front += 1;
         Some(result)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.count - self.current;
+        let remaining = self.back - self.front;
         (remaining, Some(remaining))
     }
 }
 
+impl DoubleEndedIterator for PagesIter<'_> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.front >= self.back {
+            return None;
+        }
+        self.back -= 1;
+        Some(self.pdf.page(self.back))
+    }
+}
+
 impl ExactSizeIterator for PagesIter<'_> {}
+impl std::iter::FusedIterator for PagesIter<'_> {}
 
 /// A PDF document opened for extraction.
 ///
@@ -764,28 +835,32 @@ impl Pdf {
         Ok(results)
     }
 
-    /// Return a streaming iterator over all pages in the document.
+    /// Return a borrowed collection view for page selection and lazy iteration.
     ///
-    /// Each page is processed on demand when [`Iterator::next()`] is called.
-    /// Previously yielded pages are not retained by the iterator, so memory
-    /// usage stays bounded regardless of document size.
+    /// Creating the view does not interpret page content or clone the document.
+    /// [`Pages::get`] extracts one selected page directly, while iterating the
+    /// view extracts pages on demand and returns independently owned [`Page`]
+    /// values.
     ///
     /// # Example
     ///
     /// ```ignore
     /// let pdf = Pdf::open_bytes(bytes, None)?;
-    /// for result in pdf.pages_iter() {
+    /// let first = pdf.pages().get(0)?;
+    /// for result in pdf.pages() {
     ///     let page = result?;
     ///     println!("Page {}: {}", page.page_number(), page.extract_text(&TextOptions::default()));
     ///     // page is dropped at end of loop body
     /// }
     /// ```
+    pub fn pages(&self) -> Pages<'_> {
+        Pages { pdf: self }
+    }
+
+    /// Compatibility shortcut for [`Pages::iter`].
+    #[doc(hidden)]
     pub fn pages_iter(&self) -> PagesIter<'_> {
-        PagesIter {
-            pdf: self,
-            current: 0,
-            count: self.page_count(),
-        }
+        self.pages().iter()
     }
 
     /// Process all pages in parallel using rayon, returning a Vec of Results.
