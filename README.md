@@ -165,6 +165,14 @@ For ordinary applications, do not add direct dependencies on `pdfplumber-core` o
 internals for advanced contributors; they are not additional steps in the
 high-level path.
 
+## Rust Data Models
+
+Import related extraction types from the curated `pdfplumber::models` module,
+or continue using their source-compatible crate-root re-exports. The
+[Rust data-model contract](docs/rust-data-models.md) defines the stable `0.3.x`
+families and documents their units, top-left coordinate system, collection
+ordering, optional fields, and the separate serialized-schema boundary.
+
 ## Rust Input API
 
 The canonical constructors form one source-named family:

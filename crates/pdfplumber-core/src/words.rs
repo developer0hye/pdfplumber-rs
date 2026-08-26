@@ -5,9 +5,9 @@ use crate::text::{Char, TextDirection};
 /// Options for word extraction, matching pdfplumber defaults.
 #[derive(Debug, Clone)]
 pub struct WordOptions {
-    /// Maximum horizontal distance between characters to group into a word.
+    /// Maximum horizontal distance in page-space points between characters.
     pub x_tolerance: f64,
-    /// Maximum vertical distance between characters to group into a word.
+    /// Maximum vertical distance in page-space points between characters.
     pub y_tolerance: f64,
     /// If true, include blank/space characters in words instead of splitting on them.
     pub keep_blank_chars: bool,
@@ -18,13 +18,16 @@ pub struct WordOptions {
     /// If true, expand common Latin ligatures (U+FB00–U+FB06) to their multi-character equivalents.
     pub expand_ligatures: bool,
     /// When set, the horizontal tolerance becomes this fraction of the preceding
-    /// character's font size instead of the fixed `x_tolerance`.
+    /// character's font size instead of the fixed `x_tolerance`; `None` uses
+    /// the fixed tolerance.
     pub x_tolerance_ratio: Option<f64>,
     /// When set, the vertical tolerance becomes this fraction of the preceding
-    /// character's font size instead of the fixed `y_tolerance`.
+    /// character's font size instead of the fixed `y_tolerance`; `None` uses
+    /// the fixed tolerance.
     pub y_tolerance_ratio: Option<f64>,
     /// Characters that stand alone as their own word, splitting whatever
-    /// surrounds them. Pass [`DEFAULT_SPLIT_PUNCTUATION`] for the usual set.
+    /// surrounds them. `None` disables punctuation splitting. Pass
+    /// [`DEFAULT_SPLIT_PUNCTUATION`] for the usual set.
     pub split_at_punctuation: Option<String>,
 }
 
@@ -54,7 +57,7 @@ impl Default for WordOptions {
 pub struct Word {
     /// The text content of this word.
     pub text: String,
-    /// Bounding box encompassing all constituent characters.
+    /// Bounding box encompassing all constituent characters in page-space points.
     pub bbox: BBox,
     /// Distance from the top of the first page (minimum doctop of constituent chars).
     pub doctop: f64,

@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Define stable public data models
+### Version Rust-native schemas
 
-Define stable Rust models for extracted text, geometry, tables, metadata, warnings,
-and options, including units, coordinate origins, ordering, and optional fields.
+Version serialized Rust-native models or publish a compatibility policy that
+prevents silent field renames, type changes, and enum encoding drift.
 
-Detailed task: [`DX-005`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-006`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 

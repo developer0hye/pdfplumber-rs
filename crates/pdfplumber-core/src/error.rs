@@ -130,13 +130,13 @@ pub struct ExtractWarning {
     pub code: ExtractWarningCode,
     /// Human-readable description of the warning.
     pub description: String,
-    /// Page number where the warning occurred (0-indexed), if applicable.
+    /// Zero-based page index where the warning occurred, if available/applicable.
     pub page: Option<usize>,
-    /// Element context (e.g., "char at offset 42").
+    /// Element context (e.g., "char at offset 42"), if available/applicable.
     pub element: Option<String>,
-    /// Index of the operator in the content stream where the warning occurred.
+    /// Zero-based content-stream operator index, if available/applicable.
     pub operator_index: Option<usize>,
-    /// Font name associated with the warning, if applicable.
+    /// Font name associated with the warning, if available/applicable.
     pub font_name: Option<String>,
 }
 
