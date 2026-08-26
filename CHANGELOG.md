@@ -11,6 +11,9 @@ commit list.
 
 ### Added
 
+- **Documentation:** Added a maintained Frequently Asked Questions page for scanned
+  documents, tables, passwords, malformed files, coordinates, Python migration, and
+  WebAssembly readiness.
 - **API:** Python character dictionaries now expose the six-value PDF transformation
   `matrix` used for each glyph.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
