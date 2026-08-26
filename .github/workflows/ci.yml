@@ -138,6 +138,9 @@ jobs:
       - name: Validate the generated support matrix
         run: python scripts/generate_support_matrix.py --check
 
+      - name: Validate the versioned readiness page
+        run: python scripts/generate_readiness.py --check
+
       - name: Validate the source package license policy
         run: python scripts/check_package_licenses.py --source
 
