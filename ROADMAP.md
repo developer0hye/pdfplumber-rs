@@ -10,11 +10,11 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Make upgrade decisions explicit
+### Keep public claims consistent
 
-Maintain the changelog as the user-visible history of compatibility, API, performance, platform, and migration changes. Release notes will explain who should upgrade, behavior changes, known limitations, the artifact matrix, and the evidence behind the release.
+Align search-engine and registry descriptions with the public positioning, and attach stable evidence to every major claim in the README and release notes.
 
-Detailed task: [`ADOPT-013`](PRD.md#822-p0--adoption-trust-and-positioning).
+Detailed tasks: [`ADOPT-014`](PRD.md#822-p0--adoption-trust-and-positioning), [`ADOPT-018`](PRD.md#822-p0--adoption-trust-and-positioning).
 
 ### Answer evaluation and privacy questions
 
