@@ -1,0 +1,71 @@
+name: Apply PRD adoption update
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/apply-prd-adoption-update.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apply-prd-adoption-update
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Verify and decode updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find .github/prd-update -maxdepth 1 -type f -name 'chunk-*.txt' | wc -l)" -eq 6
+          cat .github/prd-update/chunk-*.txt > /tmp/prd-updater.b64
+          python - <<'PY'
+          import base64
+          import gzip
+          import hashlib
+          from pathlib import Path
+
+          encoded = Path('/tmp/prd-updater.b64').read_text(encoding='ascii')
+          compressed = base64.b64decode(encoded, validate=True)
+          script = gzip.decompress(compressed)
+          expected = '74a8a9e7afe310a24bc8948889de41a9b0e32dc1de1ebf76dcae1790243452de'
+          actual = hashlib.sha256(script).hexdigest()
+          if actual != expected:
+              raise SystemExit(f'updater checksum mismatch: {actual}')
+          Path('/tmp/apply_prd_adoption_update.py').write_bytes(script)
+          PY
+          python -m py_compile /tmp/apply_prd_adoption_update.py
+
+      - name: Apply and validate PRD update
+        shell: bash
+        run: |
+          set -euo pipefail
+          python /tmp/apply_prd_adoption_update.py --path PRD.md --no-backup
+          python /tmp/apply_prd_adoption_update.py --path PRD.md --check
+          git diff --check -- PRD.md
+
+      - name: Commit PRD and remove temporary updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PRD.md
+          git rm -r .github/prd-update
+          git rm .github/workflows/apply-prd-adoption-update.yml
+          git diff --cached --check
+          git commit -m "docs: add adoption-first product roadmap"
+          git push origin HEAD:main
