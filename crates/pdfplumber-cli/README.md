@@ -12,6 +12,12 @@ Crate `pdfplumber-cli` installs executable `pdfplumber`. Release `0.3.0` is alph
 cargo install pdfplumber-cli
 ```
 
+## Quick Start
+
+```bash
+pdfplumber text document.pdf
+```
+
 ## Usage
 
 ```bash
