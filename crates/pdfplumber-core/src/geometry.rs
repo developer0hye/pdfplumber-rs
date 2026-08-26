@@ -98,13 +98,16 @@ pub enum Orientation {
     Diagonal,
 }
 
-/// Bounding box with top-left origin coordinate system.
+/// Bounding box in displayed page-space points with a top-left origin.
 ///
 /// Coordinates follow pdfplumber convention:
 /// - `x0`: left edge
 /// - `top`: top edge (distance from top of page)
 /// - `x1`: right edge
 /// - `bottom`: bottom edge (distance from top of page)
+///
+/// One point is nominally 1/72 inch. X increases to the right and Y increases
+/// downward after applying the page rotation.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BBox {

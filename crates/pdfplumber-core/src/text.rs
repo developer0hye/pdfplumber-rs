@@ -7,25 +7,28 @@ use crate::painting::Color;
 pub struct Char {
     /// The text content of this character.
     pub text: String,
-    /// Bounding box in top-left origin coordinates.
+    /// Bounding box in displayed page-space points with a top-left origin.
     pub bbox: BBox,
     /// Font name.
     pub fontname: String,
-    /// Font size in points.
+    /// Nominal font size in points.
     pub size: f64,
     /// Glyph advance in text-space units, excluding character and word spacing.
     pub advance: f64,
-    /// Distance from the top of the first page (accumulates across pages).
+    /// Document-space top coordinate in points.
+    ///
+    /// This is the sum of displayed heights of preceding pages plus
+    /// [`Self::bbox`]'s local `top` coordinate.
     pub doctop: f64,
     /// Whether the character is upright (not rotated).
     pub upright: bool,
     /// Text direction for this character.
     pub direction: TextDirection,
-    /// Stroking (outline) color, if any.
+    /// Stroking (outline) color, or `None` when unavailable/not applicable.
     pub stroking_color: Option<Color>,
-    /// Non-stroking (fill) color, if any.
+    /// Non-stroking (fill) color, or `None` when unavailable/not applicable.
     pub non_stroking_color: Option<Color>,
-    /// Character layout matrix `[a, b, c, d, e, f]` at time of rendering.
+    /// Character render affine matrix `[a, b, c, d, e, f]`.
     ///
     /// This is the text matrix concatenated with the active graphics and page
     /// matrices, matching the matrix carried by pdfminer's `LTChar`.
@@ -33,10 +36,10 @@ pub struct Char {
     /// Raw character code from the PDF content stream.
     pub char_code: u32,
     /// Marked content identifier linking this character to a structure tree element.
-    /// Set when the character is inside a marked-content sequence with an MCID.
+    /// `None` means no MCID was available for the character.
     pub mcid: Option<u32>,
     /// Structure tag for this character (e.g., "P", "H1", "Span").
-    /// Derived from the structure tree element that references this character's MCID.
+    /// `None` means no matching tagged-structure value was available.
     pub tag: Option<String>,
 }
 

@@ -139,9 +139,13 @@ pub struct ExplicitLines {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Cell {
-    /// Bounding box of the cell.
+    /// Bounding box of the cell in displayed page-space points.
     pub bbox: BBox,
-    /// Text content within the cell, if any.
+    /// Text content within a real cell.
+    ///
+    /// After text population, `Some("")` is a real but blank cell. `None` is
+    /// used before text has been populated and for a missing grid position
+    /// introduced where another cell spans that position.
     pub text: Option<String>,
 }
 
@@ -159,9 +163,9 @@ pub struct TableQuality {
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Table {
-    /// Bounding box enclosing the entire table.
+    /// Bounding box enclosing the entire table in displayed page-space points.
     pub bbox: BBox,
-    /// All cells in the table.
+    /// All real cells in row-major order: top-to-bottom, then left-to-right.
     pub cells: Vec<Cell>,
     /// Cells organized into rows (top-to-bottom, left-to-right within each row).
     pub rows: Vec<Vec<Cell>>,
@@ -701,7 +705,16 @@ pub fn cells_to_tables(cells: Vec<Cell>) -> Vec<Table> {
     let mut tables: Vec<Table> = groups
         .into_values()
         .map(|indices| {
-            let group_cells: Vec<Cell> = indices.iter().map(|&i| cells[i].clone()).collect();
+            let mut group_cells: Vec<Cell> = indices.iter().map(|&i| cells[i].clone()).collect();
+
+            // `Table::cells` is a public flat view, so give it the same stable
+            // row-major order as `rows`, independent of caller/input order.
+            group_cells.sort_by(|a, b| {
+                a.bbox
+                    .top
+                    .total_cmp(&b.bbox.top)
+                    .then_with(|| a.bbox.x0.total_cmp(&b.bbox.x0))
+            });
 
             // Compute union bbox
             let mut bbox = group_cells[0].bbox;

@@ -99,6 +99,8 @@ pub struct MetadataEntry {
     /// The decoded value, or the original unresolved value after a failure.
     pub value: MetadataValue,
     /// The resolution failure reported for this entry, if any.
+    ///
+    /// When present, [`Self::value`] still retains the unresolved source value.
     pub resolution_error: Option<String>,
 }
 

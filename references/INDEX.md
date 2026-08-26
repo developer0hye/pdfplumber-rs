@@ -19,6 +19,12 @@ Projects organized by domain. Read the specific file matching your current probl
 | [pdf_oxide](https://github.com/yfedoseev/pdf_oxide) | 975 | [pdf-oxide.md](pdf-oxide.md) | High-level Rust facade design, competitive analysis, or self-published benchmark methodology |
 | [pdfium-render](https://github.com/ajrcarey/pdfium-render) | — | [pdfium-render.md](pdfium-render.md) | Borrowed page-collection views, direct indexed selection, and lazy iteration |
 
+## Rust API Design
+
+| Source | File | Use When |
+|---|---|---|
+| Cargo and the Rust Reference | [rust-public-data-models.md](rust-public-data-models.md) | Reviewing the curated data-model boundary, public-field compatibility, or exhaustive enums |
+
 ## Font Parsing
 
 | Project | Language | File | Use When |

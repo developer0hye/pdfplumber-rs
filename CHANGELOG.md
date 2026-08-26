@@ -37,6 +37,13 @@ commit list.
   selects one zero-based page directly, while exact-sized, double-ended
   iteration extracts owned pages on demand without cloning the document.
   Existing `Pdf::page` and `Pdf::pages_iter` methods remain source-compatible.
+- **API:** Added `pdfplumber::models` as the curated stable `0.3.x` data-model
+  boundary for characters, words, geometry, tables, metadata, warnings, and
+  extraction options. Its contract defines units, coordinate origins,
+  deterministic ordering, and optional-field meaning; existing root imports
+  remain source-compatible and serialized schemas remain deferred to DX-006.
+- **API:** `Table::cells` is now deterministically row-major (top-to-bottom,
+  then left-to-right), independent of detection or caller input order.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 
