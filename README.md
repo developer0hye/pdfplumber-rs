@@ -6,7 +6,7 @@
 [![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://github.com/developer0hye/pdfplumber-rs)
 [![License](https://img.shields.io/crates/l/pdfplumber.svg)](https://github.com/developer0hye/pdfplumber-rs/blob/main/LICENSE)
 
-**Evidence-driven PDF extraction for Rust, with a Python `pdfplumber` migration path under active development.**
+**Evidence-driven PDF extraction for Rust, with an alpha Python `pdfplumber` migration path.**
 
 Use the Rust crate to extract text, words, coordinates, graphics, images, and tables from machine-generated PDFs. The Python package uses the same Rust core and targets ordinary [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) v0.11.10 workflows.
 

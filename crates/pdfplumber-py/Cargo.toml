@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Alpha Python bindings for pdfplumber-rs via PyO3"
+description = "Alpha Python migration path for pdfplumber workflows, powered by evidence-driven PDF extraction in Rust"
 publish = false
 
 [package.metadata.pdfplumber-rs]

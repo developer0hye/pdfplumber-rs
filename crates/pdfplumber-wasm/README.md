@@ -1,6 +1,6 @@
 # pdfplumber-wasm
 
-WebAssembly/JavaScript bindings for [pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs) — extract text, words, characters, and tables from PDFs in the browser or Node.js.
+Experimental WebAssembly bindings for evidence-driven PDF extraction with [pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs).
 
 The npm package and import name are `pdfplumber-wasm`. Release `0.3.0` is experimental, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`. The observed npm release remains `0.2.0`; source `0.3.0` has not yet been published there.
 
