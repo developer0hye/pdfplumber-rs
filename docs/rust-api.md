@@ -62,6 +62,36 @@ rustdoc. Continuous Integration runs the all-feature doctest suite on stable
 Rust and Rust 1.85, so a negative example fails the gate if it unexpectedly
 starts compiling and a positive replacement fails if it drifts from the API.
 
+## Release SemVer gate
+
+Every pull request is checked for a coordinated version change across the four
+Rust packages published by the release workflow. Ordinary pull requests stop
+after that inexpensive detection. A release pull request must advance
+`pdfplumber-core`, `pdfplumber-parse`, `pdfplumber`, and `pdfplumber-cli`
+together.
+
+Release candidates run `cargo-semver-checks` for the three packages that expose
+Rust library APIs, using the latest normal, non-yanked crates.io versions as
+their baselines. The first pass forces patch compatibility, so any detected
+public API break is visible even when the candidate version would allow it. If
+that strict pass fails, a second version-aware pass approves the break only when
+the candidate's SemVer increment permits it. The CLI remains in coordinated
+version detection, but a binary-only command interface has no rustdoc library
+API for `cargo-semver-checks` to compare.
+
+An approved break must also have an entry in the candidate version's changelog
+using `- **Migration:** Breaking: ...`. The note must name the removed behavior
+and give a concrete replacement; placeholders do not satisfy the gate. One note
+may describe several related diagnostics, but it must cover every intentional
+break reported in the pull request.
+
+The gate uses the action's stable-Rust and default-feature heuristic, which
+enables ordinary public features such as `serde` and `parallel`. It cannot prove
+all SemVer properties: the tool documents gaps around some type, generic,
+lifetime, and partial-feature changes. Maintainer review and the migration-note
+contract remain required rather than treating a green tool result as a complete
+compatibility proof.
+
 ## Enforced gates
 
 The facade crate carries `#![deny(missing_docs)]` and
@@ -84,3 +114,7 @@ The source-backed contract in
 guards the boundary, commands, lint policy, and known cross-item documentation
 regressions. The official lint sources and the mapping from those sources to
 this policy are recorded in [`references/rust-rustdoc.md`](../references/rust-rustdoc.md).
+The release detector and workflow contract live in
+[`compat/tests/test_rust_semver_release.py`](../compat/tests/test_rust_semver_release.py),
+with upstream behavior recorded in
+[`references/rust-semver-checks.md`](../references/rust-semver-checks.md).

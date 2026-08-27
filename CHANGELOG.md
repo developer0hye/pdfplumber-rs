@@ -24,6 +24,10 @@ commit list.
 - **Documentation:** Added compile-fail documentation tests with compiling
   alternatives for page-view adapters, borrowed page-view lifetimes, and
   opaque error classification on stable Rust and Rust 1.85.
+- **Platform:** Rust release pull requests now run `cargo-semver-checks` against
+  the published library baselines. Detected breaks require both a compatible
+  release-version increment and actionable migration notes in the release
+  changelog.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

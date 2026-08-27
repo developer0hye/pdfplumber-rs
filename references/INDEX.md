@@ -30,6 +30,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | rustc, rustdoc, and Clippy | [rust-rustdoc.md](rust-rustdoc.md) | Reviewing missing public docs, link validation, or fallible and panicking API documentation gates |
 | Cargo | [rust-examples.md](rust-examples.md) | Reviewing compiled example targets and feature-specific example gates |
 | rustdoc | [rust-compile-fail.md](rust-compile-fail.md) | Reviewing intentional compilation failures and their positive alternatives |
+| cargo-semver-checks and Cargo | [rust-semver-checks.md](rust-semver-checks.md) | Reviewing release API compatibility, baselines, approved breaks, or migration-note gates |
 
 ## Font Parsing
 

@@ -1,0 +1,51 @@
+name: Rust release SemVer
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  release-semver:
+    name: Rust release SemVer
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete release history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect a coordinated Rust release pull request
+        id: release
+        run: >-
+          python scripts/check_rust_release.py
+          --base-rev "${{ github.event.pull_request.base.sha }}"
+          --github-output "$GITHUB_OUTPUT"
+
+      - name: Detect public API breaks under patch compatibility
+        id: strict_semver
+        if: steps.release.outputs.is-release == 'true'
+        continue-on-error: true
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          package: ${{ steps.release.outputs.semver-packages }}
+          release-type: patch
+
+      - name: Validate approved breaking release
+        if: >-
+          steps.release.outputs.is-release == 'true' &&
+          steps.strict_semver.outcome == 'failure'
+        uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2.9
+        with:
+          package: ${{ steps.release.outputs.semver-packages }}
+
+      - name: Require breaking-change migration notes
+        if: >-
+          steps.release.outputs.is-release == 'true' &&
+          steps.strict_semver.outcome == 'failure'
+        run: >-
+          python scripts/check_rust_release.py
+          --base-rev "${{ github.event.pull_request.base.sha }}"
+          --require-migration-notes

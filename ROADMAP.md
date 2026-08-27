@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Guard Rust API compatibility in releases
+### Hold the Minimum Supported Rust Version
 
-Run `cargo-semver-checks` on release pull requests and require migration notes
-for approved breaking changes.
+Lock the Minimum Supported Rust Version so dependency updates cannot silently
+raise it without a reviewed task and changelog entry.
 
-Detailed task: [`DX-012`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -27,12 +27,12 @@ Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
 
-### Establish a Rust developer beta contract
+### Make feature combinations predictable
 
-Lock the Minimum Supported Rust Version so dependency updates cannot silently
-raise it.
+Audit default and optional features, test representative combinations, and
+ensure integrations do not silently change extraction behavior.
 
-Detailed task: [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-014`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Define a credible Python migration beta
 
