@@ -66,14 +66,16 @@
 //! Its [contract](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-data-models.md)
 //! documents units, coordinate origins, ordering, optional fields, and the
 //! compatibility scope for the `0.3.x` line. Root re-exports remain available
-//! for source compatibility.
+//! for source compatibility. With the optional `serde` feature, the curated
+//! models follow the separate
+//! [Serde JSON compatibility policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-serde-schema.md).
 //!
 //! # Feature Flags
 //!
 //! | Feature | Default | Description |
 //! |---------|---------|-------------|
 //! | `std` | Yes | Enables file-path APIs ([`Pdf::open_path`]). Disable for WASM. |
-//! | `serde` | No | Adds `Serialize`/`Deserialize` to all public data types. |
+//! | `serde` | No | Adds `Serialize`/`Deserialize`; curated-model JSON follows a versioned compatibility policy. |
 //! | `parallel` | No | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible. |
 //!
 //! # Extracting Text

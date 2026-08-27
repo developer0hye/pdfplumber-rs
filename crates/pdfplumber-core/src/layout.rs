@@ -61,6 +61,7 @@ pub struct TextBlock {
 
 /// Options for layout-aware text extraction.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TextOptions {
     /// If true, use layout-aware extraction (detect blocks and reading order).
     /// If false, simple concatenation of words by spatial order.

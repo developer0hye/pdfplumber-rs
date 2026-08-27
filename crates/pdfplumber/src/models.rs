@@ -10,8 +10,18 @@
 //!
 //! The same items remain available from the crate root for source
 //! compatibility. Other root exports are not part of this curated model
-//! commitment. Serialized representations are a separate concern tracked by
-//! DX-006 and are not stabilized by this module.
+//! commitment. With the optional `serde` feature, their direct JSON
+//! representations follow the
+//! [Serde JSON compatibility policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-serde-schema.md).
+
+/// Stable identifier for the curated direct-Serde JSON compatibility policy.
+///
+/// This identifier describes values serialized directly with `serde_json`; it
+/// is not automatically embedded in those values. See the
+/// [Serde JSON compatibility policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-serde-schema.md)
+/// for the exact scope and fixture contract.
+#[cfg(feature = "serde")]
+pub const SERDE_JSON_SCHEMA: &str = "pdfplumber-rs/serde-json-v1";
 
 pub use pdfplumber_core::{
     BBox, Cell, Char, Color, ColumnMode, Curve, DedupeOptions, DocumentMetadata, ExplicitLines,

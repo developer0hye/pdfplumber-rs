@@ -295,6 +295,7 @@ impl<T> ExtractResult<T> {
 /// Provides sensible defaults for all settings. Resource limits prevent
 /// pathological PDFs from consuming excessive memory or causing infinite loops.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtractOptions {
     /// Maximum recursion depth for nested Form XObjects (default: 10).
     pub max_recursion_depth: usize,

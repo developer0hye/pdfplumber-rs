@@ -36,5 +36,6 @@ Source: [pdfplumber v0.11.10 README](https://github.com/jsvine/pdfplumber/blob/v
 - It exposes table rows/cells and distinguishes page-relative from
   document-relative positions. Those semantics inform the Rust contract's
   coordinate and ordering vocabulary.
-- The Rust types are not a serialized clone of Python dictionaries. Schema
-  compatibility is intentionally deferred to DX-006.
+- The Rust types are not a serialized clone of Python dictionaries. Their
+  direct JSON compatibility is defined separately in
+  [rust-serde-schema.md](rust-serde-schema.md).

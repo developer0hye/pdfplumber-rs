@@ -21,9 +21,12 @@ set. It also does not promise that extraction algorithms will never improve or
 that every PDF produces byte-for-byte identical output; semantic changes still
 require tests and changelog entries.
 
-Serialized representations are not covered by this contract. Field names and
-enum encodings produced with the optional `serde` feature need a separately
-versioned schema or compatibility policy; that work remains tracked by DX-006.
+Serialized Rust types and their direct JSON representation are related but
+separate commitments. With the optional `serde` feature, every curated model
+implements `Serialize` and `Deserialize`, and its JSON field names, value
+shapes, and enum encodings follow the
+[Serde JSON compatibility policy](rust-serde-schema.md). Other root exports are
+not silently added to that serialized-schema boundary.
 
 ## Curated families
 

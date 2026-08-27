@@ -44,7 +44,7 @@ For common extraction and migration questions, see the [Frequently Asked Questio
 - **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input ([evidence](docs/support.md#rust))
 - **Page iteration** with caller-controlled page-at-a-time processing ([evidence](docs/support.md#rust))
 - **WASM support** via `wasm32-unknown-unknown` target ([evidence](docs/support.md#webassembly))
-- **Optional serde** serialization for all data types ([evidence](docs/support.md#rust))
+- **Optional serde** serialization for all curated models, with a frozen JSON compatibility [policy](docs/rust-serde-schema.md) ([evidence](compat/tests/test_rust_serde_schema.py))
 - **Optional parallel** processing via rayon ([evidence](docs/support.md#rust))
 
 ## Installation
@@ -61,7 +61,7 @@ pdfplumber = "0.3"
 | Feature    | Default | Description                                                    |
 |------------|---------|----------------------------------------------------------------|
 | `std`      | Yes     | Enables file-path APIs (`Pdf::open_path`). Disable for WASM.  |
-| `serde`    | No      | Adds `Serialize`/`Deserialize` to all public data types.       |
+| `serde`    | No      | Adds `Serialize`/`Deserialize`; curated-model JSON follows [`serde-json-v1`](docs/rust-serde-schema.md). |
 | `parallel` | No      | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible.|
 
 ## Quick Start
@@ -172,6 +172,11 @@ or continue using their source-compatible crate-root re-exports. The
 [Rust data-model contract](docs/rust-data-models.md) defines the stable `0.3.x`
 families and documents their units, top-left coordinate system, collection
 ordering, optional fields, and the separate serialized-schema boundary.
+
+With the optional `serde` feature, all curated models implement `Serialize`
+and `Deserialize`. Their direct `serde_json` representation follows the
+[`serde-json-v1` compatibility policy](docs/rust-serde-schema.md), which freezes
+field names, JSON value shapes, and enum encodings across `0.3.x`.
 
 ## Rust Input API
 

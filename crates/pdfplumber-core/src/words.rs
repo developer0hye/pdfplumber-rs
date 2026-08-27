@@ -4,6 +4,7 @@ use crate::text::{Char, TextDirection};
 
 /// Options for word extraction, matching pdfplumber defaults.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct WordOptions {
     /// Maximum horizontal distance in page-space points between characters.
     pub x_tolerance: f64,
