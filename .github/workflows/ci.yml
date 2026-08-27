@@ -48,6 +48,8 @@ jobs:
           key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+      - name: Test Rust concurrency with optional parallel processing
+        run: cargo test -p pdfplumber --features parallel --test concurrency
 
       - name: Build and verify Rust crate artifacts
         if: matrix.rust == 'stable'

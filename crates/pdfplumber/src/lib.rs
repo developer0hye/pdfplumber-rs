@@ -79,6 +79,16 @@
 //! the underlying cause available for opt-in protected diagnostics. See the
 //! [Rust error guide](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-errors.md).
 //!
+//! # Concurrency
+//!
+//! [`Pdf`], [`Pages`], [`PagesIter`], [`Page`], and [`CroppedPage`] implement
+//! `Send` and `Sync`. Share a document as `Arc<Pdf>` for concurrent immutable
+//! extraction. The document-wide object and image-byte resource budgets are
+//! shared across all attempts. The optional [`Pdf::pages_parallel`] API keeps
+//! results in page-index order; Python has a separate Global Interpreter Lock
+//! boundary. See the full
+//! [Rust concurrency contract](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-concurrency.md).
+//!
 //! # Feature Flags
 //!
 //! | Feature | Default | Description |

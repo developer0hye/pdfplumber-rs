@@ -46,7 +46,9 @@ For common extraction and migration questions, see the [Frequently Asked Questio
 - **Page iteration** with caller-controlled page-at-a-time processing ([evidence](docs/support.md#rust))
 - **WASM support** via `wasm32-unknown-unknown` target ([evidence](docs/support.md#webassembly))
 - **Optional serde** serialization for all curated models, with a frozen JSON compatibility [policy](docs/rust-serde-schema.md) ([evidence](compat/tests/test_rust_serde_schema.py))
-- **Optional parallel** processing via rayon ([evidence](docs/support.md#rust))
+- **Optional parallel** processing via rayon, with documented ordering and
+  shared-state guarantees ([guide](docs/rust-concurrency.md),
+  [evidence](compat/tests/test_rust_concurrency.py))
 
 ## Installation
 
@@ -223,6 +225,19 @@ owned `Page` at a time. The iterator is exact-sized and double-ended, supports
 normal iterator adapters, and does not retain pages after yielding them unless
 the caller chooses to collect them. `Pdf::page` and `Pdf::pages_iter` remain
 source-compatible shortcuts during the alpha line.
+
+## Rust Concurrency
+
+`Pdf`, its borrowed page views, and owned `Page`/`CroppedPage` results implement
+`Send` and `Sync`. An opened document can be shared as `Arc<Pdf>` for concurrent
+immutable reads. Document-wide object and image-byte budgets remain shared
+across page extractions that reach resource accounting, including retries.
+
+With the optional `parallel` feature, `Pdf::pages_parallel()` returns one
+`Result` per page in page-index order through the current Rayon thread pool.
+The Python binding has a separate GIL and cache-lock boundary and does not
+promise equivalent CPU parallelism. See the complete
+[Rust concurrency and thread-safety contract](docs/rust-concurrency.md).
 
 ## WASM Support
 
