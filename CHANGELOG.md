@@ -95,6 +95,9 @@ commit list.
 
 ### Fixed
 
+- **Tables:** Object-dense, unencrypted PDFs no longer stall in parsing before
+  table discovery; PDFium-generated documents with tens of thousands of indirect
+  objects now reach the existing table extractor.
 - **Compatibility:** Python character dictionaries now match the pinned
   `pdfplumber` v0.11.10 behavior for font names, reported size and advance, upright
   state, and transformation matrices. Mirrored-text word grouping and stable source
