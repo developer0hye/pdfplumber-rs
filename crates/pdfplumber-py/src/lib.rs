@@ -8,7 +8,7 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 use ::pdfplumber::{
     Annotation, BBox, Bookmark, Char, Color, CroppedPage, Curve, FormField, Image, ImageContent,
-    Line, MetadataReference, MetadataValue, Page, PageObjectKind, Pdf, PdfError,
+    Line, MetadataReference, MetadataValue, Page, PageObjectKind, Pdf, PdfError, PdfErrorKind,
     RawDocumentMetadata, Rect, SearchMatch, SearchOptions, SignatureInfo, StructElement, Table,
     TableSettings, TextOptions, UnicodeNorm, ValidationIssue, Word, WordOptions,
 };
@@ -19,6 +19,7 @@ use pyo3::exceptions::{
 use pyo3::prelude::*;
 use pyo3::sync::GILOnceCell;
 use pyo3::types::{PyBool, PyBytes, PyDict, PyList, PyString, PyTuple};
+use std::error::Error as _;
 use std::sync::{Arc, Mutex};
 
 // ---------------------------------------------------------------------------
@@ -58,20 +59,42 @@ fn map_stream_error(py: Python<'_>, error: PyErr) -> PyErr {
 
 /// Convert a PdfError to the appropriate Python exception.
 fn to_py_err(e: PdfError) -> PyErr {
-    match e {
-        PdfError::ParseError(msg) => PdfminerException::new_err(pdfminer_parse_message(msg)),
-        PdfError::IoError(msg) => PdfIoError::new_err(msg),
-        PdfError::FontError(msg) => PdfFontError::new_err(msg),
-        PdfError::InterpreterError(msg) => PdfInterpreterError::new_err(msg),
-        PdfError::ResourceLimitExceeded {
-            limit_name,
-            limit_value,
-            actual_value,
-        } => PdfResourceLimitError::new_err(format!(
-            "{limit_name} (limit: {limit_value}, actual: {actual_value})"
-        )),
-        PdfError::PasswordRequired | PdfError::InvalidPassword => PdfminerException::new_err(()),
-        PdfError::Other(msg) => PyRuntimeError::new_err(msg),
+    let source_message = || {
+        let message = e
+            .source()
+            .map(ToString::to_string)
+            .unwrap_or_else(|| e.to_string());
+        [
+            "PDF parse error: ",
+            "I/O error: ",
+            "font error: ",
+            "interpreter error: ",
+        ]
+        .into_iter()
+        .find_map(|prefix| message.strip_prefix(prefix).map(str::to_owned))
+        .unwrap_or(message)
+    };
+
+    match e.kind() {
+        PdfErrorKind::Parse => PdfminerException::new_err(pdfminer_parse_message(source_message())),
+        PdfErrorKind::Io => PdfIoError::new_err(source_message()),
+        PdfErrorKind::Font => PdfFontError::new_err(source_message()),
+        PdfErrorKind::Interpreter => PdfInterpreterError::new_err(source_message()),
+        PdfErrorKind::ResourceLimit => {
+            if let Some(limit) = e.resource_limit() {
+                PdfResourceLimitError::new_err(format!(
+                    "{} (limit: {}, actual: {})",
+                    limit.name, limit.limit, limit.observed
+                ))
+            } else {
+                PdfResourceLimitError::new_err(e.to_string())
+            }
+        }
+        PdfErrorKind::PasswordRequired | PdfErrorKind::InvalidPassword => {
+            PdfminerException::new_err(())
+        }
+        PdfErrorKind::Other => PyRuntimeError::new_err(source_message()),
+        _ => PyRuntimeError::new_err(e.to_string()),
     }
 }
 
@@ -4686,7 +4709,7 @@ mod tests {
 
     #[test]
     fn test_to_py_err_parse_error() {
-        let err = to_py_err(PdfError::ParseError("bad xref".to_string()));
+        let err = to_py_err(PdfError::parse("bad xref"));
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfminerException>(py));
         });
@@ -4694,7 +4717,8 @@ mod tests {
 
     #[test]
     fn test_to_py_err_io_error() {
-        let err = to_py_err(PdfError::IoError("file not found".to_string()));
+        let err =
+            to_py_err(std::io::Error::new(std::io::ErrorKind::NotFound, "file not found").into());
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfIoError>(py));
         });
@@ -4702,7 +4726,7 @@ mod tests {
 
     #[test]
     fn test_to_py_err_font_error() {
-        let err = to_py_err(PdfError::FontError("missing glyph".to_string()));
+        let err = to_py_err(PdfError::font("missing glyph"));
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfFontError>(py));
         });
@@ -4710,7 +4734,7 @@ mod tests {
 
     #[test]
     fn test_to_py_err_interpreter_error() {
-        let err = to_py_err(PdfError::InterpreterError("unknown op".to_string()));
+        let err = to_py_err(PdfError::interpreter("unknown op"));
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfInterpreterError>(py));
         });
@@ -4718,11 +4742,15 @@ mod tests {
 
     #[test]
     fn test_to_py_err_resource_limit() {
-        let err = to_py_err(PdfError::ResourceLimitExceeded {
-            limit_name: "max_pages".to_string(),
-            limit_value: 10,
-            actual_value: 20,
+        let err = to_py_err(PdfError::limit_exceeded("max_pages", 10, 20));
+        Python::with_gil(|py| {
+            assert!(err.is_instance_of::<PdfResourceLimitError>(py));
         });
+    }
+
+    #[test]
+    fn test_to_py_err_resource_limit_without_details() {
+        let err = to_py_err(PdfError::new(PdfErrorKind::ResourceLimit));
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfResourceLimitError>(py));
         });
@@ -4730,7 +4758,7 @@ mod tests {
 
     #[test]
     fn test_to_py_err_password_required() {
-        let err = to_py_err(PdfError::PasswordRequired);
+        let err = to_py_err(PdfError::password_required());
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfminerException>(py));
         });
@@ -4738,7 +4766,7 @@ mod tests {
 
     #[test]
     fn test_to_py_err_invalid_password() {
-        let err = to_py_err(PdfError::InvalidPassword);
+        let err = to_py_err(PdfError::invalid_password());
         Python::with_gil(|py| {
             assert!(err.is_instance_of::<PdfminerException>(py));
         });

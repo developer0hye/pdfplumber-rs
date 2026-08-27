@@ -50,7 +50,7 @@ pub trait PdfBackend {
     ///
     /// Returns an error if the bytes do not represent a valid PDF document.
     /// If the document is encrypted with a non-empty password, returns
-    /// [`PdfError::PasswordRequired`].
+    /// [`PdfErrorKind::PasswordRequired`](pdfplumber_core::PdfErrorKind::PasswordRequired).
     fn open(bytes: &[u8]) -> Result<Self::Document, Self::Error>;
 
     /// Parse PDF bytes into a document, decrypting with the given password.
@@ -60,7 +60,8 @@ pub trait PdfBackend {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::InvalidPassword`] if the password is incorrect.
+    /// Returns [`PdfErrorKind::InvalidPassword`](pdfplumber_core::PdfErrorKind::InvalidPassword)
+    /// if the password is incorrect.
     /// Returns other errors if the bytes are not a valid PDF document.
     fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error>;
 
@@ -387,7 +388,7 @@ mod tests {
 
         fn open(bytes: &[u8]) -> Result<Self::Document, Self::Error> {
             if bytes.is_empty() {
-                return Err(PdfError::ParseError("empty input".to_string()));
+                return Err(PdfError::parse("empty input"));
             }
             // Mock: first byte encodes page count
             let page_count = bytes[0] as usize;
@@ -419,7 +420,7 @@ mod tests {
 
         fn get_page(doc: &Self::Document, index: usize) -> Result<Self::Page, Self::Error> {
             if index >= doc.pages.len() {
-                return Err(PdfError::ParseError(format!(
+                return Err(PdfError::parse(format!(
                     "page index {index} out of range (0..{})",
                     doc.pages.len()
                 )));
@@ -573,7 +574,7 @@ mod tests {
                     height: 2,
                 })
             } else {
-                Err(PdfError::ParseError(format!(
+                Err(PdfError::parse(format!(
                     "image XObject /{image_name} not found"
                 )))
             }
@@ -721,7 +722,7 @@ mod tests {
         let err = result.unwrap_err();
         // PdfError::into() PdfError is identity
         let pdf_err: PdfError = err.into();
-        assert!(matches!(pdf_err, PdfError::ParseError(_)));
+        assert_eq!(pdf_err.kind(), pdfplumber_core::PdfErrorKind::Parse);
     }
 
     #[test]
@@ -729,7 +730,8 @@ mod tests {
         let result = MockBackend::open(&[]);
         let err = result.unwrap_err();
         let std_err: Box<dyn std::error::Error> = Box::new(err);
-        assert!(std_err.to_string().contains("empty input"));
+        assert!(!std_err.to_string().contains("empty input"));
+        assert_eq!(std_err.source().unwrap().to_string(), "empty input");
     }
 
     // --- Custom mock with CropBox and Rotate ---

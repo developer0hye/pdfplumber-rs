@@ -17,6 +17,9 @@ use pdfplumber_parse::{
 
 use crate::{Page, PageObjectKind};
 
+#[cfg(test)]
+use pdfplumber_core::PdfErrorKind;
+
 /// A borrowed collection view over the pages in a [`Pdf`].
 ///
 /// Created by [`Pdf::pages`]. The view borrows the document and does not clone
@@ -234,6 +237,23 @@ impl ContentHandler for CollectingHandler {
     }
 }
 
+fn operation_error(error: impl Into<PdfError>, operation: &'static str) -> PdfError {
+    error.into().during(operation)
+}
+
+fn page_error(
+    error: impl Into<PdfError>,
+    operation: &'static str,
+    page_index: usize,
+    object_id: Option<(u32, u16)>,
+) -> PdfError {
+    let mut error = error.into().during(operation).at_page(page_index);
+    if let Some((number, generation)) = object_id {
+        error = error.at_object(number, generation);
+    }
+    error
+}
+
 impl Pdf {
     /// Open a PDF document from a filesystem path.
     ///
@@ -248,15 +268,16 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::IoError`] if the file cannot be opened or read,
-    /// [`PdfError::ParseError`] if its contents are not a valid PDF, and the
+    /// Returns an error with [I/O](crate::PdfErrorKind::Io) kind if the file cannot be opened or read,
+    /// [parse](crate::PdfErrorKind::Parse) kind if its contents are not a valid PDF, and the
     /// same password and resource-limit errors as [`Pdf::open_bytes`].
     #[cfg(feature = "std")]
     pub fn open_path(
         path: impl AsRef<std::path::Path>,
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        let file = std::fs::File::open(path.as_ref()).map_err(PdfError::from)?;
+        let file = std::fs::File::open(path.as_ref())
+            .map_err(|error| operation_error(error, "open path"))?;
         Self::open_reader(file, options)
     }
 
@@ -274,15 +295,17 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::PasswordRequired`] if the PDF is encrypted with a
+    /// Returns an error with [password-required](crate::PdfErrorKind::PasswordRequired) kind if the PDF is encrypted with a
     /// non-empty password. PDFs encrypted with an empty user password are
     /// auto-decrypted.
-    /// Returns [`PdfError::ParseError`] if the bytes are not a valid PDF
-    /// document and [`PdfError::ResourceLimitExceeded`] if `max_input_bytes`
+    /// Returns [parse](crate::PdfErrorKind::Parse) kind if the bytes are not a valid PDF
+    /// document and [resource-limit](crate::PdfErrorKind::ResourceLimit) kind if `max_input_bytes`
     /// is smaller than the supplied buffer.
     pub fn open_bytes(bytes: &[u8], options: Option<ExtractOptions>) -> Result<Self, PdfError> {
-        Self::check_input_limit(bytes.len(), options.as_ref())?;
-        let doc = LopdfBackend::open(bytes).map_err(PdfError::from)?;
+        Self::check_input_limit(bytes.len(), options.as_ref())
+            .map_err(|error| error.during("open bytes"))?;
+        let doc =
+            LopdfBackend::open(bytes).map_err(|error| operation_error(error, "open bytes"))?;
         Self::from_doc(doc, options)
     }
 
@@ -301,8 +324,8 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::IoError`] if the reader fails,
-    /// [`PdfError::ParseError`] if the bytes read are not a valid PDF, and the
+    /// Returns an error with [I/O](crate::PdfErrorKind::Io) kind if the reader fails,
+    /// [parse](crate::PdfErrorKind::Parse) kind if the bytes read are not a valid PDF, and the
     /// same password and resource-limit errors as [`Pdf::open_bytes`].
     pub fn open_reader<R: std::io::Read>(
         reader: R,
@@ -326,17 +349,18 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::IoError`] for file failures,
-    /// [`PdfError::InvalidPassword`] for an incorrect password,
-    /// [`PdfError::ParseError`] for invalid PDF data, and
-    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    /// Returns [I/O](crate::PdfErrorKind::Io) kind for file failures,
+    /// [invalid-password](crate::PdfErrorKind::InvalidPassword) kind for an incorrect password,
+    /// [parse](crate::PdfErrorKind::Parse) kind for invalid PDF data, and
+    /// [resource-limit](crate::PdfErrorKind::ResourceLimit) kind for an oversized input.
     #[cfg(feature = "std")]
     pub fn open_path_with_password(
         path: impl AsRef<std::path::Path>,
         password: &[u8],
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        let file = std::fs::File::open(path.as_ref()).map_err(PdfError::from)?;
+        let file = std::fs::File::open(path.as_ref())
+            .map_err(|error| operation_error(error, "open path with password"))?;
         Self::open_reader_with_password(file, password, options)
     }
 
@@ -354,16 +378,18 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::InvalidPassword`] if the password is incorrect,
-    /// [`PdfError::ParseError`] if the bytes are not a valid PDF, and
-    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    /// Returns [invalid-password](crate::PdfErrorKind::InvalidPassword) kind if the password is incorrect,
+    /// [parse](crate::PdfErrorKind::Parse) kind if the bytes are not a valid PDF, and
+    /// [resource-limit](crate::PdfErrorKind::ResourceLimit) kind for an oversized input.
     pub fn open_bytes_with_password(
         bytes: &[u8],
         password: &[u8],
         options: Option<ExtractOptions>,
     ) -> Result<Self, PdfError> {
-        Self::check_input_limit(bytes.len(), options.as_ref())?;
-        let doc = LopdfBackend::open_with_password(bytes, password).map_err(PdfError::from)?;
+        Self::check_input_limit(bytes.len(), options.as_ref())
+            .map_err(|error| error.during("open bytes with password"))?;
+        let doc = LopdfBackend::open_with_password(bytes, password)
+            .map_err(|error| operation_error(error, "open bytes with password"))?;
         Self::from_doc(doc, options)
     }
 
@@ -381,10 +407,10 @@ impl Pdf {
     ///
     /// # Errors
     ///
-    /// Returns [`PdfError::IoError`] if the reader fails,
-    /// [`PdfError::InvalidPassword`] if the password is incorrect,
-    /// [`PdfError::ParseError`] for invalid PDF data, and
-    /// [`PdfError::ResourceLimitExceeded`] for an oversized input.
+    /// Returns an error with [I/O](crate::PdfErrorKind::Io) kind if the reader fails,
+    /// [invalid-password](crate::PdfErrorKind::InvalidPassword) kind if the password is incorrect,
+    /// [parse](crate::PdfErrorKind::Parse) kind for invalid PDF data, and
+    /// [resource-limit](crate::PdfErrorKind::ResourceLimit) kind for an oversized input.
     pub fn open_reader_with_password<R: std::io::Read>(
         reader: R,
         password: &[u8],
@@ -451,10 +477,11 @@ impl Pdf {
         options: Option<ExtractOptions>,
         repair_opts: Option<RepairOptions>,
     ) -> Result<(Self, RepairResult), PdfError> {
-        Self::check_input_limit(bytes.len(), options.as_ref())?;
+        Self::check_input_limit(bytes.len(), options.as_ref())
+            .map_err(|error| error.during("repair PDF bytes"))?;
         let repair_opts = repair_opts.unwrap_or_default();
-        let (repaired_bytes, result) =
-            LopdfBackend::repair(bytes, &repair_opts).map_err(PdfError::from)?;
+        let (repaired_bytes, result) = LopdfBackend::repair(bytes, &repair_opts)
+            .map_err(|error| operation_error(error, "repair PDF bytes"))?;
         let pdf = Self::open_bytes(&repaired_bytes, options)?;
         Ok((pdf, result))
     }
@@ -475,11 +502,11 @@ impl Pdf {
     ) -> Result<(), PdfError> {
         if let Some(max_bytes) = options.and_then(|options| options.max_input_bytes) {
             if actual_value > max_bytes {
-                return Err(PdfError::ResourceLimitExceeded {
-                    limit_name: "max_input_bytes".to_string(),
-                    limit_value: max_bytes,
+                return Err(PdfError::limit_exceeded(
+                    "max_input_bytes",
+                    max_bytes,
                     actual_value,
-                });
+                ));
             }
         }
         Ok(())
@@ -494,11 +521,14 @@ impl Pdf {
             let observed_limit = max_bytes.saturating_add(1);
             let read_limit = u64::try_from(observed_limit).unwrap_or(u64::MAX);
             let mut limited = std::io::Read::take(reader, read_limit);
-            std::io::Read::read_to_end(&mut limited, &mut bytes).map_err(PdfError::from)?;
-            Self::check_input_limit(bytes.len(), options)?;
+            std::io::Read::read_to_end(&mut limited, &mut bytes)
+                .map_err(|error| operation_error(error, "read input"))?;
+            Self::check_input_limit(bytes.len(), options)
+                .map_err(|error| error.during("read input"))?;
         } else {
             let mut reader = reader;
-            std::io::Read::read_to_end(&mut reader, &mut bytes).map_err(PdfError::from)?;
+            std::io::Read::read_to_end(&mut reader, &mut bytes)
+                .map_err(|error| operation_error(error, "read input"))?;
         }
         Ok(bytes)
     }
@@ -513,11 +543,7 @@ impl Pdf {
         // Check max_pages before processing
         if let Some(max_pages) = options.max_pages {
             if page_count > max_pages {
-                return Err(PdfError::ResourceLimitExceeded {
-                    limit_name: "max_pages".to_string(),
-                    limit_value: max_pages,
-                    actual_value: page_count,
-                });
+                return Err(PdfError::limit_exceeded("max_pages", max_pages, page_count));
             }
         }
 
@@ -537,29 +563,41 @@ impl Pdf {
         let mut raw_page_heights = Vec::with_capacity(page_count);
 
         for i in 0..page_count {
-            let page = LopdfBackend::get_page(&doc, i).map_err(PdfError::from)?;
-            let media_box = LopdfBackend::page_media_box(&doc, &page).map_err(PdfError::from)?;
-            let media_box_integer_flags =
-                LopdfBackend::page_media_box_integer_flags(&doc, &page).map_err(PdfError::from)?;
-            let crop_box = LopdfBackend::page_crop_box(&doc, &page).map_err(PdfError::from)?;
-            let crop_box_integer_flags =
-                LopdfBackend::page_crop_box_integer_flags(&doc, &page).map_err(PdfError::from)?;
-            let trim_box =
-                LopdfBackend::page_explicit_trim_box(&doc, &page).map_err(PdfError::from)?;
-            let trim_box_integer_flags =
-                LopdfBackend::page_explicit_trim_box_integer_flags(&doc, &page)
-                    .map_err(PdfError::from)?;
-            let bleed_box =
-                LopdfBackend::page_explicit_bleed_box(&doc, &page).map_err(PdfError::from)?;
-            let bleed_box_integer_flags =
-                LopdfBackend::page_explicit_bleed_box_integer_flags(&doc, &page)
-                    .map_err(PdfError::from)?;
-            let art_box =
-                LopdfBackend::page_explicit_art_box(&doc, &page).map_err(PdfError::from)?;
-            let art_box_integer_flags =
-                LopdfBackend::page_explicit_art_box_integer_flags(&doc, &page)
-                    .map_err(PdfError::from)?;
-            let rotation = LopdfBackend::page_rotate(&doc, &page).map_err(PdfError::from)?;
+            let page = LopdfBackend::get_page(&doc, i)
+                .map_err(|error| page_error(error, "load page", i, None))?;
+            let object_id = Some(page.object_id);
+            let media_box = LopdfBackend::page_media_box(&doc, &page)
+                .map_err(|error| page_error(error, "read page media box", i, object_id))?;
+            let media_box_integer_flags = LopdfBackend::page_media_box_integer_flags(&doc, &page)
+                .map_err(|error| {
+                page_error(error, "read page media box number types", i, object_id)
+            })?;
+            let crop_box = LopdfBackend::page_crop_box(&doc, &page)
+                .map_err(|error| page_error(error, "read page crop box", i, object_id))?;
+            let crop_box_integer_flags = LopdfBackend::page_crop_box_integer_flags(&doc, &page)
+                .map_err(|error| {
+                    page_error(error, "read page crop box number types", i, object_id)
+                })?;
+            let trim_box = LopdfBackend::page_explicit_trim_box(&doc, &page)
+                .map_err(|error| page_error(error, "read page trim box", i, object_id))?;
+            let trim_box_integer_flags = LopdfBackend::page_explicit_trim_box_integer_flags(
+                &doc, &page,
+            )
+            .map_err(|error| page_error(error, "read page trim box number types", i, object_id))?;
+            let bleed_box = LopdfBackend::page_explicit_bleed_box(&doc, &page)
+                .map_err(|error| page_error(error, "read page bleed box", i, object_id))?;
+            let bleed_box_integer_flags = LopdfBackend::page_explicit_bleed_box_integer_flags(
+                &doc, &page,
+            )
+            .map_err(|error| page_error(error, "read page bleed box number types", i, object_id))?;
+            let art_box = LopdfBackend::page_explicit_art_box(&doc, &page)
+                .map_err(|error| page_error(error, "read page art box", i, object_id))?;
+            let art_box_integer_flags = LopdfBackend::page_explicit_art_box_integer_flags(
+                &doc, &page,
+            )
+            .map_err(|error| page_error(error, "read page art box number types", i, object_id))?;
+            let rotation = LopdfBackend::page_rotate(&doc, &page)
+                .map_err(|error| page_error(error, "read page rotation", i, object_id))?;
             // Use MediaBox (not CropBox) for page dimensions to match Python pdfplumber.
             // CropBox is stored as page metadata but does not affect coordinate transforms.
             let geometry = PageGeometry::new(media_box, None, rotation);
@@ -593,14 +631,17 @@ impl Pdf {
         }
 
         // Extract document metadata
-        let metadata = LopdfBackend::document_metadata(&doc).map_err(PdfError::from)?;
+        let metadata = LopdfBackend::document_metadata(&doc)
+            .map_err(|error| operation_error(error, "read document metadata"))?;
         let raw_metadata = LopdfBackend::raw_document_metadata(&doc);
 
         // Extract document bookmarks (outline / table of contents)
-        let bookmarks = LopdfBackend::document_bookmarks(&doc).map_err(PdfError::from)?;
+        let bookmarks = LopdfBackend::document_bookmarks(&doc)
+            .map_err(|error| operation_error(error, "read document bookmarks"))?;
 
         // Extract the document structure tree once for document and page views.
-        let structure_tree = LopdfBackend::document_structure_tree(&doc).map_err(PdfError::from)?;
+        let structure_tree = LopdfBackend::document_structure_tree(&doc)
+            .map_err(|error| operation_error(error, "read document structure tree"))?;
 
         Ok(Self {
             doc,
@@ -728,7 +769,8 @@ impl Pdf {
     /// Validate that the raw document information dictionary has no
     /// indirect-reference cycles.
     pub fn validate_metadata(&self) -> Result<(), PdfError> {
-        LopdfBackend::validate_document_metadata(&self.doc).map_err(PdfError::from)
+        LopdfBackend::validate_document_metadata(&self.doc)
+            .map_err(|error| operation_error(error, "validate document metadata"))
     }
 
     /// Return the document bookmarks (outline / table of contents).
@@ -756,7 +798,8 @@ impl Pdf {
     ///
     /// Returns [`PdfError`] if the AcroForm exists but is malformed.
     pub fn form_fields(&self) -> Result<Vec<FormField>, PdfError> {
-        LopdfBackend::document_form_fields(&self.doc).map_err(PdfError::from)
+        LopdfBackend::document_form_fields(&self.doc)
+            .map_err(|error| operation_error(error, "read document form fields"))
     }
 
     /// Search all pages for a text pattern and return matches with bounding boxes.
@@ -803,9 +846,11 @@ impl Pdf {
         page_index: usize,
         image_name: &str,
     ) -> Result<ImageContent, PdfError> {
-        let lopdf_page = LopdfBackend::get_page(&self.doc, page_index).map_err(PdfError::from)?;
+        let lopdf_page = LopdfBackend::get_page(&self.doc, page_index)
+            .map_err(|error| page_error(error, "load page", page_index, None))?;
+        let object_id = Some(lopdf_page.object_id);
         LopdfBackend::extract_image_content(&self.doc, &lopdf_page, image_name)
-            .map_err(PdfError::from)
+            .map_err(|error| page_error(error, "extract page image content", page_index, object_id))
     }
 
     /// Extract all images with their content from a page.
@@ -897,26 +942,30 @@ impl Pdf {
     /// Returns [`PdfError`] if the index is out of range or content
     /// interpretation fails.
     pub fn page(&self, index: usize) -> Result<Page, PdfError> {
-        let lopdf_page = LopdfBackend::get_page(&self.doc, index).map_err(PdfError::from)?;
+        let lopdf_page = LopdfBackend::get_page(&self.doc, index)
+            .map_err(|error| page_error(error, "load page", index, None))?;
+        let object_id = Some(lopdf_page.object_id);
 
         // Page geometry
-        let media_box =
-            LopdfBackend::page_media_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let crop_box =
-            LopdfBackend::page_crop_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let trim_box =
-            LopdfBackend::page_trim_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let bleed_box =
-            LopdfBackend::page_bleed_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let art_box = LopdfBackend::page_art_box(&self.doc, &lopdf_page).map_err(PdfError::from)?;
-        let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let media_box = LopdfBackend::page_media_box(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page media box", index, object_id))?;
+        let crop_box = LopdfBackend::page_crop_box(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page crop box", index, object_id))?;
+        let trim_box = LopdfBackend::page_trim_box(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page trim box", index, object_id))?;
+        let bleed_box = LopdfBackend::page_bleed_box(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page bleed box", index, object_id))?;
+        let art_box = LopdfBackend::page_art_box(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page art box", index, object_id))?;
+        let rotation = LopdfBackend::page_rotate(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page rotation", index, object_id))?;
         // Use MediaBox (not CropBox) for coordinate transforms to match Python pdfplumber.
         let geometry = PageGeometry::new(media_box, None, rotation);
 
         // Interpret page content
         let mut handler = CollectingHandler::new(index, self.options.collect_warnings);
         LopdfBackend::interpret_page(&self.doc, &lopdf_page, &mut handler, &self.options)
-            .map_err(PdfError::from)?;
+            .map_err(|error| page_error(error, "interpret page content", index, object_id))?;
 
         // Convert CharEvents to Chars
         let page_height = self.raw_page_heights[index];
@@ -1155,21 +1204,21 @@ impl Pdf {
         }
 
         // Extract annotations from the page
-        let annotations =
-            LopdfBackend::page_annotations(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let annotations = LopdfBackend::page_annotations(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page annotations", index, object_id))?;
 
         // Extract hyperlinks from the page
-        let hyperlinks =
-            LopdfBackend::page_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let hyperlinks = LopdfBackend::page_hyperlinks(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page hyperlinks", index, object_id))?;
 
         // Preserve action type so callers can distinguish external URI actions
         // from internal and remote destinations.
-        let uri_hyperlinks =
-            LopdfBackend::page_uri_hyperlinks(&self.doc, &lopdf_page).map_err(PdfError::from)?;
+        let uri_hyperlinks = LopdfBackend::page_uri_hyperlinks(&self.doc, &lopdf_page)
+            .map_err(|error| page_error(error, "read page URI hyperlinks", index, object_id))?;
 
         // Extract form fields for this page (filtered from document AcroForm)
-        let all_form_fields =
-            LopdfBackend::document_form_fields(&self.doc).map_err(PdfError::from)?;
+        let all_form_fields = LopdfBackend::document_form_fields(&self.doc)
+            .map_err(|error| page_error(error, "read page form fields", index, object_id))?;
         let form_fields: Vec<FormField> = all_form_fields
             .into_iter()
             .filter(|f| f.page_index == Some(index))
@@ -1197,11 +1246,12 @@ impl Pdf {
                 .fetch_add(page_object_count, Ordering::Relaxed)
                 + page_object_count;
             if new_total > max_total {
-                return Err(PdfError::ResourceLimitExceeded {
-                    limit_name: "max_total_objects".to_string(),
-                    limit_value: max_total,
-                    actual_value: new_total,
-                });
+                return Err(
+                    PdfError::limit_exceeded("max_total_objects", max_total, new_total)
+                        .at_page(index)
+                        .at_object(lopdf_page.object_id.0, lopdf_page.object_id.1)
+                        .during("extract page objects"),
+                );
             }
         }
 
@@ -1215,11 +1265,14 @@ impl Pdf {
                 .fetch_add(page_image_bytes, Ordering::Relaxed)
                 + page_image_bytes;
             if new_total > max_img_bytes {
-                return Err(PdfError::ResourceLimitExceeded {
-                    limit_name: "max_total_image_bytes".to_string(),
-                    limit_value: max_img_bytes,
-                    actual_value: new_total,
-                });
+                return Err(PdfError::limit_exceeded(
+                    "max_total_image_bytes",
+                    max_img_bytes,
+                    new_total,
+                )
+                .at_page(index)
+                .at_object(lopdf_page.object_id.0, lopdf_page.object_id.1)
+                .during("extract page images"));
             }
         }
 
@@ -1262,7 +1315,8 @@ impl Pdf {
     /// Returns [`PdfError`] if the document structure is too corrupted
     /// to perform validation.
     pub fn validate(&self) -> Result<Vec<ValidationIssue>, PdfError> {
-        LopdfBackend::validate(&self.doc).map_err(PdfError::from)
+        LopdfBackend::validate(&self.doc)
+            .map_err(|error| operation_error(error, "validate document"))
     }
 
     /// Extract digital signature information from the document.
@@ -1277,7 +1331,8 @@ impl Pdf {
     ///
     /// Returns [`PdfError`] if the AcroForm exists but is malformed.
     pub fn signatures(&self) -> Result<Vec<SignatureInfo>, PdfError> {
-        LopdfBackend::document_signatures(&self.doc).map_err(PdfError::from)
+        LopdfBackend::document_signatures(&self.doc)
+            .map_err(|error| operation_error(error, "read document signatures"))
     }
 
     /// Detect repeating headers and footers across all pages.
@@ -3140,7 +3195,7 @@ mod tests {
         let bytes = create_encrypted_pdf(b"testpass");
         let result = Pdf::open(&bytes, None);
         match result {
-            Err(PdfError::PasswordRequired) => {} // expected
+            Err(error) if error.kind() == PdfErrorKind::PasswordRequired => {} // expected
             Err(e) => panic!("expected PasswordRequired, got: {e}"),
             Ok(_) => panic!("expected error, got Ok"),
         }
@@ -3182,7 +3237,7 @@ mod tests {
         let bytes = create_encrypted_pdf(b"testpass");
         let result = Pdf::open_with_password(&bytes, b"wrongpass", None);
         match result {
-            Err(PdfError::InvalidPassword) => {} // expected
+            Err(error) if error.kind() == PdfErrorKind::InvalidPassword => {} // expected
             Err(e) => panic!("expected InvalidPassword, got: {e}"),
             Ok(_) => panic!("expected error, got Ok"),
         }

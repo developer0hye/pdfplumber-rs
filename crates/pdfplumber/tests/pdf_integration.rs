@@ -7,7 +7,7 @@
 
 use pdfplumber::{
     AnnotationType, Bookmark, DedupeOptions, DocumentMetadata, ExtractOptions, PageObject, Pdf,
-    SearchOptions, TextOptions, UnicodeNorm, WordOptions,
+    PdfErrorKind, SearchOptions, TextOptions, UnicodeNorm, WordOptions,
 };
 
 // --- Test PDF creation helpers ---
@@ -1808,16 +1808,13 @@ fn resource_budget_max_input_bytes_rejects_oversized_pdf() {
     };
     let result = Pdf::open(&bytes, Some(opts));
     match result {
-        Err(pdfplumber::PdfError::ResourceLimitExceeded {
-            limit_name,
-            limit_value,
-            actual_value,
-        }) => {
-            assert_eq!(limit_name, "max_input_bytes");
-            assert_eq!(limit_value, 10);
-            assert_eq!(actual_value, input_size);
+        Err(error) => {
+            assert_eq!(error.kind(), PdfErrorKind::ResourceLimit);
+            let details = error.resource_limit().unwrap();
+            assert_eq!(details.name, "max_input_bytes");
+            assert_eq!(details.limit, 10);
+            assert_eq!(details.observed, input_size);
         }
-        Err(e) => panic!("expected ResourceLimitExceeded, got: {e:?}"),
         Ok(_) => panic!("expected error, got Ok"),
     }
 }
@@ -1842,16 +1839,13 @@ fn resource_budget_max_pages_rejects_over_limit() {
     };
     let result = Pdf::open(&bytes, Some(opts));
     match result {
-        Err(pdfplumber::PdfError::ResourceLimitExceeded {
-            limit_name,
-            limit_value,
-            actual_value,
-        }) => {
-            assert_eq!(limit_name, "max_pages");
-            assert_eq!(limit_value, 2);
-            assert_eq!(actual_value, 3);
+        Err(error) => {
+            assert_eq!(error.kind(), PdfErrorKind::ResourceLimit);
+            let details = error.resource_limit().unwrap();
+            assert_eq!(details.name, "max_pages");
+            assert_eq!(details.limit, 2);
+            assert_eq!(details.observed, 3);
         }
-        Err(e) => panic!("expected ResourceLimitExceeded, got: {e:?}"),
         Ok(_) => panic!("expected error, got Ok"),
     }
 }
@@ -1895,8 +1889,8 @@ fn resource_budget_max_total_objects_rejects_over_limit() {
     for i in 0..pdf.page_count() {
         match pdf.page(i) {
             Ok(_) => {}
-            Err(pdfplumber::PdfError::ResourceLimitExceeded { limit_name, .. }) => {
-                assert_eq!(limit_name, "max_total_objects");
+            Err(error) if error.kind() == PdfErrorKind::ResourceLimit => {
+                assert_eq!(error.resource_limit().unwrap().name, "max_total_objects");
                 hit_limit = true;
                 break;
             }

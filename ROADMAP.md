@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Make Rust failures actionable
+### Define Rust concurrency guarantees
 
-Expose typed errors that preserve their sources and available page or object
-context without including sensitive document content by default.
+Document which document, page, cache, parallel-processing, and Python-binding
+values can be shared across threads and which operations require isolation.
 
-Detailed task: [`DX-007`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-008`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 

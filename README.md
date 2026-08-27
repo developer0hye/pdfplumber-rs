@@ -42,6 +42,7 @@ For common extraction and migration questions, see the [Frequently Asked Questio
 - **Reading order** for multi-column layouts, plus header/footer detection ([evidence](docs/support.md#rust))
 - **Images** located on the page and exported as raw stream data ([evidence](docs/support.md#rust))
 - **Resource budgets** bounding input size, page count, object count, and image bytes for untrusted input ([evidence](docs/support.md#rust))
+- **Typed Rust errors** with preserved sources, safe default formatting, and available page/object context ([evidence](compat/tests/test_rust_errors.py))
 - **Page iteration** with caller-controlled page-at-a-time processing ([evidence](docs/support.md#rust))
 - **WASM support** via `wasm32-unknown-unknown` target ([evidence](docs/support.md#webassembly))
 - **Optional serde** serialization for all curated models, with a frozen JSON compatibility [policy](docs/rust-serde-schema.md) ([evidence](compat/tests/test_rust_serde_schema.py))
@@ -191,13 +192,24 @@ The canonical constructors form one source-named family:
 Each constructor returns an owned `Pdf` that does not borrow its path, byte
 slice, or reader. Path files are closed, byte slices need to live only for the
 call, and reader input is consumed from the current reader position through
-end-of-file without being retained. Reader and path I/O failures use
-`PdfError::IoError`; bytes that cannot be parsed as a PDF use
-`PdfError::ParseError`. Resource-limit and password errors use the same variants
+end-of-file without being retained. Reader and path I/O failures have
+`PdfErrorKind::Io`; bytes that cannot be parsed as a PDF have
+`PdfErrorKind::Parse`. Resource-limit and password errors use the same kinds
 for every input kind. Encrypted inputs use the parallel
 `Pdf::open_path_with_password`, `Pdf::open_bytes_with_password`, and
 `Pdf::open_reader_with_password` family. Best-effort repair is currently
 byte-only through `Pdf::open_bytes_with_repair`.
+
+## Rust Errors
+
+`PdfError` exposes a stable `PdfErrorKind`, safe `PdfErrorContext`, and typed
+resource-limit details. Its ordinary `Display` and `Debug` output does not echo
+input paths, parser details, passwords, or document content. The underlying
+cause is preserved for explicit inspection through `std::error::Error::source`;
+source-chain output may be sensitive and belongs only in a protected diagnostic
+sink. The [Rust error guide](docs/rust-errors.md) documents classification,
+page/object context, actionable messages, source handling, and migration from
+the former string-payload variants.
 
 ## Rust Page API
 

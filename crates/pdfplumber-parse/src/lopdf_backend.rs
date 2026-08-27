@@ -575,7 +575,7 @@ impl PdfBackend for LopdfBackend {
                     | lopdf::Error::Decryption(lopdf::encryption::DecryptionError::IncorrectPassword),
                 ) => {
                     return Err(BackendError::Core(
-                        pdfplumber_core::PdfError::PasswordRequired,
+                        pdfplumber_core::PdfError::password_required(),
                     ));
                 }
                 Err(error) => {
@@ -619,7 +619,7 @@ impl PdfBackend for LopdfBackend {
                         lopdf::encryption::DecryptionError::IncorrectPassword
                     )
             ) {
-                BackendError::Core(pdfplumber_core::PdfError::InvalidPassword)
+                BackendError::Core(pdfplumber_core::PdfError::invalid_password())
             } else {
                 BackendError::Parse(format!("decryption failed: {error}"))
             }
@@ -4184,7 +4184,8 @@ fn create_test_pdf_with_metadata(
 mod tests {
     use super::*;
     use crate::handler::{CharEvent, ContentHandler, ImageEvent};
-    use pdfplumber_core::PdfError;
+    use pdfplumber_core::{PdfError, PdfErrorKind};
+    use std::error::Error as _;
 
     // --- CollectingHandler for interpret_page tests ---
 
@@ -4243,7 +4244,7 @@ mod tests {
     fn open_error_converts_to_pdf_error() {
         let err = LopdfBackend::open(b"garbage").unwrap_err();
         let pdf_err: PdfError = err.into();
-        assert!(matches!(pdf_err, PdfError::ParseError(_)));
+        assert_eq!(pdf_err.kind(), PdfErrorKind::Parse);
     }
 
     // --- page_count() tests ---
@@ -4294,8 +4295,14 @@ mod tests {
         let doc = LopdfBackend::open(&pdf_bytes).unwrap();
         let err = LopdfBackend::get_page(&doc, 5).unwrap_err();
         let pdf_err: PdfError = err.into();
-        assert!(matches!(pdf_err, PdfError::ParseError(_)));
-        assert!(pdf_err.to_string().contains("out of range"));
+        assert_eq!(pdf_err.kind(), PdfErrorKind::Parse);
+        assert!(
+            pdf_err
+                .source()
+                .unwrap()
+                .to_string()
+                .contains("out of range")
+        );
     }
 
     #[test]
@@ -5115,7 +5122,7 @@ mod tests {
         let result = LopdfBackend::open(&pdf_bytes);
         assert!(result.is_err());
         let err: pdfplumber_core::PdfError = result.unwrap_err().into();
-        assert_eq!(err, pdfplumber_core::PdfError::PasswordRequired);
+        assert_eq!(err.kind(), PdfErrorKind::PasswordRequired);
     }
 
     #[test]
@@ -5142,7 +5149,7 @@ mod tests {
         let result = LopdfBackend::open_with_password(&pdf_bytes, b"wrongpassword");
         assert!(result.is_err());
         let err: pdfplumber_core::PdfError = result.unwrap_err().into();
-        assert_eq!(err, pdfplumber_core::PdfError::InvalidPassword);
+        assert_eq!(err.kind(), PdfErrorKind::InvalidPassword);
     }
 
     #[test]
@@ -5187,7 +5194,7 @@ mod tests {
         let result = LopdfBackend::open(&pdf_bytes);
         assert!(result.is_err());
         let err: pdfplumber_core::PdfError = result.unwrap_err().into();
-        assert_eq!(err, pdfplumber_core::PdfError::PasswordRequired);
+        assert_eq!(err.kind(), PdfErrorKind::PasswordRequired);
     }
 
     #[test]
@@ -5211,7 +5218,7 @@ mod tests {
         ] {
             let error: pdfplumber_core::PdfError = result.unwrap_err().into();
             assert!(
-                matches!(error, pdfplumber_core::PdfError::ParseError(_)),
+                error.kind() == PdfErrorKind::Parse,
                 "expected unsupported encryption to remain distinct from password failure: {error}"
             );
         }

@@ -1,9 +1,10 @@
 //! Contracts for the high-level path, byte-buffer, and reader input family.
 
+use std::error::Error as _;
 use std::io::{self, Read};
 use std::path::PathBuf;
 
-use pdfplumber::{ExtractOptions, Pdf, PdfError, TextOptions};
+use pdfplumber::{ExtractOptions, Pdf, PdfError, PdfErrorKind, TextOptions};
 
 fn repository_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
@@ -59,16 +60,13 @@ fn first_page_text(pdf: &Pdf) -> String {
 
 fn assert_input_limit(result: Result<Pdf, PdfError>, limit: usize) {
     match result {
-        Err(PdfError::ResourceLimitExceeded {
-            limit_name,
-            limit_value,
-            actual_value,
-        }) => {
-            assert_eq!(limit_name, "max_input_bytes");
-            assert_eq!(limit_value, limit);
-            assert!(actual_value > limit);
+        Err(error) => {
+            assert_eq!(error.kind(), PdfErrorKind::ResourceLimit);
+            let details = error.resource_limit().unwrap();
+            assert_eq!(details.name, "max_input_bytes");
+            assert_eq!(details.limit, limit);
+            assert!(details.observed > limit);
         }
-        Err(other) => panic!("expected ResourceLimitExceeded, got {other:?}"),
         Ok(_) => panic!("expected ResourceLimitExceeded, got Ok"),
     }
 }
@@ -131,7 +129,7 @@ fn invalid_pdf_data_is_a_parse_error_for_every_input_kind() {
         Pdf::open_bytes(&empty, None),
         Pdf::open_reader(ReadOnly::new(empty), None),
     ] {
-        assert!(matches!(result, Err(PdfError::ParseError(_))));
+        assert_eq!(result.err().unwrap().kind(), PdfErrorKind::Parse);
     }
 }
 
@@ -139,13 +137,15 @@ fn invalid_pdf_data_is_a_parse_error_for_every_input_kind() {
 fn path_and_reader_io_failures_share_the_io_error_variant() {
     let missing = repository_root().join("this-input-does-not-exist.pdf");
 
-    assert!(matches!(
-        Pdf::open_path(missing, None),
-        Err(PdfError::IoError(_))
-    ));
+    assert_eq!(
+        Pdf::open_path(missing, None).err().unwrap().kind(),
+        PdfErrorKind::Io
+    );
     match Pdf::open_reader(FailingReader, None) {
-        Err(PdfError::IoError(message)) => assert_eq!(message, "reader disconnected"),
-        Err(other) => panic!("expected IoError, got {other:?}"),
+        Err(error) => {
+            assert_eq!(error.kind(), PdfErrorKind::Io);
+            assert_eq!(error.source().unwrap().to_string(), "reader disconnected");
+        }
         Ok(_) => panic!("expected reader failure"),
     }
 }
