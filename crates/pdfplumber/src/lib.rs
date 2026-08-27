@@ -81,6 +81,34 @@
 //! the underlying cause available for opt-in protected diagnostics. See the
 //! [Rust error guide](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-errors.md).
 //!
+//! The opaque `PdfError` has no public variants. Matching the removed
+//! string-payload enum shape does not compile:
+//!
+//! ```compile_fail
+//! use pdfplumber::PdfError;
+//!
+//! fn match_removed_variant(error: &PdfError) -> bool {
+//!     match error {
+//!         PdfError::ParseError(_) => true,
+//!         _ => false,
+//!     }
+//! }
+//! ```
+//!
+//! Classify it through [`PdfError::kind`] and include a wildcard because
+//! [`PdfErrorKind`] is non-exhaustive:
+//!
+//! ```no_run
+//! use pdfplumber::{PdfError, PdfErrorKind};
+//!
+//! fn is_parse_error(error: &PdfError) -> bool {
+//!     match error.kind() {
+//!         PdfErrorKind::Parse => true,
+//!         _ => false,
+//!     }
+//! }
+//! ```
+//!
 //! # Concurrency
 //!
 //! [`Pdf`], [`Pages`], [`PagesIter`], [`Page`], and [`CroppedPage`] implement

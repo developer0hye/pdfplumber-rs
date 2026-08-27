@@ -56,6 +56,9 @@ jobs:
       - name: Compile task-oriented Rust examples
         run: cargo check -p pdfplumber --examples --all-features
 
+      - name: Test compile-fail Rust API documentation
+        run: cargo test -p pdfplumber --doc --all-features
+
       - name: Build strict all-feature public Rust documentation
         if: matrix.rust == 'stable'
         env:

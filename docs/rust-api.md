@@ -47,6 +47,21 @@ The [task-oriented Rust examples](rust-examples.md) are complete programs built
 with all features on both supported Continuous Integration toolchains. Ignored
 rustdoc snippets remain outside that compilation proof.
 
+## Compile-time diagnostics
+
+Compile-fail doctests cover three facade errors whose ordinary diagnostics can
+hide the intended ownership or API pattern. `Pages` uses `IntoIterator` rather
+than `Iterator`, so adapters start after an explicit `into_iter()`. A borrowed
+`Pages<'_>` cannot outlive its source `Pdf`; return an owned `Page` instead.
+The opaque `PdfError` has no matchable payload variants; branch on
+`PdfError::kind()` and keep a wildcard arm for the non-exhaustive
+`PdfErrorKind`.
+
+Each intentional failure is adjacent to a compiling alternative in the public
+rustdoc. Continuous Integration runs the all-feature doctest suite on stable
+Rust and Rust 1.85, so a negative example fails the gate if it unexpectedly
+starts compiling and a positive replacement fails if it drifts from the API.
+
 ## Enforced gates
 
 The facade crate carries `#![deny(missing_docs)]` and
@@ -59,6 +74,10 @@ Continuous Integration also runs facade-only Clippy with all features,
 ordinary workspace Clippy run remains separate so this facade policy does not
 silently promote every advanced `pdfplumber-core` algorithm into the stable
 high-level contract.
+
+The all-feature facade doctest command separately compiles the ordinary
+examples and requires every `compile_fail` block to remain a compilation
+failure on both supported Rust toolchains.
 
 The source-backed contract in
 [`compat/tests/test_rust_rustdoc.py`](../compat/tests/test_rust_rustdoc.py)

@@ -27,6 +27,56 @@ use pdfplumber_core::PdfErrorKind;
 /// selection or iterate over the view to process pages on demand.
 /// `Pages` is `Send + Sync` when its borrowed [`Pdf`] is, but cannot outlive
 /// that document.
+///
+/// # Compile-time diagnostics
+///
+/// The view implements `IntoIterator` rather than `Iterator`. It works directly
+/// in a `for` loop, but iterator adapters require an explicit `into_iter()`.
+/// Calling an adapter on the view itself does not compile:
+///
+/// ```compile_fail
+/// use pdfplumber::Pdf;
+///
+/// fn map_pages_directly(pdf: &Pdf) {
+///     let _ = pdf.pages().map(|page| page.map(|page| page.page_number()));
+/// }
+/// ```
+///
+/// Convert the view before using an adapter:
+///
+/// ```no_run
+/// use pdfplumber::{Pdf, PdfError};
+///
+/// fn collect_page_numbers(pdf: &Pdf) -> Result<Vec<usize>, PdfError> {
+///     pdf.pages()
+///         .into_iter()
+///         .map(|page| page.map(|page| page.page_number()))
+///         .collect()
+/// }
+/// ```
+///
+/// A borrowed `Pages<'_>` cannot outlive its source document, so returning a
+/// view created from a local `Pdf` does not compile:
+///
+/// ```compile_fail
+/// use pdfplumber::{Pages, Pdf, PdfError};
+///
+/// fn dangling_pages(bytes: &[u8]) -> Result<Pages<'_>, PdfError> {
+///     let pdf = Pdf::open_bytes(bytes, None)?;
+///     Ok(pdf.pages())
+/// }
+/// ```
+///
+/// Return an owned [`Page`] when the result must outlive the document:
+///
+/// ```no_run
+/// use pdfplumber::{Page, Pdf, PdfError};
+///
+/// fn first_page(bytes: &[u8]) -> Result<Page, PdfError> {
+///     let pdf = Pdf::open_bytes(bytes, None)?;
+///     pdf.pages().get(0)
+/// }
+/// ```
 #[derive(Clone, Copy)]
 pub struct Pages<'a> {
     pdf: &'a Pdf,
