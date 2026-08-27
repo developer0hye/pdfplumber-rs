@@ -17,6 +17,7 @@ use pdfplumber_core::{
 /// Created by [`crate::Page::crop`], [`crate::Page::within_bbox`], or [`crate::Page::outside_bbox`].
 /// Contains only the objects matching the spatial filter criterion, with
 /// coordinates adjusted relative to the crop origin.
+/// The owned value is `Send + Sync` and supports concurrent read-only queries.
 pub struct CroppedPage {
     /// Page width (crop width).
     width: f64,

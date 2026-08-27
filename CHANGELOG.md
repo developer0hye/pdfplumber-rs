@@ -55,6 +55,10 @@ commit list.
   underlying causes through `std::error::Error::source`, attaches available
   page and indirect-object context, and keeps source messages and document
   content out of default `Display` and `Debug` output.
+- **API:** Documented and tested Rust thread-safety and concurrency guarantees.
+  `Pdf`, borrowed page views, `Page`, and `CroppedPage` are `Send + Sync`;
+  document resource budgets are shared across attempts; parallel results retain
+  page-index order; and the Python GIL/cache boundary is stated separately.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 

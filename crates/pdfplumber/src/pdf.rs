@@ -25,6 +25,8 @@ use pdfplumber_core::PdfErrorKind;
 /// Created by [`Pdf::pages`]. The view borrows the document and does not clone
 /// it or extract any page content. Use [`Pages::get`] for direct zero-based
 /// selection or iterate over the view to process pages on demand.
+/// `Pages` is `Send + Sync` when its borrowed [`Pdf`] is, but cannot outlive
+/// that document.
 #[derive(Clone, Copy)]
 pub struct Pages<'a> {
     pdf: &'a Pdf,
@@ -125,6 +127,10 @@ impl std::iter::FusedIterator for PagesIter<'_> {}
 /// A PDF document opened for extraction.
 ///
 /// Wraps a parsed PDF and provides methods to access pages and extract content.
+/// `Pdf` is `Send + Sync`; callers may share it through [`std::sync::Arc`] for
+/// concurrent immutable extraction. Object and image-byte resource budgets are
+/// document-wide and count every page that reaches resource accounting,
+/// including repeated pages.
 ///
 /// # Example
 ///
@@ -912,7 +918,12 @@ impl Pdf {
     ///
     /// Each page is extracted concurrently. The returned Vec is ordered by page
     /// index (0-based). Page data (doctop offsets, etc.) is computed correctly
-    /// regardless of processing order.
+    /// regardless of processing order. Every page produces one result; an error
+    /// does not cancel extraction of the remaining pages.
+    ///
+    /// This method uses the current Rayon thread pool (normally the global pool)
+    /// and does not configure a pool or worker count. Document-wide resource
+    /// budgets are shared by all workers.
     ///
     /// # Example
     ///

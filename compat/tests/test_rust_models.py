@@ -80,7 +80,7 @@ class RustModelContractTests(unittest.TestCase):
             self.assertIn("rust-data-models", document)
         self.assertIn("`pdfplumber::models`", CHANGELOG)
         self.assertNotIn("### Define stable public data models", ROADMAP)
-        self.assertIn("DX-008", ROADMAP)
+        self.assertIn("DX-009", ROADMAP)
         self.assertTrue(REFERENCE.is_file())
         reference = REFERENCE.read_text(encoding="utf-8")
         self.assertIn("Cargo SemVer Compatibility", reference)

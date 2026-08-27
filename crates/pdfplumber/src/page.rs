@@ -53,6 +53,8 @@ fn default_object_order(
 ///
 /// Provides access to characters, words, lines, rects, curves, and edges
 /// extracted from the page. Constructed internally by the PDF parsing pipeline.
+/// The owned value is `Send + Sync`; its public query methods borrow it
+/// immutably, so it may be moved or shared for concurrent read-only queries.
 pub struct Page {
     /// Page index (0-based).
     page_number: usize,

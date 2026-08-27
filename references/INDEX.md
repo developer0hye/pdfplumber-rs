@@ -26,6 +26,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Cargo and the Rust Reference | [rust-public-data-models.md](rust-public-data-models.md) | Reviewing the curated data-model boundary, public-field compatibility, or exhaustive enums |
 | Serde | [rust-serde-schema.md](rust-serde-schema.md) | Reviewing curated JSON field, value-shape, or enum-encoding compatibility |
 | Rust standard library and thiserror | [rust-errors.md](rust-errors.md) | Reviewing public error kinds, source chains, safe formatting, or context propagation |
+| Rust standard library, Rayon, and PyO3 | [rust-concurrency.md](rust-concurrency.md) | Reviewing `Send`/`Sync`, shared resource budgets, parallel page ordering, thread pools, or Python GIL boundaries |
 
 ## Font Parsing
 

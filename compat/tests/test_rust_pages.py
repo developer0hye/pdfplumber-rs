@@ -46,9 +46,9 @@ class RustPageApiContractTests(unittest.TestCase):
 
     def test_roadmap_advances_after_page_traversal(self) -> None:
         self.assertNotIn("### Make page traversal explicit", ROADMAP)
-        self.assertIn("DX-008", ROADMAP)
+        self.assertIn("DX-009", ROADMAP)
         normalized = " ".join(ROADMAP.split())
-        self.assertRegex(normalized, r"(?i)concurrency.*document.*page.*cache")
+        self.assertRegex(normalized, r"(?i)public Rust API documentation.*rustdoc")
 
     def test_public_change_and_design_sources_are_traceable(self) -> None:
         self.assertIn("`Pdf::pages`", CHANGELOG)
