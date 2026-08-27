@@ -18,6 +18,9 @@ commit list.
   [public rustdoc contract](docs/rust-api.md). Continuous Integration now builds
   all-feature rustdoc with warnings denied and rejects undocumented fallible or
   panicking public methods.
+- **Documentation:** Added complete compiled Rust examples for text, word
+  bounding boxes, tables, page geometry, metadata, encrypted and malformed
+  inputs, Serde JSON, and ordered parallel page processing.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

@@ -53,6 +53,9 @@ jobs:
       - name: Test Rust concurrency with optional parallel processing
         run: cargo test -p pdfplumber --features parallel --test concurrency
 
+      - name: Compile task-oriented Rust examples
+        run: cargo check -p pdfplumber --examples --all-features
+
       - name: Build strict all-feature public Rust documentation
         if: matrix.rust == 'stable'
         env:

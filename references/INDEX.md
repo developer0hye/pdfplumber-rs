@@ -28,6 +28,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust standard library and thiserror | [rust-errors.md](rust-errors.md) | Reviewing public error kinds, source chains, safe formatting, or context propagation |
 | Rust standard library, Rayon, and PyO3 | [rust-concurrency.md](rust-concurrency.md) | Reviewing `Send`/`Sync`, shared resource budgets, parallel page ordering, thread pools, or Python GIL boundaries |
 | rustc, rustdoc, and Clippy | [rust-rustdoc.md](rust-rustdoc.md) | Reviewing missing public docs, link validation, or fallible and panicking API documentation gates |
+| Cargo | [rust-examples.md](rust-examples.md) | Reviewing compiled example targets and feature-specific example gates |
 
 ## Font Parsing
 

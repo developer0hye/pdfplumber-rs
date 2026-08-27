@@ -139,6 +139,10 @@ let settings = TableSettings {
 };
 ```
 
+Complete compiled programs for text, word bounding boxes, tables, page
+geometry, metadata, encrypted and malformed inputs, Serde JSON, and parallel
+page batches are listed in the [task-oriented Rust examples](docs/rust-examples.md).
+
 ### Extract Characters
 
 ```rust,no_run

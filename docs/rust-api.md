@@ -43,10 +43,9 @@ condition. Intra-doc links must resolve in every enabled feature combination
 covered by the build. A summary belonging to one method must not bleed into
 the next method's rustdoc.
 
-Compiled task examples are tracked separately by
-[`DX-010`](../PRD.md#823-p0--rust-developer-experience-and-api-stability);
-this contract does not treat an ignored snippet as proof that an example
-compiles.
+The [task-oriented Rust examples](rust-examples.md) are complete programs built
+with all features on both supported Continuous Integration toolchains. Ignored
+rustdoc snippets remain outside that compilation proof.
 
 ## Enforced gates
 

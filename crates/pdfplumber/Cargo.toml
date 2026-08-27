@@ -35,6 +35,14 @@ md5 = "0.7"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
+[[example]]
+name = "serialize_words"
+required-features = ["serde"]
+
+[[example]]
+name = "parallel_batch"
+required-features = ["parallel"]
+
 [[bench]]
 name = "extraction"
 harness = false
