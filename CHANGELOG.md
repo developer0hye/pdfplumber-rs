@@ -14,6 +14,10 @@ commit list.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.
+- **Documentation:** Defined the stable Rust facade and its
+  [public rustdoc contract](docs/rust-api.md). Continuous Integration now builds
+  all-feature rustdoc with warnings denied and rejects undocumented fallible or
+  panicking public methods.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

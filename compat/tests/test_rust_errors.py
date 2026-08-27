@@ -60,7 +60,7 @@ class RustErrorContractTests(unittest.TestCase):
             self.assertIn("rust-errors", document)
         self.assertIn("`PdfErrorKind`", CHANGELOG)
         self.assertNotIn("### Make Rust failures actionable", ROADMAP)
-        self.assertIn("DX-009", ROADMAP)
+        self.assertIn("DX-010", ROADMAP)
         self.assertTrue(REFERENCE.is_file())
         reference = REFERENCE.read_text(encoding="utf-8")
         self.assertIn("std::error::Error::source", reference)

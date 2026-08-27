@@ -28,7 +28,9 @@
 //! The high-level boundary is simple: ordinary applications should depend only on this crate.
 //! [`Pdf`] is the canonical high-level entry point. Its options, errors, and extracted data are
 //! re-exported here. Parser-internal types are intentionally not re-exported. Advanced parser work
-//! can depend on the separate `pdfplumber-parse` crate explicitly.
+//! can depend on the separate `pdfplumber-parse` crate explicitly. The
+//! [public rustdoc contract](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-api.md)
+//! defines the stable facade and the documentation gates applied to it.
 //!
 //! The library is split into three crates:
 //!
@@ -149,6 +151,7 @@
 //! The `parallel` feature is not available for WASM targets (rayon requires OS threads).
 
 #![deny(missing_docs)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
 mod cropped_page;
 pub mod models;

@@ -681,6 +681,10 @@ impl Pdf {
     }
 
     /// Return a page's display dimensions without interpreting its content stream.
+    ///
+    /// `index` is zero-based. The returned `(width, height)` values are PDF
+    /// points after page rotation. Returns `None` when the index is out of
+    /// range.
     pub fn page_dimensions(&self, index: usize) -> Option<(f64, f64)> {
         self.page_widths
             .get(index)
@@ -689,26 +693,40 @@ impl Pdf {
     }
 
     /// Return a page's normalized rotation without interpreting its content stream.
+    ///
+    /// `index` is zero-based. The angle is in clockwise degrees normalized to
+    /// `0..360`; `None` means the index is out of range.
     pub fn page_rotation(&self, index: usize) -> Option<i32> {
         self.page_rotations.get(index).copied()
     }
 
     /// Return a page's source MediaBox without interpreting its content stream.
+    ///
+    /// `index` is zero-based. Returns `None` when the index is out of range.
     pub fn page_media_box(&self, index: usize) -> Option<BBox> {
         self.page_media_boxes.get(index).copied()
     }
 
     /// Return which source MediaBox coordinates were PDF integers.
+    ///
+    /// Flags follow `[x0, top, x1, bottom]` order. `index` is zero-based, and
+    /// `None` means it is out of range.
     pub fn page_media_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
         self.page_media_box_integer_flags.get(index).copied()
     }
 
     /// Return a page's inherited source CropBox without interpreting its content stream.
+    ///
+    /// `index` is zero-based. Returns `None` when the page has no inherited
+    /// CropBox or when the index is out of range.
     pub fn page_crop_box(&self, index: usize) -> Option<BBox> {
         self.page_crop_boxes.get(index).copied().flatten()
     }
 
     /// Return which source CropBox coordinates were PDF integers.
+    ///
+    /// Flags follow `[x0, top, x1, bottom]` order. Returns `None` when the page
+    /// has no inherited CropBox or the zero-based index is out of range.
     pub fn page_crop_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
         self.page_crop_box_integer_flags
             .get(index)
@@ -717,11 +735,17 @@ impl Pdf {
     }
 
     /// Return a page's explicit source TrimBox without interpreting its content stream.
+    ///
+    /// Returns `None` when the page does not define one or the zero-based index
+    /// is out of range.
     pub fn page_trim_box(&self, index: usize) -> Option<BBox> {
         self.page_trim_boxes.get(index).copied().flatten()
     }
 
     /// Return which source TrimBox coordinates were PDF integers.
+    ///
+    /// Flags follow `[x0, top, x1, bottom]` order. Returns `None` when the page
+    /// has no explicit TrimBox or the zero-based index is out of range.
     pub fn page_trim_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
         self.page_trim_box_integer_flags
             .get(index)
@@ -730,11 +754,17 @@ impl Pdf {
     }
 
     /// Return a page's explicit source BleedBox without interpreting its content stream.
+    ///
+    /// Returns `None` when the page does not define one or the zero-based index
+    /// is out of range.
     pub fn page_bleed_box(&self, index: usize) -> Option<BBox> {
         self.page_bleed_boxes.get(index).copied().flatten()
     }
 
     /// Return which source BleedBox coordinates were PDF integers.
+    ///
+    /// Flags follow `[x0, top, x1, bottom]` order. Returns `None` when the page
+    /// has no explicit BleedBox or the zero-based index is out of range.
     pub fn page_bleed_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
         self.page_bleed_box_integer_flags
             .get(index)
@@ -743,11 +773,17 @@ impl Pdf {
     }
 
     /// Return a page's explicit source ArtBox without interpreting its content stream.
+    ///
+    /// Returns `None` when the page does not define one or the zero-based index
+    /// is out of range.
     pub fn page_art_box(&self, index: usize) -> Option<BBox> {
         self.page_art_boxes.get(index).copied().flatten()
     }
 
     /// Return which source ArtBox coordinates were PDF integers.
+    ///
+    /// Flags follow `[x0, top, x1, bottom]` order. Returns `None` when the page
+    /// has no explicit ArtBox or the zero-based index is out of range.
     pub fn page_art_box_integer_flags(&self, index: usize) -> Option<[bool; 4]> {
         self.page_art_box_integer_flags
             .get(index)
@@ -774,6 +810,11 @@ impl Pdf {
 
     /// Validate that the raw document information dictionary has no
     /// indirect-reference cycles.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`PdfError`] when the metadata graph is malformed, including
+    /// an indirect-reference cycle or an unresolvable referenced object.
     pub fn validate_metadata(&self) -> Result<(), PdfError> {
         LopdfBackend::validate_document_metadata(&self.doc)
             .map_err(|error| operation_error(error, "validate document metadata"))
