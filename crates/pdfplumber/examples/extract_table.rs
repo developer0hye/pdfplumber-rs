@@ -1,24 +1,22 @@
 //! Extract tables from a PDF document and print them as grids.
 //!
-//! Usage: `cargo run --example extract_table -- <path-to-pdf>`
+//! Usage: `cargo run -p pdfplumber --example extract_table -- <path-to-pdf>`
 
 use pdfplumber::{Pdf, TableSettings};
 
-fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Usage: extract_table <path-to-pdf>");
-        std::process::exit(1);
-    });
-
-    let pdf = Pdf::open_path(&path, None).unwrap_or_else(|e| {
-        eprintln!("Error opening PDF: {e}");
-        std::process::exit(1);
-    });
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let path = std::env::args().nth(1).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Usage: extract_table <path-to-pdf>",
+        )
+    })?;
+    let pdf = Pdf::open_path(&path, None)?;
 
     let settings = TableSettings::default();
 
     for page_result in pdf.pages() {
-        let page = page_result.unwrap();
+        let page = page_result?;
         let tables = page.find_tables(&settings);
 
         if tables.is_empty() {
@@ -43,4 +41,6 @@ fn main() {
             println!();
         }
     }
+
+    Ok(())
 }

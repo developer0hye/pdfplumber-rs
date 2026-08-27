@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Compile task-oriented Rust examples
+### Explain common Rust misuse at compile time
 
-Add compiled examples for text, word geometry, tables, page objects, metadata,
-encrypted and malformed input, serialization, and parallel batch processing.
+Add compile-fail documentation tests for common misuse where the compiler error
+alone would otherwise be confusing.
 
-Detailed task: [`DX-010`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-011`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 

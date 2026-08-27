@@ -1,22 +1,20 @@
 //! Extract individual characters from a PDF with position and font info.
 //!
-//! Usage: `cargo run --example extract_chars -- <path-to-pdf>`
+//! Usage: `cargo run -p pdfplumber --example extract_chars -- <path-to-pdf>`
 
 use pdfplumber::Pdf;
 
-fn main() {
-    let path = std::env::args().nth(1).unwrap_or_else(|| {
-        eprintln!("Usage: extract_chars <path-to-pdf>");
-        std::process::exit(1);
-    });
-
-    let pdf = Pdf::open_path(&path, None).unwrap_or_else(|e| {
-        eprintln!("Error opening PDF: {e}");
-        std::process::exit(1);
-    });
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let path = std::env::args().nth(1).ok_or_else(|| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Usage: extract_chars <path-to-pdf>",
+        )
+    })?;
+    let pdf = Pdf::open_path(&path, None)?;
 
     for page_result in pdf.pages() {
-        let page = page_result.unwrap();
+        let page = page_result?;
         println!(
             "--- Page {} ({:.0} x {:.0}, {} chars) ---",
             page.page_number(),
@@ -33,4 +31,6 @@ fn main() {
         }
         println!();
     }
+
+    Ok(())
 }
