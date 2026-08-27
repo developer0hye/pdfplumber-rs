@@ -93,7 +93,10 @@ pub use edges::{
     edges_from_rect,
 };
 pub use encoding::{EncodingResolver, FontEncoding, StandardEncoding, glyph_name_to_char};
-pub use error::{ExtractOptions, ExtractResult, ExtractWarning, ExtractWarningCode, PdfError};
+pub use error::{
+    ExtractOptions, ExtractResult, ExtractWarning, ExtractWarningCode, PdfError, PdfErrorContext,
+    PdfErrorKind, PdfObjectId, PdfResourceLimit,
+};
 pub use form_field::{FieldType, FormField};
 pub use geometry::{BBox, Ctm, Orientation, Point};
 pub use html::{HtmlOptions, HtmlRenderer};

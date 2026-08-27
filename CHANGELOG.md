@@ -50,11 +50,20 @@ commit list.
   field names, JSON value shapes, and enum encodings across `0.3.x`;
   `ExtractOptions`, `TextOptions`, and `WordOptions` now implement the optional
   Serde traits promised by that boundary.
+- **API:** Added opaque, machine-readable Rust errors through `PdfErrorKind`,
+  `PdfErrorContext`, `PdfObjectId`, and `PdfResourceLimit`. The facade preserves
+  underlying causes through `std::error::Error::source`, attaches available
+  page and indirect-object context, and keeps source messages and document
+  content out of default `Display` and `Debug` output.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 
 ### Changed
 
+- **API:** Replaced the public `PdfError` string-payload variants with an opaque
+  alpha error type. Rust callers should inspect `PdfError::kind`,
+  `PdfError::context`, and `PdfError::resource_limit`; source-chain diagnostics
+  are explicit and may contain sensitive parser or operating-system details.
 - **API:** `Pdf` is now the canonical high-level entry point from the root
   `pdfplumber` crate. Parser backends and content-event types are no longer
   re-exported at that root; advanced parser consumers can depend on the separate

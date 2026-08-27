@@ -9,66 +9,309 @@ use std::fmt;
 
 use crate::unicode_norm::UnicodeNorm;
 
-/// Fatal error types for PDF processing.
+/// Machine-readable category for a fatal PDF operation error.
 ///
-/// These errors indicate conditions that prevent further processing
-/// of the PDF or current operation.
-#[derive(Debug, Clone, PartialEq)]
-pub enum PdfError {
-    /// Error parsing PDF structure or syntax.
-    ParseError(String),
-    /// I/O error reading PDF data.
-    IoError(String),
-    /// Error resolving font or encoding information.
-    FontError(String),
-    /// Error during content stream interpretation.
-    InterpreterError(String),
+/// Match this non-exhaustive enum with a wildcard so future error categories
+/// can be added without breaking callers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum PdfErrorKind {
+    /// PDF structure, syntax, or object resolution is invalid.
+    Parse,
+    /// An input or output operation failed.
+    Io,
+    /// Font or encoding information could not be resolved.
+    Font,
+    /// A page content stream could not be interpreted.
+    Interpreter,
     /// A configured resource limit was exceeded.
-    ResourceLimitExceeded {
-        /// Name of the limit that was exceeded (e.g., "max_input_bytes").
-        limit_name: String,
-        /// The configured limit value.
-        limit_value: usize,
-        /// The actual value that exceeded the limit.
-        actual_value: usize,
-    },
-    /// The PDF is encrypted and requires a password to open.
+    ResourceLimit,
+    /// The PDF requires a password.
     PasswordRequired,
-    /// The supplied password is incorrect for this encrypted PDF.
+    /// The supplied password is incorrect.
     InvalidPassword,
-    /// Any other error not covered by specific variants.
-    Other(String),
+    /// A failure outside the other public categories occurred.
+    Other,
 }
 
-impl fmt::Display for PdfError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl PdfErrorKind {
+    /// Return the stable, machine-readable code for this error category.
+    pub const fn code(self) -> &'static str {
         match self {
-            PdfError::ParseError(msg) => write!(f, "parse error: {msg}"),
-            PdfError::IoError(msg) => write!(f, "I/O error: {msg}"),
-            PdfError::FontError(msg) => write!(f, "font error: {msg}"),
-            PdfError::InterpreterError(msg) => write!(f, "interpreter error: {msg}"),
-            PdfError::ResourceLimitExceeded {
-                limit_name,
-                limit_value,
-                actual_value,
-            } => write!(
-                f,
-                "resource limit exceeded: {limit_name} (limit: {limit_value}, actual: {actual_value})"
-            ),
-            PdfError::PasswordRequired => write!(f, "PDF is encrypted and requires a password"),
-            PdfError::InvalidPassword => write!(f, "the supplied password is incorrect"),
-            PdfError::Other(msg) => write!(f, "{msg}"),
+            Self::Parse => "PARSE",
+            Self::Io => "IO",
+            Self::Font => "FONT",
+            Self::Interpreter => "INTERPRETER",
+            Self::ResourceLimit => "RESOURCE_LIMIT",
+            Self::PasswordRequired => "PASSWORD_REQUIRED",
+            Self::InvalidPassword => "INVALID_PASSWORD",
+            Self::Other => "OTHER",
         }
     }
 }
 
-impl std::error::Error for PdfError {}
+/// A PDF indirect object identifier attached to an error when known.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PdfObjectId {
+    /// Indirect object number.
+    pub number: u32,
+    /// Indirect object generation number.
+    pub generation: u16,
+}
+
+/// Safe location and operation context attached to a [`PdfError`].
+///
+/// Page indices are zero-based. The operation names are library-owned static
+/// labels; input paths and document text are never stored here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct PdfErrorContext {
+    /// Library operation that failed, if the facade knew it.
+    pub operation: Option<&'static str>,
+    /// Zero-based page index involved in the failure, if known.
+    pub page_index: Option<usize>,
+    /// PDF indirect object involved in the failure, if known.
+    pub object_id: Option<PdfObjectId>,
+}
+
+/// Machine-readable details for a configured resource-limit failure.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PdfResourceLimit {
+    /// Name of the configured limit, such as `max_input_bytes`.
+    pub name: &'static str,
+    /// Configured maximum value.
+    pub limit: usize,
+    /// Observed value that proved the limit was exceeded.
+    pub observed: usize,
+}
+
+/// Fatal error returned by the public Rust facade.
+///
+/// The representation is intentionally opaque. Use [`PdfError::kind`],
+/// [`PdfError::context`], and [`PdfError::resource_limit`] for stable typed
+/// inspection, and [`std::error::Error::source`] for opt-in diagnostics. The
+/// default [`fmt::Display`] and [`fmt::Debug`] output never renders the source,
+/// so input paths and document content are not disclosed by ordinary logging.
+pub struct PdfError {
+    kind: PdfErrorKind,
+    context: PdfErrorContext,
+    resource_limit: Option<PdfResourceLimit>,
+    source: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
+}
+
+impl PdfError {
+    /// Create an error category without an underlying source.
+    pub fn new(kind: PdfErrorKind) -> Self {
+        Self {
+            kind,
+            context: PdfErrorContext::default(),
+            resource_limit: None,
+            source: None,
+        }
+    }
+
+    /// Create an error category while preserving its underlying cause.
+    pub fn from_source<E>(kind: PdfErrorKind, source: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        Self {
+            kind,
+            context: PdfErrorContext::default(),
+            resource_limit: None,
+            source: Some(Box::new(source)),
+        }
+    }
+
+    /// Create a parse error from an existing diagnostic message.
+    pub fn parse(message: impl Into<String>) -> Self {
+        Self::from_source(PdfErrorKind::Parse, MessageError(message.into()))
+    }
+
+    /// Create a font error from an existing diagnostic message.
+    pub fn font(message: impl Into<String>) -> Self {
+        Self::from_source(PdfErrorKind::Font, MessageError(message.into()))
+    }
+
+    /// Create an interpreter error from an existing diagnostic message.
+    pub fn interpreter(message: impl Into<String>) -> Self {
+        Self::from_source(PdfErrorKind::Interpreter, MessageError(message.into()))
+    }
+
+    /// Create an uncategorized error from an existing diagnostic message.
+    pub fn other(message: impl Into<String>) -> Self {
+        Self::from_source(PdfErrorKind::Other, MessageError(message.into()))
+    }
+
+    /// Create a configured resource-limit error.
+    pub fn limit_exceeded(name: &'static str, limit: usize, observed: usize) -> Self {
+        Self {
+            kind: PdfErrorKind::ResourceLimit,
+            context: PdfErrorContext::default(),
+            resource_limit: Some(PdfResourceLimit {
+                name,
+                limit,
+                observed,
+            }),
+            source: None,
+        }
+    }
+
+    /// Create an error indicating that a password is required.
+    pub fn password_required() -> Self {
+        Self::new(PdfErrorKind::PasswordRequired)
+    }
+
+    /// Create an error indicating that the supplied password is invalid.
+    pub fn invalid_password() -> Self {
+        Self::new(PdfErrorKind::InvalidPassword)
+    }
+
+    /// Return this error's stable category.
+    pub const fn kind(&self) -> PdfErrorKind {
+        self.kind
+    }
+
+    /// Return safe operation, page, and object context.
+    pub const fn context(&self) -> &PdfErrorContext {
+        &self.context
+    }
+
+    /// Return typed resource-limit details when this is a limit error.
+    pub const fn resource_limit(&self) -> Option<&PdfResourceLimit> {
+        self.resource_limit.as_ref()
+    }
+
+    /// Attach a library-owned operation label.
+    pub fn during(mut self, operation: &'static str) -> Self {
+        self.context.operation = Some(operation);
+        self
+    }
+
+    /// Attach a zero-based page index.
+    pub fn at_page(mut self, page_index: usize) -> Self {
+        self.context.page_index = Some(page_index);
+        self
+    }
+
+    /// Attach a PDF indirect object identifier.
+    pub fn at_object(mut self, number: u32, generation: u16) -> Self {
+        self.context.object_id = Some(PdfObjectId { number, generation });
+        self
+    }
+}
+
+impl fmt::Display for PdfError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.kind {
+            PdfErrorKind::Parse => f.write_str(
+                "could not parse PDF input; verify that the input is a valid, supported PDF",
+            )?,
+            PdfErrorKind::Io => f.write_str(
+                "could not read PDF input; check that the source is available and readable",
+            )?,
+            PdfErrorKind::Font => f.write_str(
+                "could not resolve PDF font data; inspect the source chain for font details",
+            )?,
+            PdfErrorKind::Interpreter => f.write_str(
+                "could not interpret PDF page content; inspect the reported page or object context",
+            )?,
+            PdfErrorKind::ResourceLimit => {
+                if let Some(limit) = &self.resource_limit {
+                    write!(
+                        f,
+                        "resource limit {} exceeded (limit {}, observed {}); raise the configured limit or use a smaller input",
+                        limit.name, limit.limit, limit.observed
+                    )?;
+                } else {
+                    f.write_str(
+                        "a configured resource limit was exceeded; raise the limit or use a smaller input",
+                    )?;
+                }
+            }
+            PdfErrorKind::PasswordRequired => {
+                f.write_str("PDF is encrypted; retry with one of the password-aware open methods")?
+            }
+            PdfErrorKind::InvalidPassword => {
+                f.write_str("could not decrypt PDF; verify the supplied password")?;
+            }
+            PdfErrorKind::Other => {
+                f.write_str("PDF operation failed; inspect the source chain for details")?;
+            }
+        }
+
+        let mut wrote_context = false;
+        if let Some(operation) = self.context.operation {
+            write!(f, " [operation: {operation}")?;
+            wrote_context = true;
+        }
+        if let Some(page_index) = self.context.page_index {
+            if wrote_context {
+                write!(f, ", page index {page_index}")?;
+            } else {
+                write!(f, " [page index {page_index}")?;
+                wrote_context = true;
+            }
+        }
+        if let Some(object_id) = self.context.object_id {
+            if wrote_context {
+                write!(
+                    f,
+                    ", object {} {} R",
+                    object_id.number, object_id.generation
+                )?;
+            } else {
+                write!(
+                    f,
+                    " [object {} {} R",
+                    object_id.number, object_id.generation
+                )?;
+                wrote_context = true;
+            }
+        }
+        if wrote_context {
+            f.write_str("]")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for PdfError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PdfError")
+            .field("kind", &self.kind)
+            .field("context", &self.context)
+            .field("resource_limit", &self.resource_limit)
+            .field("has_source", &self.source.is_some())
+            .finish()
+    }
+}
+
+impl std::error::Error for PdfError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        self.source
+            .as_deref()
+            .map(|source| source as &(dyn std::error::Error + 'static))
+    }
+}
 
 impl From<std::io::Error> for PdfError {
     fn from(err: std::io::Error) -> Self {
-        PdfError::IoError(err.to_string())
+        Self::from_source(PdfErrorKind::Io, err)
     }
 }
+
+#[derive(Debug)]
+struct MessageError(String);
+
+impl fmt::Display for MessageError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl std::error::Error for MessageError {}
 
 /// Machine-readable warning code for categorizing extraction issues.
 ///
@@ -228,7 +471,11 @@ impl ExtractWarning {
     ///
     /// Used by strict mode to escalate warnings to errors.
     pub fn to_error(&self) -> PdfError {
-        PdfError::Other(self.to_string())
+        let mut error = PdfError::other(self.to_string()).during("strict warning escalation");
+        if let Some(page) = self.page {
+            error = error.at_page(page);
+        }
+        error
     }
 }
 
@@ -374,118 +621,119 @@ impl ExtractOptions {
 mod tests {
     use super::*;
     use crate::unicode_norm::UnicodeNorm;
+    use std::error::Error as _;
 
     // --- PdfError tests ---
 
     #[test]
     fn pdf_error_parse_error_creation() {
-        let err = PdfError::ParseError("invalid xref".to_string());
-        assert_eq!(err.to_string(), "parse error: invalid xref");
+        let err = PdfError::parse("invalid xref");
+        assert_eq!(err.kind(), PdfErrorKind::Parse);
+        assert!(err.to_string().contains("valid, supported PDF"));
+        assert_eq!(err.source().unwrap().to_string(), "invalid xref");
+        assert!(!err.to_string().contains("invalid xref"));
     }
 
     #[test]
     fn pdf_error_io_error_creation() {
-        let err = PdfError::IoError("file not found".to_string());
-        assert_eq!(err.to_string(), "I/O error: file not found");
+        let source = std::io::Error::new(std::io::ErrorKind::NotFound, "file not found");
+        let err = PdfError::from(source);
+        assert_eq!(err.kind(), PdfErrorKind::Io);
+        assert_eq!(
+            err.source()
+                .unwrap()
+                .downcast_ref::<std::io::Error>()
+                .unwrap()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert!(!err.to_string().contains("file not found"));
     }
 
     #[test]
     fn pdf_error_font_error_creation() {
-        let err = PdfError::FontError("missing glyph widths".to_string());
-        assert_eq!(err.to_string(), "font error: missing glyph widths");
+        let err = PdfError::font("missing glyph widths");
+        assert_eq!(err.kind(), PdfErrorKind::Font);
+        assert!(err.to_string().contains("font data"));
     }
 
     #[test]
     fn pdf_error_interpreter_error_creation() {
-        let err = PdfError::InterpreterError("unknown operator".to_string());
-        assert_eq!(err.to_string(), "interpreter error: unknown operator");
+        let err = PdfError::interpreter("unknown operator");
+        assert_eq!(err.kind(), PdfErrorKind::Interpreter);
+        assert!(err.to_string().contains("page content"));
     }
 
     #[test]
     fn pdf_error_resource_limit_exceeded() {
-        let err = PdfError::ResourceLimitExceeded {
-            limit_name: "max_input_bytes".to_string(),
-            limit_value: 1024,
-            actual_value: 2048,
-        };
+        let err = PdfError::limit_exceeded("max_input_bytes", 1024, 2048);
         assert_eq!(
             err.to_string(),
-            "resource limit exceeded: max_input_bytes (limit: 1024, actual: 2048)"
+            "resource limit max_input_bytes exceeded (limit 1024, observed 2048); raise the configured limit or use a smaller input"
         );
     }
 
     #[test]
     fn pdf_error_resource_limit_exceeded_structured_fields() {
-        let err = PdfError::ResourceLimitExceeded {
-            limit_name: "max_pages".to_string(),
-            limit_value: 10,
-            actual_value: 25,
-        };
-        if let PdfError::ResourceLimitExceeded {
-            limit_name,
-            limit_value,
-            actual_value,
-        } = &err
-        {
-            assert_eq!(limit_name, "max_pages");
-            assert_eq!(*limit_value, 10);
-            assert_eq!(*actual_value, 25);
-        } else {
-            panic!("expected ResourceLimitExceeded");
-        }
+        let err = PdfError::limit_exceeded("max_pages", 10, 25);
+        let limit = err.resource_limit().unwrap();
+        assert_eq!(limit.name, "max_pages");
+        assert_eq!(limit.limit, 10);
+        assert_eq!(limit.observed, 25);
     }
 
     #[test]
     fn pdf_error_password_required() {
-        let err = PdfError::PasswordRequired;
-        assert_eq!(err.to_string(), "PDF is encrypted and requires a password");
+        let err = PdfError::password_required();
+        assert_eq!(err.kind(), PdfErrorKind::PasswordRequired);
+        assert!(err.to_string().contains("password-aware open methods"));
     }
 
     #[test]
     fn pdf_error_invalid_password() {
-        let err = PdfError::InvalidPassword;
-        assert_eq!(err.to_string(), "the supplied password is incorrect");
-    }
-
-    #[test]
-    fn pdf_error_password_required_clone_and_eq() {
-        let err1 = PdfError::PasswordRequired;
-        let err2 = err1.clone();
-        assert_eq!(err1, err2);
-    }
-
-    #[test]
-    fn pdf_error_invalid_password_clone_and_eq() {
-        let err1 = PdfError::InvalidPassword;
-        let err2 = err1.clone();
-        assert_eq!(err1, err2);
+        let err = PdfError::invalid_password();
+        assert_eq!(err.kind(), PdfErrorKind::InvalidPassword);
+        assert!(err.to_string().contains("verify the supplied password"));
     }
 
     #[test]
     fn pdf_error_other() {
-        let err = PdfError::Other("something went wrong".to_string());
-        assert_eq!(err.to_string(), "something went wrong");
+        let err = PdfError::other("something went wrong");
+        assert_eq!(err.kind(), PdfErrorKind::Other);
+        assert!(!err.to_string().contains("something went wrong"));
+        assert_eq!(err.source().unwrap().to_string(), "something went wrong");
     }
 
     #[test]
     fn pdf_error_implements_std_error() {
-        let err: Box<dyn std::error::Error> = Box::new(PdfError::ParseError("test".to_string()));
-        assert_eq!(err.to_string(), "parse error: test");
+        let err: Box<dyn std::error::Error> = Box::new(PdfError::parse("test"));
+        assert!(err.to_string().contains("valid, supported PDF"));
     }
 
     #[test]
-    fn pdf_error_clone_and_eq() {
-        let err1 = PdfError::ParseError("test".to_string());
-        let err2 = err1.clone();
-        assert_eq!(err1, err2);
+    fn pdf_error_context_builders_are_structured() {
+        let err = PdfError::parse("test")
+            .during("load page")
+            .at_page(4)
+            .at_object(12, 2);
+        assert_eq!(err.context().operation, Some("load page"));
+        assert_eq!(err.context().page_index, Some(4));
+        assert_eq!(
+            err.context().object_id,
+            Some(PdfObjectId {
+                number: 12,
+                generation: 2
+            })
+        );
     }
 
     #[test]
     fn pdf_error_from_io_error() {
         let io_err = std::io::Error::new(std::io::ErrorKind::NotFound, "missing file");
         let pdf_err: PdfError = io_err.into();
-        assert!(matches!(pdf_err, PdfError::IoError(_)));
-        assert!(pdf_err.to_string().contains("missing file"));
+        assert_eq!(pdf_err.kind(), PdfErrorKind::Io);
+        assert!(!pdf_err.to_string().contains("missing file"));
+        assert!(!format!("{pdf_err:?}").contains("missing file"));
     }
 
     // --- ExtractWarning tests ---
@@ -809,8 +1057,10 @@ mod tests {
             font_name: None,
         };
         let err: PdfError = warning.to_error();
-        assert!(matches!(err, PdfError::Other(_)));
-        assert!(err.to_string().contains("font not found"));
+        assert_eq!(err.kind(), PdfErrorKind::Other);
+        assert_eq!(err.context().page_index, Some(0));
+        assert!(!err.to_string().contains("font not found"));
+        assert!(err.source().unwrap().to_string().contains("font not found"));
     }
 
     #[test]
@@ -852,13 +1102,9 @@ mod tests {
     }
 
     #[test]
-    fn resource_limit_exceeded_clone_and_eq() {
-        let err1 = PdfError::ResourceLimitExceeded {
-            limit_name: "max_input_bytes".to_string(),
-            limit_value: 100,
-            actual_value: 200,
-        };
-        let err2 = err1.clone();
-        assert_eq!(err1, err2);
+    fn resource_limit_details_are_cloneable_and_comparable() {
+        let err = PdfError::limit_exceeded("max_input_bytes", 100, 200);
+        let details = err.resource_limit().unwrap().clone();
+        assert_eq!(details, *err.resource_limit().unwrap());
     }
 }

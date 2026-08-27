@@ -33,8 +33,8 @@ class RustInputApiContractTests(unittest.TestCase):
         self.assertIn("`std::io::Read`", section)
         self.assertIn("does not borrow", section)
         self.assertIn("current reader position through end-of-file", section)
-        self.assertIn("`PdfError::IoError`", section)
-        self.assertIn("`PdfError::ParseError`", section)
+        self.assertIn("`PdfErrorKind::Io`", section)
+        self.assertIn("`PdfErrorKind::Parse`", section)
 
     def test_rustdoc_defines_input_ownership_and_error_contract(self) -> None:
         crate_docs = " ".join(CRATE_ROOT.read_text(encoding="utf-8").split())
@@ -51,8 +51,8 @@ class RustInputApiContractTests(unittest.TestCase):
         self.assertRegex(source, r"pub fn open_reader<R: std::io::Read>\(")
         self.assertIn("does not retain", source)
         self.assertIn("current position through end-of-file", source)
-        self.assertIn("PdfError::IoError", source)
-        self.assertIn("PdfError::ParseError", source)
+        self.assertIn("PdfErrorKind::Io", source)
+        self.assertIn("PdfErrorKind::Parse", source)
 
     def test_password_inputs_follow_the_same_family_and_old_names_are_aliases(self) -> None:
         source = PDF_SOURCE.read_text(encoding="utf-8")
@@ -78,7 +78,7 @@ class RustInputApiContractTests(unittest.TestCase):
         self.assertIn("`Pdf::open_path`", changelog)
         self.assertIn("`Pdf::open_bytes`", changelog)
         self.assertIn("`Pdf::open_reader`", changelog)
-        self.assertIn("DX-007", roadmap)
+        self.assertIn("DX-008", roadmap)
         self.assertIn("6cd9a622fbbb727f392c156311d13eb7ab461e04", reference)
         self.assertIn("Document::load_from<R: Read>", reference)
         self.assertIn("Document::load_mem", reference)
