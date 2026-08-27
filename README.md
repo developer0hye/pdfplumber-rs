@@ -174,6 +174,12 @@ lifetimes, and opaque error classification.
 ([rustdoc evidence](compat/tests/test_rust_rustdoc.py),
 [compile-fail evidence](compat/tests/test_rust_compile_fail.py))
 
+Rust release pull requests are compared with the latest normal crates.io
+versions. A detected public API break must be allowed by the candidate SemVer
+increment and documented with concrete replacement guidance, as defined by the
+[release SemVer policy](docs/rust-api.md#release-semver-gate).
+([workflow evidence](compat/tests/test_rust_semver_release.py))
+
 For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
 `pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser
 internals for advanced contributors; they are not additional steps in the

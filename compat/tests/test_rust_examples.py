@@ -102,8 +102,8 @@ class RustExamplesContractTests(unittest.TestCase):
         self.assertTrue(reference_path.is_file())
         self.assertIn("rust-examples.md", references)
         self.assertIn("Cargo Targets", reference_path.read_text(encoding="utf-8"))
-        self.assertIn("DX-012", roadmap)
-        self.assertRegex(roadmap, r"(?i)semver.*release")
+        self.assertIn("DX-013", roadmap)
+        self.assertRegex(roadmap, r"(?i)minimum supported rust version")
         self.assertNotIn("DX-010", roadmap)
 
 
