@@ -101,7 +101,13 @@ pub struct Page {
 }
 
 impl Page {
-    /// Create a new page with the given metadata and characters.
+    /// Create a synthetic, unrotated page containing only characters.
+    ///
+    /// `page_number` is zero-based. `width` and `height` are PDF points and
+    /// define a top-left-origin bounding box from `(0, 0)` to
+    /// `(width, height)`. The characters are retained in the supplied order;
+    /// all geometry, image, annotation, form, structure, and warning
+    /// collections start empty, and the page rotation is zero.
     pub fn new(page_number: usize, width: f64, height: f64, chars: Vec<Char>) -> Self {
         let media_box = BBox::new(0.0, 0.0, width, height);
         let object_order = default_object_order(&chars, &[], &[], &[], &[]);
@@ -130,7 +136,12 @@ impl Page {
         }
     }
 
-    /// Create a new page with characters and geometry.
+    /// Create a synthetic, unrotated page with characters and painted geometry.
+    ///
+    /// `page_number` is zero-based, while `width`, `height`, and all object
+    /// coordinates are PDF points in top-left-origin page space. Each supplied
+    /// collection retains its order. Images and the page's annotation, form,
+    /// structure, and warning collections start empty.
     pub fn with_geometry(
         page_number: usize,
         width: f64,
@@ -167,7 +178,12 @@ impl Page {
         }
     }
 
-    /// Create a new page with characters, geometry, and images.
+    /// Create a synthetic, unrotated page with characters, geometry, and images.
+    ///
+    /// `page_number` is zero-based, while `width`, `height`, and all object
+    /// coordinates are PDF points in top-left-origin page space. Each supplied
+    /// collection retains its order. The page's annotation, form, structure,
+    /// and warning collections start empty.
     #[allow(clippy::too_many_arguments)]
     pub fn with_geometry_and_images(
         page_number: usize,
@@ -660,11 +676,6 @@ impl Page {
             .collect()
     }
 
-    /// Extract the largest table as a 2D text array.
-    ///
-    /// Returns the table with the most cells. If multiple tables have the same
-    /// number of cells, returns the one with the largest bounding box area.
-    /// Returns `None` if no tables are found.
     /// Search for a text pattern on this page and return matches with bounding boxes.
     ///
     /// Concatenates all character texts and matches the pattern against the full
@@ -690,23 +701,28 @@ impl Page {
 
     /// Return a [`CroppedPage`] with objects whose centers fall within `bbox`.
     ///
-    /// Coordinates in the returned page are adjusted relative to the crop origin.
+    /// `bbox` uses this page's top-left-origin coordinates. Coordinates in the
+    /// returned page are adjusted relative to the crop origin; objects are not
+    /// geometrically clipped at the crop boundary.
     pub fn crop(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Crop)
     }
 
     /// Return a [`CroppedPage`] with objects fully contained within `bbox`.
     ///
-    /// Only objects whose entire bounding box is inside `bbox` are included.
-    /// Coordinates are adjusted relative to the crop origin.
+    /// `bbox` uses this page's top-left-origin coordinates. Only objects whose
+    /// entire bounding box is inside `bbox` are included. Coordinates are
+    /// adjusted relative to the crop origin.
     pub fn within_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Within)
     }
 
     /// Return a [`CroppedPage`] with objects fully outside `bbox`.
     ///
-    /// Only objects whose bounding box has no overlap with `bbox` are included.
-    /// Coordinates are adjusted relative to the bbox origin.
+    /// `bbox` uses this page's top-left-origin coordinates. Only objects whose
+    /// bounding box has no overlap with `bbox` are included. Coordinates are
+    /// adjusted relative to the bounding-box origin and may therefore be
+    /// negative or exceed the returned dimensions.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
     }
@@ -852,6 +868,12 @@ impl Page {
     ///
     /// Returns `None` if no tables are found. If multiple tables exist,
     /// returns the one with the most cells (breaking ties by area).
+    ///
+    /// # Panics
+    ///
+    /// Panics if two tied table bounding boxes produce a NaN area. Ordinary
+    /// pages extracted from a PDF have finite coordinates; callers that build
+    /// a [`Page`] manually must keep table geometry finite.
     pub fn extract_table(&self, settings: &TableSettings) -> Option<Vec<Vec<Option<String>>>> {
         let tables = self.find_tables(settings);
         tables

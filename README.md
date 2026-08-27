@@ -161,7 +161,11 @@ fn main() {
 The root `pdfplumber` crate is the only dependency for ordinary extraction, and
 `Pdf` is the canonical high-level entry point. Its page methods accept the
 options and return the errors and extracted data re-exported at the same root,
-as enforced by the [facade contract](compat/tests/test_rust_facade.py).
+as enforced by the [facade contract](compat/tests/test_rust_facade.py). The
+[public rustdoc contract](docs/rust-api.md) names the stable generated surface,
+its documentation quality rules, and the all-feature Continuous Integration
+gates that reject missing or incomplete API documentation.
+([evidence](compat/tests/test_rust_rustdoc.py))
 
 For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
 `pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser

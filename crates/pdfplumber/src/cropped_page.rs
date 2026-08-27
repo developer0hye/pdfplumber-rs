@@ -36,52 +36,58 @@ pub struct CroppedPage {
 }
 
 impl CroppedPage {
-    /// Returns the crop bounding box (dimensions of the cropped region).
+    /// Return the cropped region's top-left-origin bounding box in PDF points.
+    ///
+    /// The box is always `(0, 0, width, height)`, even when retained objects
+    /// extend beyond it because their centers matched a crop.
     pub fn bbox(&self) -> BBox {
         BBox::new(0.0, 0.0, self.width, self.height)
     }
 
-    /// Returns the width of the cropped region.
+    /// Return the width of the cropped region in PDF points.
     pub fn width(&self) -> f64 {
         self.width
     }
 
-    /// Returns the height of the cropped region.
+    /// Return the height of the cropped region in PDF points.
     pub fn height(&self) -> f64 {
         self.height
     }
 
-    /// Returns the characters in the cropped region.
+    /// Return retained characters in source order with crop-relative coordinates.
     pub fn chars(&self) -> &[Char] {
         &self.chars
     }
 
-    /// Returns the lines in the cropped region.
+    /// Return retained lines in source order with crop-relative coordinates.
     pub fn lines(&self) -> &[Line] {
         &self.lines
     }
 
-    /// Returns the rectangles in the cropped region.
+    /// Return retained rectangles in source order with crop-relative coordinates.
     pub fn rects(&self) -> &[Rect] {
         &self.rects
     }
 
-    /// Returns the curves in the cropped region.
+    /// Return retained curves in source order with crop-relative coordinates.
     pub fn curves(&self) -> &[Curve] {
         &self.curves
     }
 
-    /// Returns the images in the cropped region.
+    /// Return retained images in source order with crop-relative coordinates.
     pub fn images(&self) -> &[Image] {
         &self.images
     }
 
-    /// Compute edges from all geometric primitives in the cropped region.
+    /// Compute table-detection edges from retained lines, rectangles, and curves.
     pub fn edges(&self) -> Vec<Edge> {
         derive_edges(&self.lines, &self.rects, &self.curves)
     }
 
-    /// Extract words from this cropped page.
+    /// Extract words from the retained characters.
+    ///
+    /// Ordering, tolerances, directions, and ligature expansion follow
+    /// [`crate::Page::extract_words`] and the supplied [`WordOptions`].
     pub fn extract_words(&self, options: &WordOptions) -> Vec<Word> {
         WordExtractor::extract(&self.chars, options)
     }
@@ -101,7 +107,10 @@ impl CroppedPage {
         cluster_words_into_lines(&words, options.y_tolerance)
     }
 
-    /// Extract text from this cropped page.
+    /// Extract text from the retained characters.
+    ///
+    /// Spatial and layout modes follow [`crate::Page::extract_text`]. Only the
+    /// filtered, crop-relative character collection contributes output.
     pub fn extract_text(&self, options: &TextOptions) -> String {
         let words = self.extract_words(&WordOptions {
             y_tolerance: options.y_tolerance,
@@ -133,7 +142,10 @@ impl CroppedPage {
         blocks_to_text(&blocks)
     }
 
-    /// Detect tables in the cropped region.
+    /// Detect tables from the retained geometry and characters.
+    ///
+    /// Table coordinates are relative to this cropped page. Cell text is
+    /// populated from retained characters whose centers fall inside each cell.
     pub fn find_tables(&self, settings: &TableSettings) -> Vec<Table> {
         let edges = self.edges();
         let words = self.extract_words(&WordOptions::default());
@@ -155,17 +167,26 @@ impl CroppedPage {
         tables
     }
 
-    /// Apply a further crop to this cropped page.
+    /// Apply a center-based crop in this page's current coordinate system.
+    ///
+    /// Retained coordinates are rebased to the new bounding-box origin, so
+    /// chained crops always receive coordinates from the immediately preceding
+    /// view.
     pub fn crop(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Crop)
     }
 
-    /// Return objects fully contained within the bbox.
+    /// Return objects fully contained within `bbox` in the current coordinate system.
+    ///
+    /// Retained coordinates are rebased to the bounding-box origin.
     pub fn within_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Within)
     }
 
-    /// Return objects fully outside the bbox.
+    /// Return objects that do not overlap `bbox` in the current coordinate system.
+    ///
+    /// Coordinates are rebased to the bounding-box origin and may be negative
+    /// or exceed the returned dimensions.
     pub fn outside_bbox(&self, bbox: BBox) -> CroppedPage {
         filter_and_build(self, bbox, FilterMode::Outside)
     }
@@ -173,7 +194,8 @@ impl CroppedPage {
     /// Return a filtered view retaining only objects that match the predicate.
     ///
     /// Enables composable filtering: `page.filter(f1).filter(f2)`.
-    /// See [`crate::Page::filter`] for details.
+    /// See [`crate::Page::filter`] for predicate semantics. This operation does
+    /// not change the current dimensions or rebase retained coordinates.
     pub fn filter<F>(&self, predicate: F) -> CroppedPage
     where
         F: Fn(&PageObject<'_>) -> bool,

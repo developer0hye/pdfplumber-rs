@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Complete public Rust API documentation
+### Compile task-oriented Rust examples
 
-Make every stable facade item useful in generated rustdoc and fail Continuous
-Integration when public documentation is missing or incomplete.
+Add compiled examples for text, word geometry, tables, page objects, metadata,
+encrypted and malformed input, serialization, and parallel batch processing.
 
-Detailed task: [`DX-009`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-010`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
