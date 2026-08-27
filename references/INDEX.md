@@ -24,6 +24,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Source | File | Use When |
 |---|---|---|
 | Cargo and the Rust Reference | [rust-public-data-models.md](rust-public-data-models.md) | Reviewing the curated data-model boundary, public-field compatibility, or exhaustive enums |
+| Serde | [rust-serde-schema.md](rust-serde-schema.md) | Reviewing curated JSON field, value-shape, or enum-encoding compatibility |
 
 ## Font Parsing
 

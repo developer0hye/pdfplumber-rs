@@ -1,0 +1,315 @@
+{
+  "schema": "pdfplumber-rs/serde-json-v1",
+  "crate_line": "0.3.x",
+  "models": {
+    "BBox": [
+      {"x0": 1.25, "top": 2.5, "x1": 31.75, "bottom": 42.0}
+    ],
+    "Cell": [
+      {"bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0}, "text": "cell"},
+      {"bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0}, "text": null}
+    ],
+    "Char": [
+      {
+        "text": "A",
+        "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0},
+        "fontname": "FixtureFont",
+        "size": 12.5,
+        "advance": 6.25,
+        "doctop": 102.0,
+        "upright": true,
+        "direction": "Rtl",
+        "stroking_color": {"Gray": 0.25},
+        "non_stroking_color": {"Rgb": [0.25, 0.5, 0.75]},
+        "ctm": [1.0, 0.0, 0.0, 1.0, 5.0, 6.0],
+        "char_code": 65,
+        "mcid": 7,
+        "tag": "Span"
+      },
+      {
+        "text": "B",
+        "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0},
+        "fontname": "FixtureFont",
+        "size": 10.0,
+        "advance": 5.0,
+        "doctop": 2.0,
+        "upright": false,
+        "direction": "Ltr",
+        "stroking_color": null,
+        "non_stroking_color": null,
+        "ctm": [1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        "char_code": 66,
+        "mcid": null,
+        "tag": null
+      }
+    ],
+    "Color": [
+      {"Gray": 0.25},
+      {"Rgb": [0.25, 0.5, 0.75]},
+      {"Cmyk": [0.125, 0.25, 0.5, 0.75]},
+      {"Pattern": "P1"},
+      {"PatternWithBase": [{"Gray": 0.5}, "P2"]},
+      {"Other": [0.125, 0.625]}
+    ],
+    "ColumnMode": ["None", "Auto", {"Explicit": [10.0, 20.0]}],
+    "Curve": [
+      {
+        "x0": 1.0,
+        "top": 2.0,
+        "x1": 9.0,
+        "bottom": 10.0,
+        "pts": [[1.0, 2.0], [3.0, 4.0]],
+        "line_width": 0.5,
+        "stroke": true,
+        "fill": false,
+        "stroke_color": {"Gray": 0.25},
+        "fill_color": {"Pattern": "Fill"}
+      }
+    ],
+    "DedupeOptions": [
+      {"tolerance": 1.25, "extra_attrs": ["fontname", "upright"]}
+    ],
+    "DocumentMetadata": [
+      {
+        "title": "Title",
+        "author": "Author",
+        "subject": "Subject",
+        "keywords": "one,two",
+        "creator": "Creator",
+        "producer": "Producer",
+        "creation_date": "D:20260102030405Z",
+        "mod_date": "D:20260708091011Z"
+      },
+      {
+        "title": null,
+        "author": null,
+        "subject": null,
+        "keywords": null,
+        "creator": null,
+        "producer": null,
+        "creation_date": null,
+        "mod_date": null
+      }
+    ],
+    "ExplicitLines": [
+      {"horizontal_lines": [1.0, 2.0], "vertical_lines": [3.0, 4.0]}
+    ],
+    "ExtractOptions": [
+      {
+        "max_recursion_depth": 11,
+        "max_objects_per_page": 1200,
+        "max_stream_bytes": 1300,
+        "collect_warnings": false,
+        "unicode_norm": "Nfkc",
+        "extract_image_data": true,
+        "strict_mode": true,
+        "max_input_bytes": 1400,
+        "max_pages": 15,
+        "max_total_image_bytes": 1600,
+        "max_total_objects": 1700,
+        "dedupe": {"tolerance": 1.25, "extra_attrs": ["size"]}
+      },
+      {
+        "max_recursion_depth": 10,
+        "max_objects_per_page": 100000,
+        "max_stream_bytes": 104857600,
+        "collect_warnings": true,
+        "unicode_norm": "None",
+        "extract_image_data": false,
+        "strict_mode": false,
+        "max_input_bytes": null,
+        "max_pages": null,
+        "max_total_image_bytes": null,
+        "max_total_objects": null,
+        "dedupe": null
+      }
+    ],
+    "ExtractWarning": [
+      {
+        "code": {"type": "Other", "detail": "fixture-code"},
+        "description": "fixture warning",
+        "page": 2,
+        "element": "char 3",
+        "operator_index": 4,
+        "font_name": "FixtureFont"
+      },
+      {
+        "code": {"type": "MissingFont"},
+        "description": "missing context",
+        "page": null,
+        "element": null,
+        "operator_index": null,
+        "font_name": null
+      }
+    ],
+    "ExtractWarningCode": [
+      {"type": "MissingFont"},
+      {"type": "UnsupportedOperator"},
+      {"type": "MalformedObject"},
+      {"type": "ResourceLimitReached"},
+      {"type": "EncodingFallback"},
+      {"type": "Other", "detail": "custom"}
+    ],
+    "Line": [
+      {
+        "x0": 1.0,
+        "top": 2.0,
+        "x1": 3.0,
+        "bottom": 4.0,
+        "line_width": 0.5,
+        "stroke_color": {"Gray": 0.25},
+        "orientation": "Diagonal"
+      }
+    ],
+    "MetadataEntry": [
+      {"key": "Key", "value": {"Integer": -7}, "resolution_error": "fixture error"},
+      {"key": "Other", "value": "Null", "resolution_error": null}
+    ],
+    "MetadataReference": [
+      {"object_number": 7, "generation_number": 2}
+    ],
+    "MetadataValue": [
+      "Null",
+      {"Boolean": true},
+      {"Integer": -7},
+      {"Real": 1.25},
+      {"String": "value"},
+      {"Array": ["Null", {"Integer": 2}]},
+      {"Dictionary": [["Key", {"String": "value"}]]},
+      {"Reference": {"object_number": 7, "generation_number": 2}},
+      {"Stream": {"dictionary": [["Length", {"Integer": 3}]], "data": [1, 2, 3]}}
+    ],
+    "Orientation": ["Horizontal", "Vertical", "Diagonal"],
+    "RawDocumentMetadata": [
+      {"entries": [{"key": "Key", "value": {"Integer": -7}, "resolution_error": null}]}
+    ],
+    "Rect": [
+      {
+        "x0": 1.0,
+        "top": 2.0,
+        "x1": 3.0,
+        "bottom": 4.0,
+        "line_width": 0.5,
+        "stroke": true,
+        "fill": false,
+        "stroke_color": {"Gray": 0.25},
+        "fill_color": {"Rgb": [0.25, 0.5, 0.75]}
+      }
+    ],
+    "Strategy": ["Lattice", "LatticeStrict", "Stream", "Explicit"],
+    "Table": [
+      {
+        "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0},
+        "cells": [],
+        "rows": [],
+        "columns": []
+      }
+    ],
+    "TableQuality": [
+      {"accuracy": 0.75, "whitespace": 0.25}
+    ],
+    "TableSettings": [
+      {
+        "strategy": "Stream",
+        "vertical_strategy": "LatticeStrict",
+        "horizontal_strategy": "Explicit",
+        "snap_tolerance": 1.0,
+        "snap_x_tolerance": 1.25,
+        "snap_y_tolerance": 1.5,
+        "join_tolerance": 2.0,
+        "join_x_tolerance": 2.25,
+        "join_y_tolerance": 2.5,
+        "edge_min_length": 3.0,
+        "edge_min_length_prefilter": 0.75,
+        "min_words_vertical": 4,
+        "min_words_horizontal": 2,
+        "text_tolerance": 3.25,
+        "text_x_tolerance": 3.5,
+        "text_y_tolerance": 3.75,
+        "intersection_tolerance": 4.0,
+        "intersection_x_tolerance": 4.25,
+        "intersection_y_tolerance": 4.5,
+        "explicit_lines": {"horizontal_lines": [1.0], "vertical_lines": [2.0]},
+        "min_accuracy": 0.875,
+        "duplicate_merged_content": true
+      },
+      {
+        "strategy": "Lattice",
+        "vertical_strategy": null,
+        "horizontal_strategy": null,
+        "snap_tolerance": 3.0,
+        "snap_x_tolerance": 3.0,
+        "snap_y_tolerance": 3.0,
+        "join_tolerance": 3.0,
+        "join_x_tolerance": 3.0,
+        "join_y_tolerance": 3.0,
+        "edge_min_length": 3.0,
+        "edge_min_length_prefilter": 1.0,
+        "min_words_vertical": 3,
+        "min_words_horizontal": 1,
+        "text_tolerance": 3.0,
+        "text_x_tolerance": 3.0,
+        "text_y_tolerance": 3.0,
+        "intersection_tolerance": 3.0,
+        "intersection_x_tolerance": 3.0,
+        "intersection_y_tolerance": 3.0,
+        "explicit_lines": null,
+        "min_accuracy": null,
+        "duplicate_merged_content": false
+      }
+    ],
+    "TextBlock": [
+      {"lines": [], "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0}}
+    ],
+    "TextDirection": ["Ltr", "Rtl", "Ttb", "Btt"],
+    "TextLine": [
+      {"words": [], "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0}}
+    ],
+    "TextOptions": [
+      {
+        "layout": true,
+        "y_tolerance": 1.25,
+        "y_density": 2.5,
+        "x_density": 3.75,
+        "expand_ligatures": false,
+        "column_mode": {"Explicit": [10.0, 20.0]},
+        "min_column_gap": 21.0,
+        "max_columns": 7
+      }
+    ],
+    "UnicodeNorm": ["None", "Nfc", "Nfd", "Nfkc", "Nfkd"],
+    "Word": [
+      {
+        "text": "word",
+        "bbox": {"x0": 1.0, "top": 2.0, "x1": 3.0, "bottom": 4.0},
+        "doctop": 102.0,
+        "direction": "Ttb",
+        "chars": []
+      }
+    ],
+    "WordOptions": [
+      {
+        "x_tolerance": 1.25,
+        "y_tolerance": 2.5,
+        "keep_blank_chars": true,
+        "use_text_flow": true,
+        "text_direction": "Btt",
+        "expand_ligatures": false,
+        "x_tolerance_ratio": 0.5,
+        "y_tolerance_ratio": 0.75,
+        "split_at_punctuation": ",;"
+      },
+      {
+        "x_tolerance": 3.0,
+        "y_tolerance": 3.0,
+        "keep_blank_chars": false,
+        "use_text_flow": false,
+        "text_direction": "Ltr",
+        "expand_ligatures": true,
+        "x_tolerance_ratio": null,
+        "y_tolerance_ratio": null,
+        "split_at_punctuation": null
+      }
+    ]
+  }
+}

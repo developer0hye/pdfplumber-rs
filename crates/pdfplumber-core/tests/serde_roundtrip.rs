@@ -1,7 +1,7 @@
 //! Serde serialization/deserialization round-trip tests.
 //!
-//! These tests verify that all public data types can be serialized to JSON
-//! and deserialized back, producing equal values.
+//! These tests verify that Serde-enabled public data types can be serialized to
+//! JSON and deserialized back, producing equal values.
 
 #![cfg(feature = "serde")]
 

@@ -47,8 +47,10 @@ class RustModelContractTests(unittest.TestCase):
         self.assertIn("`0.3.x`", guide)
         self.assertRegex(guide, r"(?i)public field.*breaking")
         self.assertRegex(guide, r"(?i)enum variant.*breaking")
-        self.assertIn("DX-006", guide)
-        self.assertRegex(guide, r"(?i)serialized.*not covered")
+        self.assertIn("rust-serde-schema.md", guide)
+        normalized = " ".join(guide.split())
+        self.assertRegex(normalized, r"(?i)implements.*Serialize.*Deserialize")
+        self.assertRegex(normalized, r"(?i)JSON field names.*enum encodings")
 
     def test_units_origins_and_indices_are_documented(self) -> None:
         guide = MODEL_GUIDE.read_text(encoding="utf-8")
@@ -78,7 +80,7 @@ class RustModelContractTests(unittest.TestCase):
             self.assertIn("rust-data-models", document)
         self.assertIn("`pdfplumber::models`", CHANGELOG)
         self.assertNotIn("### Define stable public data models", ROADMAP)
-        self.assertIn("DX-006", ROADMAP)
+        self.assertIn("DX-007", ROADMAP)
         self.assertTrue(REFERENCE.is_file())
         reference = REFERENCE.read_text(encoding="utf-8")
         self.assertIn("Cargo SemVer Compatibility", reference)

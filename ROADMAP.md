@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Version Rust-native schemas
+### Make Rust failures actionable
 
-Version serialized Rust-native models or publish a compatibility policy that
-prevents silent field renames, type changes, and enum encoding drift.
+Expose typed errors that preserve their sources and available page or object
+context without including sensitive document content by default.
 
-Detailed task: [`DX-006`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-007`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -29,10 +29,10 @@ After the trust reset, Rust and Python advance toward beta independently. Neithe
 
 ### Establish a Rust developer beta contract
 
-Stabilize the error boundary, enforce Semantic Versioning review, and lock the
-Minimum Supported Rust Version so dependency updates cannot silently raise it.
+Enforce Semantic Versioning review and lock the Minimum Supported Rust Version
+so dependency updates cannot silently raise it.
 
-Detailed tasks: [`DX-007`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-012`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed tasks: [`DX-012`](PRD.md#823-p0--rust-developer-experience-and-api-stability), [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Define a credible Python migration beta
 

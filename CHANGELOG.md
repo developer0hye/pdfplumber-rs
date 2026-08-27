@@ -41,9 +41,15 @@ commit list.
   boundary for characters, words, geometry, tables, metadata, warnings, and
   extraction options. Its contract defines units, coordinate origins,
   deterministic ordering, and optional-field meaning; existing root imports
-  remain source-compatible and serialized schemas remain deferred to DX-006.
+  remain source-compatible, while serialized schemas use the separate policy
+  below.
 - **API:** `Table::cells` is now deterministically row-major (top-to-bottom,
   then left-to-right), independent of detection or caller input order.
+- **API:** Defined the `serde-json-v1` compatibility policy for every curated
+  `pdfplumber::models` type. Frozen producer and legacy-consumer fixtures guard
+  field names, JSON value shapes, and enum encodings across `0.3.x`;
+  `ExtractOptions`, `TextOptions`, and `WordOptions` now implement the optional
+  Serde traits promised by that boundary.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
 

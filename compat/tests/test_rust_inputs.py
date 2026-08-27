@@ -78,7 +78,7 @@ class RustInputApiContractTests(unittest.TestCase):
         self.assertIn("`Pdf::open_path`", changelog)
         self.assertIn("`Pdf::open_bytes`", changelog)
         self.assertIn("`Pdf::open_reader`", changelog)
-        self.assertIn("DX-006", roadmap)
+        self.assertIn("DX-007", roadmap)
         self.assertIn("6cd9a622fbbb727f392c156311d13eb7ab461e04", reference)
         self.assertIn("Document::load_from<R: Read>", reference)
         self.assertIn("Document::load_mem", reference)
