@@ -168,8 +168,11 @@ options and return the errors and extracted data re-exported at the same root,
 as enforced by the [facade contract](compat/tests/test_rust_facade.py). The
 [public rustdoc contract](docs/rust-api.md) names the stable generated surface,
 its documentation quality rules, and the all-feature Continuous Integration
-gates that reject missing or incomplete API documentation.
-([evidence](compat/tests/test_rust_rustdoc.py))
+gates that reject missing or incomplete API documentation. Its paired
+compile-fail and compiling examples explain page-view iteration, borrowed
+lifetimes, and opaque error classification.
+([rustdoc evidence](compat/tests/test_rust_rustdoc.py),
+[compile-fail evidence](compat/tests/test_rust_compile_fail.py))
 
 For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
 `pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser

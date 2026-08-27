@@ -29,6 +29,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust standard library, Rayon, and PyO3 | [rust-concurrency.md](rust-concurrency.md) | Reviewing `Send`/`Sync`, shared resource budgets, parallel page ordering, thread pools, or Python GIL boundaries |
 | rustc, rustdoc, and Clippy | [rust-rustdoc.md](rust-rustdoc.md) | Reviewing missing public docs, link validation, or fallible and panicking API documentation gates |
 | Cargo | [rust-examples.md](rust-examples.md) | Reviewing compiled example targets and feature-specific example gates |
+| rustdoc | [rust-compile-fail.md](rust-compile-fail.md) | Reviewing intentional compilation failures and their positive alternatives |
 
 ## Font Parsing
 

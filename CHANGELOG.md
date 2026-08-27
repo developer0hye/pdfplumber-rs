@@ -21,6 +21,9 @@ commit list.
 - **Documentation:** Added complete compiled Rust examples for text, word
   bounding boxes, tables, page geometry, metadata, encrypted and malformed
   inputs, Serde JSON, and ordered parallel page processing.
+- **Documentation:** Added compile-fail documentation tests with compiling
+  alternatives for page-view adapters, borrowed page-view lifetimes, and
+  opaque error classification on stable Rust and Rust 1.85.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale
