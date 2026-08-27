@@ -40,6 +40,7 @@ RUNTIME_DEPENDENCIES = {
     "crates/pdfplumber-parse/Cargo.toml": {
         "encoding_rs",
         "lopdf",
+        "lopdf_pre_nom_locate",
         "pdfplumber-core",
         "thiserror",
         "tracing",

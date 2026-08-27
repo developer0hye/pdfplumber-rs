@@ -533,6 +533,94 @@ fn try_repair_xref(bytes: &[u8]) -> Option<Vec<u8>> {
     try_restore_truncated_xref_suffix(candidate).or(startxref_fixed)
 }
 
+// lopdf 0.35 through 0.40 use nom_locate while parsing every indirect object.
+// Its offset tracking repeatedly scans the input prefix, making object-dense
+// PDFs quadratic to open. lopdf 0.41 removes nom_locate, but that release uses
+// syntax newer than its declared Rust 1.85 minimum. Keep the current parser for
+// ordinary and encrypted inputs, and use the pre-regression parser only for
+// clearly object-dense, successfully parsed, unencrypted documents. Failed
+// probes still reach the current parser and its existing repair path.
+const OBJECT_DENSE_FAST_PATH_MIN_OBJECTS: usize = 10_000;
+
+fn has_many_indirect_object_headers(bytes: &[u8]) -> bool {
+    bytes
+        .windows(b" obj".len())
+        .filter(|window| *window == b" obj")
+        .nth(OBJECT_DENSE_FAST_PATH_MIN_OBJECTS - 1)
+        .is_some()
+}
+
+fn try_load_object_dense_unencrypted(bytes: &[u8]) -> Option<lopdf::Document> {
+    if !has_many_indirect_object_headers(bytes) {
+        return None;
+    }
+
+    let document = lopdf_pre_nom_locate::Document::load_mem(bytes).ok()?;
+    if document.is_encrypted() || document.objects.len() < OBJECT_DENSE_FAST_PATH_MIN_OBJECTS {
+        return None;
+    }
+
+    Some(convert_fast_document(document))
+}
+
+fn load_mem_for_extraction(bytes: &[u8]) -> Result<lopdf::Document, lopdf::Error> {
+    match try_load_object_dense_unencrypted(bytes) {
+        Some(document) => Ok(document),
+        None => lopdf::Document::load_mem(bytes),
+    }
+}
+
+fn convert_fast_document(source: lopdf_pre_nom_locate::Document) -> lopdf::Document {
+    let mut target = lopdf::Document::with_version(source.version);
+    target.trailer = convert_fast_dictionary(source.trailer);
+    target.objects = source
+        .objects
+        .into_iter()
+        .map(|(id, object)| (id, convert_fast_object(object)))
+        .collect();
+    target.max_id = source.max_id;
+    target.xref_start = source.xref_start;
+    target
+}
+
+fn convert_fast_dictionary(source: lopdf_pre_nom_locate::Dictionary) -> lopdf::Dictionary {
+    source
+        .into_iter()
+        .map(|(key, value)| (key, convert_fast_object(value)))
+        .collect()
+}
+
+fn convert_fast_object(source: lopdf_pre_nom_locate::Object) -> lopdf::Object {
+    match source {
+        lopdf_pre_nom_locate::Object::Null => lopdf::Object::Null,
+        lopdf_pre_nom_locate::Object::Boolean(value) => lopdf::Object::Boolean(value),
+        lopdf_pre_nom_locate::Object::Integer(value) => lopdf::Object::Integer(value),
+        lopdf_pre_nom_locate::Object::Real(value) => lopdf::Object::Real(value),
+        lopdf_pre_nom_locate::Object::Name(value) => lopdf::Object::Name(value),
+        lopdf_pre_nom_locate::Object::String(value, format) => lopdf::Object::String(
+            value,
+            match format {
+                lopdf_pre_nom_locate::StringFormat::Literal => lopdf::StringFormat::Literal,
+                lopdf_pre_nom_locate::StringFormat::Hexadecimal => lopdf::StringFormat::Hexadecimal,
+            },
+        ),
+        lopdf_pre_nom_locate::Object::Array(values) => {
+            lopdf::Object::Array(values.into_iter().map(convert_fast_object).collect())
+        }
+        lopdf_pre_nom_locate::Object::Dictionary(dictionary) => {
+            lopdf::Object::Dictionary(convert_fast_dictionary(dictionary))
+        }
+        lopdf_pre_nom_locate::Object::Stream(stream) => {
+            let mut converted =
+                lopdf::Stream::new(convert_fast_dictionary(stream.dict), stream.content);
+            converted.allows_compression = stream.allows_compression;
+            converted.start_position = stream.start_position;
+            lopdf::Object::Stream(converted)
+        }
+        lopdf_pre_nom_locate::Object::Reference(id) => lopdf::Object::Reference(id),
+    }
+}
+
 impl PdfBackend for LopdfBackend {
     type Document = LopdfDocument;
     type Page = LopdfPage;
@@ -544,7 +632,7 @@ impl PdfBackend for LopdfBackend {
         let effective_bytes = try_strip_preamble(bytes);
         let bytes = effective_bytes.as_deref().unwrap_or(bytes);
 
-        let mut inner = match lopdf::Document::load_mem(bytes) {
+        let mut inner = match load_mem_for_extraction(bytes) {
             Ok(doc) => doc,
             Err(original_err) => {
                 // Attempt startxref recovery: scan for the `xref` keyword
@@ -552,7 +640,7 @@ impl PdfBackend for LopdfBackend {
                 // malformed PDFs like issue-297-example.pdf where the
                 // startxref offset is incorrect.
                 if let Some(repaired) = try_repair_xref(bytes) {
-                    lopdf::Document::load_mem(&repaired).map_err(|_| {
+                    load_mem_for_extraction(&repaired).map_err(|_| {
                         BackendError::Parse(format!("failed to parse PDF: {original_err}"))
                     })?
                 } else {
@@ -592,24 +680,28 @@ impl PdfBackend for LopdfBackend {
     }
 
     fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error> {
-        let inner = match std::str::from_utf8(password) {
-            Ok(password) => (|| {
-                // Probe authentication separately so unsupported encryption is not
-                // collapsed into lopdf's loader-level InvalidPassword result. The
-                // password-aware load is still required afterwards because it
-                // materializes the decrypted object graph used for page lookup.
-                let probe = lopdf::Document::load_mem(bytes)?;
-                if probe.is_encrypted() {
-                    probe.authenticate_password(password)?;
-                }
-                lopdf::Document::load_mem_with_password(bytes, password)
-            })(),
-            Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
-                if inner.is_encrypted() {
-                    inner.decrypt_raw(password)?;
-                }
-                Ok(inner)
-            }),
+        let inner = if let Some(document) = try_load_object_dense_unencrypted(bytes) {
+            Ok(document)
+        } else {
+            match std::str::from_utf8(password) {
+                Ok(password) => (|| {
+                    // Probe authentication separately so unsupported encryption is not
+                    // collapsed into lopdf's loader-level InvalidPassword result. The
+                    // password-aware load is still required afterwards because it
+                    // materializes the decrypted object graph used for page lookup.
+                    let probe = lopdf::Document::load_mem(bytes)?;
+                    if probe.is_encrypted() {
+                        probe.authenticate_password(password)?;
+                    }
+                    lopdf::Document::load_mem_with_password(bytes, password)
+                })(),
+                Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
+                    if inner.is_encrypted() {
+                        inner.decrypt_raw(password)?;
+                    }
+                    Ok(inner)
+                }),
+            }
         }
         .map_err(|error| {
             if matches!(
@@ -4245,6 +4337,37 @@ mod tests {
         let err = LopdfBackend::open(b"garbage").unwrap_err();
         let pdf_err: PdfError = err.into();
         assert_eq!(pdf_err.kind(), PdfErrorKind::Parse);
+    }
+
+    #[test]
+    fn object_dense_header_probe_requires_full_threshold() {
+        let mut bytes = Vec::new();
+        for _ in 0..OBJECT_DENSE_FAST_PATH_MIN_OBJECTS - 1 {
+            bytes.extend_from_slice(b"\n1 0 obj");
+        }
+        assert!(!has_many_indirect_object_headers(&bytes));
+
+        bytes.extend_from_slice(b"\n1 0 obj");
+        assert!(has_many_indirect_object_headers(&bytes));
+    }
+
+    #[test]
+    fn object_dense_fast_path_rejects_header_count_false_positive() {
+        let mut source = lopdf::Document::load_mem(&create_test_pdf(1)).unwrap();
+        let mut content = Vec::new();
+        for _ in 0..OBJECT_DENSE_FAST_PATH_MIN_OBJECTS {
+            content.extend_from_slice(b" obj");
+        }
+        source.add_object(lopdf::Stream::new(lopdf::Dictionary::new(), content));
+        let mut pdf_bytes = Vec::new();
+        source.save_to(&mut pdf_bytes).unwrap();
+
+        assert!(has_many_indirect_object_headers(&pdf_bytes));
+        assert!(try_load_object_dense_unencrypted(&pdf_bytes).is_none());
+        assert_eq!(
+            LopdfBackend::page_count(&LopdfBackend::open(&pdf_bytes).unwrap()),
+            1
+        );
     }
 
     // --- page_count() tests ---

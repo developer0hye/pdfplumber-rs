@@ -3,6 +3,7 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 use std::io::Write;
+use std::time::Duration;
 
 fn cmd() -> Command {
     Command::cargo_bin("pdfplumber").unwrap()
@@ -13,6 +14,15 @@ fn cmd() -> Command {
 /// The table has cells: A | B
 ///                      C | D
 fn pdf_with_table() -> Vec<u8> {
+    pdf_with_table_and_extra_objects(0)
+}
+
+/// Create the same table while retaining many small indirect objects.
+///
+/// Some PDFium-generated documents contain tens of thousands of ExtGState
+/// objects even when they have only a few pages. The objects are deliberately
+/// uncompressed so the parser must visit the same object layout as those files.
+fn pdf_with_table_and_extra_objects(extra_object_count: usize) -> Vec<u8> {
     use lopdf::{Object, Stream, dictionary};
 
     let mut doc = lopdf::Document::with_version("1.5");
@@ -78,6 +88,14 @@ fn pdf_with_table() -> Vec<u8> {
         "Pages" => Object::Reference(pages_id),
     });
     doc.trailer.set("Root", Object::Reference(catalog_id));
+
+    for _ in 0..extra_object_count {
+        doc.add_object(dictionary! {
+            "Type" => "ExtGState",
+            "LC" => 2,
+            "LW" => 0.5,
+        });
+    }
 
     let mut buf = Vec::new();
     doc.save_to(&mut buf).unwrap();
@@ -228,6 +246,25 @@ fn tables_default_text_format_succeeds() {
         .args(["tables", f.path().to_str().unwrap()])
         .assert()
         .success();
+}
+
+#[test]
+fn tables_object_dense_pdf_completes_and_extracts_grid() {
+    let pdf_bytes = pdf_with_table_and_extra_objects(24_000);
+    let f = write_temp_pdf(&pdf_bytes);
+
+    let assert = cmd()
+        .timeout(Duration::from_secs(10))
+        .args(["tables", f.path().to_str().unwrap(), "--format", "json"])
+        .assert()
+        .success();
+    let tables: serde_json::Value = serde_json::from_slice(&assert.get_output().stdout).unwrap();
+    assert_eq!(tables.as_array().unwrap().len(), 1);
+    assert_eq!(tables[0]["page"], 1);
+    assert_eq!(
+        tables[0]["rows"],
+        serde_json::json!([["A", "B"], ["C", "D"]])
+    );
 }
 
 #[test]
