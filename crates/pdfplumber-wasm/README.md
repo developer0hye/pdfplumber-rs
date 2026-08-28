@@ -183,6 +183,9 @@ The versioned `SCORE-008` [benchmark result assets](../../docs/benchmarks/result
 retain that complete exact-tag native run. The `SCORE-009` retention audit and
 [comparison policy](../../docs/comparison.md) withdraw those assets if semantic
 reproduction or output equivalence fails, without expanding browser evidence.
+The `SCORE-013` [regression alert policy](../../docs/benchmarks/regressions-v0.3.0.md)
+applies only to the retained native timing groups; it does not expand WebAssembly
+browser coverage or convert bundle/startup observations into an alert.
 
 ## License
 

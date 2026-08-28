@@ -210,6 +210,9 @@ jobs:
       - name: Validate benchmark result retention
         run: python scripts/audit_benchmark_results.py --check
 
+      - name: Validate benchmark regression alerts
+        run: python scripts/check_benchmark_regressions.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

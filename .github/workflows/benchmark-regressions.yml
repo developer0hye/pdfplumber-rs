@@ -1,0 +1,111 @@
+name: Benchmark Regression Alerts
+
+on:
+  schedule:
+    - cron: "29 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      baseline_tag:
+        description: Retained benchmark result tag used as the baseline
+        required: true
+        default: benchmark-results-v0.3.0
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  BASELINE_TAG: ${{ inputs.baseline_tag || 'benchmark-results-v0.3.0' }}
+
+jobs:
+  regression-alert:
+    name: Compare retained baseline with current revision
+    runs-on: macos-14
+    steps:
+      - name: Check out the current candidate and policy
+        uses: actions/checkout@v4
+        with:
+          path: candidate
+          fetch-depth: 0
+
+      - name: Check out the retained baseline
+        uses: actions/checkout@v4
+        with:
+          path: baseline
+          ref: ${{ env.BASELINE_TAG }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+
+      - name: Install the pinned wheel builder
+        run: python -m pip install --disable-pip-version-check maturin==1.14.1
+
+      - name: Validate the regression and benchmark contracts
+        run: |
+          python candidate/scripts/check_benchmark_regressions.py --check
+          python baseline/scripts/run_benchmark_provenance.py --check
+          python candidate/scripts/run_benchmark_provenance.py --check
+
+      - name: Build both exact benchmark environments
+        run: |
+          (cd baseline && python scripts/run_benchmark_provenance.py --build)
+          (cd candidate && python scripts/run_benchmark_provenance.py --build)
+
+      - name: Create the decision directory
+        run: mkdir -p "$RUNNER_TEMP/benchmark-regression"
+
+      - name: Run baseline A
+        working-directory: baseline
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output "$RUNNER_TEMP/benchmark-regression/baseline-a.json"
+
+      - name: Run candidate A
+        working-directory: candidate
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output "$RUNNER_TEMP/benchmark-regression/candidate-a.json"
+
+      - name: Run candidate B
+        working-directory: candidate
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output "$RUNNER_TEMP/benchmark-regression/candidate-b.json"
+
+      - name: Run baseline B
+        working-directory: baseline
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output "$RUNNER_TEMP/benchmark-regression/baseline-b.json"
+
+      - name: Compare exact semantics before control-normalized timings
+        id: regression-audit
+        if: always()
+        continue-on-error: true
+        run: >-
+          python candidate/scripts/check_benchmark_regressions.py --compare
+          --baseline-run "$RUNNER_TEMP/benchmark-regression/baseline-a.json"
+          --baseline-run "$RUNNER_TEMP/benchmark-regression/baseline-b.json"
+          --candidate-run "$RUNNER_TEMP/benchmark-regression/candidate-a.json"
+          --candidate-run "$RUNNER_TEMP/benchmark-regression/candidate-b.json"
+          --decision-output
+          "$RUNNER_TEMP/benchmark-regression/benchmark-regression-decision.json"
+
+      - name: Retain the machine-readable regression decision
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-regression-decision
+          path: ${{ runner.temp }}/benchmark-regression/benchmark-regression-decision.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Fail on regression, semantic failure, or inconclusive comparison
+        if: steps.regression-audit.outcome != 'success'
+        run: exit 1

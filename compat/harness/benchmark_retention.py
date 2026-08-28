@@ -407,6 +407,10 @@ def render_index(plan: RetentionPlan) -> str:
             "",
             "Withdrawal removes the three result-bearing assets and replaces the Release body with a tombstone under the verified `developer0hye` identity. It never deletes the source tag or the audit decision.",
             "",
+            "## Regression alerts",
+            "",
+            "The separate [SCORE-013 regression policy](regressions-v0.3.0.md) uses this retained tag as its immutable baseline. It checks exact semantic and timing-eligibility identities before applying its paired-run noise rule; alert decisions do not alter these Release assets.",
+            "",
         )
     )
 

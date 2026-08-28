@@ -1,0 +1,21 @@
+# SCORE-013 paired-run alert policy. Semantic eligibility is evaluated first.
+
+[schema]
+version = 1
+
+[policy]
+id = "pdfplumber-rs-regressions-v0.3.0"
+release = "0.3.0"
+publication_id = "pdfplumber-rs-benchmark-results-v0.3.0"
+baseline_tag = "benchmark-results-v0.3.0"
+runner = "macos-14"
+run_order = ["baseline", "candidate", "candidate", "baseline"]
+runs_per_revision = 2
+repetitions_per_run = 5
+target_implementations = ["pdfplumber-rs", "pdfplumber-rs-python"]
+control_implementations = ["pdfplumber-python", "pdf-oxide", "pdfsink-rs"]
+minimum_control_groups = 50
+minimum_slowdown_fraction = 0.20
+noise_multiplier = 3.0
+lower_quantile = 0.25
+upper_quantile = 0.75

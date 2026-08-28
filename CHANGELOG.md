@@ -43,7 +43,11 @@ commit list.
   defining a ranking or broad product performance claim. A digest-bound retention registry and
   read-only exact-tag audit now withdraw those three assets after confirmed semantic or
   output-equivalence drift while preserving the source tag and machine-readable audit tombstone;
-  incomplete setup or network runs are inconclusive and cannot remove evidence.
+  incomplete setup or network runs are inconclusive and cannot remove evidence. A read-only
+  weekly/manual regression workflow now builds the retained baseline and current revision on
+  one runner, executes two five-sample runs per revision in ABBA order, normalizes shared host
+  movement through pinned competitor controls, and alerts only when fixed effect-size,
+  robust-noise, and distribution-separation rules agree. Semantic drift fails before timing.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

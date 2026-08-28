@@ -28,3 +28,6 @@ machine-learning-specific scenarios are not copied into this project.
 withdraws the result-bearing assets while retaining the immutable source tag,
 Release tombstone, and machine-readable audit decision. Infrastructure failures
 remain inconclusive rather than causing destructive removal.
+`SCORE-013` retains that ordering for regression alerts: exact semantic and
+timing-eligibility identities are validated before the project-specific paired-run
+noise policy is evaluated. MLPerf performance tolerances are not copied.
