@@ -1,0 +1,74 @@
+name: Benchmark Results Release
+
+on:
+  push:
+    tags:
+      - "benchmark-results-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  benchmark-results:
+    name: Publish benchmark result assets
+    needs: ci
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+
+      - name: Install the pinned wheel builder
+        run: python -m pip install --disable-pip-version-check maturin==1.14.1
+
+      - name: Validate the versioned publication contract
+        run: python scripts/publish_benchmark_results.py --check
+
+      - name: Build the pinned benchmark environments
+        run: python scripts/run_benchmark_provenance.py --build
+
+      - name: Run five exact-output-gated repetitions
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output benchmark-local-result.json
+
+      - name: Build the machine result, human report, and checksums
+        run: >-
+          python scripts/publish_benchmark_results.py --build-assets
+          --input benchmark-local-result.json
+          --output-dir release-assets
+          --release-tag "$GITHUB_REF_NAME"
+
+      - name: Retain the exact workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.ref_name }}
+          path: release-assets
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish the exact versioned release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Benchmark results v0.3.0
+          tag_name: ${{ github.ref_name }}
+          body_path: release-assets/pdfplumber-rs-benchmark-results-v0.3.0.md
+          files: |
+            release-assets/pdfplumber-rs-benchmark-results-v0.3.0.json
+            release-assets/pdfplumber-rs-benchmark-results-v0.3.0.md
+            release-assets/pdfplumber-rs-benchmark-results-v0.3.0.sha256
+          fail_on_unmatched_files: true
+          make_latest: false

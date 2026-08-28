@@ -175,8 +175,9 @@ The [workload-scenario suite](../../docs/benchmarks/scenarios-v0.3.0.md)
 separates warmed opens, same-live-page cache hits, and matched page scopes.
 The [run-provenance contract](../../docs/benchmarks/provenance-v0.3.0.md)
 records environment/build inputs and retains five raw repetitions plus descriptive summaries.
-Cross-project results remain deferred through `SCORE-008` and `SCORE-009` until they satisfy the
-[comparison policy](../../docs/comparison.md).
+The versioned `SCORE-008` [benchmark result assets](../../docs/benchmarks/results-v0.3.0.md)
+retain that complete exact-tag run; `SCORE-009` and the
+[comparison policy](../../docs/comparison.md) govern removal without promoting a ranking.
 
 ## License
 

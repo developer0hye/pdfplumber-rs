@@ -264,6 +264,28 @@ class BenchmarkResultPublicationTests(unittest.TestCase):
             published["preflight_decisions"][1]["eligible_for_timing"]
         )
 
+        semantic_only = local_run()
+        semantic_only["preflight_decisions"].append(
+            {
+                "schema_version": 1,
+                "case_id": "large-multipage:single-page-text",
+                "scenario_id": "single-page-text",
+                "implementation_id": "pdfsink-rs",
+                "reference_implementation": "pdfplumber-python",
+                "eligible_for_timing": True,
+                "reasons": [],
+                "reference_output_sha256": "c" * 64,
+                "candidate_output_sha256": "c" * 64,
+            }
+        )
+        published_semantic_only = benchmark_results.publish_run(
+            plan,
+            semantic_only,
+            release_tag=plan.release_tag,
+            source_revision=SOURCE_REVISION,
+        )
+        self.assertEqual(len(published_semantic_only["scenario_timings"]), 10)
+
         wrong_tag = local_run()
         with self.assertRaisesRegex(
             benchmark_results.BenchmarkResultError,

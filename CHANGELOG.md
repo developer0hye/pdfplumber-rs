@@ -38,7 +38,9 @@ commit list.
   explicit release build flags, dependency-lock and built-artifact digests, fixture hashes, and
   exact argument arrays. It retains five round-robin raw repetitions per eligible
   key and emits sample-bound minimum, median, mean, maximum, sample-deviation, and
-  relative-deviation summaries. Results remain local and unpublished.
+  relative-deviation summaries. A separate exact-tag workflow now retains the complete raw JSON,
+  concise human projection, and SHA-256 checksums as versioned benchmark release assets without
+  defining a ranking or broad product performance claim.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

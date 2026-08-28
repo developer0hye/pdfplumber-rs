@@ -516,12 +516,12 @@ def render_markdown(suite: CompetitorSuite) -> str:
             "```",
             "",
             (
-                "A SCORE-003 run is deliberately local and unpublished. It records one combined "
-                "process wall-time sample only after equivalence; it is not a ranking or a "
-                "publishable benchmark. SCORE-004 through SCORE-007 add separated clocks, "
-                "resource metrics, explicit workload state, complete run metadata, five raw "
-                "repetitions, and statistical summaries. Retained release artifacts remain "
-                "required by SCORE-008."
+                "A SCORE-003 run is deliberately local and is not published independently. It "
+                "records one combined process wall-time sample only after equivalence; it is not "
+                "a ranking or a publishable benchmark. SCORE-004 through SCORE-007 add separated "
+                "clocks, resource metrics, explicit workload state, complete run metadata, five "
+                "raw repetitions, and statistical summaries. SCORE-008 publishes only that "
+                "complete exact-tag result bundle."
             ),
             "",
         )
