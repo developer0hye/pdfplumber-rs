@@ -11,7 +11,6 @@ from pathlib import Path
 
 from compat.harness import compatibility_scorecard, corpus_index
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PUBLIC_SOURCE = REPO_ROOT / "compat" / "scorecard-v0.3.0.toml"
 PUBLIC_GENERATOR = REPO_ROOT / "scripts" / "generate_compatibility_scorecard.py"
@@ -58,6 +57,14 @@ class CompatibilityScorecardContractTests(unittest.TestCase):
         self.assertEqual(observed["platform_id"], "macos-15-arm64-cpython-3.13")
         self.assertEqual(observed["artifact_type"], "wheel")
         self.assertEqual(observed["artifact_sha256"], "c" * 64)
+        self.assertEqual(
+            observed["toolchain"],
+            {
+                "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+                "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+                "builder": "maturin 1.14.1",
+            },
+        )
         self.assertEqual(
             observed["command"],
             ".venv-reference/bin/python scripts/parity_report.py --json parity.json",
@@ -350,6 +357,11 @@ class CompatibilityScorecardContractTests(unittest.TestCase):
             artifact_type="wheel",
             artifact_name="pdfplumber_rs-0.3.0-cp313-cp313-macosx.whl",
             artifact_sha256="c" * 64,
+            toolchain=compatibility_scorecard.Toolchain(
+                rustc="rustc 1.98.0 (88d9e12ae 2026-08-18)",
+                cargo="cargo 1.98.0 (797e8a9bc 2026-08-05)",
+                builder="maturin 1.14.1",
+            ),
             command=(
                 ".venv-reference/bin/python scripts/parity_report.py "
                 "--json parity.json"
