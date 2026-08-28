@@ -165,8 +165,11 @@ No text-extraction, table-detection, or memory advantage is currently claimed fo
 the Python surface. The compatibility corpus measures behavior, not a fair timing
 comparison. The [versioned benchmark corpus](../../docs/benchmarks/corpus-v0.3.0.md)
 defines shared inputs, and the [output-equivalence preflight](../../docs/benchmarks/equivalence-v0.3.0.md)
-rejects mismatched semantics or canonical results before timing. Cross-project
-results remain deferred until `SCORE-003` through `SCORE-009` satisfy the
+rejects mismatched semantics or canonical results before timing. The
+[separated stage suite](../../docs/benchmarks/stages-v0.3.0.md) isolates seven
+component clocks, including installed-candidate PyO3 conversion. Cross-project
+results remain deferred after `SCORE-003` and `SCORE-004` until `SCORE-005`
+through `SCORE-009` satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License

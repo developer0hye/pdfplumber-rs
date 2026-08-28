@@ -197,6 +197,36 @@ class BenchmarkStageContractTests(unittest.TestCase):
                 REPO_ROOT / "benchmarks" / "adapters" / "rust" / "src" / "main.rs"
             ).read_text(encoding="utf-8"),
         )
+        self.assertIn(
+            "docs/benchmarks/stages-v0.3.0.md",
+            (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
+        )
+        comparison = (REPO_ROOT / "docs" / "comparison.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("benchmarks/stages-v0.3.0.md", comparison)
+        self.assertIn("local and unpublished", comparison)
+        roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+        self.assertIn("`SCORE-004`", roadmap)
+        self.assertIn("[`SCORE-005`]", roadmap)
+        changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn("seven component clocks", changelog)
+
+        for package_readme in (
+            REPO_ROOT / "crates" / "pdfplumber-py" / "README.md",
+            REPO_ROOT / "crates" / "pdfplumber-wasm" / "README.md",
+        ):
+            with self.subTest(package_readme=package_readme):
+                self.assertIn(
+                    "../../docs/benchmarks/stages-v0.3.0.md",
+                    package_readme.read_text(encoding="utf-8"),
+                )
+        self.assertIn(
+            "../../../docs/benchmarks/stages-v0.3.0.md",
+            (
+                REPO_ROOT / "crates" / "pdfplumber" / "benches" / "README.md"
+            ).read_text(encoding="utf-8"),
+        )
 
 
 if __name__ == "__main__":

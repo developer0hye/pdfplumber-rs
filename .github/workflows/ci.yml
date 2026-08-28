@@ -193,6 +193,9 @@ jobs:
       - name: Validate the pinned competitor benchmark suite
         run: python scripts/run_competitor_benchmarks.py --check
 
+      - name: Validate separated benchmark stages
+        run: python scripts/run_stage_benchmarks.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 
