@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from compat.harness import benchmark_scenarios
+from compat.harness import benchmark_provenance, benchmark_scenarios
 
 SCENARIOS_PATH = REPO_ROOT / "benchmarks" / "scenarios-v0.3.0.toml"
 SUITE_PATH = REPO_ROOT / "benchmarks" / "competitors-v0.3.0.toml"
@@ -143,17 +143,7 @@ def adapter_command(
 def recorded_command_argv(command: list[str]) -> list[str]:
     """Make repository-owned command paths relocatable from repository root."""
 
-    recorded: list[str] = []
-    root = REPO_ROOT.resolve()
-    for argument in command:
-        path = Path(argument)
-        if path.is_absolute():
-            try:
-                argument = path.resolve().relative_to(root).as_posix()
-            except ValueError:
-                pass
-        recorded.append(argument)
-    return recorded
+    return benchmark_provenance.recorded_argv(command, REPO_ROOT)
 
 
 def run_adapter(command: list[str]) -> dict[str, object]:

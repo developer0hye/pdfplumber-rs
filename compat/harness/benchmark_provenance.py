@@ -360,8 +360,8 @@ def capture_run_metadata(
 
     replacements = {
         "{harness_python}": sys.executable,
-        "{reference_python}": str(reference_python.resolve()),
-        "{candidate_python}": str(candidate_python.resolve()),
+        "{reference_python}": str(reference_python.absolute()),
+        "{candidate_python}": str(candidate_python.absolute()),
     }
     toolchains = []
     for tool in plan.tools:
@@ -369,7 +369,7 @@ def capture_run_metadata(
         toolchains.append(
             {
                 "id": tool.id,
-                "command_argv": _recorded_argv(command, repo_root),
+                "command_argv": recorded_argv(command, repo_root),
                 "version": _command_output(command, repo_root, combine_stderr=True),
             }
         )
@@ -377,7 +377,7 @@ def capture_run_metadata(
     builds = [
         {
             "id": build.id,
-            "command_argv": _recorded_argv(
+            "command_argv": recorded_argv(
                 _resolve_command(build.command_argv, replacements), repo_root
             ),
             "flags": list(build.flags),
@@ -444,7 +444,7 @@ def capture_run_metadata(
         "fixtures": fixtures,
         "invocation": {
             "working_directory": ".",
-            "command_argv": _recorded_argv(invocation_argv, repo_root),
+            "command_argv": recorded_argv(invocation_argv, repo_root),
             "repetitions": plan.repetitions,
             "execution_order": plan.execution_order,
         },
@@ -802,14 +802,16 @@ def _resolve_command(
     return [replacements.get(argument, argument) for argument in command]
 
 
-def _recorded_argv(command: Sequence[str], repo_root: Path) -> list[str]:
+def recorded_argv(command: Sequence[str], repo_root: Path) -> list[str]:
+    """Keep repository-owned argv paths lexical even when executables are symlinks."""
+
     recorded = []
-    root = repo_root.resolve()
+    root = repo_root.absolute()
     for argument in command:
         path = Path(argument)
         if path.is_absolute():
             try:
-                argument = path.resolve().relative_to(root).as_posix()
+                argument = path.relative_to(root).as_posix()
             except ValueError:
                 pass
         recorded.append(argument)
