@@ -20,7 +20,12 @@ commit list.
   eligible for timing. A source-pinned local suite now exercises overlapping
   document-open and page-preserving text workloads against Python `pdfplumber`,
   `pdf_oxide`, and `pdfsink-rs`; rejected cases remain untimed and the
-  one-sample results are not published as a comparison.
+  one-sample results are not published as a comparison. A second local suite
+  now separates seven component clocks for document open, page materialization,
+  character extraction, word grouping, table detection, canonical JSON
+  serialization, and installed-candidate PyO3 conversion. Process launch and
+  named setup remain outside every clock; exact-output failures and fused APIs
+  retain explicit untimed outcomes.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

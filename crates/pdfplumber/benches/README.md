@@ -5,8 +5,11 @@ synthetic fixtures. It does not request materially equivalent outputs from anoth
 library and publishes no cross-project result. A separate
 [versioned corpus](../../../docs/benchmarks/corpus-v0.3.0.md) now defines shared
 inputs. Its [output-equivalence preflight](../../../docs/benchmarks/equivalence-v0.3.0.md)
-rejects mismatched semantics or canonical results before timing. Cross-project
-measurements remain deferred until `SCORE-003` through `SCORE-009` satisfy the
+rejects mismatched semantics or canonical results before timing. The separate
+[component stage suite](../../../docs/benchmarks/stages-v0.3.0.md) excludes
+process launch and setup from seven exact-output-gated clocks. Cross-project
+measurements remain deferred after `SCORE-003` and `SCORE-004` until `SCORE-005`
+through `SCORE-009` satisfy the
 [comparison policy](../../../docs/comparison.md).
 
 ## Running Benchmarks

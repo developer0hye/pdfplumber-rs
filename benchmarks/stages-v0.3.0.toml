@@ -1,0 +1,91 @@
+# SCORE-004 component boundaries. Setup completes before the adapter starts the
+# monotonic clock; process launch is outside every recorded duration.
+
+[schema]
+version = 1
+
+[suite]
+id = "pdfplumber-rs-stages-v0.3.0"
+release = "0.3.0"
+competitor_suite_id = "pdfplumber-rs-competitors-v0.3.0"
+corpus_id = "pdfplumber-rs-v0.3.0"
+semantic_reference = "pdfplumber-python"
+candidate_python_id = "pdfplumber-rs-python"
+candidate_python_adapter = "benchmarks/adapters/python_pdfplumber_rs.py"
+
+[[stages]]
+id = "document-open"
+output_schema = "page-count-v1"
+fixture_ids = ["cjk-vertical", "encrypted-document", "graphics-heavy-table", "image-heavy-pages", "large-multipage", "recoverable-malformed", "right-to-left-arabic", "small-text", "table-heavy", "word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+setup_operations = ["fixture-digest-verified"]
+timed_operation = "open-path-and-parse-document"
+clock = "monotonic-wall"
+request = { operation = "open", password_source = "fixture-metadata", repair = "disabled" }
+
+[[stages]]
+id = "page-materialization"
+output_schema = "ordered-pages-v1"
+fixture_ids = ["cjk-vertical", "encrypted-document", "graphics-heavy-table", "image-heavy-pages", "large-multipage", "recoverable-malformed", "right-to-left-arabic", "small-text", "table-heavy", "word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide"]
+setup_operations = ["document-open"]
+timed_operation = "materialize-ordered-page-handles"
+clock = "monotonic-wall"
+request = { page_selection = "all", preserve_page_order = true }
+
+[[stages]]
+id = "character-extraction"
+output_schema = "page-characters-v1"
+fixture_ids = ["small-text"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide"]
+setup_operations = ["document-open", "ordered-page-handles-ready"]
+timed_operation = "extract-ordered-page-characters"
+clock = "monotonic-wall"
+request = { normalization = "none", page_selection = "all", preserve_character_order = true, preserve_page_boundaries = true }
+
+[[stages]]
+id = "word-grouping"
+output_schema = "page-words-v1"
+fixture_ids = ["word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdfsink-rs"]
+setup_operations = ["document-open", "ordered-page-characters-ready"]
+timed_operation = "group-characters-into-words"
+clock = "monotonic-wall"
+request = { coordinate_system = "top-origin-points", expand_ligatures = true, keep_blank_chars = false, preserve_word_order = true, use_text_flow = false, x_tolerance_points = 3.0, y_tolerance_points = 3.0 }
+
+[[stages]]
+id = "table-detection"
+output_schema = "page-tables-v1"
+fixture_ids = ["table-heavy"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdfsink-rs"]
+setup_operations = ["document-open", "ordered-page-characters-and-graphics-ready"]
+timed_operation = "detect-and-populate-tables"
+clock = "monotonic-wall"
+request = { horizontal_strategy = "lines", intersection_tolerance_points = 3.0, join_tolerance_points = 3.0, min_words_horizontal = 1, min_words_vertical = 3, preserve_cell_nulls = true, snap_tolerance_points = 3.0, vertical_strategy = "lines" }
+
+[[stages]]
+id = "serialization"
+output_schema = "canonical-json-bytes-v1"
+fixture_ids = ["small-text"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+setup_operations = ["canonical-page-text-value-ready"]
+timed_operation = "canonical-json-utf8-encoding"
+clock = "monotonic-wall"
+request = { ensure_ascii = false, separators = [",", ":"], sort_keys = true, source = "page-preserving-plain-text" }
+
+[[stages]]
+id = "language-boundary-conversion"
+output_schema = "page-characters-v1"
+fixture_ids = ["small-text"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs-python"]
+timed_implementations = ["pdfplumber-rs-python"]
+setup_operations = ["document-open", "ordered-page-handles-ready", "native-page-cache-warm"]
+timed_operation = "native-to-python-char-dicts"
+clock = "monotonic-wall"
+request = { normalization = "none", page_selection = "all", preserve_character_order = true, preserve_page_boundaries = true }
