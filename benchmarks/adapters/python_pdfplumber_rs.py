@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 from pathlib import Path
 
 import pdfplumber
+from python_stage_metrics import PythonStageMetrics
 
 EXPECTED_VERSION = "0.3.0"
 
@@ -21,12 +21,18 @@ def parse_args() -> argparse.Namespace:
         required=True,
     )
     parser.add_argument("--timed", action="store_true")
+    parser.add_argument("--resources", action="store_true")
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--password")
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.timed and args.resources:
+        parser.error("--timed and --resources are separate passes")
+    return args
 
 
-def run(args: argparse.Namespace) -> tuple[object, int | None]:
+def run(
+    args: argparse.Namespace,
+) -> tuple[object, int | None, dict[str, object] | None]:
     actual_version = pdfplumber._native.__version__
     if actual_version != EXPECTED_VERSION:
         raise RuntimeError(
@@ -44,7 +50,12 @@ def run(args: argparse.Namespace) -> tuple[object, int | None]:
         # conversion plus the canonical text projection.
         for page in pages:
             page.extract_text(layout=False)
-        started_ns = time.perf_counter_ns() if args.timed else None
+        metrics = PythonStageMetrics(
+            args.stage,
+            timed=args.timed,
+            resources=args.resources,
+        )
+        metrics.start()
         value = [
             {
                 "page_number": page.page_number,
@@ -52,16 +63,14 @@ def run(args: argparse.Namespace) -> tuple[object, int | None]:
             }
             for page in pages
         ]
-        elapsed_ns = (
-            time.perf_counter_ns() - started_ns if started_ns is not None else None
-        )
-        return value, elapsed_ns
+        elapsed_ns, resources = metrics.finish()
+        return value, elapsed_ns, resources
 
 
 def main() -> int:
     args = parse_args()
     try:
-        value, elapsed_ns = run(args)
+        value, elapsed_ns, resources = run(args)
         outcome = {"status": "success", "value": value}
         if elapsed_ns is not None:
             outcome["timing"] = {
@@ -69,6 +78,8 @@ def main() -> int:
                 "clock": "monotonic-wall",
                 "wall_time_ns": elapsed_ns,
             }
+        if resources is not None:
+            outcome["resources"] = resources
     except Exception as error:  # noqa: BLE001 - errors are benchmark outcomes
         outcome = {
             "status": "error",

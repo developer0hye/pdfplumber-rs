@@ -5,10 +5,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import time
 from pathlib import Path
 
 import pdfplumber
+from python_stage_metrics import PythonStageMetrics
 
 EXPECTED_VERSION = "0.11.10"
 
@@ -30,11 +30,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument("--timed", action="store_true")
+    parser.add_argument("--resources", action="store_true")
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--password")
     args = parser.parse_args()
     if args.timed and args.stage is None:
         parser.error("--timed requires --stage")
+    if args.resources and args.stage is None:
+        parser.error("--resources requires --stage")
+    if args.timed and args.resources:
+        parser.error("--timed and --resources are separate passes")
     return args
 
 
@@ -105,24 +110,29 @@ def _canonical_page_text(pages: list[object]) -> list[dict[str, object]]:
     ]
 
 
-def run_stage(args: argparse.Namespace) -> tuple[object, int | None]:
+def run_stage(
+    args: argparse.Namespace,
+) -> tuple[object, int | None, dict[str, object] | None]:
     """Run one component with setup outside the optional monotonic clock."""
 
     assert args.stage is not None
     document = None
-    elapsed_ns: int | None = None
     try:
         if args.stage == "document-open":
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             document = pdfplumber.open(
                 args.fixture,
                 password=args.password,
                 unicode_norm=None,
                 repair=False,
             )
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return {"page_count": len(document.pages)}, elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return {"page_count": len(document.pages)}, elapsed_ns, resources
 
         document = pdfplumber.open(
             args.fixture,
@@ -131,30 +141,45 @@ def run_stage(args: argparse.Namespace) -> tuple[object, int | None]:
             repair=False,
         )
         if args.stage == "page-materialization":
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             pages = list(document.pages)
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return [
-                {"page_number": page.page_number} for page in pages
-            ], elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return (
+                [{"page_number": page.page_number} for page in pages],
+                elapsed_ns,
+                resources,
+            )
 
         pages = list(document.pages)
         if args.stage == "character-extraction":
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             characters_by_page = [list(page.chars) for page in pages]
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return _page_characters(pages, characters_by_page), elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return _page_characters(pages, characters_by_page), elapsed_ns, resources
 
         if args.stage == "language-boundary-conversion":
             characters_by_page = [list(page.chars) for page in pages]
-            return _page_characters(pages, characters_by_page), None
+            return _page_characters(pages, characters_by_page), None, None
 
         if args.stage == "word-grouping":
             for page in pages:
                 _ = page.chars
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             words_by_page = [
                 page.extract_words(
                     x_tolerance=3.0,
@@ -165,9 +190,8 @@ def run_stage(args: argparse.Namespace) -> tuple[object, int | None]:
                 )
                 for page in pages
             ]
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return _page_words(pages, words_by_page), elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return _page_words(pages, words_by_page), elapsed_ns, resources
 
         if args.stage == "table-detection":
             for page in pages:
@@ -182,18 +206,31 @@ def run_stage(args: argparse.Namespace) -> tuple[object, int | None]:
                 "min_words_vertical": 3,
                 "min_words_horizontal": 1,
             }
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             tables_by_page = [page.extract_tables(settings) for page in pages]
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return [
-                {"page_number": page.page_number, "tables": tables}
-                for page, tables in zip(pages, tables_by_page, strict=True)
-            ], elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return (
+                [
+                    {"page_number": page.page_number, "tables": tables}
+                    for page, tables in zip(pages, tables_by_page, strict=True)
+                ],
+                elapsed_ns,
+                resources,
+            )
 
         if args.stage == "serialization":
             canonical_value = _canonical_page_text(pages)
-            started_ns = time.perf_counter_ns() if args.timed else None
+            metrics = PythonStageMetrics(
+                args.stage,
+                timed=args.timed,
+                resources=args.resources,
+            )
+            metrics.start()
             serialized = json.dumps(
                 canonical_value,
                 allow_nan=False,
@@ -201,12 +238,15 @@ def run_stage(args: argparse.Namespace) -> tuple[object, int | None]:
                 separators=(",", ":"),
                 sort_keys=True,
             )
-            if started_ns is not None:
-                elapsed_ns = time.perf_counter_ns() - started_ns
-            return {
-                "utf8": serialized,
-                "utf8_bytes": len(serialized.encode("utf-8")),
-            }, elapsed_ns
+            elapsed_ns, resources = metrics.finish()
+            return (
+                {
+                    "utf8": serialized,
+                    "utf8_bytes": len(serialized.encode("utf-8")),
+                },
+                elapsed_ns,
+                resources,
+            )
 
         raise RuntimeError(f"unsupported stage: {args.stage}")
     finally:
@@ -220,7 +260,7 @@ def main() -> int:
         if args.stage is None:
             outcome = {"status": "success", "value": run(args)}
         else:
-            value, elapsed_ns = run_stage(args)
+            value, elapsed_ns, resources = run_stage(args)
             outcome = {"status": "success", "value": value}
             if elapsed_ns is not None:
                 outcome["timing"] = {
@@ -228,6 +268,8 @@ def main() -> int:
                     "clock": "monotonic-wall",
                     "wall_time_ns": elapsed_ns,
                 }
+            if resources is not None:
+                outcome["resources"] = resources
     except Exception as error:  # noqa: BLE001 - errors are benchmark outcomes
         outcome = {
             "status": "error",

@@ -482,9 +482,10 @@ def render_markdown(suite: StageSuite) -> str:
             "",
             (
                 "SCORE-004 results remain local and unpublished. Wall time is the only "
-                "component metric here; complete resource metrics, execution scenarios, "
-                "environment metadata, repetitions, statistics, and release artifacts remain "
-                "open under SCORE-005 through SCORE-008."
+                "component metric here; the separate SCORE-005 resource and artifact suite "
+                "preserves that uninstrumented pass. Execution scenarios, environment "
+                "metadata, repetitions, statistics, and release artifacts remain open under "
+                "SCORE-006 through SCORE-008."
             ),
             "",
         )

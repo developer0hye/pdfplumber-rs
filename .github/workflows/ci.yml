@@ -196,6 +196,9 @@ jobs:
       - name: Validate separated benchmark stages
         run: python scripts/run_stage_benchmarks.py --check
 
+      - name: Validate benchmark resource and artifact metrics
+        run: python scripts/run_benchmark_metrics.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

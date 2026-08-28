@@ -164,14 +164,17 @@ wasm-pack build --target web crates/pdfplumber-wasm
 ## Performance evidence
 
 No browser, Node.js, or cross-project performance result is currently claimed for
-this WebAssembly surface. Bundle size, startup, and memory remain ungated.
+this WebAssembly surface.
 The [versioned benchmark corpus](../../docs/benchmarks/corpus-v0.3.0.md) defines
 shared inputs, and the [output-equivalence preflight](../../docs/benchmarks/equivalence-v0.3.0.md)
 rejects mismatched semantics or canonical results before timing. The
 [separated stage suite](../../docs/benchmarks/stages-v0.3.0.md) isolates the
-native component clocks but does not measure WebAssembly bundle or startup cost.
-Cross-project results remain deferred after `SCORE-003` and `SCORE-004` until
-`SCORE-005` through `SCORE-009` satisfy the
+native component clocks. The [resource and artifact suite](../../docs/benchmarks/metrics-v0.3.0.md)
+measures the candidate Node package's WebAssembly module plus JavaScript glue
+and uses a fresh Node process for each in-process module-load/startup clock.
+Those one-sample results remain local and unpublished; browser startup, memory,
+and scenario/statistical gates remain open. Cross-project results remain
+deferred through `SCORE-006` to `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License

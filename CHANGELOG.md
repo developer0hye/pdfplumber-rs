@@ -25,7 +25,12 @@ commit list.
   character extraction, word grouping, table detection, canonical JSON
   serialization, and installed-candidate PyO3 conversion. Process launch and
   named setup remain outside every clock; exact-output failures and fused APIs
-  retain explicit untimed outcomes.
+  retain explicit untimed outcomes. A separate instrumented pass now reports
+  stage-only process CPU and method-specific Python/Rust allocation fields while
+  labeling peak resident memory as a process-lifetime high-water mark. Candidate
+  Command-Line Interface size, WebAssembly runtime bundle size, and fresh-process
+  Node module startup are measured without attributing the combined competitor
+  adapter binary to any one implementation. Results remain local and unpublished.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,
