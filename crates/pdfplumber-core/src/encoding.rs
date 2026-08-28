@@ -159,10 +159,10 @@ impl EncodingResolver {
     /// Returns `None` only if no encoding level has a mapping.
     pub fn resolve(&self, code: u16) -> Option<String> {
         // 1. ToUnicode CMap (highest priority)
-        if let Some(ref to_unicode) = self.to_unicode {
-            if let Some(s) = to_unicode.get(&code) {
-                return Some(s.clone());
-            }
+        if let Some(ref to_unicode) = self.to_unicode
+            && let Some(s) = to_unicode.get(&code)
+        {
+            return Some(s.clone());
         }
 
         // For single-byte codes, try font encoding and default
@@ -170,10 +170,10 @@ impl EncodingResolver {
             let byte = code as u8;
 
             // 2. Explicit font encoding
-            if let Some(ref enc) = self.font_encoding {
-                if let Some(ch) = enc.decode(byte) {
-                    return Some(ch.to_string());
-                }
+            if let Some(ref enc) = self.font_encoding
+                && let Some(ch) = enc.decode(byte)
+            {
+                return Some(ch.to_string());
             }
 
             // 3. Default encoding
@@ -211,19 +211,18 @@ pub fn glyph_name_to_char(name: &str) -> Option<char> {
     let base = name.split('.').next().unwrap_or(name);
 
     // Names of the form uniXXXX or uXXXX name their character outright.
-    if let Some(hex) = base.strip_prefix("uni") {
-        if hex.len() == 4 || hex.len() == 8 {
-            if let Ok(code) = u32::from_str_radix(hex, 16) {
-                return char::from_u32(code);
-            }
-        }
+    if let Some(hex) = base.strip_prefix("uni")
+        && (hex.len() == 4 || hex.len() == 8)
+        && let Ok(code) = u32::from_str_radix(hex, 16)
+    {
+        return char::from_u32(code);
     }
-    if let Some(hex) = base.strip_prefix('u') {
-        if (4..=6).contains(&hex.len()) && hex.chars().all(|c| c.is_ascii_hexdigit()) {
-            if let Ok(code) = u32::from_str_radix(hex, 16) {
-                return char::from_u32(code);
-            }
-        }
+    if let Some(hex) = base.strip_prefix('u')
+        && (4..=6).contains(&hex.len())
+        && hex.chars().all(|c| c.is_ascii_hexdigit())
+        && let Ok(code) = u32::from_str_radix(hex, 16)
+    {
+        return char::from_u32(code);
     }
 
     crate::glyph_list::ADOBE_GLYPH_LIST

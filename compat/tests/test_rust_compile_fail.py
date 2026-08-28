@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 import unittest
 from pathlib import Path
 
@@ -41,14 +40,12 @@ class RustCompileFailContractTests(unittest.TestCase):
 
         self.assertGreaterEqual(combined.count("```no_run"), 6)
 
-    def test_ci_runs_all_feature_doctests_on_both_rust_toolchains(self) -> None:
+    def test_ci_runs_all_feature_doctests_on_current_stable(self) -> None:
         workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
         command = "cargo test -p pdfplumber --doc --all-features"
         self.assertIn(command, workflow)
-        self.assertNotRegex(
-            workflow,
-            rf"(?s)if: matrix\.rust == 'stable'.{{0,180}}{re.escape(command)}",
-        )
+        self.assertIn("dtolnay/rust-toolchain@stable", workflow)
+        self.assertNotIn("matrix.rust", workflow)
 
     def test_public_docs_explain_the_intent_and_link_the_doctests(self) -> None:
         rust_api = (REPO_ROOT / "docs/rust-api.md").read_text(encoding="utf-8")
@@ -71,8 +68,8 @@ class RustCompileFailContractTests(unittest.TestCase):
         self.assertTrue(reference_path.is_file())
         self.assertIn("rust-compile-fail.md", references)
         self.assertIn("`compile_fail`", reference_path.read_text(encoding="utf-8"))
-        self.assertIn("DX-013", roadmap)
-        self.assertRegex(roadmap, r"(?i)minimum supported rust version")
+        self.assertIn("DX-014", roadmap)
+        self.assertRegex(roadmap, r"(?i)feature combinations")
         self.assertNotIn("DX-011", roadmap)
 
 

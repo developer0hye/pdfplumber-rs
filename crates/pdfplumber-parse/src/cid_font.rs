@@ -465,11 +465,11 @@ pub fn extract_cid_font_metrics(
 
     // For CIDFontType2 (TrueType-based) fonts, try vmtx table as fallback
     // when W2 is not present. W2/DW2 from the PDF take precedence over vmtx.
-    if vertical_widths.is_empty() && font_type == CidFontType::Type2 {
-        if let Some(vmtx_metrics) = try_extract_vmtx_vertical_metrics(doc, cid_font_dict, &metrics)
-        {
-            vertical_widths = vmtx_metrics;
-        }
+    if vertical_widths.is_empty()
+        && font_type == CidFontType::Type2
+        && let Some(vmtx_metrics) = try_extract_vmtx_vertical_metrics(doc, cid_font_dict, &metrics)
+    {
+        vertical_widths = vmtx_metrics;
     }
 
     metrics.set_vertical_metrics(vertical_widths, dw2_vy, dw2_w1);
@@ -482,10 +482,10 @@ fn parse_cid_to_gid_map(doc: &lopdf::Document, dict: &lopdf::Dictionary) -> CidT
     match dict.get(b"CIDToGIDMap") {
         Ok(obj) => {
             let obj = resolve_object(doc, obj);
-            if let Ok(name) = obj.as_name() {
-                if name == b"Identity" {
-                    return CidToGidMap::Identity;
-                }
+            if let Ok(name) = obj.as_name()
+                && name == b"Identity"
+            {
+                return CidToGidMap::Identity;
             }
             if let Ok(stream) = obj.as_stream() {
                 let data = if stream.dict.get(b"Filter").is_ok() {

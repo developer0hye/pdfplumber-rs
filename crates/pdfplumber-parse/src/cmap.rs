@@ -345,10 +345,10 @@ fn parse_writing_mode(text: &str) -> u8 {
     if let Some(idx) = text.find("/WMode") {
         let rest = &text[idx + "/WMode".len()..];
         let rest = rest.trim_start();
-        if let Some(ch) = rest.chars().next() {
-            if ch == '1' {
-                return 1;
-            }
+        if let Some(ch) = rest.chars().next()
+            && ch == '1'
+        {
+            return 1;
         }
     }
     0 // default horizontal
@@ -367,7 +367,7 @@ fn parse_hex_code(hex: &str) -> Result<u32, BackendError> {
 /// surrogate pair (4 bytes). For multi-character mappings (ligatures), this
 /// can be multiple 2-byte values.
 fn decode_utf16be_hex(hex: &str) -> Result<String, BackendError> {
-    if hex.len() % 4 != 0 {
+    if !hex.len().is_multiple_of(4) {
         // Pad to even number of hex digits (groups of 4 for UTF-16 code units)
         // For 2-digit hex like "41", treat as single-byte padded to "0041"
         if hex.len() == 2 {

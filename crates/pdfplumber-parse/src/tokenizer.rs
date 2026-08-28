@@ -583,12 +583,13 @@ fn parse_name(input: &[u8], pos: &mut usize) -> String {
     let mut name = Vec::with_capacity(raw.len());
     let mut i = 0;
     while i < raw.len() {
-        if raw[i] == b'#' && i + 2 < raw.len() {
-            if let (Ok(hi), Ok(lo)) = (hex_digit(raw[i + 1]), hex_digit(raw[i + 2])) {
-                name.push((hi << 4) | lo);
-                i += 3;
-                continue;
-            }
+        if raw[i] == b'#'
+            && i + 2 < raw.len()
+            && let (Ok(hi), Ok(lo)) = (hex_digit(raw[i + 1]), hex_digit(raw[i + 2]))
+        {
+            name.push((hi << 4) | lo);
+            i += 3;
+            continue;
         }
         name.push(raw[i]);
         i += 1;

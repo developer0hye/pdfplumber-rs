@@ -139,7 +139,7 @@ fn compute_median_font_size(chars: &[Char]) -> f64 {
 
     sizes.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = sizes.len() / 2;
-    if sizes.len() % 2 == 0 {
+    if sizes.len().is_multiple_of(2) {
         (sizes[mid - 1] + sizes[mid]) / 2.0
     } else {
         sizes[mid]

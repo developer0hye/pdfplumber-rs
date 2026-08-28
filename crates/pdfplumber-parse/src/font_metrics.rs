@@ -175,62 +175,62 @@ pub fn extract_font_metrics(
     }
 
     // Standard font fallback: when /Widths is absent, try standard Type1 font widths
-    if widths.is_empty() {
-        if let Some(std_font) = lookup_standard_font(font_dict) {
-            let std_widths: Vec<f64> = std_font.widths.iter().map(|&w| f64::from(w)).collect();
-            let font_bbox = desc_info
-                .font_bbox
-                .or(Some(std_font.font_bbox.map(f64::from)));
-            return Ok(FontMetrics::new(
-                std_widths,
-                0,
-                255,
-                desc_info.missing_width,
-                desc_info.ascent,
-                desc_info.descent,
-                font_bbox,
-            ));
-        }
+    if widths.is_empty()
+        && let Some(std_font) = lookup_standard_font(font_dict)
+    {
+        let std_widths: Vec<f64> = std_font.widths.iter().map(|&w| f64::from(w)).collect();
+        let font_bbox = desc_info
+            .font_bbox
+            .or(Some(std_font.font_bbox.map(f64::from)));
+        return Ok(FontMetrics::new(
+            std_widths,
+            0,
+            255,
+            desc_info.missing_width,
+            desc_info.ascent,
+            desc_info.descent,
+            font_bbox,
+        ));
     }
 
     // TrueType fallback: when /Widths is absent, try parsing /FontFile2 hmtx table
-    if widths.is_empty() {
-        if let Some(tt_widths) = try_extract_truetype_widths(doc, font_dict) {
-            let num_glyphs = tt_widths.len();
-            return Ok(FontMetrics::new(
-                tt_widths,
-                0,
-                if num_glyphs > 0 {
-                    (num_glyphs - 1) as u32
-                } else {
-                    0
-                },
-                desc_info.missing_width,
-                desc_info.ascent,
-                desc_info.descent,
-                desc_info.font_bbox,
-            ));
-        }
+    if widths.is_empty()
+        && let Some(tt_widths) = try_extract_truetype_widths(doc, font_dict)
+    {
+        let num_glyphs = tt_widths.len();
+        return Ok(FontMetrics::new(
+            tt_widths,
+            0,
+            if num_glyphs > 0 {
+                (num_glyphs - 1) as u32
+            } else {
+                0
+            },
+            desc_info.missing_width,
+            desc_info.ascent,
+            desc_info.descent,
+            desc_info.font_bbox,
+        ));
     }
 
     // CFF/Type1C fallback: when /Widths is absent, try parsing /FontFile3 CFF data
-    if widths.is_empty() {
-        if let Some(cff_widths) = try_extract_cff_widths(doc, font_dict) {
-            let num_glyphs = cff_widths.len();
-            return Ok(FontMetrics::new(
-                cff_widths,
-                0,
-                if num_glyphs > 0 {
-                    (num_glyphs - 1) as u32
-                } else {
-                    0
-                },
-                desc_info.missing_width,
-                desc_info.ascent,
-                desc_info.descent,
-                desc_info.font_bbox,
-            ));
-        }
+    if widths.is_empty()
+        && let Some(cff_widths) = try_extract_cff_widths(doc, font_dict)
+    {
+        let num_glyphs = cff_widths.len();
+        return Ok(FontMetrics::new(
+            cff_widths,
+            0,
+            if num_glyphs > 0 {
+                (num_glyphs - 1) as u32
+            } else {
+                0
+            },
+            desc_info.missing_width,
+            desc_info.ascent,
+            desc_info.descent,
+            desc_info.font_bbox,
+        ));
     }
 
     Ok(FontMetrics::new(

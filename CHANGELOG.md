@@ -23,7 +23,7 @@ commit list.
   inputs, Serde JSON, and ordered parallel page processing.
 - **Documentation:** Added compile-fail documentation tests with compiling
   alternatives for page-view adapters, borrowed page-view lifetimes, and
-  opaque error classification on stable Rust and Rust 1.85.
+  opaque error classification on current stable Rust.
 - **Platform:** Rust release pull requests now run `cargo-semver-checks` against
   the published library baselines. Detected breaks require both a compatible
   release-version increment and actionable migration notes in the release
@@ -78,6 +78,14 @@ commit list.
 
 ### Changed
 
+- **Platform:** Replaced the fixed Rust 1.85 Minimum Supported Rust Version
+  contract with a rolling stable Rust policy. Package manifests no longer
+  publish `rust-version`, and required Continuous Integration follows the
+  current stable channel. Production code has also been migrated to the lints
+  enforced by Rust 1.98 Clippy.
+- **Dependencies:** Updated the PDF parser from two lopdf 0.34/0.39 copies to
+  lopdf 0.44.0, removed the object-dense compatibility conversion path, and
+  moved the WebAssembly entropy bridge to getrandom 0.4.
 - **API:** Replaced the public `PdfError` string-payload variants with an opaque
   alpha error type. Rust callers should inspect `PdfError::kind`,
   `PdfError::context`, and `PdfError::resource_limit`; source-chain diagnostics

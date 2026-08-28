@@ -915,10 +915,10 @@ fn collect_chars_by_structure_order<'a>(
     for elem in elements {
         // Collect chars for this element's MCIDs
         for &mcid in &elem.mcids {
-            if used_mcids.insert(mcid) {
-                if let Some(chars) = mcid_groups.get(&mcid) {
-                    result.extend(chars);
-                }
+            if used_mcids.insert(mcid)
+                && let Some(chars) = mcid_groups.get(&mcid)
+            {
+                result.extend(chars);
             }
         }
         // Recurse into children

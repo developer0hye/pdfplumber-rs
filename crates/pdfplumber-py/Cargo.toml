@@ -2,7 +2,6 @@
 name = "pdfplumber-py"
 version = "0.3.0"
 edition.workspace = true
-rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Alpha Python migration path for pdfplumber workflows, powered by evidence-driven PDF extraction in Rust"

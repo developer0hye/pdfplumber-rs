@@ -35,19 +35,12 @@ jobs:
         run: cargo clippy -p pdfplumber --all-features --no-deps -- -D warnings -D clippy::missing_errors_doc -D clippy::missing_panics_doc
 
   test:
-    name: Test (${{ matrix.rust }})
+    name: Test (stable)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust: [stable, "1.85"]
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: ${{ matrix.rust }}
+      - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.rust }}
       - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
       - name: Test Rust concurrency with optional parallel processing
@@ -60,13 +53,11 @@ jobs:
         run: cargo test -p pdfplumber --doc --all-features
 
       - name: Build strict all-feature public Rust documentation
-        if: matrix.rust == 'stable'
         env:
           RUSTDOCFLAGS: -D warnings
         run: cargo doc -p pdfplumber --no-deps --all-features
 
       - name: Build and verify Rust crate artifacts
-        if: matrix.rust == 'stable'
         run: |
           cargo package -p pdfplumber-core --no-verify
           cargo package -p pdfplumber-parse --no-verify
@@ -76,7 +67,6 @@ jobs:
           python scripts/check_package_metadata.py --rust target/package/*.crate
 
       - name: Test rendered Rust and CLI quick starts
-        if: matrix.rust == 'stable'
         run: python scripts/check_doc_quickstarts.py --rust --cli
 
   python-native-layout:

@@ -3,7 +3,6 @@
 [![CI](https://github.com/developer0hye/pdfplumber-rs/actions/workflows/ci.yml/badge.svg)](https://github.com/developer0hye/pdfplumber-rs/actions/workflows/ci.yml)
 [![crates.io](https://img.shields.io/crates/v/pdfplumber.svg)](https://crates.io/crates/pdfplumber)
 [![docs.rs](https://docs.rs/pdfplumber/badge.svg)](https://docs.rs/pdfplumber)
-[![MSRV](https://img.shields.io/badge/MSRV-1.85-blue.svg)](https://github.com/developer0hye/pdfplumber-rs)
 [![License](https://img.shields.io/crates/l/pdfplumber.svg)](https://github.com/developer0hye/pdfplumber-rs/blob/main/LICENSE)
 
 **Evidence-driven PDF extraction for Rust, with an alpha Python `pdfplumber` migration path.**
@@ -301,9 +300,11 @@ The library is split into three crates:
 | `pdfplumber-parse`  | PDF parsing and content stream interpretation    |
 | `pdfplumber`        | High-level public API facade for applications    |
 
-## Minimum Supported Rust Version
+## Rust toolchain policy
 
-[Rust 1.85 or later](docs/support.md#rust).
+The project tracks the [latest stable Rust](docs/support.md#rust) release and
+does not publish a fixed Minimum Supported Rust Version. Older compilers are
+not part of the support contract.
 
 ## License
 

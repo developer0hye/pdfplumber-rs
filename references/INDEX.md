@@ -31,6 +31,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Cargo | [rust-examples.md](rust-examples.md) | Reviewing compiled example targets and feature-specific example gates |
 | rustdoc | [rust-compile-fail.md](rust-compile-fail.md) | Reviewing intentional compilation failures and their positive alternatives |
 | cargo-semver-checks and Cargo | [rust-semver-checks.md](rust-semver-checks.md) | Reviewing release API compatibility, baselines, approved breaks, or migration-note gates |
+| Rust and Cargo | [rust-toolchain-policy.md](rust-toolchain-policy.md) | Reviewing the rolling stable toolchain policy or dependency compiler requirements |
 
 ## Font Parsing
 

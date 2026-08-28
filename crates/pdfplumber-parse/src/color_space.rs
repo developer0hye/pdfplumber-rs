@@ -166,10 +166,10 @@ pub fn resolve_color_space_name(
         "Pattern" => Some(ResolvedColorSpace::Pattern),
         _ => {
             // Look up in Resources /ColorSpace dictionary
-            if let Ok(cs_dict) = resources.get(b"ColorSpace").and_then(|o| o.as_dict()) {
-                if let Ok(cs_obj) = cs_dict.get(name.as_bytes()) {
-                    return resolve_color_space_object(cs_obj, doc);
-                }
+            if let Ok(cs_dict) = resources.get(b"ColorSpace").and_then(|o| o.as_dict())
+                && let Ok(cs_obj) = cs_dict.get(name.as_bytes())
+            {
+                return resolve_color_space_object(cs_obj, doc);
             }
             None
         }

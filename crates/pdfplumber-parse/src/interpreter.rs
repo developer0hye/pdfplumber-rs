@@ -162,19 +162,19 @@ pub(crate) fn interpret_content_stream(
             }
             "d" => {
                 // Dash pattern: [array] phase d
-                if op.operands.len() >= 2 {
-                    if let Operand::Array(ref arr) = op.operands[0] {
-                        let dash_array: Vec<f64> = arr
-                            .iter()
-                            .filter_map(|o| match o {
-                                Operand::Integer(i) => Some(*i as f64),
-                                Operand::Real(f) => Some(*f),
-                                _ => None,
-                            })
-                            .collect();
-                        let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
-                        gstate.set_dash_pattern(dash_array, phase);
-                    }
+                if op.operands.len() >= 2
+                    && let Operand::Array(ref arr) = op.operands[0]
+                {
+                    let dash_array: Vec<f64> = arr
+                        .iter()
+                        .filter_map(|o| match o {
+                            Operand::Integer(i) => Some(*i as f64),
+                            Operand::Real(f) => Some(*f),
+                            _ => None,
+                        })
+                        .collect();
+                    let phase = get_f64(&op.operands, 1).unwrap_or(0.0);
+                    gstate.set_dash_pattern(dash_array, phase);
                 }
             }
             "gs" => {
@@ -234,17 +234,17 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "CS" => {
-                if let Some(Operand::Name(name)) = op.operands.first() {
-                    if let Some(cs) = resolve_color_space_name(name, doc, resources) {
-                        gstate.set_stroking_color_space(cs);
-                    }
+                if let Some(Operand::Name(name)) = op.operands.first()
+                    && let Some(cs) = resolve_color_space_name(name, doc, resources)
+                {
+                    gstate.set_stroking_color_space(cs);
                 }
             }
             "cs" => {
-                if let Some(Operand::Name(name)) = op.operands.first() {
-                    if let Some(cs) = resolve_color_space_name(name, doc, resources) {
-                        gstate.set_non_stroking_color_space(cs);
-                    }
+                if let Some(Operand::Name(name)) = op.operands.first()
+                    && let Some(cs) = resolve_color_space_name(name, doc, resources)
+                {
+                    gstate.set_non_stroking_color_space(cs);
                 }
             }
             "SC" | "SCN" => {
@@ -344,10 +344,10 @@ pub(crate) fn interpret_content_stream(
                 }
             }
             "Tr" => {
-                if let Some(v) = get_i64(&op.operands, 0) {
-                    if let Some(mode) = crate::text_state::TextRenderMode::from_i64(v) {
-                        tstate.set_render_mode(mode);
-                    }
+                if let Some(v) = get_i64(&op.operands, 0)
+                    && let Some(mode) = crate::text_state::TextRenderMode::from_i64(v)
+                {
+                    tstate.set_render_mode(mode);
                 }
             }
             "Ts" => {
@@ -414,26 +414,26 @@ pub(crate) fn interpret_content_stream(
 
             // --- XObject operator ---
             "Do" => {
-                if let Some(Operand::Name(name)) = op.operands.first() {
-                    if let Err(e) = handle_do(
+                if let Some(Operand::Name(name)) = op.operands.first()
+                    && let Err(e) = handle_do(
                         doc, resources, handler, options, depth, gstate, tstate, name,
-                    ) {
-                        // Resource limit errors (e.g., recursion depth) must propagate
-                        if matches!(&e, BackendError::Interpreter(msg) if msg.contains("recursion depth"))
-                        {
-                            return Err(e);
-                        }
-                        let msg = format!(
-                            "Do operator for XObject '{}' failed (recovered): {}",
-                            name, e
-                        );
-                        handler.on_warning(ExtractWarning::with_code(
-                            ExtractWarningCode::MalformedObject,
-                            &msg,
-                        ));
-                        #[cfg(feature = "tracing")]
-                        tracing::warn!(xobject = %name, error = %e, "Do operator failed (recovered)");
+                    )
+                {
+                    // Resource limit errors (e.g., recursion depth) must propagate
+                    if matches!(&e, BackendError::Interpreter(msg) if msg.contains("recursion depth"))
+                    {
+                        return Err(e);
                     }
+                    let msg = format!(
+                        "Do operator for XObject '{}' failed (recovered): {}",
+                        name, e
+                    );
+                    handler.on_warning(ExtractWarning::with_code(
+                        ExtractWarningCode::MalformedObject,
+                        &msg,
+                    ));
+                    #[cfg(feature = "tracing")]
+                    tracing::warn!(xobject = %name, error = %e, "Do operator failed (recovered)");
                 }
             }
 
@@ -1006,13 +1006,12 @@ fn pdfminer_font_name(doc: &lopdf::Document, font_dict: &lopdf::Dictionary) -> S
 
     let subtype = resolved_name_bytes(doc, descriptor_owner, b"Subtype");
     let uses_type1_metrics = !matches!(subtype, Some(b"Type3" | b"CIDFontType0" | b"CIDFontType2"));
-    if uses_type1_metrics {
-        if let Some(font_name) = resolved_name_bytes(doc, descriptor_owner, b"BaseFont")
+    if uses_type1_metrics
+        && let Some(font_name) = resolved_name_bytes(doc, descriptor_owner, b"BaseFont")
             .and_then(|name| std::str::from_utf8(name).ok())
             .and_then(pdfminer_builtin_font_name)
-        {
-            return font_name.to_string();
-        }
+    {
+        return font_name.to_string();
     }
 
     let descriptor = descriptor_owner
@@ -1767,25 +1766,24 @@ fn apply_ext_gstate(
     // /D — Dash pattern: [dash_array phase]
     if let Ok(obj) = ext_dict.get(b"D") {
         let obj = resolve_ref(doc, obj);
-        if let Ok(arr) = obj.as_array() {
-            if arr.len() >= 2 {
-                if let Ok(dash_arr) = arr[0].as_array() {
-                    let dash_array: Vec<f64> = dash_arr
-                        .iter()
-                        .filter_map(|o| match o {
-                            lopdf::Object::Integer(i) => Some(*i as f64),
-                            lopdf::Object::Real(f) => Some(*f as f64),
-                            _ => None,
-                        })
-                        .collect();
-                    let phase = match &arr[1] {
-                        lopdf::Object::Integer(i) => *i as f64,
-                        lopdf::Object::Real(f) => *f as f64,
-                        _ => 0.0,
-                    };
-                    ext.dash_pattern = Some(pdfplumber_core::DashPattern::new(dash_array, phase));
-                }
-            }
+        if let Ok(arr) = obj.as_array()
+            && arr.len() >= 2
+            && let Ok(dash_arr) = arr[0].as_array()
+        {
+            let dash_array: Vec<f64> = dash_arr
+                .iter()
+                .filter_map(|o| match o {
+                    lopdf::Object::Integer(i) => Some(*i as f64),
+                    lopdf::Object::Real(f) => Some(*f as f64),
+                    _ => None,
+                })
+                .collect();
+            let phase = match &arr[1] {
+                lopdf::Object::Integer(i) => *i as f64,
+                lopdf::Object::Real(f) => *f as f64,
+                _ => 0.0,
+            };
+            ext.dash_pattern = Some(pdfplumber_core::DashPattern::new(dash_array, phase));
         }
     }
 
@@ -1808,20 +1806,20 @@ fn apply_ext_gstate(
     // /Font — Font array [fontRef size]
     if let Ok(obj) = ext_dict.get(b"Font") {
         let obj = resolve_ref(doc, obj);
-        if let Ok(arr) = obj.as_array() {
-            if arr.len() >= 2 {
-                let font_name = match &arr[0] {
-                    lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).to_string()),
-                    _ => None,
-                };
-                let font_size = match &arr[1] {
-                    lopdf::Object::Integer(i) => Some(*i as f64),
-                    lopdf::Object::Real(f) => Some(*f as f64),
-                    _ => None,
-                };
-                if let (Some(name), Some(size)) = (font_name, font_size) {
-                    ext.font = Some((name, size));
-                }
+        if let Ok(arr) = obj.as_array()
+            && arr.len() >= 2
+        {
+            let font_name = match &arr[0] {
+                lopdf::Object::Name(n) => Some(String::from_utf8_lossy(n).to_string()),
+                _ => None,
+            };
+            let font_size = match &arr[1] {
+                lopdf::Object::Integer(i) => Some(*i as f64),
+                lopdf::Object::Real(f) => Some(*f as f64),
+                _ => None,
+            };
+            if let (Some(name), Some(size)) = (font_name, font_size) {
+                ext.font = Some((name, size));
             }
         }
     }
@@ -1907,14 +1905,13 @@ fn handle_form_xobject(
     gstate.save_state_with_text(tstate.save_snapshot());
 
     // Apply /Matrix if present (transforms Form XObject space to parent space)
-    if let Ok(matrix_obj) = stream.dict.get(b"Matrix") {
-        if let Ok(arr) = matrix_obj.as_array() {
-            if arr.len() == 6 {
-                let vals: Result<Vec<f64>, _> = arr.iter().map(object_to_f64).collect();
-                if let Ok(vals) = vals {
-                    gstate.concat_matrix(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]);
-                }
-            }
+    if let Ok(matrix_obj) = stream.dict.get(b"Matrix")
+        && let Ok(arr) = matrix_obj.as_array()
+        && arr.len() == 6
+    {
+        let vals: Result<Vec<f64>, _> = arr.iter().map(object_to_f64).collect();
+        if let Ok(vals) = vals {
+            gstate.concat_matrix(vals[0], vals[1], vals[2], vals[3], vals[4], vals[5]);
         }
     }
 
