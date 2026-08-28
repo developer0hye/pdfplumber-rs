@@ -12,8 +12,26 @@ struct Request {
 }
 
 fn main() {
-    let outcome = match parse_request().and_then(execute) {
-        Ok(value) => json!({"status": "success", "value": value}),
+    let outcome = match parse_request() {
+        Ok(request)
+            if request.password.is_some()
+                && matches!(request.implementation.as_str(), "pdf-oxide" | "pdfsink-rs") =>
+        {
+            json!({
+                "status": "unsupported",
+                "reason": format!(
+                    "{} pinned API does not expose the fixture password option",
+                    request.implementation
+                ),
+            })
+        }
+        Ok(request) => match execute(request) {
+            Ok(value) => json!({"status": "success", "value": value}),
+            Err(message) => json!({
+                "status": "error",
+                "error": {"kind": "adapter", "message": message},
+            }),
+        },
         Err(message) => json!({
             "status": "error",
             "error": {"kind": "adapter", "message": message},
@@ -87,7 +105,6 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Value, String> {
 }
 
 fn run_pdf_oxide(request: &Request) -> Result<Value, String> {
-    reject_password(request, "pdf_oxide")?;
     let document =
         pdf_oxide::PdfDocument::open(&request.fixture).map_err(|error| error.to_string())?;
     match request.workload.as_str() {
@@ -112,7 +129,6 @@ fn run_pdf_oxide(request: &Request) -> Result<Value, String> {
 }
 
 fn run_pdfsink(request: &Request) -> Result<Value, String> {
-    reject_password(request, "pdfsink-rs")?;
     let document =
         pdfsink_rs::PdfDocument::open(&request.fixture).map_err(|error| error.to_string())?;
     match request.workload.as_str() {
@@ -131,15 +147,5 @@ fn run_pdfsink(request: &Request) -> Result<Value, String> {
                 .collect(),
         )),
         workload => Err(format!("unsupported workload: {workload}")),
-    }
-}
-
-fn reject_password(request: &Request, implementation: &str) -> Result<(), String> {
-    if request.password.is_some() {
-        Err(format!(
-            "{implementation} pinned API does not expose the fixture password option"
-        ))
-    } else {
-        Ok(())
     }
 }
