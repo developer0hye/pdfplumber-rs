@@ -218,6 +218,10 @@ class BenchmarkScenarioContractTests(unittest.TestCase):
             "benchmarks/scenarios-v0.3.0.md",
             (REPO_ROOT / "docs" / "comparison.md").read_text(encoding="utf-8"),
         )
+        roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+        self.assertIn("`SCORE-006`", roadmap)
+        self.assertIn("[`SCORE-007`]", roadmap)
+        self.assertIn("[`SCORE-008`]", roadmap)
 
 
 if __name__ == "__main__":
