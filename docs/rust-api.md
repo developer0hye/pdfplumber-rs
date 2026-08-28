@@ -25,6 +25,12 @@ integration boundary, package-specific flags, and the representative
 combination matrix. Parser-only and packaging-only flags remain outside the
 stable facade.
 
+The [workspace and extraction architecture guide](architecture.md) explains
+how the facade composes the parser and core crates, which state is cached, how
+one text request flows through those layers, and where advanced parser or
+binding extensions stop. Architecture visibility does not promote those lower
+or host-specific APIs into this stable facade.
+
 Compatibility aliases marked `#[doc(hidden)]` remain callable during the alpha
 line but are not a second generated facade. Other types and algorithms
 re-exported at the crate root remain source compatible for now, but only the

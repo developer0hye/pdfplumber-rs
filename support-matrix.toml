@@ -55,6 +55,7 @@ features = [
     "Path, byte, page-at-a-time iteration, serialization, and resource-budget APIs",
     "Optional serde and parallel features with an additive combination contract",
     "Two-subsequent-minor-release deprecation window for the stable Rust facade",
+    "Source-backed six-crate architecture, extraction flow, cache, and extension guide",
 ]
 known_limitations = [
     "The 0.3.x API is alpha and may change before the stable contract is complete.",
@@ -70,6 +71,8 @@ evidence = [
     "crates/pdfplumber/tests/feature_semantics.rs",
     "docs/rust-deprecation-policy.md",
     "compat/tests/test_rust_deprecation_policy.py",
+    "docs/architecture.md",
+    "compat/tests/test_rust_architecture.py",
     "README.md",
     "PRD.md",
 ]

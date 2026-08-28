@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Explain the extraction architecture
+### Review Rust API design
 
-Explain the facade, parser, core algorithms, bindings, caches, extension
-boundaries, and how one extraction request flows through the workspace.
+Review ownership, allocations, iterator behavior, determinism, error
+composition, extension traits, and future compatibility across the facade.
 
-Detailed task: [`DX-016`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-017`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -27,12 +27,12 @@ Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
 
-### Review Rust API design
+### Measure and reduce Rust time to first value
 
-Review ownership, allocations, iterator behavior, determinism, error
-composition, extension traits, and future compatibility across the facade.
+Measure the clean-project path to a first useful extraction and remove every
+setup step or conceptual dependency that is not required for that result.
 
-Detailed task: [`DX-017`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-018`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Define a credible Python migration beta
 

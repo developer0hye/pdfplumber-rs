@@ -33,6 +33,10 @@
 //! defines the stable facade and the documentation gates applied to it.
 //! Stable facade changes also follow the
 //! [Rust deprecation policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-deprecation-policy.md).
+//! The
+//! [workspace and extraction architecture guide](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/architecture.md)
+//! traces the parser, core algorithms, binding adapters, caches, extension boundaries, and
+//! one complete text request without expanding the stable facade.
 //!
 //! The library is split into three crates:
 //!

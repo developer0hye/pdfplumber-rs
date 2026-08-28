@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import re
-import tomllib
 import unittest
 from pathlib import Path
+
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 GUIDE_PATH = ROOT / "docs/architecture.md"
