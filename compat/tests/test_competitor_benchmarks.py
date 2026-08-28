@@ -11,7 +11,6 @@ from pathlib import Path
 
 from compat.harness import benchmark_competitors
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SUITE_PATH = REPO_ROOT / "benchmarks" / "competitors-v0.3.0.toml"
 CORPUS_PATH = REPO_ROOT / "benchmarks" / "corpus-v0.3.0.toml"
@@ -83,13 +82,17 @@ class CompetitorBenchmarkContractTests(unittest.TestCase):
         self.assertEqual(len(by_implementation), 4)
         first, *rest = by_implementation.values()
         self.assertTrue(first)
-        self.assertTrue(all(cases_for_implementation == first for cases_for_implementation in rest))
+        self.assertTrue(
+            all(cases_for_implementation == first for cases_for_implementation in rest)
+        )
         self.assertEqual(
             {workload_id for _, _, workload_id in first},
             {"document-open", "text"},
         )
 
-    def test_timing_plan_requires_candidate_and_competitor_preflight_success(self) -> None:
+    def test_timing_plan_requires_candidate_and_competitor_preflight_success(
+        self,
+    ) -> None:
         records = {
             implementation_id: benchmark_competitors.synthetic_record(
                 implementation_id=implementation_id,
@@ -133,7 +136,9 @@ class CompetitorBenchmarkContractTests(unittest.TestCase):
             (("pdfplumber-python", "pdfplumber-rs", "pdfsink-rs"),),
         )
 
-    def test_cli_check_validates_sources_without_running_or_timing_adapters(self) -> None:
+    def test_cli_check_validates_sources_without_running_or_timing_adapters(
+        self,
+    ) -> None:
         completed = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--check"],
             cwd=REPO_ROOT,
@@ -156,6 +161,19 @@ class CompetitorBenchmarkContractTests(unittest.TestCase):
                 )
             ),
         )
+        self.assertIn(
+            "python scripts/run_competitor_benchmarks.py --check",
+            (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
+                encoding="utf-8"
+            ),
+        )
+        self.assertIn(
+            "docs/benchmarks/competitors-v0.3.0.md",
+            (REPO_ROOT / "README.md").read_text(encoding="utf-8"),
+        )
+        comparison = (REPO_ROOT / "docs" / "comparison.md").read_text(encoding="utf-8")
+        self.assertIn("competitors-v0.3.0.md", comparison)
+        self.assertIn("local and unpublished", comparison)
 
     def test_saved_run_keeps_rejections_untimed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

@@ -1,0 +1,56 @@
+# Source-pinned adapters for local SCORE-003 execution. This manifest publishes
+# no performance result; later score tasks retain publishable raw artifacts.
+
+[schema]
+version = 1
+
+[suite]
+id = "pdfplumber-rs-competitors-v0.3.0"
+release = "0.3.0"
+corpus_id = "pdfplumber-rs-v0.3.0"
+policy_id = "pdfplumber-rs-equivalence-v0.3.0"
+reference_implementation = "pdfplumber-python"
+candidate_implementation = "pdfplumber-rs"
+rust_manifest = "benchmarks/adapters/rust/Cargo.toml"
+rust_binary = "benchmarks/adapters/rust/target/release/pdf-benchmark-adapter"
+python_adapter = "benchmarks/adapters/python_pdfplumber.py"
+
+[[implementations]]
+id = "pdfplumber-python"
+display_name = "Python pdfplumber"
+repository = "https://github.com/jsvine/pdfplumber"
+revision = "7d4f2f582f2d99f9e60ba522fdf7afd2f6d54c62"
+license = "MIT"
+source_reference = "references/pdfplumber.md"
+command = ["{reference_python}", "benchmarks/adapters/python_pdfplumber.py"]
+workloads = ["document-open", "text"]
+
+[[implementations]]
+id = "pdfplumber-rs"
+display_name = "pdfplumber-rs"
+repository = "https://github.com/developer0hye/pdfplumber-rs"
+revision = "repository-head"
+license = "MIT"
+source_reference = "docs/rust-api.md"
+command = ["benchmarks/adapters/rust/target/release/pdf-benchmark-adapter", "pdfplumber-rs"]
+workloads = ["document-open", "text"]
+
+[[implementations]]
+id = "pdf-oxide"
+display_name = "pdf_oxide"
+repository = "https://github.com/yfedoseev/pdf_oxide"
+revision = "3be1951b171edb9d69a10f42ef72ee73f52e51bf"
+license = "MIT OR Apache-2.0"
+source_reference = "references/pdf-oxide.md"
+command = ["benchmarks/adapters/rust/target/release/pdf-benchmark-adapter", "pdf-oxide"]
+workloads = ["document-open", "text"]
+
+[[implementations]]
+id = "pdfsink-rs"
+display_name = "pdfsink-rs"
+repository = "https://github.com/clark-labs-inc/pdfsink-rs"
+revision = "980d9f7b8ec44456f3d54427f4ced747b6eb6154"
+license = "MIT"
+source_reference = "references/pdfsink-rs.md"
+command = ["benchmarks/adapters/rust/target/release/pdf-benchmark-adapter", "pdfsink-rs"]
+workloads = ["document-open", "text"]

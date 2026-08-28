@@ -190,6 +190,9 @@ jobs:
       - name: Validate benchmark output equivalence policy
         run: python scripts/check_benchmark_equivalence.py --check
 
+      - name: Validate the pinned competitor benchmark suite
+        run: python scripts/run_competitor_benchmarks.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

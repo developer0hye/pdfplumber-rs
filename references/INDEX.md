@@ -17,6 +17,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | [pdf-rs](https://github.com/pdf-rs/pdf) | 1.6k | [pdf-rs.md](pdf-rs.md) | Typed PDF object model, derive-macro patterns |
 | [pdf-extract](https://github.com/jrmuizel/pdf-extract) | 571 | [pdf-extract.md](pdf-extract.md) | CMap/CFF/Type1 parsing crate ecosystem on lopdf |
 | [pdf_oxide](https://github.com/yfedoseev/pdf_oxide) | 975 | [pdf-oxide.md](pdf-oxide.md) | High-level Rust facade design, competitive analysis, or self-published benchmark methodology |
+| [pdfsink-rs](https://github.com/clark-labs-inc/pdfsink-rs) | — | [pdfsink-rs.md](pdfsink-rs.md) | Materially equivalent text/table options or pinned cross-project benchmark adapters |
 | [pdfium-render](https://github.com/ajrcarey/pdfium-render) | — | [pdfium-render.md](pdfium-render.md) | Borrowed page-collection views, direct indexed selection, and lazy iteration |
 
 ## Rust API Design

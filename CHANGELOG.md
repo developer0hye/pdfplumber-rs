@@ -17,7 +17,10 @@ commit list.
   fixture digests and access metadata are checked against the licensed corpus.
   A fail-closed preflight now requires identical fixture digests, request
   semantics, output schemas, and canonical JSON results before a case is
-  eligible for timing; no cross-project timing comparison is published yet.
+  eligible for timing. A source-pinned local suite now exercises overlapping
+  document-open and page-preserving text workloads against Python `pdfplumber`,
+  `pdf_oxide`, and `pdfsink-rs`; rejected cases remain untimed and the
+  one-sample results are not published as a comparison.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

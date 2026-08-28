@@ -33,7 +33,9 @@ The current `pdfplumber-rs` corpus provides compatibility evidence, not a fair s
 
 The versioned [benchmark corpus](benchmarks/corpus-v0.3.0.md) selects ten redistributable, digest-bound inputs spanning the required semantic and size classes. The [output-equivalence preflight](benchmarks/equivalence-v0.3.0.md) then requires two distinct implementations to use the same fixture digest, exact request semantics, canonical output schema, and exact canonical JSON result before a case becomes eligible for timing. Errors, unsupported behavior, and any mismatch are blocked rather than timed.
 
-A future cross-project result becomes publishable only after `SCORE-003` through `SCORE-009` add pinned competitors, separated cold/warm stages, complete environment and command metadata, and raw artifacts. The corpus and equivalence policy are correctness foundations, not performance results. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
+The [pinned competitor suite](benchmarks/competitors-v0.3.0.md) binds Python `pdfplumber`, `pdf_oxide`, and `pdfsink-rs` to exact Git revisions and the candidate to its exact run head. It exercises only the `document-open` and page-preserving plain-text workloads supported by all four projects on identical corpus bytes. The complete output phase precedes timing, and a Python/candidate/competitor triple is timed only when all three exact canonical outputs match. Its single combined-process sample is local and unpublished, not a performance claim.
+
+A future cross-project result becomes publishable only after `SCORE-004` through `SCORE-009` add separated cold/warm stages, complete environment and command metadata, statistical summaries, and raw release artifacts. The corpus, equivalence policy, and local pinned run are correctness foundations, not a ranking. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
 
 ## Product interpretation
 
