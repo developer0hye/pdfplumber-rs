@@ -36,6 +36,9 @@ commit list.
   items through at least two subsequent published minor releases, requires
   compiler-visible replacement guidance, and limits shorter windows to urgent
   safety issues or demonstrated unsoundness.
+- **Documentation:** Added a source-backed architecture guide for all six
+  workspace crates, including dependency direction, one extraction request,
+  cache lifetimes, extension boundaries, and contributor ownership.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

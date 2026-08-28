@@ -115,7 +115,7 @@ class RustDeprecationPolicyContractTests(unittest.TestCase):
         self.assertIn("compat/tests/test_rust_deprecation_policy.py", SUPPORT_SOURCE)
 
         self.assertNotIn("### Define a deprecation policy", ROADMAP)
-        self.assertIn("DX-016", ROADMAP)
+        self.assertIn("DX-017", ROADMAP)
         self.assertIn("- [x] **DX-015**", PRD)
         self.assertRegex(
             PRD,

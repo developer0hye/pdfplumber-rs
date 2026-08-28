@@ -282,6 +282,11 @@ let text = page.extract_text(&TextOptions::default());
 
 ## Architecture
 
+The complete [workspace and extraction architecture guide](docs/architecture.md)
+maps dependency direction, cache lifetimes, extension boundaries, contributor
+ownership, and one request from input bytes through parser events and core text
+or table algorithms.
+
 ```text
 +--------------------------------------------------------------+
 |  Layer 5: Table Detection (Lattice / Stream / Explicit)      |
@@ -295,18 +300,22 @@ let text = page.extract_text(&TextOptions::default());
 |  Layer 2: Content Stream Interpreter                         |
 |  Text state, Graphics state, CTM, XObject Do                 |
 +--------------------------------------------------------------+
-|  Layer 1: PDF Parsing (pluggable backend via PdfBackend)     |
-|  lopdf (default)                                             |
+|  Layer 1: PDF Parsing (lopdf in the high-level facade)       |
+|  PdfBackend and ContentHandler are advanced parser APIs      |
 +--------------------------------------------------------------+
 ```
 
-The library is split into three crates:
+The workspace contains six crates with one-way dependencies from bindings to
+the facade and from the facade/parser to core:
 
-| Crate              | Description                                      |
-|---------------------|--------------------------------------------------|
-| `pdfplumber-core`   | Backend-independent data types and algorithms    |
-| `pdfplumber-parse`  | PDF parsing and content stream interpretation    |
-| `pdfplumber`        | High-level public API facade for applications    |
+| Crate | Description |
+|---|---|
+| `pdfplumber-core` | Backend-independent data types and algorithms |
+| `pdfplumber-parse` | PDF parsing and content-stream interpretation |
+| `pdfplumber` | High-level public Rust API facade |
+| `pdfplumber-cli` | Native command-line automation and debugging surface |
+| `pdfplumber-py` | Python compatibility package and PyO3 adapter |
+| `pdfplumber-wasm` | WebAssembly and JavaScript/TypeScript adapter |
 
 ## Rust toolchain policy
 
