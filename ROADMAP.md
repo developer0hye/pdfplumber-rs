@@ -16,6 +16,14 @@ Publish machine-readable and workflow-oriented views of the compatibility harnes
 
 Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-011`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-012`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
+### Establish comparable benchmark inputs
+
+Define a redistributable workload corpus and reject timing comparisons unless
+the requested outputs and semantics are materially equivalent. Performance
+evidence will follow the correctness gate, not substitute for it.
+
+Detailed tasks: [`SCORE-001`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-002`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+
 ## Next
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
