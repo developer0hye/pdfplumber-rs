@@ -15,11 +15,12 @@ EXPECTED_VERSION = "0.3.0"
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
+    operation = parser.add_mutually_exclusive_group(required=True)
+    operation.add_argument(
         "--stage",
         choices=("language-boundary-conversion",),
-        required=True,
     )
+    operation.add_argument("--scenario", choices=("cache-hit-characters",))
     parser.add_argument("--timed", action="store_true")
     parser.add_argument("--resources", action="store_true")
     parser.add_argument("--fixture", type=Path, required=True)
@@ -45,6 +46,26 @@ def run(
         repair=False,
     ) as document:
         pages = list(document.pages)
+        if args.scenario == "cache-hit-characters":
+            page = pages[0]
+            _ = page.chars
+            metrics = PythonStageMetrics(
+                args.scenario,
+                timed=args.timed,
+                resources=False,
+            )
+            metrics.start()
+            characters = page.chars
+            elapsed_ns, _ = metrics.finish()
+            value = [
+                {
+                    "page_number": page.page_number,
+                    "chars": [character["text"] for character in characters],
+                }
+            ]
+            return value, elapsed_ns, None
+
+        assert args.stage is not None
         # Populate each native Page cache before the boundary clock. The timed
         # property access then performs only native Char to Python dict/list
         # conversion plus the canonical text projection.
@@ -73,11 +94,18 @@ def main() -> int:
         value, elapsed_ns, resources = run(args)
         outcome = {"status": "success", "value": value}
         if elapsed_ns is not None:
-            outcome["timing"] = {
-                "stage_id": args.stage,
-                "clock": "monotonic-wall",
-                "wall_time_ns": elapsed_ns,
-            }
+            if args.scenario is not None:
+                outcome["timing"] = {
+                    "scenario_id": args.scenario,
+                    "clock": "monotonic-wall",
+                    "wall_time_ns": elapsed_ns,
+                }
+            else:
+                outcome["timing"] = {
+                    "stage_id": args.stage,
+                    "clock": "monotonic-wall",
+                    "wall_time_ns": elapsed_ns,
+                }
         if resources is not None:
             outcome["resources"] = resources
     except Exception as error:  # noqa: BLE001 - errors are benchmark outcomes

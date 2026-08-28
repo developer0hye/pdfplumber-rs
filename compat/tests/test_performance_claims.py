@@ -61,18 +61,21 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 "../../docs/benchmarks/corpus-v0.3.0.md",
                 "../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../docs/benchmarks/metrics-v0.3.0.md",
+                "../../docs/benchmarks/scenarios-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber-wasm/README.md": (
                 "../../docs/comparison.md",
                 "../../docs/benchmarks/corpus-v0.3.0.md",
                 "../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../docs/benchmarks/metrics-v0.3.0.md",
+                "../../docs/benchmarks/scenarios-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber/benches/README.md": (
                 "../../../docs/comparison.md",
                 "../../../docs/benchmarks/corpus-v0.3.0.md",
                 "../../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../../docs/benchmarks/metrics-v0.3.0.md",
+                "../../../docs/benchmarks/scenarios-v0.3.0.md",
             ),
         }
 
@@ -81,6 +84,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
             corpus_link,
             equivalence_link,
             metrics_link,
+            scenarios_link,
         ) in readmes.items():
             with self.subTest(path=path.relative_to(ROOT)):
                 text = path.read_text(encoding="utf-8")
@@ -88,7 +92,8 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 self.assertIn(corpus_link, text)
                 self.assertIn(equivalence_link, text)
                 self.assertIn(metrics_link, text)
-                self.assertIn("SCORE-006", text)
+                self.assertIn(scenarios_link, text)
+                self.assertIn("SCORE-007", text)
                 self.assertIn("SCORE-009", text)
 
         comparison = (ROOT / "docs/comparison.md").read_text(encoding="utf-8")

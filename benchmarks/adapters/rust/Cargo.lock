@@ -1175,6 +1175,7 @@ version = "0.3.0"
 dependencies = [
  "pdfplumber-core",
  "pdfplumber-parse",
+ "rayon",
 ]
 
 [[package]]
@@ -1185,6 +1186,7 @@ dependencies = [
  "pdf_oxide",
  "pdfplumber",
  "pdfsink-rs",
+ "rayon",
  "serde_json",
 ]
 

@@ -5,6 +5,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 
+use rayon::ThreadPoolBuilder;
+use rayon::prelude::*;
 use serde_json::{Value, json};
 
 struct CountingAllocator;
@@ -70,6 +72,7 @@ struct Request {
     implementation: String,
     workload: Option<String>,
     stage: Option<String>,
+    scenario: Option<String>,
     timed: bool,
     resources: bool,
     fixture: PathBuf,
@@ -113,11 +116,19 @@ fn main() {
             Ok(execution) => {
                 let mut outcome = json!({"status": "success", "value": execution.value});
                 if let Some(wall_time_ns) = execution.wall_time_ns {
-                    outcome["timing"] = json!({
-                        "stage_id": request.stage,
-                        "clock": "monotonic-wall",
-                        "wall_time_ns": wall_time_ns,
-                    });
+                    outcome["timing"] = if let Some(scenario_id) = &request.scenario {
+                        json!({
+                            "scenario_id": scenario_id,
+                            "clock": "monotonic-wall",
+                            "wall_time_ns": wall_time_ns,
+                        })
+                    } else {
+                        json!({
+                            "stage_id": request.stage,
+                            "clock": "monotonic-wall",
+                            "wall_time_ns": wall_time_ns,
+                        })
+                    };
                 }
                 if request.resources {
                     match take_resource_metrics() {
@@ -174,6 +185,7 @@ fn parse_request() -> Result<Request, String> {
         .ok_or_else(|| "missing implementation".to_string())?;
     let mut workload: Option<String> = None;
     let mut stage: Option<String> = None;
+    let mut scenario: Option<String> = None;
     let mut timed = false;
     let mut resources = false;
     let mut fixture: Option<PathBuf> = None;
@@ -182,6 +194,7 @@ fn parse_request() -> Result<Request, String> {
         match argument.as_str() {
             "--workload" => workload = arguments.next(),
             "--stage" => stage = arguments.next(),
+            "--scenario" => scenario = arguments.next(),
             "--timed" => timed = true,
             "--resources" => resources = true,
             "--fixture" => fixture = arguments.next().map(PathBuf::from),
@@ -189,11 +202,15 @@ fn parse_request() -> Result<Request, String> {
             _ => return Err(format!("unknown argument: {argument}")),
         }
     }
-    if workload.is_some() == stage.is_some() {
-        return Err("provide exactly one of --workload or --stage".to_string());
+    if usize::from(workload.is_some())
+        + usize::from(stage.is_some())
+        + usize::from(scenario.is_some())
+        != 1
+    {
+        return Err("provide exactly one of --workload, --stage, or --scenario".to_string());
     }
-    if timed && stage.is_none() {
-        return Err("--timed requires --stage".to_string());
+    if timed && stage.is_none() && scenario.is_none() {
+        return Err("--timed requires --stage or --scenario".to_string());
     }
     if resources && stage.is_none() {
         return Err("--resources requires --stage".to_string());
@@ -205,6 +222,7 @@ fn parse_request() -> Result<Request, String> {
         implementation,
         workload,
         stage,
+        scenario,
         timed,
         resources,
         fixture: fixture.ok_or_else(|| "missing --fixture".to_string())?,
@@ -341,6 +359,10 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
         });
     }
 
+    if let Some(scenario) = request.scenario.as_deref() {
+        return run_pdfplumber_rs_scenario(request, scenario);
+    }
+
     let stage = request.stage.as_deref().expect("stage was validated");
     match stage {
         "document-open" => {
@@ -465,6 +487,89 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
     }
 }
 
+fn run_pdfplumber_rs_scenario(
+    request: &Request,
+    scenario: &str,
+) -> Result<Execution, String> {
+    match scenario {
+        "cold-document-open" => {
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdfplumber_rs(request))?;
+            Ok(Execution {
+                value: json!({"page_count": document.page_count()}),
+                wall_time_ns,
+            })
+        }
+        "warm-document-open" => {
+            let warm_document = open_pdfplumber_rs(request)?;
+            let _ = warm_document.page_count();
+            drop(warm_document);
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdfplumber_rs(request))?;
+            Ok(Execution {
+                value: json!({"page_count": document.page_count()}),
+                wall_time_ns,
+            })
+        }
+        "single-page-text" => {
+            let document = open_pdfplumber_rs(request)?;
+            let (value, wall_time_ns) = measured(request.timed, false, || {
+                let page = document.page(0).map_err(|error| error.to_string())?;
+                Ok(Value::Array(vec![json!({
+                    "page_number": 1,
+                    "text": page.extract_text(&pdfplumber::TextOptions::default()),
+                })]))
+            })?;
+            Ok(Execution {
+                value,
+                wall_time_ns,
+            })
+        }
+        "full-document-text" => {
+            let document = open_pdfplumber_rs(request)?;
+            let (value, wall_time_ns) = measured(request.timed, false, || {
+                pdfplumber_rs_text(&document)
+            })?;
+            Ok(Execution {
+                value,
+                wall_time_ns,
+            })
+        }
+        "parallel-page-batch-text" => {
+            let document = open_pdfplumber_rs(request)?;
+            let thread_pool = ThreadPoolBuilder::new()
+                .num_threads(4)
+                .build()
+                .map_err(|error| error.to_string())?;
+            let (value, wall_time_ns) = measured(request.timed, false, || {
+                thread_pool.install(|| {
+                    let pages = document
+                        .pages_parallel()
+                        .into_iter()
+                        .collect::<Result<Vec<_>, _>>()
+                        .map_err(|error| error.to_string())?;
+                    let ordered = pages
+                        .into_par_iter()
+                        .enumerate()
+                        .map(|(page_index, page)| {
+                            json!({
+                                "page_number": page_index + 1,
+                                "text": page.extract_text(&pdfplumber::TextOptions::default()),
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    Ok(Value::Array(ordered))
+                })
+            })?;
+            Ok(Execution {
+                value,
+                wall_time_ns,
+            })
+        }
+        _ => Err(format!("unsupported scenario: {scenario}")),
+    }
+}
+
 fn open_pdfplumber_rs(request: &Request) -> Result<pdfplumber::Pdf, String> {
     match request.password.as_deref() {
         Some(password) => {
@@ -501,6 +606,10 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
             value,
             wall_time_ns: None,
         });
+    }
+
+    if let Some(scenario) = request.scenario.as_deref() {
+        return run_pdf_oxide_scenario(request, scenario);
     }
 
     let stage = request.stage.as_deref().expect("stage was validated");
@@ -577,6 +686,56 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
     }
 }
 
+fn run_pdf_oxide_scenario(request: &Request, scenario: &str) -> Result<Execution, String> {
+    match scenario {
+        "cold-document-open" => {
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdf_oxide(request))?;
+            Ok(Execution {
+                value: json!({
+                    "page_count": document.page_count().map_err(|error| error.to_string())?
+                }),
+                wall_time_ns,
+            })
+        }
+        "warm-document-open" => {
+            let warm_document = open_pdf_oxide(request)?;
+            let _ = warm_document
+                .page_count()
+                .map_err(|error| error.to_string())?;
+            drop(warm_document);
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdf_oxide(request))?;
+            Ok(Execution {
+                value: json!({
+                    "page_count": document.page_count().map_err(|error| error.to_string())?
+                }),
+                wall_time_ns,
+            })
+        }
+        "single-page-text" => {
+            let document = open_pdf_oxide(request)?;
+            let (text, wall_time_ns) = measured(request.timed, false, || {
+                document.extract_text(0).map_err(|error| error.to_string())
+            })?;
+            Ok(Execution {
+                value: Value::Array(vec![json!({"page_number": 1, "text": text})]),
+                wall_time_ns,
+            })
+        }
+        "full-document-text" => {
+            let document = open_pdf_oxide(request)?;
+            let (value, wall_time_ns) =
+                measured(request.timed, false, || pdf_oxide_text(&document))?;
+            Ok(Execution {
+                value,
+                wall_time_ns,
+            })
+        }
+        _ => Err(format!("unsupported scenario: {scenario}")),
+    }
+}
+
 fn open_pdf_oxide(request: &Request) -> Result<pdf_oxide::PdfDocument, String> {
     pdf_oxide::PdfDocument::open(&request.fixture).map_err(|error| error.to_string())
 }
@@ -607,6 +766,10 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
             value,
             wall_time_ns: None,
         });
+    }
+
+    if let Some(scenario) = request.scenario.as_deref() {
+        return run_pdfsink_scenario(request, scenario);
     }
 
     let stage = request.stage.as_deref().expect("stage was validated");
@@ -717,6 +880,54 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
             serialize_canonical(canonical, request.timed, request.resources)
         }
         _ => Err(format!("unsupported stage: {stage}")),
+    }
+}
+
+fn run_pdfsink_scenario(request: &Request, scenario: &str) -> Result<Execution, String> {
+    match scenario {
+        "cold-document-open" => {
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdfsink(request))?;
+            Ok(Execution {
+                value: json!({"page_count": document.len()}),
+                wall_time_ns,
+            })
+        }
+        "warm-document-open" => {
+            let warm_document = open_pdfsink(request)?;
+            let _ = warm_document.len();
+            drop(warm_document);
+            let (document, wall_time_ns) =
+                measured(request.timed, false, || open_pdfsink(request))?;
+            Ok(Execution {
+                value: json!({"page_count": document.len()}),
+                wall_time_ns,
+            })
+        }
+        "single-page-text" => {
+            let document = open_pdfsink(request)?;
+            let (text, wall_time_ns) = measured(request.timed, false, || {
+                document
+                    .pages()
+                    .first()
+                    .map(|page| page.extract_text())
+                    .ok_or_else(|| "document has no pages".to_string())
+            })?;
+            Ok(Execution {
+                value: Value::Array(vec![json!({"page_number": 1, "text": text})]),
+                wall_time_ns,
+            })
+        }
+        "full-document-text" => {
+            let document = open_pdfsink(request)?;
+            let (value, wall_time_ns) =
+                measured(request.timed, false, || Ok(pdfsink_text(&document)))?;
+            Ok(Execution {
+                value,
+                wall_time_ns,
+            })
+        }
+        _ => Err(format!("unsupported scenario: {scenario}")),
     }
 }
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
+from collections.abc import Callable
 from pathlib import Path
 
 import pdfplumber
@@ -29,13 +31,24 @@ def parse_args() -> argparse.Namespace:
             "language-boundary-conversion",
         ),
     )
+    operation.add_argument(
+        "--scenario",
+        choices=(
+            "cold-document-open",
+            "warm-document-open",
+            "cache-hit-characters",
+            "single-page-text",
+            "full-document-text",
+            "parallel-page-batch-text",
+        ),
+    )
     parser.add_argument("--timed", action="store_true")
     parser.add_argument("--resources", action="store_true")
     parser.add_argument("--fixture", type=Path, required=True)
     parser.add_argument("--password")
     args = parser.parse_args()
-    if args.timed and args.stage is None:
-        parser.error("--timed requires --stage")
+    if args.timed and args.stage is None and args.scenario is None:
+        parser.error("--timed requires --stage or --scenario")
     if args.resources and args.stage is None:
         parser.error("--resources requires --stage")
     if args.timed and args.resources:
@@ -108,6 +121,61 @@ def _canonical_page_text(pages: list[object]) -> list[dict[str, object]]:
         }
         for page in pages
     ]
+
+
+def _timed_call(
+    args: argparse.Namespace, operation: Callable[[], object]
+) -> tuple[object, int | None]:
+    started_ns = time.perf_counter_ns() if args.timed else None
+    value = operation()
+    elapsed_ns = time.perf_counter_ns() - started_ns if started_ns is not None else None
+    return value, elapsed_ns
+
+
+def _open_document(args: argparse.Namespace) -> object:
+    return pdfplumber.open(
+        args.fixture,
+        password=args.password,
+        unicode_norm=None,
+        repair=False,
+    )
+
+
+def run_scenario(args: argparse.Namespace) -> tuple[object, int | None]:
+    """Run one SCORE-006 workload with setup outside the optional clock."""
+
+    assert args.scenario is not None
+    if args.scenario in {"cold-document-open", "warm-document-open"}:
+        if args.scenario == "warm-document-open":
+            with _open_document(args) as warm_document:
+                _ = len(warm_document.pages)
+        document, elapsed_ns = _timed_call(args, lambda: _open_document(args))
+        try:
+            return {"page_count": len(document.pages)}, elapsed_ns
+        finally:
+            document.close()
+
+    with _open_document(args) as document:
+        pages = list(document.pages)
+        if args.scenario == "cache-hit-characters":
+            page = pages[0]
+            _ = page.chars
+            characters, elapsed_ns = _timed_call(args, lambda: page.chars)
+            return _page_characters([page], [characters]), elapsed_ns
+
+        if args.scenario == "single-page-text":
+            page = pages[0]
+            text, elapsed_ns = _timed_call(
+                args,
+                lambda: page.extract_text(layout=False),
+            )
+            return [{"page_number": page.page_number, "text": text}], elapsed_ns
+
+        if args.scenario in {"full-document-text", "parallel-page-batch-text"}:
+            value, elapsed_ns = _timed_call(args, lambda: _canonical_page_text(pages))
+            return value, elapsed_ns
+
+    raise RuntimeError(f"unsupported scenario: {args.scenario}")
 
 
 def run_stage(
@@ -257,7 +325,16 @@ def run_stage(
 def main() -> int:
     args = parse_args()
     try:
-        if args.stage is None:
+        if args.scenario is not None:
+            value, elapsed_ns = run_scenario(args)
+            outcome = {"status": "success", "value": value}
+            if elapsed_ns is not None:
+                outcome["timing"] = {
+                    "scenario_id": args.scenario,
+                    "clock": "monotonic-wall",
+                    "wall_time_ns": elapsed_ns,
+                }
+        elif args.stage is None:
             outcome = {"status": "success", "value": run(args)}
         else:
             value, elapsed_ns, resources = run_stage(args)

@@ -58,6 +58,14 @@ class BenchmarkCorpus:
     large_min_bytes: int
     fixtures: tuple[BenchmarkFixture, ...]
 
+    def fixture(self, fixture_id: str) -> BenchmarkFixture:
+        """Return one named benchmark fixture."""
+
+        for fixture in self.fixtures:
+            if fixture.id == fixture_id:
+                return fixture
+        raise BenchmarkCorpusError(f"unknown benchmark fixture: {fixture_id}")
+
     def semantic_classes(self) -> frozenset[str]:
         """Return every semantic workload class in the selection."""
 

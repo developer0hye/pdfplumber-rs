@@ -15,6 +15,9 @@ commit list.
   corpus covering text, word geometry, tables, graphics, CJK, right-to-left,
   images, encryption, malformed inputs, and measured small/large sizes. Exact
   fixture digests and access metadata are checked against the licensed corpus.
+  Added exact-output-gated cold-process, warmed-process, live-page cache-hit,
+  single-page, full-document, and four-worker ordered parallel page scenarios;
+  operating-system filesystem cache state remains explicitly uncontrolled.
   A fail-closed preflight now requires identical fixture digests, request
   semantics, output schemas, and canonical JSON results before a case is
   eligible for timing. A source-pinned local suite now exercises overlapping
