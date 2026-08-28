@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import unittest
+from dataclasses import replace
+from pathlib import Path
 
 from compat.harness import compatibility_scorecard, corpus_index
+
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+PUBLIC_SOURCE = REPO_ROOT / "compat" / "scorecard-v0.3.0.toml"
+PUBLIC_GENERATOR = REPO_ROOT / "scripts" / "generate_compatibility_scorecard.py"
+PUBLIC_OUTPUT = REPO_ROOT / "docs" / "compatibility" / "scorecard-v0.3.0.json"
 
 
 class CompatibilityScorecardContractTests(unittest.TestCase):
@@ -78,6 +88,89 @@ class CompatibilityScorecardContractTests(unittest.TestCase):
             compatibility_scorecard.render(scorecard),
             compatibility_scorecard.render(scorecard),
         )
+
+    def test_api_and_option_scopes_keep_their_actual_artifact_types(self) -> None:
+        combined = self.observed_run()
+        source_run = replace(
+            combined,
+            id="macos-arm64-source",
+            artifact_type="source",
+            artifact_name="pdfplumber-rs-a" + "a" * 39,
+            artifact_sha256="d" * 64,
+            scopes=("api",),
+        )
+        wheel_run = replace(
+            combined,
+            id="macos-arm64-wheel-options",
+            scopes=("option",),
+        )
+
+        scorecard = compatibility_scorecard.build(
+            subject_version="0.3.0",
+            subject_revision="a" * 40,
+            corpus=self.corpus(),
+            corpus_sha256="b" * 64,
+            runs=(source_run, wheel_run),
+        )
+
+        api_observations = [
+            record
+            for record in scorecard["observations"]
+            if record["kind"] in {"api", "fixture"}
+        ]
+        option_observations = [
+            record
+            for record in scorecard["observations"]
+            if record["kind"] == "option"
+        ]
+        self.assertTrue(api_observations)
+        self.assertTrue(option_observations)
+        self.assertEqual(
+            {record["artifact_type"] for record in api_observations},
+            {"source"},
+        )
+        self.assertEqual(
+            {record["artifact_type"] for record in option_observations},
+            {"wheel"},
+        )
+        self.assertEqual(scorecard["runs"][0]["scopes"], ["api"])
+        self.assertEqual(scorecard["runs"][1]["scopes"], ["option"])
+
+    def test_published_scorecard_is_current_and_linked(self) -> None:
+        for path in (PUBLIC_SOURCE, PUBLIC_GENERATOR, PUBLIC_OUTPUT):
+            with self.subTest(path=path.name):
+                self.assertTrue(path.is_file(), f"missing {path.relative_to(REPO_ROOT)}")
+
+        completed = subprocess.run(
+            [sys.executable, str(PUBLIC_GENERATOR), "--check"],
+            cwd=REPO_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+
+        scorecard = json.loads(PUBLIC_OUTPUT.read_text(encoding="utf-8"))
+        self.assertRegex(scorecard["subject"]["revision"], r"^[0-9a-f]{40}$")
+        self.assertEqual(
+            {run["artifact_type"] for run in scorecard["runs"]},
+            {"source", "wheel", "sdist"},
+        )
+        self.assertEqual(
+            {
+                (run["artifact_type"], run["status"])
+                for run in scorecard["runs"]
+            },
+            {
+                ("source", "observed"),
+                ("wheel", "observed"),
+                ("source", "not_tested"),
+                ("wheel", "not_tested"),
+                ("sdist", "not_tested"),
+            },
+        )
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn("docs/compatibility/scorecard-v0.3.0.json", readme)
 
     def test_unknown_fixture_is_rejected_instead_of_dropped(self) -> None:
         run = self.observed_run()
