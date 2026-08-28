@@ -11,6 +11,7 @@ import unittest
 from pathlib import Path
 
 from compat.harness import benchmark_provenance
+from scripts import run_benchmark_provenance
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROVENANCE_PATH = REPO_ROOT / "benchmarks" / "provenance-v0.3.0.toml"
@@ -316,6 +317,42 @@ class BenchmarkProvenanceContractTests(unittest.TestCase):
                 ),
                 [".venv-reference/bin/python", "-VV"],
             )
+
+    def test_recorded_benchmark_invocation_redacts_the_output_path(self) -> None:
+        runner_output = Path("/Users/runner/work/_temp/scorecards/benchmark.json")
+        cases = (
+            (
+                ["benchmark", "--run", "--output", str(runner_output)],
+                ["benchmark", "--run", "--output", "<output-json>"],
+            ),
+            (
+                ["benchmark", "--run", f"--output={runner_output}"],
+                ["benchmark", "--run", "--output=<output-json>"],
+            ),
+        )
+
+        for command, expected in cases:
+            with self.subTest(command=command):
+                self.assertEqual(
+                    run_benchmark_provenance.recorded_invocation_argv(command),
+                    expected,
+                )
+
+    def test_run_metadata_rejects_an_absolute_invocation_argument(self) -> None:
+        metadata = run_metadata()
+        invocation = metadata["invocation"]
+        assert isinstance(invocation, dict)
+        invocation["command_argv"] = [
+            "benchmark",
+            "--output",
+            "/Users/runner/work/_temp/benchmark.json",
+        ]
+
+        with self.assertRaisesRegex(
+            benchmark_provenance.BenchmarkProvenanceError,
+            "invocation.command_argv must be relocatable",
+        ):
+            benchmark_provenance.validate_run_metadata(metadata, repetitions=5)
 
     def test_cli_check_gates_report_ci_and_public_links(self) -> None:
         plan = self.load_plan()
