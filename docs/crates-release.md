@@ -53,3 +53,8 @@ a missing package, a failed package build, or an archive whose
 `.cargo_vcs_info.json` does not bind it to the selected commit. Registry and
 network behavior can still change after preflight, so successful candidate
 verification is not a claim that public installation has passed.
+
+If a registry, credential, package, or published claim fails after upload starts,
+follow the [release recovery runbook](release-recovery.md). It records each
+registry independently and avoids re-running already published immutable
+versions.
