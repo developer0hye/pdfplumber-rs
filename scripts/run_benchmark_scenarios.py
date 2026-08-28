@@ -14,7 +14,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from compat.harness import benchmark_scenarios
+from compat.harness import benchmark_provenance, benchmark_scenarios
 
 SCENARIOS_PATH = REPO_ROOT / "benchmarks" / "scenarios-v0.3.0.toml"
 SUITE_PATH = REPO_ROOT / "benchmarks" / "competitors-v0.3.0.toml"
@@ -140,6 +140,12 @@ def adapter_command(
     return command
 
 
+def recorded_command_argv(command: list[str]) -> list[str]:
+    """Make repository-owned command paths relocatable from repository root."""
+
+    return benchmark_provenance.recorded_argv(command, REPO_ROOT)
+
+
 def run_adapter(command: list[str]) -> dict[str, object]:
     completed = subprocess.run(
         command,
@@ -215,11 +221,19 @@ def execute_local_run(
     suite: benchmark_scenarios.ScenarioSuite,
     reference_python: Path,
     candidate_python: Path,
+    *,
+    repetitions: int = 1,
 ) -> tuple[
     list[dict[str, object]],
     list[dict[str, object]],
     list[dict[str, object]],
 ]:
+    if isinstance(repetitions, bool) or not isinstance(repetitions, int):
+        raise benchmark_scenarios.BenchmarkScenarioError(
+            "repetitions must be an integer"
+        )
+    if repetitions <= 0:
+        raise benchmark_scenarios.BenchmarkScenarioError("repetitions must be positive")
     if not reference_python.is_file():
         raise benchmark_scenarios.BenchmarkScenarioError(
             f"reference Python is missing: {reference_python}"
@@ -306,33 +320,35 @@ def execute_local_run(
             eligible_by_key[key] = tuple(eligible)
 
     scenario_timings: list[dict[str, object]] = []
-    for scenario in suite.scenarios:
-        for fixture_id in scenario.fixture_ids:
-            fixture = suite.competitor_suite.corpus.fixture(fixture_id)
-            key = (scenario.id, fixture.id)
-            for implementation_id in eligible_by_key[key]:
-                command = adapter_command(
-                    suite,
-                    implementation_id,
-                    scenario.id,
-                    fixture.path,
-                    fixture.password,
-                    reference_python,
-                    candidate_python,
-                    timed=True,
-                )
-                outcome, wall_time_ns = measured_outcome(
-                    run_adapter(command), scenario.id
-                )
-                scenario_timings.append(
-                    benchmark_scenarios.build_scenario_sample(
-                        scenario=scenario,
-                        untimed_record=records_by_key[key][implementation_id],
-                        measured_outcome=outcome,
-                        wall_time_ns=wall_time_ns,
-                        command_argv=command,
+    for repetition in range(1, repetitions + 1):
+        for scenario in suite.scenarios:
+            for fixture_id in scenario.fixture_ids:
+                fixture = suite.competitor_suite.corpus.fixture(fixture_id)
+                key = (scenario.id, fixture.id)
+                for implementation_id in eligible_by_key[key]:
+                    command = adapter_command(
+                        suite,
+                        implementation_id,
+                        scenario.id,
+                        fixture.path,
+                        fixture.password,
+                        reference_python,
+                        candidate_python,
+                        timed=True,
                     )
-                )
+                    outcome, wall_time_ns = measured_outcome(
+                        run_adapter(command), scenario.id
+                    )
+                    scenario_timings.append(
+                        benchmark_scenarios.build_scenario_sample(
+                            scenario=scenario,
+                            untimed_record=records_by_key[key][implementation_id],
+                            measured_outcome=outcome,
+                            wall_time_ns=wall_time_ns,
+                            command_argv=recorded_command_argv(command),
+                            repetition=(repetition if repetitions > 1 else None),
+                        )
+                    )
     return records, decisions, scenario_timings
 
 

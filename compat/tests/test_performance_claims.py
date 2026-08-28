@@ -62,6 +62,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 "../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../docs/benchmarks/metrics-v0.3.0.md",
                 "../../docs/benchmarks/scenarios-v0.3.0.md",
+                "../../docs/benchmarks/provenance-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber-wasm/README.md": (
                 "../../docs/comparison.md",
@@ -69,6 +70,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 "../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../docs/benchmarks/metrics-v0.3.0.md",
                 "../../docs/benchmarks/scenarios-v0.3.0.md",
+                "../../docs/benchmarks/provenance-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber/benches/README.md": (
                 "../../../docs/comparison.md",
@@ -76,6 +78,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 "../../../docs/benchmarks/equivalence-v0.3.0.md",
                 "../../../docs/benchmarks/metrics-v0.3.0.md",
                 "../../../docs/benchmarks/scenarios-v0.3.0.md",
+                "../../../docs/benchmarks/provenance-v0.3.0.md",
             ),
         }
 
@@ -85,6 +88,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
             equivalence_link,
             metrics_link,
             scenarios_link,
+            provenance_link,
         ) in readmes.items():
             with self.subTest(path=path.relative_to(ROOT)):
                 text = path.read_text(encoding="utf-8")
@@ -93,7 +97,8 @@ class PerformanceClaimContractTests(unittest.TestCase):
                 self.assertIn(equivalence_link, text)
                 self.assertIn(metrics_link, text)
                 self.assertIn(scenarios_link, text)
-                self.assertIn("SCORE-007", text)
+                self.assertIn(provenance_link, text)
+                self.assertIn("SCORE-008", text)
                 self.assertIn("SCORE-009", text)
 
         comparison = (ROOT / "docs/comparison.md").read_text(encoding="utf-8")

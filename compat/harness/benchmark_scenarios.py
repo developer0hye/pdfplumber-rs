@@ -375,6 +375,7 @@ def build_scenario_sample(
     measured_outcome: Mapping[str, object],
     wall_time_ns: int,
     command_argv: Sequence[str],
+    repetition: int | None = None,
 ) -> dict[str, object]:
     """Bind one scenario clock to unchanged untimed output."""
 
@@ -398,7 +399,7 @@ def build_scenario_sample(
     if not isinstance(implementation, dict) or not isinstance(fixtures, list):
         raise BenchmarkScenarioError("untimed record lacks implementation or fixtures")
     fixture_id = fixtures[0].get("id") if fixtures and isinstance(fixtures[0], dict) else "unknown"
-    return {
+    sample: dict[str, object] = {
         "schema_version": 1,
         "case_id": f"{fixture_id}:{scenario.id}",
         "scenario_id": scenario.id,
@@ -418,6 +419,13 @@ def build_scenario_sample(
         "semantic_output_sha256": _outcome_digest(measured_outcome),
         "command_argv": list(command_argv),
     }
+    if repetition is not None:
+        if isinstance(repetition, bool) or not isinstance(repetition, int):
+            raise BenchmarkScenarioError("repetition must be an integer")
+        if repetition <= 0:
+            raise BenchmarkScenarioError("repetition must be positive")
+        sample["repetition"] = repetition
+    return sample
 
 
 def write_local_run(
@@ -472,7 +480,7 @@ def render_markdown(suite: ScenarioSuite) -> str:
         (
             "# Benchmark Workload Scenarios v0.3.0",
             "",
-            "SCORE-006 distinguishes process and library-cache state, page scope, and bounded parallel page work before repetitions or statistical summaries are added.",
+            "SCORE-006 distinguishes process and library-cache state, page scope, and bounded parallel page work; SCORE-007 adds the separate run-provenance and repetition contract.",
             "",
             *rows,
             "",
@@ -493,7 +501,7 @@ def render_markdown(suite: ScenarioSuite) -> str:
             "python3 scripts/run_benchmark_scenarios.py --run --output /tmp/pdfplumber-rs-scenarios.json",
             "```",
             "",
-            "SCORE-006 results remain local and unpublished. Complete environment capture, repetitions, statistical summaries, retained release artifacts, and result-removal policy remain open under SCORE-007 through SCORE-009.",
+            "Scenario results remain local and unpublished. Complete environment capture, repetitions, and statistical summaries are defined by SCORE-007; retained release artifacts and result-removal policy remain open under SCORE-008 and SCORE-009.",
             "",
         )
     )

@@ -41,7 +41,9 @@ The [resource and artifact suite](benchmarks/metrics-v0.3.0.md) retains wall tim
 
 The [workload-scenario suite](benchmarks/scenarios-v0.3.0.md) gives fresh-process and same-process warmed opens separate identities, times a second identical character access on the same live Python page as a cache hit, compares the first page with all pages on the same 65-page input, and clocks the Rust parallel page workload only after its page-index-ordered output matches pinned Python `pdfplumber`. “Cold” describes empty library/process state; the operating-system filesystem cache is explicitly uncontrolled rather than claimed to be cleared. These one-sample results are also local and unpublished.
 
-A future cross-project result becomes publishable only after `SCORE-007` through `SCORE-009` add complete environment and command metadata, repetitions, statistical summaries, and raw release artifacts. The corpus, equivalence policy, and local metric/scenario runs are correctness foundations, not a ranking. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
+The [run-provenance contract](benchmarks/provenance-v0.3.0.md) requires a clean exact source revision and records host hardware and operating system, Python/Rust/build-tool versions, material build flags, dependency-lock and built-artifact digests, fixture hashes, and exact argument arrays. It retains five round-robin raw repetitions for every eligible key and binds minimum, median, arithmetic mean, maximum, sample standard deviation, and relative standard deviation summaries back to those samples. These results remain local and unpublished.
+
+A future cross-project result becomes publishable only after `SCORE-008` and `SCORE-009` retain raw release artifacts and enforce the result-removal policy. The corpus, equivalence policy, and local metric/scenario runs are correctness foundations, not a ranking. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
 
 ## Product interpretation
 

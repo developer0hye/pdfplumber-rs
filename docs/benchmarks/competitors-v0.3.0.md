@@ -21,4 +21,4 @@ python3 scripts/run_competitor_benchmarks.py --build
 python3 scripts/run_competitor_benchmarks.py --run --output /tmp/pdfplumber-rs-competitors.json
 ```
 
-A SCORE-003 run is deliberately local and unpublished. It records one combined process wall-time sample only after equivalence; it is not a ranking or a publishable benchmark. Stage separation, complete metrics and environment metadata, cold and warm repetitions, statistical summaries, and retained release artifacts remain required by SCORE-004 through SCORE-008.
+A SCORE-003 run is deliberately local and unpublished. It records one combined process wall-time sample only after equivalence; it is not a ranking or a publishable benchmark. SCORE-004 through SCORE-007 add separated clocks, resource metrics, explicit workload state, complete run metadata, five raw repetitions, and statistical summaries. Retained release artifacts remain required by SCORE-008.

@@ -1,8 +1,9 @@
 """Contracts for constructing the isolated installed-candidate environment."""
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
+from unittest import mock
 
 from scripts import setup_candidate_venv
 
@@ -51,6 +52,33 @@ class CandidateSetupTests(unittest.TestCase):
                 setup_candidate_venv.require_single_wheel([])
             with self.assertRaises(ValueError):
                 setup_candidate_venv.require_single_wheel([wheel, wheel])
+
+    def test_source_candidate_wheel_uses_the_release_profile(self) -> None:
+        with TemporaryDirectory() as directory:
+            output = Path(directory)
+            wheel = output / "pdfplumber_rs-test.whl"
+            with (
+                mock.patch.object(
+                    setup_candidate_venv,
+                    "require_maturin",
+                    return_value="maturin",
+                ),
+                mock.patch.object(
+                    setup_candidate_venv.subprocess,
+                    "run",
+                ) as run,
+                mock.patch.object(
+                    setup_candidate_venv,
+                    "require_single_wheel",
+                    return_value=wheel,
+                ),
+            ):
+                self.assertEqual(
+                    setup_candidate_venv.build_wheel("python3.13", output), wheel
+                )
+
+            command = run.call_args.args[0]
+            self.assertIn("--release", command)
 
 
 if __name__ == "__main__":
