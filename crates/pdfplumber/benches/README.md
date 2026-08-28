@@ -11,10 +11,12 @@ process launch and setup from seven exact-output-gated clocks. Its
 [resource and artifact extension](../../../docs/benchmarks/metrics-v0.3.0.md)
 uses a separate instrumented pass for CPU, process-lifetime peak memory, and
 method-specific allocation fields, then measures only candidate-attributable
-native and WebAssembly artifacts. Cross-project measurements remain deferred
-until the [workload-scenario suite](../../../docs/benchmarks/scenarios-v0.3.0.md)
-has distinguished cold/warm state, cache hits, page scope, and bounded parallel
-work. Publication remains deferred through `SCORE-007` to `SCORE-009` until it satisfies the
+native and WebAssembly artifacts. The
+[workload-scenario suite](../../../docs/benchmarks/scenarios-v0.3.0.md)
+distinguishes cold/warm state, cache hits, page scope, and bounded parallel work.
+Its [run-provenance contract](../../../docs/benchmarks/provenance-v0.3.0.md)
+binds environment/build inputs, five raw repetitions, and descriptive summaries.
+Publication remains deferred through `SCORE-008` and `SCORE-009` until it satisfies the
 [comparison policy](../../../docs/comparison.md).
 
 ## Running Benchmarks

@@ -12,7 +12,6 @@ from pathlib import Path
 
 from compat.harness import benchmark_provenance
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PROVENANCE_PATH = REPO_ROOT / "benchmarks" / "provenance-v0.3.0.toml"
 SCENARIOS_PATH = REPO_ROOT / "benchmarks" / "scenarios-v0.3.0.toml"
@@ -133,9 +132,7 @@ def run_metadata() -> dict[str, object]:
                 "size_bytes": 456,
             },
         ],
-        "fixtures": [
-            {"id": "large-multipage", "sha256": "b" * 64}
-        ],
+        "fixtures": [{"id": "large-multipage", "sha256": "b" * 64}],
         "invocation": {
             "working_directory": ".",
             "command_argv": [
@@ -280,9 +277,7 @@ class BenchmarkProvenanceContractTests(unittest.TestCase):
             self.assertEqual(saved["run_metadata"], metadata)
             self.assertEqual(len(saved["scenario_timings"]), 5)
             self.assertEqual(len(saved["statistical_summaries"]), 1)
-            self.assertFalse(
-                saved["preflight_decisions"][0]["eligible_for_timing"]
-            )
+            self.assertFalse(saved["preflight_decisions"][0]["eligible_for_timing"])
 
         incomplete = run_metadata()
         host = incomplete["host"]

@@ -201,6 +201,8 @@ jobs:
 
       - name: Validate benchmark workload scenarios
         run: python scripts/run_benchmark_scenarios.py --check
+      - name: Validate benchmark run provenance
+        run: python scripts/run_benchmark_provenance.py --check
 
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check

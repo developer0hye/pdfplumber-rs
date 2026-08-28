@@ -1,6 +1,6 @@
 # Benchmark Workload Scenarios v0.3.0
 
-SCORE-006 distinguishes process and library-cache state, page scope, and bounded parallel page work before repetitions or statistical summaries are added.
+SCORE-006 distinguishes process and library-cache state, page scope, and bounded parallel page work; SCORE-007 adds the separate run-provenance and repetition contract.
 
 | Scenario | Fixtures | State | Page scope | Concurrency | Timed implementations | Timed operation |
 |---|---|---|---|---|---|---|
@@ -28,4 +28,4 @@ python3 scripts/run_benchmark_scenarios.py --check
 python3 scripts/run_benchmark_scenarios.py --run --output /tmp/pdfplumber-rs-scenarios.json
 ```
 
-SCORE-006 results remain local and unpublished. Complete environment capture, repetitions, statistical summaries, retained release artifacts, and result-removal policy remain open under SCORE-007 through SCORE-009.
+Scenario results remain local and unpublished. Complete environment capture, repetitions, and statistical summaries are defined by SCORE-007; retained release artifacts and result-removal policy remain open under SCORE-008 and SCORE-009.

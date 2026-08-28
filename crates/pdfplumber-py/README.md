@@ -173,7 +173,9 @@ exact-output-eligible cases for separately instrumented CPU, process-lifetime
 peak memory, and explicitly `tracemalloc`-scoped Python allocation fields.
 The [workload-scenario suite](../../docs/benchmarks/scenarios-v0.3.0.md)
 separates warmed opens, same-live-page cache hits, and matched page scopes.
-Cross-project results remain deferred through `SCORE-007` to `SCORE-009` until they satisfy the
+The [run-provenance contract](../../docs/benchmarks/provenance-v0.3.0.md)
+records environment/build inputs and retains five raw repetitions plus descriptive summaries.
+Cross-project results remain deferred through `SCORE-008` and `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License

@@ -1,0 +1,60 @@
+# SCORE-007 reproducibility policy. Raw results remain local until SCORE-008.
+
+[schema]
+version = 1
+
+[suite]
+id = "pdfplumber-rs-provenance-v0.3.0"
+release = "0.3.0"
+scenario_suite_id = "pdfplumber-rs-scenarios-v0.3.0"
+repetitions = 5
+execution_order = "round-robin-by-repetition"
+working_tree_policy = "require-clean"
+statistics = ["sample-size", "minimum", "median", "arithmetic-mean", "maximum", "sample-standard-deviation", "relative-standard-deviation"]
+reproduction_command = ["python3", "scripts/run_benchmark_provenance.py", "--run", "--output", "<output-json>"]
+
+[[dependency_locks]]
+role = "rust-workspace"
+path = "Cargo.lock"
+
+[[dependency_locks]]
+role = "rust-benchmark-adapter"
+path = "benchmarks/adapters/rust/Cargo.lock"
+
+[[dependency_locks]]
+role = "python-reference"
+path = "compat/requirements-golden.txt"
+
+[[builds]]
+id = "rust-benchmark-adapter"
+command_argv = ["cargo", "build", "--manifest-path", "benchmarks/adapters/rust/Cargo.toml", "--target-dir", "benchmarks/adapters/rust/target", "--release", "--locked"]
+flags = ["--release", "--locked", "features=parallel"]
+
+[[builds]]
+id = "candidate-python-wheel"
+command_argv = ["python3.13", "scripts/setup_candidate_venv.py", "--python", "python3.13"]
+flags = ["maturin=1.14.1", "pip=--no-deps"]
+
+[[tools]]
+id = "harness-python"
+command_argv = ["{harness_python}", "-VV"]
+
+[[tools]]
+id = "reference-python"
+command_argv = ["{reference_python}", "-VV"]
+
+[[tools]]
+id = "candidate-python"
+command_argv = ["{candidate_python}", "-VV"]
+
+[[tools]]
+id = "rustc"
+command_argv = ["rustc", "--version", "--verbose"]
+
+[[tools]]
+id = "cargo"
+command_argv = ["cargo", "--version"]
+
+[[tools]]
+id = "maturin"
+command_argv = ["maturin", "--version"]

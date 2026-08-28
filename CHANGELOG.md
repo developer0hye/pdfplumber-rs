@@ -33,7 +33,12 @@ commit list.
   labeling peak resident memory as a process-lifetime high-water mark. Candidate
   Command-Line Interface size, WebAssembly runtime bundle size, and fresh-process
   Node module startup are measured without attributing the combined competitor
-  adapter binary to any one implementation. Results remain local and unpublished.
+  adapter binary to any one implementation. A clean-source run contract now
+  records host hardware and operating system, Python/Rust/build-tool versions,
+  build flags, dependency-lock and built-artifact digests, fixture hashes, and
+  exact argument arrays. It retains five round-robin raw repetitions per eligible
+  key and emits sample-bound minimum, median, mean, maximum, sample-deviation, and
+  relative-deviation summaries. Results remain local and unpublished.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

@@ -176,7 +176,10 @@ The [workload-scenario suite](../../docs/benchmarks/scenarios-v0.3.0.md) defines
 native cold/warm, page-scope, cache-hit, and bounded parallel workloads without
 claiming that they cover browser execution. Those one-sample results remain local
 and unpublished; browser startup, memory, and statistical gates remain open.
-Cross-project results remain deferred through `SCORE-007` to `SCORE-009` until they satisfy the
+The [run-provenance contract](../../docs/benchmarks/provenance-v0.3.0.md)
+records environment/build inputs and retains five raw repetitions plus descriptive summaries
+for the native comparison workloads; it does not expand browser coverage.
+Cross-project results remain deferred through `SCORE-008` and `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License
