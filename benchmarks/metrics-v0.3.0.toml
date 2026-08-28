@@ -1,0 +1,59 @@
+# SCORE-005 resource and candidate-artifact measurement semantics. Resource
+# instrumentation is a separate pass from SCORE-004 wall clocks.
+
+[schema]
+version = 1
+
+[suite]
+id = "pdfplumber-rs-metrics-v0.3.0"
+release = "0.3.0"
+stage_suite_id = "pdfplumber-rs-stages-v0.3.0"
+
+[measurement_passes]
+wall = "un-instrumented"
+resources = "separate-instrumented"
+
+[host]
+resource_platforms = ["linux", "macos"]
+
+[cpu]
+clock = "process-cpu"
+scope = "in-adapter-stage-only"
+
+[peak_resident_memory]
+scope = "adapter-process-lifetime-high-water"
+
+[[allocators]]
+runtime = "python"
+method = "python-tracemalloc"
+scope = "in-adapter-stage-only"
+metrics = ["retained_allocation_count", "retained_bytes", "peak_traced_bytes"]
+
+[[allocators]]
+runtime = "rust"
+method = "rust-counting-global-allocator"
+scope = "in-adapter-stage-only"
+metrics = ["gross_allocation_count", "gross_allocated_bytes"]
+
+[[artifacts]]
+id = "native-cli"
+kind = "native-executable"
+build_command = ["cargo", "build", "--release", "--package", "pdfplumber-cli", "--bin", "pdfplumber", "--target-dir", "target"]
+paths = ["target/release/pdfplumber"]
+
+[[artifacts]]
+id = "wasm-node-package"
+kind = "wasm-package"
+build_command = ["wasm-pack", "build", "--release", "--target", "nodejs", "--out-dir", "pkg-benchmark", "crates/pdfplumber-wasm"]
+paths = [
+  "crates/pdfplumber-wasm/pkg-benchmark/pdfplumber_wasm_bg.wasm",
+  "crates/pdfplumber-wasm/pkg-benchmark/pdfplumber_wasm.js",
+]
+
+[wasm_startup]
+adapter = "benchmarks/adapters/wasm_startup.cjs"
+entry_path = "crates/pdfplumber-wasm/pkg-benchmark/pdfplumber_wasm.js"
+process_model = "fresh-process-per-sample"
+clock = "monotonic-wall"
+clock_scope = "node-module-load-only"
+includes_process_launch = false

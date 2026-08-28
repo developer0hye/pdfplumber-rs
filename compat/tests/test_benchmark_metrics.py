@@ -46,6 +46,7 @@ class BenchmarkMetricContractTests(unittest.TestCase):
         self.assertEqual(suite.stage_suite_id, "pdfplumber-rs-stages-v0.3.0")
         self.assertEqual(suite.wall_measurement_pass, "un-instrumented")
         self.assertEqual(suite.resource_measurement_pass, "separate-instrumented")
+        self.assertEqual(suite.resource_platforms, ("linux", "macos"))
         self.assertEqual(suite.cpu_scope, "in-adapter-stage-only")
         self.assertEqual(
             suite.peak_rss_scope,
@@ -143,8 +144,9 @@ class BenchmarkMetricContractTests(unittest.TestCase):
         )
         wasm = artifacts["wasm-node-package"]
         self.assertEqual(wasm.kind, "wasm-package")
-        self.assertIn("pdfplumber_wasm_bg.wasm", wasm.paths)
-        self.assertIn("pdfplumber_wasm.js", wasm.paths)
+        wasm_names = {Path(path).name for path in wasm.paths}
+        self.assertIn("pdfplumber_wasm_bg.wasm", wasm_names)
+        self.assertIn("pdfplumber_wasm.js", wasm_names)
         self.assertNotIn("benchmarks/adapters/rust/target", " ".join(wasm.paths))
         assert suite.wasm_startup is not None
         self.assertEqual(suite.wasm_startup.process_model, "fresh-process-per-sample")
@@ -171,7 +173,9 @@ class BenchmarkMetricContractTests(unittest.TestCase):
             self.assertEqual(saved["artifact_sizes"][0]["bytes"], 1024)
             self.assertEqual(saved["wasm_startup"][0]["wall_time_ns"], 99)
 
-    def test_cli_check_gates_manifest_report_adapters_ci_and_public_claims(self) -> None:
+    def test_cli_check_gates_manifest_report_adapters_ci_and_public_claims(
+        self,
+    ) -> None:
         suite = self.load_metric_suite()
         completed = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--check"],

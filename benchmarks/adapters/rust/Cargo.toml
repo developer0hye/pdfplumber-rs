@@ -11,6 +11,7 @@ name = "pdf-benchmark-adapter"
 path = "src/main.rs"
 
 [dependencies]
+libc = "0.2"
 pdfplumber = { path = "../../../crates/pdfplumber" }
 pdf_oxide = { path = "../.sources/pdf_oxide" }
 pdfsink-rs = { path = "../.sources/pdfsink-rs" }

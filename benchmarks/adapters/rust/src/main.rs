@@ -1,8 +1,69 @@
+use std::alloc::{GlobalAlloc, Layout, System};
 use std::env;
 use std::path::PathBuf;
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Instant;
 
 use serde_json::{Value, json};
+
+struct CountingAllocator;
+
+static ALLOCATION_TRACKING: AtomicBool = AtomicBool::new(false);
+static ALLOCATION_COUNT: AtomicU64 = AtomicU64::new(0);
+static ALLOCATED_BYTES: AtomicU64 = AtomicU64::new(0);
+
+#[global_allocator]
+static GLOBAL_ALLOCATOR: CountingAllocator = CountingAllocator;
+
+// SAFETY: every operation delegates to the process System allocator with the
+// original layout. The atomics only observe successful allocation requests.
+unsafe impl GlobalAlloc for CountingAllocator {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        // SAFETY: forwarding the unchanged layout satisfies System::alloc.
+        let pointer = unsafe { System.alloc(layout) };
+        if !pointer.is_null() && ALLOCATION_TRACKING.load(Ordering::Relaxed) {
+            ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
+            ALLOCATED_BYTES.fetch_add(layout.size() as u64, Ordering::Relaxed);
+        }
+        pointer
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        // SAFETY: forwarding the unchanged layout satisfies System::alloc_zeroed.
+        let pointer = unsafe { System.alloc_zeroed(layout) };
+        if !pointer.is_null() && ALLOCATION_TRACKING.load(Ordering::Relaxed) {
+            ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
+            ALLOCATED_BYTES.fetch_add(layout.size() as u64, Ordering::Relaxed);
+        }
+        pointer
+    }
+
+    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        // SAFETY: the pointer and layout came from the delegated System allocator.
+        unsafe { System.dealloc(pointer, layout) };
+    }
+
+    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        // SAFETY: forwarding the allocation and original layout satisfies System::realloc.
+        let new_pointer = unsafe { System.realloc(pointer, layout, new_size) };
+        if !new_pointer.is_null() && ALLOCATION_TRACKING.load(Ordering::Relaxed) {
+            ALLOCATION_COUNT.fetch_add(1, Ordering::Relaxed);
+            ALLOCATED_BYTES.fetch_add(new_size as u64, Ordering::Relaxed);
+        }
+        new_pointer
+    }
+}
+
+#[derive(Debug)]
+struct ResourceMetrics {
+    cpu_time_ns: u128,
+    peak_resident_memory_bytes: u64,
+    gross_allocation_count: u64,
+    gross_allocated_bytes: u64,
+}
+
+static LAST_RESOURCES: Mutex<Option<ResourceMetrics>> = Mutex::new(None);
 
 #[derive(Debug)]
 struct Request {
@@ -10,6 +71,7 @@ struct Request {
     workload: Option<String>,
     stage: Option<String>,
     timed: bool,
+    resources: bool,
     fixture: PathBuf,
     password: Option<String>,
 }
@@ -57,6 +119,36 @@ fn main() {
                         "wall_time_ns": wall_time_ns,
                     });
                 }
+                if request.resources {
+                    match take_resource_metrics() {
+                        Ok(resources) => {
+                            outcome["resources"] = json!({
+                                "stage_id": request.stage,
+                                "cpu": {
+                                    "clock": "process-cpu",
+                                    "scope": "in-adapter-stage-only",
+                                    "time_ns": resources.cpu_time_ns,
+                                },
+                                "peak_resident_memory": {
+                                    "scope": "adapter-process-lifetime-high-water",
+                                    "bytes": resources.peak_resident_memory_bytes,
+                                },
+                                "allocations": {
+                                    "method": "rust-counting-global-allocator",
+                                    "scope": "in-adapter-stage-only",
+                                    "gross_allocation_count": resources.gross_allocation_count,
+                                    "gross_allocated_bytes": resources.gross_allocated_bytes,
+                                },
+                            });
+                        }
+                        Err(message) => {
+                            outcome = json!({
+                                "status": "error",
+                                "error": {"kind": "adapter", "message": message},
+                            });
+                        }
+                    }
+                }
                 outcome
             }
             Err(message) => json!({
@@ -83,6 +175,7 @@ fn parse_request() -> Result<Request, String> {
     let mut workload: Option<String> = None;
     let mut stage: Option<String> = None;
     let mut timed = false;
+    let mut resources = false;
     let mut fixture: Option<PathBuf> = None;
     let mut password: Option<String> = None;
     while let Some(argument) = arguments.next() {
@@ -90,6 +183,7 @@ fn parse_request() -> Result<Request, String> {
             "--workload" => workload = arguments.next(),
             "--stage" => stage = arguments.next(),
             "--timed" => timed = true,
+            "--resources" => resources = true,
             "--fixture" => fixture = arguments.next().map(PathBuf::from),
             "--password" => password = arguments.next(),
             _ => return Err(format!("unknown argument: {argument}")),
@@ -101,11 +195,18 @@ fn parse_request() -> Result<Request, String> {
     if timed && stage.is_none() {
         return Err("--timed requires --stage".to_string());
     }
+    if resources && stage.is_none() {
+        return Err("--resources requires --stage".to_string());
+    }
+    if timed && resources {
+        return Err("--timed and --resources are separate passes".to_string());
+    }
     Ok(Request {
         implementation,
         workload,
         stage,
         timed,
+        resources,
         fixture: fixture.ok_or_else(|| "missing --fixture".to_string())?,
         password,
     })
@@ -125,12 +226,105 @@ fn execute(request: &Request) -> Result<Execution, String> {
 
 fn measured<T>(
     timed: bool,
+    resources: bool,
     operation: impl FnOnce() -> Result<T, String>,
 ) -> Result<(T, Option<u128>), String> {
+    if resources {
+        let cpu_started_ns = process_cpu_time_ns()?;
+        start_resource_metrics()?;
+        let result = operation();
+        let allocations = stop_allocation_metrics();
+        let cpu_finished_ns = process_cpu_time_ns();
+        let value = result?;
+        let cpu_time_ns = cpu_finished_ns?.saturating_sub(cpu_started_ns);
+        let peak_resident_memory_bytes = peak_resident_memory_bytes()?;
+        store_resource_metrics(ResourceMetrics {
+            cpu_time_ns,
+            peak_resident_memory_bytes,
+            gross_allocation_count: allocations.0,
+            gross_allocated_bytes: allocations.1,
+        })?;
+        return Ok((value, None));
+    }
     let started = timed.then(Instant::now);
     let value = operation()?;
     let elapsed = started.map(|instant| instant.elapsed().as_nanos());
     Ok((value, elapsed))
+}
+
+fn start_resource_metrics() -> Result<(), String> {
+    let mut last = LAST_RESOURCES
+        .lock()
+        .map_err(|_| "resource metric lock is poisoned".to_string())?;
+    *last = None;
+    ALLOCATION_COUNT.store(0, Ordering::Relaxed);
+    ALLOCATED_BYTES.store(0, Ordering::Relaxed);
+    ALLOCATION_TRACKING.store(true, Ordering::SeqCst);
+    Ok(())
+}
+
+fn stop_allocation_metrics() -> (u64, u64) {
+    ALLOCATION_TRACKING.store(false, Ordering::SeqCst);
+    (
+        ALLOCATION_COUNT.load(Ordering::Relaxed),
+        ALLOCATED_BYTES.load(Ordering::Relaxed),
+    )
+}
+
+fn store_resource_metrics(resources: ResourceMetrics) -> Result<(), String> {
+    let mut last = LAST_RESOURCES
+        .lock()
+        .map_err(|_| "resource metric lock is poisoned".to_string())?;
+    *last = Some(resources);
+    Ok(())
+}
+
+fn take_resource_metrics() -> Result<ResourceMetrics, String> {
+    LAST_RESOURCES
+        .lock()
+        .map_err(|_| "resource metric lock is poisoned".to_string())?
+        .take()
+        .ok_or_else(|| "resource pass did not observe the requested stage".to_string())
+}
+
+fn process_cpu_time_ns() -> Result<u128, String> {
+    let usage = process_usage()?;
+    let user_ns = timeval_ns(usage.ru_utime)?;
+    let system_ns = timeval_ns(usage.ru_stime)?;
+    Ok(user_ns + system_ns)
+}
+
+fn peak_resident_memory_bytes() -> Result<u64, String> {
+    let maximum = process_usage()?.ru_maxrss;
+    let maximum =
+        u64::try_from(maximum).map_err(|_| "peak resident memory is negative".to_string())?;
+    #[cfg(target_os = "macos")]
+    return Ok(maximum);
+    #[cfg(not(target_os = "macos"))]
+    return maximum
+        .checked_mul(1024)
+        .ok_or_else(|| "peak resident memory overflowed bytes".to_string());
+}
+
+fn process_usage() -> Result<libc::rusage, String> {
+    // SAFETY: zero is a valid initial byte representation for rusage, and
+    // getrusage initializes the structure before it is read on success.
+    let mut usage: libc::rusage = unsafe { std::mem::zeroed() };
+    // SAFETY: usage is a valid writable pointer for the duration of the call.
+    let result = unsafe { libc::getrusage(libc::RUSAGE_SELF, &mut usage) };
+    if result == 0 {
+        Ok(usage)
+    } else {
+        Err(std::io::Error::last_os_error().to_string())
+    }
+}
+
+fn timeval_ns(value: libc::timeval) -> Result<u128, String> {
+    let seconds =
+        u128::try_from(value.tv_sec).map_err(|_| "process CPU seconds are negative".to_string())?;
+    let microseconds = u128::try_from(value.tv_usec)
+        .map_err(|_| "process CPU microseconds are negative".to_string())?;
+    Ok(seconds * 1_000_000_000 + microseconds * 1_000)
 }
 
 fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
@@ -150,7 +344,9 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
     let stage = request.stage.as_deref().expect("stage was validated");
     match stage {
         "document-open" => {
-            let (document, wall_time_ns) = measured(request.timed, || open_pdfplumber_rs(request))?;
+            let (document, wall_time_ns) = measured(request.timed, request.resources, || {
+                open_pdfplumber_rs(request)
+            })?;
             Ok(Execution {
                 value: json!({"page_count": document.page_count()}),
                 wall_time_ns,
@@ -158,7 +354,7 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
         }
         "page-materialization" => {
             let document = open_pdfplumber_rs(request)?;
-            let (page_numbers, wall_time_ns) = measured(request.timed, || {
+            let (page_numbers, wall_time_ns) = measured(request.timed, request.resources, || {
                 Ok((1..=document.pages().len()).collect::<Vec<_>>())
             })?;
             Ok(Execution {
@@ -169,7 +365,7 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
         "character-extraction" => {
             let document = open_pdfplumber_rs(request)?;
             let pages = document.pages();
-            let (parsed_pages, wall_time_ns) = measured(request.timed, || {
+            let (parsed_pages, wall_time_ns) = measured(request.timed, request.resources, || {
                 pages
                     .into_iter()
                     .map(|page| page.map_err(|error| error.to_string()))
@@ -202,7 +398,7 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
                 .into_iter()
                 .map(|page| page.map_err(|error| error.to_string()))
                 .collect::<Result<Vec<_>, _>>()?;
-            let (words_by_page, wall_time_ns) = measured(request.timed, || {
+            let (words_by_page, wall_time_ns) = measured(request.timed, request.resources, || {
                 Ok(pages
                     .iter()
                     .map(|page| page.extract_words(&pdfplumber::WordOptions::default()))
@@ -240,12 +436,13 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
                 .into_iter()
                 .map(|page| page.map_err(|error| error.to_string()))
                 .collect::<Result<Vec<_>, _>>()?;
-            let (tables_by_page, wall_time_ns) = measured(request.timed, || {
-                Ok(pages
-                    .iter()
-                    .map(|page| page.extract_tables(&pdfplumber::TableSettings::default()))
-                    .collect::<Vec<_>>())
-            })?;
+            let (tables_by_page, wall_time_ns) =
+                measured(request.timed, request.resources, || {
+                    Ok(pages
+                        .iter()
+                        .map(|page| page.extract_tables(&pdfplumber::TableSettings::default()))
+                        .collect::<Vec<_>>())
+                })?;
             Ok(Execution {
                 value: Value::Array(
                     tables_by_page
@@ -262,7 +459,7 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
         "serialization" => {
             let document = open_pdfplumber_rs(request)?;
             let canonical = pdfplumber_rs_text(&document)?;
-            serialize_canonical(canonical, request.timed)
+            serialize_canonical(canonical, request.timed, request.resources)
         }
         _ => Err(format!("unsupported stage: {stage}")),
     }
@@ -309,7 +506,8 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
     let stage = request.stage.as_deref().expect("stage was validated");
     match stage {
         "document-open" => {
-            let (document, wall_time_ns) = measured(request.timed, || open_pdf_oxide(request))?;
+            let (document, wall_time_ns) =
+                measured(request.timed, request.resources, || open_pdf_oxide(request))?;
             Ok(Execution {
                 value: json!({
                     "page_count": document.page_count().map_err(|error| error.to_string())?
@@ -320,7 +518,7 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
         "page-materialization" => {
             let document = open_pdf_oxide(request)?;
             let page_count = document.page_count().map_err(|error| error.to_string())?;
-            let (pages, wall_time_ns) = measured(request.timed, || {
+            let (pages, wall_time_ns) = measured(request.timed, request.resources, || {
                 (0..page_count)
                     .map(|page_index| {
                         document
@@ -342,7 +540,7 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
                     .get_page(page_index)
                     .map_err(|error| error.to_string())?;
             }
-            let (chars_by_page, wall_time_ns) = measured(request.timed, || {
+            let (chars_by_page, wall_time_ns) = measured(request.timed, request.resources, || {
                 (0..page_count)
                     .map(|page_index| {
                         document
@@ -373,7 +571,7 @@ fn run_pdf_oxide(request: &Request) -> Result<Execution, String> {
         "serialization" => {
             let document = open_pdf_oxide(request)?;
             let canonical = pdf_oxide_text(&document)?;
-            serialize_canonical(canonical, request.timed)
+            serialize_canonical(canonical, request.timed, request.resources)
         }
         _ => Err(format!("unsupported stage: {stage}")),
     }
@@ -414,7 +612,8 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
     let stage = request.stage.as_deref().expect("stage was validated");
     match stage {
         "document-open" => {
-            let (document, wall_time_ns) = measured(request.timed, || open_pdfsink(request))?;
+            let (document, wall_time_ns) =
+                measured(request.timed, request.resources, || open_pdfsink(request))?;
             Ok(Execution {
                 value: json!({"page_count": document.len()}),
                 wall_time_ns,
@@ -452,7 +651,7 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
         }
         "word-grouping" => {
             let document = open_pdfsink(request)?;
-            let (words_by_page, wall_time_ns) = measured(request.timed, || {
+            let (words_by_page, wall_time_ns) = measured(request.timed, request.resources, || {
                 Ok(document
                     .pages()
                     .iter()
@@ -488,16 +687,17 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
         }
         "table-detection" => {
             let document = open_pdfsink(request)?;
-            let (tables_by_page, wall_time_ns) = measured(request.timed, || {
-                document
-                    .pages()
-                    .iter()
-                    .map(|page| {
-                        page.extract_tables(pdfsink_rs::TableSettings::default())
-                            .map_err(|error| error.to_string())
-                    })
-                    .collect::<Result<Vec<_>, _>>()
-            })?;
+            let (tables_by_page, wall_time_ns) =
+                measured(request.timed, request.resources, || {
+                    document
+                        .pages()
+                        .iter()
+                        .map(|page| {
+                            page.extract_tables(pdfsink_rs::TableSettings::default())
+                                .map_err(|error| error.to_string())
+                        })
+                        .collect::<Result<Vec<_>, _>>()
+                })?;
             Ok(Execution {
                 value: Value::Array(
                     tables_by_page
@@ -514,7 +714,7 @@ fn run_pdfsink(request: &Request) -> Result<Execution, String> {
         "serialization" => {
             let document = open_pdfsink(request)?;
             let canonical = pdfsink_text(&document);
-            serialize_canonical(canonical, request.timed)
+            serialize_canonical(canonical, request.timed, request.resources)
         }
         _ => Err(format!("unsupported stage: {stage}")),
     }
@@ -549,8 +749,12 @@ fn ordered_pages(page_numbers: Vec<usize>) -> Value {
     )
 }
 
-fn serialize_canonical(canonical: Value, timed: bool) -> Result<Execution, String> {
-    let (serialized, wall_time_ns) = measured(timed, || {
+fn serialize_canonical(
+    canonical: Value,
+    timed: bool,
+    resources: bool,
+) -> Result<Execution, String> {
+    let (serialized, wall_time_ns) = measured(timed, resources, || {
         serde_json::to_string(&canonical).map_err(|error| error.to_string())
     })?;
     Ok(Execution {

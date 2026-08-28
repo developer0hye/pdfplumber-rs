@@ -123,7 +123,12 @@ def adapter_command(
     candidate_python: Path,
     *,
     timed: bool,
+    resources: bool = False,
 ) -> list[str]:
+    if timed and resources:
+        raise benchmark_stages.BenchmarkStageError(
+            "wall and resource passes must be separate"
+        )
     if implementation_id == suite.candidate_python_id:
         command = [str(candidate_python), suite.candidate_python_adapter]
     else:
@@ -137,6 +142,8 @@ def adapter_command(
         command.extend(("--password", fixture_password))
     if timed:
         command.append("--timed")
+    if resources:
+        command.append("--resources")
     return command
 
 

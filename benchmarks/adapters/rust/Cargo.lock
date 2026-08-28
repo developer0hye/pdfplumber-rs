@@ -1181,6 +1181,7 @@ dependencies = [
 name = "pdfplumber-competitor-adapters"
 version = "0.0.0"
 dependencies = [
+ "libc",
  "pdf_oxide",
  "pdfplumber",
  "pdfsink-rs",

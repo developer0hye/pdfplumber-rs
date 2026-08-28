@@ -7,9 +7,12 @@ library and publishes no cross-project result. A separate
 inputs. Its [output-equivalence preflight](../../../docs/benchmarks/equivalence-v0.3.0.md)
 rejects mismatched semantics or canonical results before timing. The separate
 [component stage suite](../../../docs/benchmarks/stages-v0.3.0.md) excludes
-process launch and setup from seven exact-output-gated clocks. Cross-project
-measurements remain deferred after `SCORE-003` and `SCORE-004` until `SCORE-005`
-through `SCORE-009` satisfy the
+process launch and setup from seven exact-output-gated clocks. Its
+[resource and artifact extension](../../../docs/benchmarks/metrics-v0.3.0.md)
+uses a separate instrumented pass for CPU, process-lifetime peak memory, and
+method-specific allocation fields, then measures only candidate-attributable
+native and WebAssembly artifacts. Cross-project measurements remain deferred
+through `SCORE-006` to `SCORE-009` until they satisfy the
 [comparison policy](../../../docs/comparison.md).
 
 ## Running Benchmarks

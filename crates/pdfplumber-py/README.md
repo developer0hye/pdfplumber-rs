@@ -167,9 +167,11 @@ comparison. The [versioned benchmark corpus](../../docs/benchmarks/corpus-v0.3.0
 defines shared inputs, and the [output-equivalence preflight](../../docs/benchmarks/equivalence-v0.3.0.md)
 rejects mismatched semantics or canonical results before timing. The
 [separated stage suite](../../docs/benchmarks/stages-v0.3.0.md) isolates seven
-component clocks, including installed-candidate PyO3 conversion. Cross-project
-results remain deferred after `SCORE-003` and `SCORE-004` until `SCORE-005`
-through `SCORE-009` satisfy the
+component clocks, including installed-candidate PyO3 conversion. The
+[resource metric suite](../../docs/benchmarks/metrics-v0.3.0.md) repeats only
+exact-output-eligible cases for separately instrumented CPU, process-lifetime
+peak memory, and explicitly `tracemalloc`-scoped Python allocation fields.
+Cross-project results remain deferred through `SCORE-006` to `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License
