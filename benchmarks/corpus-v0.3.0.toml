@@ -1,0 +1,104 @@
+# Versioned benchmark input selection. The licensed corpus registry remains the
+# authority for source revisions, redistribution terms, and committed bytes.
+
+[schema]
+version = 1
+
+[corpus]
+id = "pdfplumber-rs-v0.3.0"
+release = "0.3.0"
+fixture_index = "compat/fixture-provenance.toml"
+reference = "references/pdf-oxide.md"
+small_max_bytes = 4096
+large_min_bytes = 1048576
+
+[[fixtures]]
+id = "cjk-vertical"
+path = "crates/pdfplumber/tests/fixtures/pdfs/pdfjs/vertical.pdf"
+sha256 = "514511143db12309893fb69cdf98c76f2361c20da394f79fdff2c119ed7a4393"
+semantic_classes = ["cjk"]
+size_class = "medium"
+page_count = 3
+description = "Japanese glyphs in vertical writing mode across three pages."
+
+[[fixtures]]
+id = "encrypted-document"
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/password-example.pdf"
+sha256 = "76593a57d9787a86050815e830a4c69425f5c95017fdb6f509074658932056e2"
+semantic_classes = ["encrypted"]
+size_class = "medium"
+page_count = 4
+password = "test"
+description = "RC4-encrypted multipage input with an explicit benchmark password."
+
+[[fixtures]]
+id = "graphics-heavy-table"
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/table-curves-example.pdf"
+sha256 = "d68dce5cfaae86c5282b50603d60bc2601af23ecfd26245a9966382b5d3fdb70"
+semantic_classes = ["graphics-heavy"]
+size_class = "medium"
+page_count = 1
+description = "Dense vector table containing rectangles and non-line curves."
+
+[[fixtures]]
+id = "image-heavy-pages"
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/pr-136-example.pdf"
+sha256 = "bd7d7a3c3114e0c809d275227439e4997578a7fa3de57b5110a594172320cb74"
+semantic_classes = ["image-heavy"]
+size_class = "large"
+page_count = 6
+description = "Six image-backed pages for image discovery and stream workloads."
+
+[[fixtures]]
+id = "large-multipage"
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/chelsea_pdta.pdf"
+sha256 = "e9823b5527fed648c9b4a891b0c018d75a4acfa3697f9bfa91b2f8e5097579e0"
+semantic_classes = ["graphics-heavy", "image-heavy"]
+size_class = "large"
+page_count = 65
+description = "A 65-page mixed-content report with dense vector and image objects."
+
+[[fixtures]]
+id = "recoverable-malformed"
+path = "compat/fixtures/upstream/pdfplumber-v0.11.10/tests/pdfs/malformed-from-issue-932.pdf"
+sha256 = "471f16c8716a7fa8cda228ad293a4df97fe16f184ff3d952f26fc9e38a348ff3"
+semantic_classes = ["malformed"]
+size_class = "medium"
+page_count = 1
+description = "Structurally malformed input that exercises recoverable parsing."
+
+[[fixtures]]
+id = "right-to-left-arabic"
+path = "crates/pdfplumber/tests/fixtures/pdfs/pdfjs/ArabicCIDTrueType.pdf"
+sha256 = "1cad1de912ba29f89a6d8b08bc5b0f84382874ffedab2c8f9e05ef608c265bb1"
+semantic_classes = ["right-to-left"]
+size_class = "medium"
+page_count = 1
+description = "Arabic right-to-left glyph ordering with an embedded CID TrueType font."
+
+[[fixtures]]
+id = "small-text"
+path = "tests/fixtures/generated/basic_text.pdf"
+sha256 = "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec"
+semantic_classes = ["text-only"]
+size_class = "small"
+page_count = 1
+description = "One text-only page with punctuation, accents, and numeric tokens."
+
+[[fixtures]]
+id = "table-heavy"
+path = "tests/fixtures/generated/table_lattice.pdf"
+sha256 = "079dd4ae6ab90668f2f6cbbb014d131a468369ba4a828e7001784e3bcac83365"
+semantic_classes = ["table-heavy"]
+size_class = "small"
+page_count = 1
+description = "A ruled five-column table with headers, seven rows, and empty cells."
+
+[[fixtures]]
+id = "word-geometry"
+path = "tests/fixtures/real-world/layout/positioned-text.pdf"
+sha256 = "922d9ab1ff387596ec672e82febc85d8402532ff9de00bb3ee0b3dd167f78dcc"
+semantic_classes = ["word-geometry"]
+size_class = "small"
+page_count = 1
+description = "Words positioned at page corners and center with known coordinates."

@@ -165,8 +165,9 @@ wasm-pack build --target web crates/pdfplumber-wasm
 
 No browser, Node.js, or cross-project performance result is currently claimed for
 this WebAssembly surface. Bundle size, startup, and memory remain ungated.
-Cross-project results remain deferred until `SCORE-001` through `SCORE-009`
-satisfy the [comparison policy](../../docs/comparison.md).
+The [versioned benchmark corpus](../../docs/benchmarks/corpus-v0.3.0.md) defines
+shared inputs only; cross-project results remain deferred until `SCORE-002` through
+`SCORE-009` satisfy the [comparison policy](../../docs/comparison.md).
 
 ## License
 

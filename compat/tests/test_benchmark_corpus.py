@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import tomllib
 import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from compat.harness import benchmark_corpus, corpus_index
+import tomllib
 
+from compat.harness import benchmark_corpus, corpus_index
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MANIFEST_PATH = REPO_ROOT / "benchmarks" / "corpus-v0.3.0.toml"
@@ -36,7 +36,10 @@ class BenchmarkCorpusContractTests(unittest.TestCase):
             corpus.semantic_classes(),
             benchmark_corpus.REQUIRED_SEMANTIC_CLASSES,
         )
-        self.assertEqual(corpus.size_classes(), frozenset({"small", "large"}))
+        self.assertEqual(
+            corpus.size_classes(),
+            frozenset({"small", "medium", "large"}),
+        )
         self.assertEqual(
             tuple(fixture.id for fixture in corpus.fixtures),
             tuple(sorted(fixture.id for fixture in corpus.fixtures)),
@@ -109,16 +112,18 @@ class BenchmarkCorpusContractTests(unittest.TestCase):
         cases += (("duplicate", duplicate, r"duplicate fixture id"),)
 
         for case, manifest, message in cases:
-            with self.subTest(case=case):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(case=case),
+                self.assertRaisesRegex(
                     benchmark_corpus.BenchmarkCorpusError,
                     message,
-                ):
-                    benchmark_corpus.validate_manifest(
-                        manifest,
-                        self.index,
-                        REPO_ROOT,
-                    )
+                ),
+            ):
+                benchmark_corpus.validate_manifest(
+                    manifest,
+                    self.index,
+                    REPO_ROOT,
+                )
 
     def test_rejects_unindexed_stale_or_duplicated_fixture_paths(self) -> None:
         cases: tuple[tuple[str, dict[str, object], str], ...] = ()
@@ -133,19 +138,22 @@ class BenchmarkCorpusContractTests(unittest.TestCase):
 
         duplicate = deepcopy(self.manifest)
         duplicate["fixtures"][1]["path"] = duplicate["fixtures"][0]["path"]
+        duplicate["fixtures"][1]["sha256"] = duplicate["fixtures"][0]["sha256"]
         cases += (("duplicate", duplicate, r"duplicate fixture path"),)
 
         for case, manifest, message in cases:
-            with self.subTest(case=case):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(case=case),
+                self.assertRaisesRegex(
                     benchmark_corpus.BenchmarkCorpusError,
                     message,
-                ):
-                    benchmark_corpus.validate_manifest(
-                        manifest,
-                        self.index,
-                        REPO_ROOT,
-                    )
+                ),
+            ):
+                benchmark_corpus.validate_manifest(
+                    manifest,
+                    self.index,
+                    REPO_ROOT,
+                )
 
     def test_rejects_false_size_or_access_metadata(self) -> None:
         cases: tuple[tuple[str, dict[str, object], str], ...] = ()
@@ -172,16 +180,18 @@ class BenchmarkCorpusContractTests(unittest.TestCase):
         cases += (("pages", invalid_pages, r"positive page_count"),)
 
         for case, manifest, message in cases:
-            with self.subTest(case=case):
-                with self.assertRaisesRegex(
+            with (
+                self.subTest(case=case),
+                self.assertRaisesRegex(
                     benchmark_corpus.BenchmarkCorpusError,
                     message,
-                ):
-                    benchmark_corpus.validate_manifest(
-                        manifest,
-                        self.index,
-                        REPO_ROOT,
-                    )
+                ),
+            ):
+                benchmark_corpus.validate_manifest(
+                    manifest,
+                    self.index,
+                    REPO_ROOT,
+                )
 
     def test_generated_report_and_public_integration_are_current(self) -> None:
         corpus = benchmark_corpus.audit_repository(
