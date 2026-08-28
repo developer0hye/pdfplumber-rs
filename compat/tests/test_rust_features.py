@@ -27,6 +27,7 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 RUST_API = (ROOT / "docs/rust-api.md").read_text(encoding="utf-8")
 CHANGELOG = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 ROADMAP = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+PRD = (ROOT / "PRD.md").read_text(encoding="utf-8")
 
 
 class RustFeatureContractTests(unittest.TestCase):
@@ -121,6 +122,11 @@ class RustFeatureContractTests(unittest.TestCase):
 
         self.assertNotIn("### Make feature combinations predictable", ROADMAP)
         self.assertIn("DX-015", ROADMAP)
+        self.assertIn("- [x] **DX-014**", PRD)
+        self.assertRegex(
+            PRD,
+            r"(?m)^\| `DX-014` \| 2026-08-28 \| Codex \| PR #426 \|",
+        )
 
 
 if __name__ == "__main__":
