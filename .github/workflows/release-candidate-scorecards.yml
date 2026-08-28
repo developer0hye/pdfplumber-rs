@@ -1,0 +1,119 @@
+name: Release Candidate Scorecards
+
+on:
+  workflow_call:
+    inputs:
+      candidate_id:
+        description: Stable identifier for this exact release candidate
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      candidate_id:
+        description: Stable identifier for this exact release candidate
+        required: true
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_ID: ${{ inputs.candidate_id }}
+
+jobs:
+  scorecards:
+    name: Re-run competitor and compatibility scorecards
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+
+      - name: Install the pinned wheel builder
+        run: python -m pip install --disable-pip-version-check maturin==1.14.1
+
+      - name: Validate the retained-history policy
+        run: python scripts/build_release_candidate_scorecards.py --check
+
+      - name: Create the isolated result directory and exact source archive
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-candidate-scorecards/wheels"
+          mkdir -p "$RUNNER_TEMP/release-candidate-scorecards/assets"
+          git archive --format=tar \
+            --output "$RUNNER_TEMP/release-candidate-scorecards/pdfplumber-rs-source-$GITHUB_SHA.tar" \
+            "$GITHUB_SHA"
+
+      - name: Build the pinned competitor benchmark environments
+        run: python scripts/run_benchmark_provenance.py --build
+
+      - name: Re-run the exact-output-gated competitor scorecard
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output "$RUNNER_TEMP/release-candidate-scorecards/benchmark.json"
+
+      - name: Build the exact candidate wheel retained by the scorecard
+        run: >-
+          python -m maturin build --release
+          --manifest-path crates/pdfplumber-py/Cargo.toml
+          --interpreter python
+          --out "$RUNNER_TEMP/release-candidate-scorecards/wheels"
+
+      - name: Build the pinned reference compatibility environment
+        run: scripts/setup_golden_venv.sh
+        env:
+          PDFPLUMBER_RS_REQUIRE_PINNED_PYTHON: "1"
+
+      - name: Install the exact candidate wheel
+        run: >-
+          python scripts/setup_candidate_venv.py --python python
+          --wheel "$RUNNER_TEMP/release-candidate-scorecards/wheels/"*.whl
+
+      - name: Generate candidate option results
+        run: >-
+          .venv-candidate/bin/python scripts/generate_option_matrix.py
+          --candidate-output
+          "$RUNNER_TEMP/release-candidate-scorecards/candidate-options.json"
+
+      - name: Re-run the complete compatibility scorecard input
+        continue-on-error: true
+        run: >-
+          .venv-reference/bin/python scripts/parity_report.py
+          --repo "$PWD" --fixtures "$PWD"
+          --candidate-options
+          "$RUNNER_TEMP/release-candidate-scorecards/candidate-options.json"
+          --json "$RUNNER_TEMP/release-candidate-scorecards/parity.json"
+
+      - name: Build current and cumulative scorecard assets
+        # The parity command reports observed product gaps with a nonzero exit.
+        # This builder still fails on a missing, partial, or malformed report.
+        run: >-
+          python scripts/build_release_candidate_scorecards.py --build-assets
+          --candidate-id "$CANDIDATE_ID"
+          --source-revision "$GITHUB_SHA"
+          --run-url
+          "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          --benchmark-run
+          "$RUNNER_TEMP/release-candidate-scorecards/benchmark.json"
+          --parity-report
+          "$RUNNER_TEMP/release-candidate-scorecards/parity.json"
+          --source-artifact
+          "$RUNNER_TEMP/release-candidate-scorecards/pdfplumber-rs-source-$GITHUB_SHA.tar"
+          --wheel "$RUNNER_TEMP/release-candidate-scorecards/wheels/"*.whl
+          --output-dir "$RUNNER_TEMP/release-candidate-scorecards/assets"
+
+      - name: Retain every raw and historical scorecard asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-candidate-scorecards-${{ env.CANDIDATE_ID }}
+          path: ${{ runner.temp }}/release-candidate-scorecards/assets
+          if-no-files-found: error
+          retention-days: 90

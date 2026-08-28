@@ -168,7 +168,7 @@ class CratesReleaseGateTests(unittest.TestCase):
 
         self.assertLess(preflight, publish)
         preflight_job = workflow[preflight:publish]
-        self.assertIn("needs: [ci, metadata]", preflight_job)
+        self.assertIn("needs: [ci, metadata, scorecards]", preflight_job)
         self.assertIn("scripts/check_crates_release.py", preflight_job)
         self.assertIn('--release-tag "$GITHUB_REF_NAME"', preflight_job)
         self.assertNotIn("--package-only", preflight_job)

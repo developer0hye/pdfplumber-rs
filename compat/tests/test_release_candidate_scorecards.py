@@ -2,26 +2,25 @@
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
-from compat.harness import release_candidate_scorecards
+from compat.harness import release_candidate_scorecards, workflow_scorecard
+from compat.tests import test_compatibility_scorecard as compatibility_test_support
 from compat.tests.test_benchmark_results import local_run
+from scripts import build_release_candidate_scorecards
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = REPO_ROOT / "scorecards" / "release-candidates-v0.3.0.toml"
-HISTORY_PATH = (
-    REPO_ROOT / "docs" / "scorecards" / "release-candidate-history-v0.3.json"
-)
-REPORT_PATH = (
-    REPO_ROOT / "docs" / "scorecards" / "release-candidate-history-v0.3.md"
-)
+HISTORY_PATH = REPO_ROOT / "docs" / "scorecards" / "release-candidate-history-v0.3.json"
+REPORT_PATH = REPO_ROOT / "docs" / "scorecards" / "release-candidate-history-v0.3.md"
 SCRIPT_PATH = REPO_ROOT / "scripts" / "build_release_candidate_scorecards.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "release-candidate-scorecards.yml"
 
@@ -55,9 +54,7 @@ def compatibility_result() -> dict[str, object]:
             "version": "0.3.0",
             "revision": SOURCE_REVISION,
         },
-        "status_vocabulary": {
-            name: f"Meaning of {name}" for name in statuses
-        },
+        "status_vocabulary": {name: f"Meaning of {name}" for name in statuses},
         "runs": [{"id": "macos-source", "status": "observed"}],
         "observations": [
             {"id": f"observation-{index}", "status": "exact"}
@@ -67,14 +64,10 @@ def compatibility_result() -> dict[str, object]:
             "status_counts": statuses,
             "by_api": [{"id": "extract_text", "status_counts": statuses}],
             "by_option": [],
-            "by_fixture_class": [
-                {"id": "generated", "status_counts": statuses}
-            ],
+            "by_fixture_class": [{"id": "generated", "status_counts": statuses}],
             "by_page": [],
             "by_platform": [{"id": "macos", "status_counts": statuses}],
-            "by_artifact_type": [
-                {"id": "source", "status_counts": statuses}
-            ],
+            "by_artifact_type": [{"id": "source", "status_counts": statuses}],
         },
     }
 
@@ -210,7 +203,10 @@ class ReleaseCandidateHistoryTests(unittest.TestCase):
         history = release_candidate_scorecards.append_entry(
             policy(), empty_history(), entry
         )
-        with tempfile.TemporaryDirectory() as first_dir, tempfile.TemporaryDirectory() as second_dir:
+        with (
+            tempfile.TemporaryDirectory() as first_dir,
+            tempfile.TemporaryDirectory() as second_dir,
+        ):
             first = release_candidate_scorecards.write_assets(
                 policy(),
                 Path(first_dir),
@@ -241,6 +237,118 @@ class ReleaseCandidateHistoryTests(unittest.TestCase):
                 digest = hashlib.sha256(path.read_bytes()).hexdigest()
                 self.assertIn(f"{digest}  {path.name}\n", checksums)
 
+    def test_builder_projects_raw_parity_into_machine_and_workflow_assets(
+        self,
+    ) -> None:
+        sample_contract = compatibility_test_support.CompatibilityScorecardContractTests
+        raw_run = sample_contract.observed_run()
+        assert raw_run.report is not None
+        repository_policy = replace(
+            policy(),
+            release_version="0.3.0",
+            corpus=sample_contract.corpus(),
+            corpus_sha256="b" * 64,
+            workflow_source_path=(
+                REPO_ROOT / "compat" / "workflow-scorecard-v0.3.0.toml"
+            ),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary) / "source.tar"
+            wheel = Path(temporary) / "candidate.whl"
+            source.write_bytes(b"source")
+            wheel.write_bytes(b"wheel")
+            definitions = (
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="open", title="Open", projection="document_open"
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="text",
+                    title="Text",
+                    api_ids=(
+                        "chars",
+                        "layout_text",
+                        "page_text",
+                        "simple_text",
+                        "text_lines",
+                    ),
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="words",
+                    title="Words",
+                    api_ids=("extract_words", "words"),
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="crop", title="Crop", not_tested_reason="not observed"
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="search", title="Search", api_ids=("search",)
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="tables", title="Tables", api_ids=("tables",)
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="serialization",
+                    title="Serialization",
+                    not_tested_reason="not observed",
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="annotations",
+                    title="Annotations",
+                    api_ids=("annotations", "hyperlinks"),
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="structure",
+                    title="Structure",
+                    api_ids=("structure_tree",),
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="rendering",
+                    title="Rendering",
+                    not_tested_reason="not observed",
+                ),
+                workflow_scorecard.WorkflowDefinition(
+                    identifier="cli",
+                    title="Command-Line Interface",
+                    not_tested_reason="not observed",
+                ),
+            )
+            with (
+                mock.patch.object(
+                    build_release_candidate_scorecards,
+                    "command_output",
+                    side_effect=(
+                        "rustc 1.98.0 (88d9e12ae 2026-08-18)",
+                        "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+                        "maturin 1.14.1",
+                    ),
+                ),
+                mock.patch.object(
+                    build_release_candidate_scorecards.generate_workflow_scorecard,
+                    "workflow_definitions",
+                    return_value=definitions,
+                ),
+            ):
+                machine, workflow = (
+                    build_release_candidate_scorecards.build_compatibility(
+                        repository_policy,
+                        candidate_id="candidate-a",
+                        source_revision=SOURCE_REVISION,
+                        source_artifact=source,
+                        wheel=wheel,
+                        parity_report=dict(raw_run.report),
+                    )
+                )
+
+        self.assertEqual(machine["subject"]["revision"], SOURCE_REVISION)
+        self.assertEqual(
+            {(run["artifact_type"], tuple(run["scopes"])) for run in machine["runs"]},
+            {("source", ("api",)), ("wheel", ("option",))},
+        )
+        self.assertTrue(machine["observations"])
+        self.assertIn("# Compatibility workflows", workflow)
+        self.assertIn("No success percentage is computed", workflow)
+        self.assertNotIn("%", workflow)
+
     def test_human_history_reports_counts_without_a_success_percentage(self) -> None:
         history = release_candidate_scorecards.append_entry(
             policy(), empty_history(), self.build_entry()
@@ -264,7 +372,9 @@ class ReleaseCandidateHistoryTests(unittest.TestCase):
             WORKFLOW_PATH,
         ):
             with self.subTest(path=path):
-                self.assertTrue(path.is_file(), f"missing {path.relative_to(REPO_ROOT)}")
+                self.assertTrue(
+                    path.is_file(), f"missing {path.relative_to(REPO_ROOT)}"
+                )
 
         completed = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--check"],
@@ -284,6 +394,7 @@ class ReleaseCandidateHistoryTests(unittest.TestCase):
             "python scripts/run_benchmark_provenance.py --run",
             "scripts/setup_golden_venv.sh",
             "scripts/parity_report.py",
+            "continue-on-error: true",
             "scripts/build_release_candidate_scorecards.py --build-assets",
             "retention-days: 90",
         ):

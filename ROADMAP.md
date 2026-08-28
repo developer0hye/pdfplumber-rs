@@ -28,6 +28,8 @@ The versioned [benchmark result index](docs/benchmarks/results-v0.3.0.md) links 
 
 The [benchmark regression policy](docs/benchmarks/regressions-v0.3.0.md) documents paired-run ordering, pinned host controls, noise qualification, and semantic-first failure behavior.
 
+The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) is the chronological view for repeated competitor and compatibility scorecards. Its first verified candidate run remains required before `SCORE-014` is complete.
+
 Next benchmark task: [`SCORE-014`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
 ## Next
