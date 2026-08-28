@@ -34,6 +34,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | cargo-semver-checks and Cargo | [rust-semver-checks.md](rust-semver-checks.md) | Reviewing release API compatibility, baselines, approved breaks, or migration-note gates |
 | Rust Reference and Cargo | [rust-deprecation.md](rust-deprecation.md) | Reviewing deprecation annotations, support windows, removal gates, or safety exceptions |
 | Rust and Cargo | [rust-toolchain-policy.md](rust-toolchain-policy.md) | Reviewing the rolling stable toolchain policy or dependency compiler requirements |
+| Rust API Guidelines, standard library, Rust Reference, and RFC 1105 | [rust-api-design.md](rust-api-design.md) | Reviewing ownership, allocations, iterators, determinism, errors, extension traits, or future compatibility |
 
 ## Font Parsing
 

@@ -56,6 +56,7 @@ features = [
     "Optional serde and parallel features with an additive combination contract",
     "Two-subsequent-minor-release deprecation window for the stable Rust facade",
     "Source-backed six-crate architecture, extraction flow, cache, and extension guide",
+    "Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility",
 ]
 known_limitations = [
     "The 0.3.x API is alpha and may change before the stable contract is complete.",
@@ -73,6 +74,8 @@ evidence = [
     "compat/tests/test_rust_deprecation_policy.py",
     "docs/architecture.md",
     "compat/tests/test_rust_architecture.py",
+    "docs/rust-api-design.md",
+    "compat/tests/test_rust_api_design.py",
     "README.md",
     "PRD.md",
 ]
