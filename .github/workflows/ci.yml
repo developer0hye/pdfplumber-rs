@@ -187,6 +187,9 @@ jobs:
       - name: Validate the versioned benchmark corpus
         run: python scripts/generate_benchmark_corpus.py --check
 
+      - name: Validate benchmark output equivalence policy
+        run: python scripts/check_benchmark_equivalence.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

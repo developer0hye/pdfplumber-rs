@@ -59,23 +59,27 @@ class PerformanceClaimContractTests(unittest.TestCase):
             ROOT / "crates/pdfplumber-py/README.md": (
                 "../../docs/comparison.md",
                 "../../docs/benchmarks/corpus-v0.3.0.md",
+                "../../docs/benchmarks/equivalence-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber-wasm/README.md": (
                 "../../docs/comparison.md",
                 "../../docs/benchmarks/corpus-v0.3.0.md",
+                "../../docs/benchmarks/equivalence-v0.3.0.md",
             ),
             ROOT / "crates/pdfplumber/benches/README.md": (
                 "../../../docs/comparison.md",
                 "../../../docs/benchmarks/corpus-v0.3.0.md",
+                "../../../docs/benchmarks/equivalence-v0.3.0.md",
             ),
         }
 
-        for path, (comparison_link, corpus_link) in readmes.items():
+        for path, (comparison_link, corpus_link, equivalence_link) in readmes.items():
             with self.subTest(path=path.relative_to(ROOT)):
                 text = path.read_text(encoding="utf-8")
                 self.assertIn(comparison_link, text)
                 self.assertIn(corpus_link, text)
-                self.assertIn("SCORE-002", text)
+                self.assertIn(equivalence_link, text)
+                self.assertIn("SCORE-003", text)
                 self.assertIn("SCORE-009", text)
 
         comparison = (ROOT / "docs/comparison.md").read_text(encoding="utf-8")

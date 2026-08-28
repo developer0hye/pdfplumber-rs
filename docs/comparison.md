@@ -31,9 +31,9 @@ No cross-project performance result is currently claimed by `pdfplumber-rs`.
 
 The current `pdfplumber-rs` corpus provides compatibility evidence, not a fair speed comparison. It indexes 223 PDFs and pins Python `pdfplumber` v0.11.10, but known parse failures and incomplete API/schema parity remain explicit in the [Evidence Ledger](../PRD.md#13-evidence-ledger).
 
-The versioned [benchmark corpus](benchmarks/corpus-v0.3.0.md) now selects ten redistributable, digest-bound inputs spanning the required semantic and size classes. It is an input definition, not a result.
+The versioned [benchmark corpus](benchmarks/corpus-v0.3.0.md) selects ten redistributable, digest-bound inputs spanning the required semantic and size classes. The [output-equivalence preflight](benchmarks/equivalence-v0.3.0.md) then requires two distinct implementations to use the same fixture digest, exact request semantics, canonical output schema, and exact canonical JSON result before a case becomes eligible for timing. Errors, unsupported behavior, and any mismatch are blocked rather than timed.
 
-A future cross-project result becomes publishable only after `SCORE-002` through `SCORE-009` add pinned competitors, materially equivalent outputs, an equivalence preflight, separated cold/warm stages, complete environment and command metadata, and raw artifacts. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
+A future cross-project result becomes publishable only after `SCORE-003` through `SCORE-009` add pinned competitors, separated cold/warm stages, complete environment and command metadata, and raw artifacts. The corpus and equivalence policy are correctness foundations, not performance results. The full policy is the [benchmark and comparison contract](../PRD.md#75-benchmark-and-comparison-contract).
 
 ## Product interpretation
 
