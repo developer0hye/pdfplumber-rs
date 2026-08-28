@@ -35,7 +35,7 @@ commit list.
   Node module startup are measured without attributing the combined competitor
   adapter binary to any one implementation. A clean-source run contract now
   records host hardware and operating system, Python/Rust/build-tool versions,
-  build flags, dependency-lock and built-artifact digests, fixture hashes, and
+  explicit release build flags, dependency-lock and built-artifact digests, fixture hashes, and
   exact argument arrays. It retains five round-robin raw repetitions per eligible
   key and emits sample-bound minimum, median, mean, maximum, sample-deviation, and
   relative-deviation summaries. Results remain local and unpublished.

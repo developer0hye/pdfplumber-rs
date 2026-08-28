@@ -33,7 +33,7 @@ flags = ["--release", "--locked", "features=parallel"]
 [[builds]]
 id = "candidate-python-wheel"
 command_argv = ["python3.13", "scripts/setup_candidate_venv.py", "--python", "python3.13"]
-flags = ["maturin=1.14.1", "pip=--no-deps"]
+flags = ["maturin=1.14.1", "profile=release", "pip=--no-deps"]
 
 [[tools]]
 id = "harness-python"

@@ -5,13 +5,12 @@ from __future__ import annotations
 
 import argparse
 import os
-from pathlib import Path
 import shutil
 import subprocess
-import sys
+from pathlib import Path
 from tempfile import TemporaryDirectory
-import tomllib
 
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 UPSTREAM_CONFIG = REPO_ROOT / "compat" / "upstream.toml"
@@ -115,6 +114,7 @@ def build_wheel(interpreter: str, output: Path) -> Path:
             str(REPO_ROOT / "crates" / "pdfplumber-py" / "Cargo.toml"),
             "--interpreter",
             interpreter,
+            "--release",
             "--out",
             str(output),
         ],

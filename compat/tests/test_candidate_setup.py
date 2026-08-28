@@ -1,8 +1,8 @@
 """Contracts for constructing the isolated installed-candidate environment."""
 
+import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import unittest
 from unittest import mock
 
 from scripts import setup_candidate_venv

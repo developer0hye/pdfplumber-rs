@@ -107,7 +107,11 @@ def run_metadata() -> dict[str, object]:
                     "--python",
                     "python3.13",
                 ],
-                "flags": ["maturin=1.14.1", "pip=--no-deps"],
+                "flags": [
+                    "maturin=1.14.1",
+                    "profile=release",
+                    "pip=--no-deps",
+                ],
             },
         ],
         "dependency_locks": [

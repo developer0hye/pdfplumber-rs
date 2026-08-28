@@ -12,7 +12,7 @@ Compiler and interpreter evidence includes the harness, reference, and candidate
 
 | Artifact | Command | Material flags |
 |---|---|---|
-| `candidate-python-wheel` | `python3.13 scripts/setup_candidate_venv.py --python python3.13` | `maturin=1.14.1`, `pip=--no-deps` |
+| `candidate-python-wheel` | `python3.13 scripts/setup_candidate_venv.py --python python3.13` | `maturin=1.14.1`, `profile=release`, `pip=--no-deps` |
 | `rust-benchmark-adapter` | `cargo build --manifest-path benchmarks/adapters/rust/Cargo.toml --target-dir benchmarks/adapters/rust/target --release --locked` | `--release`, `--locked`, `features=parallel` |
 
 | Dependency role | Lock | Run record |
@@ -21,7 +21,7 @@ Compiler and interpreter evidence includes the harness, reference, and candidate
 | `rust-benchmark-adapter` | `benchmarks/adapters/rust/Cargo.lock` | SHA-256 recorded at run time |
 | `rust-workspace` | `Cargo.lock` | SHA-256 recorded at run time |
 
-The pinned Python reference environment is rebuilt from `compat/requirements-golden.txt` with hashes required. The candidate setup enforces Maturin 1.14.1, installs its local wheel with `--no-deps`, and the Rust adapter uses its committed lock with release mode and the candidate's `parallel` feature.
+The pinned Python reference environment is rebuilt from `compat/requirements-golden.txt` with hashes required. The candidate setup enforces Maturin 1.14.1, builds its local wheel in the release profile, and installs it with `--no-deps`; the Rust adapter uses its committed lock with release mode and the candidate's `parallel` feature.
 
 ## Repetitions and statistics
 

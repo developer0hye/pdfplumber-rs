@@ -531,7 +531,7 @@ def render_markdown(plan: ProvenancePlan) -> str:
             "|---|---|---|",
             *lock_rows,
             "",
-            "The pinned Python reference environment is rebuilt from `compat/requirements-golden.txt` with hashes required. The candidate setup enforces Maturin 1.14.1, installs its local wheel with `--no-deps`, and the Rust adapter uses its committed lock with release mode and the candidate's `parallel` feature.",
+            "The pinned Python reference environment is rebuilt from `compat/requirements-golden.txt` with hashes required. The candidate setup enforces Maturin 1.14.1, builds its local wheel in the release profile, and installs it with `--no-deps`; the Rust adapter uses its committed lock with release mode and the candidate's `parallel` feature.",
             "",
             "## Repetitions and statistics",
             "",
@@ -662,6 +662,16 @@ def _validate_metadata_commands(
         raise BenchmarkProvenanceError(
             f"run metadata.{context} ids must be {sorted(required_ids)}"
         )
+    if context == "builds":
+        candidate = next(
+            item
+            for item in value
+            if isinstance(item, dict) and item.get("id") == "candidate-python-wheel"
+        )
+        if "profile=release" not in candidate.get("flags", []):
+            raise BenchmarkProvenanceError(
+                "candidate-python-wheel must record profile=release"
+            )
 
 
 def _validate_metadata_files(
