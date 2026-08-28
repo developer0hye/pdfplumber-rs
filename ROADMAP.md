@@ -10,13 +10,14 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Prove clean Rust package consumption
+### Prove reproducible Rust development
 
-Build every publishable Rust package through Cargo's package boundary and keep
-a reproducible clean environment that exercises the same first-use and focused
-contributor paths as source Continuous Integration.
+Keep a reproducible clean environment that exercises the same first-use and
+focused contributor paths as source Continuous Integration. Every publishable
+Rust package already crosses a verified Cargo package and dry-run boundary from
+the exact candidate commit before a tagged release can publish it.
 
-Detailed tasks: [`DIST-001`](PRD.md#824-p1--distribution-and-installation), [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
+Detailed task: [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
 
 ### Turn compatibility results into a public scorecard
 

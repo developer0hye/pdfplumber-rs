@@ -28,6 +28,11 @@ commit list.
   the published library baselines. Detected breaks require both a compatible
   release-version increment and actionable migration notes in the release
   changelog.
+- **Platform:** Every crates.io candidate now runs verified `cargo package` and
+  `cargo publish --dry-run` commands from one exact clean commit before tagged
+  publication. Coordinated workspace dependencies are patched only during the
+  candidate preflight; ordinary publication still verifies registry-resolvable
+  predecessors.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional

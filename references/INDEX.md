@@ -36,6 +36,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust and Cargo | [rust-toolchain-policy.md](rust-toolchain-policy.md) | Reviewing the rolling stable toolchain policy or dependency compiler requirements |
 | Rust API Guidelines, standard library, Rust Reference, and RFC 1105 | [rust-api-design.md](rust-api-design.md) | Reviewing ownership, allocations, iterators, determinism, errors, extension traits, or future compatibility |
 | Cargo | [rust-ttfv.md](rust-ttfv.md) | Reproducing or reviewing clean-project Rust time-to-first-value measurements and cache isolation |
+| Cargo | [cargo-packaging.md](cargo-packaging.md) | Reviewing verified crate archives, publish dry runs, coordinated workspace releases, or exact-commit package provenance |
 
 ## Font Parsing
 
