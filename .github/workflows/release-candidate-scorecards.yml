@@ -78,6 +78,9 @@ jobs:
           --wheel "$RUNNER_TEMP/release-candidate-scorecards/wheels/"*.whl
 
       - name: Generate candidate option results
+        # Unsupported candidate options are scorecard observations. The
+        # generated report is still required by the strict asset builder.
+        continue-on-error: true
         run: >-
           .venv-candidate/bin/python scripts/generate_option_matrix.py
           --candidate-output

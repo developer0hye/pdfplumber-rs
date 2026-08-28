@@ -419,6 +419,21 @@ class ReleaseCandidateHistoryTests(unittest.TestCase):
             ci,
         )
 
+    def test_observed_gap_producers_do_not_block_scorecard_asset_building(self) -> None:
+        workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+
+        for step_name in (
+            "Generate candidate option results",
+            "Re-run the complete compatibility scorecard input",
+        ):
+            with self.subTest(step_name=step_name):
+                marker = f"      - name: {step_name}\n"
+                self.assertIn(marker, workflow)
+                step = workflow.split(marker, maxsplit=1)[1].split(
+                    "\n      - name:", maxsplit=1
+                )[0]
+                self.assertIn("continue-on-error: true", step)
+
 
 if __name__ == "__main__":
     unittest.main()
