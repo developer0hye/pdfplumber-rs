@@ -13,6 +13,7 @@ RUST_API = (ROOT / "docs/rust-api.md").read_text(encoding="utf-8")
 CRATE_DOCS = (ROOT / "crates/pdfplumber/src/lib.rs").read_text(encoding="utf-8")
 CHANGELOG = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 ROADMAP = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
+PRD = (ROOT / "PRD.md").read_text(encoding="utf-8")
 REFERENCE_INDEX = (ROOT / "references/INDEX.md").read_text(encoding="utf-8")
 SUPPORT_SOURCE = (ROOT / "support-matrix.toml").read_text(encoding="utf-8")
 DEPRECATED_ATTRIBUTE = re.compile(
@@ -115,6 +116,11 @@ class RustDeprecationPolicyContractTests(unittest.TestCase):
 
         self.assertNotIn("### Define a deprecation policy", ROADMAP)
         self.assertIn("DX-016", ROADMAP)
+        self.assertIn("- [x] **DX-015**", PRD)
+        self.assertRegex(
+            PRD,
+            r"(?m)^\| `DX-015` \| 2026-08-28 \| Codex \| PR #427 \|",
+        )
 
 
 if __name__ == "__main__":
