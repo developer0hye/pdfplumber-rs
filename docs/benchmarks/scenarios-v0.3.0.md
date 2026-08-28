@@ -28,4 +28,4 @@ python3 scripts/run_benchmark_scenarios.py --check
 python3 scripts/run_benchmark_scenarios.py --run --output /tmp/pdfplumber-rs-scenarios.json
 ```
 
-Scenario results remain local and unpublished. Complete environment capture, repetitions, and statistical summaries are defined by SCORE-007; retained release artifacts and result-removal policy remain open under SCORE-008 and SCORE-009.
+Scenario results are not published without the complete SCORE-007 environment, repetition, and statistical provenance. SCORE-008 publishes that exact-tag result bundle; the result-removal policy remains SCORE-009.

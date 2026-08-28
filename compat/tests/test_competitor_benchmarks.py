@@ -173,7 +173,8 @@ class CompetitorBenchmarkContractTests(unittest.TestCase):
         )
         comparison = (REPO_ROOT / "docs" / "comparison.md").read_text(encoding="utf-8")
         self.assertIn("competitors-v0.3.0.md", comparison)
-        self.assertIn("local and unpublished", comparison)
+        self.assertIn("not published independently", comparison)
+        self.assertIn("benchmarks/results-v0.3.0.md", comparison)
 
     def test_saved_run_keeps_rejections_untimed(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

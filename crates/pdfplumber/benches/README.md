@@ -16,8 +16,9 @@ native and WebAssembly artifacts. The
 distinguishes cold/warm state, cache hits, page scope, and bounded parallel work.
 Its [run-provenance contract](../../../docs/benchmarks/provenance-v0.3.0.md)
 binds environment/build inputs, five raw repetitions, and descriptive summaries.
-Publication remains deferred through `SCORE-008` and `SCORE-009` until it satisfies the
-[comparison policy](../../../docs/comparison.md).
+The versioned `SCORE-008` [benchmark result assets](../../../docs/benchmarks/results-v0.3.0.md)
+retain that complete exact-tag run; `SCORE-009` and the
+[comparison policy](../../../docs/comparison.md) govern removal without promoting a ranking.
 
 ## Running Benchmarks
 

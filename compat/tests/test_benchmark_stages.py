@@ -205,7 +205,8 @@ class BenchmarkStageContractTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("benchmarks/stages-v0.3.0.md", comparison)
-        self.assertIn("local and unpublished", comparison)
+        self.assertIn("not published independently", comparison)
+        self.assertIn("benchmarks/results-v0.3.0.md", comparison)
         roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
         self.assertIn("`SCORE-004`", roadmap)
         self.assertIn("`SCORE-005`", roadmap)

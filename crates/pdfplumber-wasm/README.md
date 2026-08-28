@@ -179,8 +179,9 @@ and unpublished; browser startup, memory, and statistical gates remain open.
 The [run-provenance contract](../../docs/benchmarks/provenance-v0.3.0.md)
 records environment/build inputs and retains five raw repetitions plus descriptive summaries
 for the native comparison workloads; it does not expand browser coverage.
-Cross-project results remain deferred through `SCORE-008` and `SCORE-009` until they satisfy the
-[comparison policy](../../docs/comparison.md).
+The versioned `SCORE-008` [benchmark result assets](../../docs/benchmarks/results-v0.3.0.md)
+retain that complete exact-tag native run; `SCORE-009` and the
+[comparison policy](../../docs/comparison.md) govern removal without expanding browser evidence.
 
 ## License
 

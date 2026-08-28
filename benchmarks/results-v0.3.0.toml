@@ -1,0 +1,15 @@
+# SCORE-008 release-asset identity. The tag must target the recorded source.
+
+[schema]
+version = 1
+
+[publication]
+id = "pdfplumber-rs-benchmark-results-v0.3.0"
+release = "0.3.0"
+provenance_suite_id = "pdfplumber-rs-provenance-v0.3.0"
+release_tag = "benchmark-results-v0.3.0"
+source_policy = "exact-tag-target"
+runner = "macos-14"
+raw_asset = "pdfplumber-rs-benchmark-results-v0.3.0.json"
+report_asset = "pdfplumber-rs-benchmark-results-v0.3.0.md"
+checksums_asset = "pdfplumber-rs-benchmark-results-v0.3.0.sha256"

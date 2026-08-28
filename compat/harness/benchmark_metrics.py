@@ -439,10 +439,10 @@ def render_markdown(suite: MetricSuite) -> str:
             "```",
             "",
             (
-                "SCORE-005 results remain local and unpublished. SCORE-006 and SCORE-007 add "
-                "scenario separation, complete environment capture, five raw repetitions, and "
-                "statistical summaries. Retained release artifacts and result-removal policy "
-                "remain open under SCORE-008 and SCORE-009."
+                "SCORE-005 component results are not published independently. SCORE-006 and "
+                "SCORE-007 add scenario separation, complete environment capture, five raw "
+                "repetitions, and statistical summaries. SCORE-008 publishes only the complete "
+                "exact-tag result bundle; the result-removal policy remains SCORE-009."
             ),
             "",
         )

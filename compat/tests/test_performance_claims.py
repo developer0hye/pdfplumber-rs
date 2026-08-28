@@ -103,7 +103,7 @@ class PerformanceClaimContractTests(unittest.TestCase):
 
         comparison = (ROOT / "docs/comparison.md").read_text(encoding="utf-8")
         self.assertIn(
-            "No cross-project performance result is currently claimed by `pdfplumber-rs`.",
+            "`pdfplumber-rs` draws no broad cross-project performance conclusion from them.",
             comparison,
         )
 
