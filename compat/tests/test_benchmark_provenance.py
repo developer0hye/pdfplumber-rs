@@ -299,6 +299,24 @@ class BenchmarkProvenanceContractTests(unittest.TestCase):
         ):
             benchmark_provenance.validate_run_metadata(incomplete, repetitions=5)
 
+    def test_recorded_argv_keeps_repository_symlinks_relocatable(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            temporary_root = Path(temporary_directory)
+            repository = temporary_root / "repository"
+            repository.mkdir()
+            external_python = temporary_root / "external-python"
+            external_python.touch()
+            environment_python = repository / ".venv-reference" / "bin" / "python"
+            environment_python.parent.mkdir(parents=True)
+            environment_python.symlink_to(external_python)
+
+            self.assertEqual(
+                benchmark_provenance.recorded_argv(
+                    [str(environment_python), "-VV"], repository
+                ),
+                [".venv-reference/bin/python", "-VV"],
+            )
+
     def test_cli_check_gates_report_ci_and_public_links(self) -> None:
         plan = self.load_plan()
         completed = subprocess.run(
