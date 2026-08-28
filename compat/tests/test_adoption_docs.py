@@ -41,8 +41,9 @@ class AdoptionDocsContractTests(unittest.TestCase):
                 self.assertIn(project, comparison)
 
         self.assertIn(
-            "No cross-project performance result is currently claimed by "
-            "`pdfplumber-rs`.",
+            "The versioned assets report reproducible cross-project observations; "
+            "`pdfplumber-rs` draws no broad cross-project performance conclusion "
+            "from them.",
             comparison,
         )
 
