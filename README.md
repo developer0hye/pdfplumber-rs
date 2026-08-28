@@ -66,6 +66,9 @@ pdfplumber = "0.3"
 | `serde`    | No      | Adds `Serialize`/`Deserialize`; curated-model JSON follows [`serde-json-v1`](docs/rust-serde-schema.md). |
 | `parallel` | No      | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible.|
 
+Defaults, additive behavior, workspace packaging flags, and the tested
+combination matrix are defined in the [Rust feature policy](docs/rust-features.md).
+
 ## Quick Start
 
 ### Extract Text

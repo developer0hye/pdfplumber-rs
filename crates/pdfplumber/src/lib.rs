@@ -127,6 +127,9 @@
 //! | `serde` | No | Adds `Serialize`/`Deserialize`; curated-model JSON follows a versioned compatibility policy. |
 //! | `parallel` | No | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible. |
 //!
+//! Features are additive and their supported combinations are defined by the
+//! [Rust feature policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-features.md).
+//!
 //! # Extracting Text
 //!
 //! ```no_run

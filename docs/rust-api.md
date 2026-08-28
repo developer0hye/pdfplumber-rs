@@ -20,6 +20,11 @@ facade. Feature-gated items are included when their feature is enabled:
 `Pdf::open_path` under the default `std` feature, the curated Serde contract
 under `serde`, and `Pdf::pages_parallel` under `parallel`.
 
+The [Rust feature policy](rust-features.md) defines the default, additive
+integration boundary, package-specific flags, and the representative
+combination matrix. Parser-only and packaging-only flags remain outside the
+stable facade.
+
 Compatibility aliases marked `#[doc(hidden)]` remain callable during the alpha
 line but are not a second generated facade. Other types and algorithms
 re-exported at the crate root remain source compatible for now, but only the
