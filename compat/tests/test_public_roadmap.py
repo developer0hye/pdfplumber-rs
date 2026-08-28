@@ -36,7 +36,7 @@ class PublicRoadmapContractTests(unittest.TestCase):
         self.assertNotRegex(roadmap, TASK_PATTERN)
 
         task_ids = TASK_LINK_PATTERN.findall(roadmap)
-        self.assertGreaterEqual(len(task_ids), 12)
+        self.assertGreaterEqual(len(task_ids), 11)
         self.assertLessEqual(len(task_ids), 24)
         self.assertEqual(len(task_ids), len(set(task_ids)))
 

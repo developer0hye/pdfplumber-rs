@@ -22,11 +22,11 @@ Define a redistributable workload corpus and reject timing comparisons unless
 the requested outputs and semantics are materially equivalent. Performance
 evidence will follow the correctness gate, not substitute for it.
 
-Completed foundations: `SCORE-001`, `SCORE-002`, `SCORE-003`, `SCORE-004`, `SCORE-005`, `SCORE-006`, and `SCORE-007`.
+Completed foundations: `SCORE-001`, `SCORE-002`, `SCORE-003`, `SCORE-004`, `SCORE-005`, `SCORE-006`, `SCORE-007`, and `SCORE-008`.
 
-The versioned [benchmark result index](docs/benchmarks/results-v0.3.0.md) defines the exact-tag raw JSON, concise human report, and checksum assets; remote publication evidence is required before `SCORE-008` is complete.
+The versioned [benchmark result index](docs/benchmarks/results-v0.3.0.md) links the published exact-tag raw JSON, concise human report, and checksum assets.
 
-Detailed tasks: [`SCORE-008`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-009`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+Detailed task: [`SCORE-009`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
 ## Next
 
