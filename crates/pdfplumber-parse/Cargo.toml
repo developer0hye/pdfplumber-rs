@@ -2,7 +2,6 @@
 name = "pdfplumber-parse"
 version = "0.3.0"
 edition.workspace = true
-rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Alpha parser and content-stream interpreter for evidence-driven PDF extraction"
@@ -17,8 +16,7 @@ tracing = ["dep:tracing"]
 
 [dependencies]
 pdfplumber-core = { version = "0.3.0", path = "../pdfplumber-core" }
-lopdf = { version = "0.39", default-features = false }
-lopdf_pre_nom_locate = { package = "lopdf", version = "0.34", default-features = false, features = ["nom_parser"] }
+lopdf = { version = "0.44", default-features = false }
 thiserror = "2"
 encoding_rs = "0.8"
 tracing = { version = "0.1", optional = true }

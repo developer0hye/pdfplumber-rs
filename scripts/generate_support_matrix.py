@@ -107,7 +107,7 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
     release_version = require_string(source, "release_version", "matrix")
     if not VERSION_PATTERN.fullmatch(release_version):
         raise MatrixError("matrix.release_version must be a semantic version")
-    rust_version = require_string(source, "rust_version", "matrix")
+    rust_policy = require_string(source, "rust_policy", "matrix")
     license_expression = require_string(source, "license", "matrix")
     repository = require_string(source, "repository", "matrix")
     release_notes = require_string(source, "release_notes", "matrix")
@@ -124,11 +124,18 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
 
     workspace = tomllib.loads((REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8"))
     workspace_package = workspace["workspace"]["package"]
-    actual_rust_version = workspace_package["rust-version"]
-    if rust_version != actual_rust_version:
-        raise MatrixError(
-            f"matrix rust_version {rust_version} != workspace {actual_rust_version}"
-        )
+    if rust_policy != "rolling-stable":
+        raise MatrixError("matrix.rust_policy must be rolling-stable")
+    if "rust-version" in workspace_package:
+        raise MatrixError("rolling-stable policy forbids a workspace rust-version")
+    for member in workspace["workspace"]["members"]:
+        package = tomllib.loads(
+            (REPO_ROOT / member / "Cargo.toml").read_text(encoding="utf-8")
+        )["package"]
+        if "rust-version" in package:
+            raise MatrixError(
+                f"rolling-stable policy forbids rust-version in {member}/Cargo.toml"
+            )
     if license_expression != workspace_package.get("license"):
         raise MatrixError(
             f"matrix license {license_expression} != workspace "
@@ -267,6 +274,8 @@ def render(source: dict[str, Any]) -> str:
         "",
         "Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.",
         "",
+        "Rust packages follow the rolling stable channel: required CI uses the current stable toolchain, package manifests publish no fixed Minimum Supported Rust Version, and older compilers are not part of the support contract.",
+        "",
         "## Positioning and registry descriptions",
         "",
         source["positioning"],
@@ -370,7 +379,7 @@ def render(source: dict[str, Any]) -> str:
             "python3 scripts/generate_support_matrix.py --check",
             "```",
             "",
-            "The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.",
+            "The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, rolling-stable Rust policy, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.",
             "",
         )
     )

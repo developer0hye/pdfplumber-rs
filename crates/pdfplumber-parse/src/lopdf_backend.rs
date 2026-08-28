@@ -533,94 +533,6 @@ fn try_repair_xref(bytes: &[u8]) -> Option<Vec<u8>> {
     try_restore_truncated_xref_suffix(candidate).or(startxref_fixed)
 }
 
-// lopdf 0.35 through 0.40 use nom_locate while parsing every indirect object.
-// Its offset tracking repeatedly scans the input prefix, making object-dense
-// PDFs quadratic to open. lopdf 0.41 removes nom_locate, but that release uses
-// syntax newer than its declared Rust 1.85 minimum. Keep the current parser for
-// ordinary and encrypted inputs, and use the pre-regression parser only for
-// clearly object-dense, successfully parsed, unencrypted documents. Failed
-// probes still reach the current parser and its existing repair path.
-const OBJECT_DENSE_FAST_PATH_MIN_OBJECTS: usize = 10_000;
-
-fn has_many_indirect_object_headers(bytes: &[u8]) -> bool {
-    bytes
-        .windows(b" obj".len())
-        .filter(|window| *window == b" obj")
-        .nth(OBJECT_DENSE_FAST_PATH_MIN_OBJECTS - 1)
-        .is_some()
-}
-
-fn try_load_object_dense_unencrypted(bytes: &[u8]) -> Option<lopdf::Document> {
-    if !has_many_indirect_object_headers(bytes) {
-        return None;
-    }
-
-    let document = lopdf_pre_nom_locate::Document::load_mem(bytes).ok()?;
-    if document.is_encrypted() || document.objects.len() < OBJECT_DENSE_FAST_PATH_MIN_OBJECTS {
-        return None;
-    }
-
-    Some(convert_fast_document(document))
-}
-
-fn load_mem_for_extraction(bytes: &[u8]) -> Result<lopdf::Document, lopdf::Error> {
-    match try_load_object_dense_unencrypted(bytes) {
-        Some(document) => Ok(document),
-        None => lopdf::Document::load_mem(bytes),
-    }
-}
-
-fn convert_fast_document(source: lopdf_pre_nom_locate::Document) -> lopdf::Document {
-    let mut target = lopdf::Document::with_version(source.version);
-    target.trailer = convert_fast_dictionary(source.trailer);
-    target.objects = source
-        .objects
-        .into_iter()
-        .map(|(id, object)| (id, convert_fast_object(object)))
-        .collect();
-    target.max_id = source.max_id;
-    target.xref_start = source.xref_start;
-    target
-}
-
-fn convert_fast_dictionary(source: lopdf_pre_nom_locate::Dictionary) -> lopdf::Dictionary {
-    source
-        .into_iter()
-        .map(|(key, value)| (key, convert_fast_object(value)))
-        .collect()
-}
-
-fn convert_fast_object(source: lopdf_pre_nom_locate::Object) -> lopdf::Object {
-    match source {
-        lopdf_pre_nom_locate::Object::Null => lopdf::Object::Null,
-        lopdf_pre_nom_locate::Object::Boolean(value) => lopdf::Object::Boolean(value),
-        lopdf_pre_nom_locate::Object::Integer(value) => lopdf::Object::Integer(value),
-        lopdf_pre_nom_locate::Object::Real(value) => lopdf::Object::Real(value),
-        lopdf_pre_nom_locate::Object::Name(value) => lopdf::Object::Name(value),
-        lopdf_pre_nom_locate::Object::String(value, format) => lopdf::Object::String(
-            value,
-            match format {
-                lopdf_pre_nom_locate::StringFormat::Literal => lopdf::StringFormat::Literal,
-                lopdf_pre_nom_locate::StringFormat::Hexadecimal => lopdf::StringFormat::Hexadecimal,
-            },
-        ),
-        lopdf_pre_nom_locate::Object::Array(values) => {
-            lopdf::Object::Array(values.into_iter().map(convert_fast_object).collect())
-        }
-        lopdf_pre_nom_locate::Object::Dictionary(dictionary) => {
-            lopdf::Object::Dictionary(convert_fast_dictionary(dictionary))
-        }
-        lopdf_pre_nom_locate::Object::Stream(stream) => {
-            let mut converted =
-                lopdf::Stream::new(convert_fast_dictionary(stream.dict), stream.content);
-            converted.allows_compression = stream.allows_compression;
-            converted.start_position = stream.start_position;
-            lopdf::Object::Stream(converted)
-        }
-        lopdf_pre_nom_locate::Object::Reference(id) => lopdf::Object::Reference(id),
-    }
-}
-
 impl PdfBackend for LopdfBackend {
     type Document = LopdfDocument;
     type Page = LopdfPage;
@@ -632,7 +544,7 @@ impl PdfBackend for LopdfBackend {
         let effective_bytes = try_strip_preamble(bytes);
         let bytes = effective_bytes.as_deref().unwrap_or(bytes);
 
-        let mut inner = match load_mem_for_extraction(bytes) {
+        let mut inner = match lopdf::Document::load_mem(bytes) {
             Ok(doc) => doc,
             Err(original_err) => {
                 // Attempt startxref recovery: scan for the `xref` keyword
@@ -640,7 +552,7 @@ impl PdfBackend for LopdfBackend {
                 // malformed PDFs like issue-297-example.pdf where the
                 // startxref offset is incorrect.
                 if let Some(repaired) = try_repair_xref(bytes) {
-                    load_mem_for_extraction(&repaired).map_err(|_| {
+                    lopdf::Document::load_mem(&repaired).map_err(|_| {
                         BackendError::Parse(format!("failed to parse PDF: {original_err}"))
                     })?
                 } else {
@@ -680,28 +592,27 @@ impl PdfBackend for LopdfBackend {
     }
 
     fn open_with_password(bytes: &[u8], password: &[u8]) -> Result<Self::Document, Self::Error> {
-        let inner = if let Some(document) = try_load_object_dense_unencrypted(bytes) {
-            Ok(document)
-        } else {
-            match std::str::from_utf8(password) {
-                Ok(password) => (|| {
-                    // Probe authentication separately so unsupported encryption is not
-                    // collapsed into lopdf's loader-level InvalidPassword result. The
-                    // password-aware load is still required afterwards because it
-                    // materializes the decrypted object graph used for page lookup.
-                    let probe = lopdf::Document::load_mem(bytes)?;
-                    if probe.is_encrypted() {
-                        probe.authenticate_password(password)?;
-                    }
-                    lopdf::Document::load_mem_with_password(bytes, password)
-                })(),
-                Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
-                    if inner.is_encrypted() {
-                        inner.decrypt_raw(password)?;
-                    }
-                    Ok(inner)
-                }),
-            }
+        let inner = match std::str::from_utf8(password) {
+            Ok(password) => (|| {
+                // Probe authentication separately so unsupported encryption is not
+                // collapsed into lopdf's loader-level InvalidPassword result. The
+                // password-aware load is still required afterwards because it
+                // materializes the decrypted object graph used for page lookup.
+                let probe = lopdf::Document::load_mem(bytes)?;
+                if probe.is_encrypted() {
+                    probe.authenticate_password(password)?;
+                }
+                lopdf::Document::load_mem_with_options(
+                    bytes,
+                    lopdf::LoadOptions::with_password(password),
+                )
+            })(),
+            Err(_) => lopdf::Document::load_mem(bytes).and_then(|mut inner| {
+                if inner.is_encrypted() {
+                    inner.decrypt_raw(password)?;
+                }
+                Ok(inner)
+            }),
         }
         .map_err(|error| {
             if matches!(
@@ -1072,16 +983,16 @@ fn validate_document(doc: &LopdfDocument) -> Result<Vec<ValidationIssue>, Backen
     if let Some(dict) = catalog_dict {
         match dict.get(b"Type") {
             Ok(type_obj) => {
-                if let Ok(name) = type_obj.as_name() {
-                    if name != b"Catalog" {
-                        let name_str = String::from_utf8_lossy(name);
-                        issues.push(ValidationIssue::with_location(
-                            Severity::Warning,
-                            "WRONG_CATALOG_TYPE",
-                            format!("catalog /Type is '{name_str}' instead of 'Catalog'"),
-                            &catalog_location,
-                        ));
-                    }
+                if let Ok(name) = type_obj.as_name()
+                    && name != b"Catalog"
+                {
+                    let name_str = String::from_utf8_lossy(name);
+                    issues.push(ValidationIssue::with_location(
+                        Severity::Warning,
+                        "WRONG_CATALOG_TYPE",
+                        format!("catalog /Type is '{name_str}' instead of 'Catalog'"),
+                        &catalog_location,
+                    ));
                 }
             }
             Err(_) => {
@@ -1116,16 +1027,16 @@ fn validate_document(doc: &LopdfDocument) -> Result<Vec<ValidationIssue>, Backen
                     // Check page /Type key
                     match dict.get(b"Type") {
                         Ok(type_obj) => {
-                            if let Ok(name) = type_obj.as_name() {
-                                if name != b"Page" {
-                                    let name_str = String::from_utf8_lossy(name);
-                                    issues.push(ValidationIssue::with_location(
-                                        Severity::Warning,
-                                        "WRONG_PAGE_TYPE",
-                                        format!("page /Type is '{name_str}' instead of 'Page'"),
-                                        &location,
-                                    ));
-                                }
+                            if let Ok(name) = type_obj.as_name()
+                                && name != b"Page"
+                            {
+                                let name_str = String::from_utf8_lossy(name);
+                                issues.push(ValidationIssue::with_location(
+                                    Severity::Warning,
+                                    "WRONG_PAGE_TYPE",
+                                    format!("page /Type is '{name_str}' instead of 'Page'"),
+                                    &location,
+                                ));
                             }
                         }
                         Err(_) => {
@@ -1250,14 +1161,14 @@ fn get_resource_font_names(
             .and_then(|obj| obj.as_dict().ok())
     };
 
-    if let Some(resources_dict) = resources {
-        if let Ok(font_obj) = resources_dict.get(b"Font") {
-            let font_obj = resolve_ref(doc, font_obj);
-            if let Ok(font_dict) = font_obj.as_dict() {
-                for (key, _) in font_dict.iter() {
-                    if let Ok(name) = std::str::from_utf8(key) {
-                        names.push(name.to_string());
-                    }
+    if let Some(resources_dict) = resources
+        && let Ok(font_obj) = resources_dict.get(b"Font")
+    {
+        let font_obj = resolve_ref(doc, font_obj);
+        if let Ok(font_dict) = font_obj.as_dict() {
+            for (key, _) in font_dict.iter() {
+                if let Ok(name) = std::str::from_utf8(key) {
+                    names.push(name.to_string());
                 }
             }
         }
@@ -1285,10 +1196,10 @@ fn get_content_stream_font_refs(
     for (i, token) in tokens.iter().enumerate() {
         if *token == "Tf" && i >= 2 {
             let font_name_token = tokens[i - 2];
-            if let Some(name) = font_name_token.strip_prefix('/') {
-                if !font_refs.contains(&name.to_string()) {
-                    font_refs.push(name.to_string());
-                }
+            if let Some(name) = font_name_token.strip_prefix('/')
+                && !font_refs.contains(&name.to_string())
+            {
+                font_refs.push(name.to_string());
             }
         }
     }
@@ -1324,11 +1235,11 @@ fn get_content_stream_bytes(
             let mut all_bytes = Vec::new();
             for item in arr {
                 let resolved = resolve_ref(doc, item);
-                if let Ok(stream) = resolved.as_stream() {
-                    if let Some(bytes) = stream_bytes(stream) {
-                        all_bytes.extend_from_slice(&bytes);
-                        all_bytes.push(b' ');
-                    }
+                if let Ok(stream) = resolved.as_stream()
+                    && let Some(bytes) = stream_bytes(stream)
+                {
+                    all_bytes.extend_from_slice(&bytes);
+                    all_bytes.push(b' ');
                 }
             }
             if all_bytes.is_empty() {
@@ -1455,32 +1366,30 @@ fn repair_stream_lengths(doc: &mut lopdf::Document, result: &mut RepairResult) {
             false
         };
 
-        if needs_fix {
-            if let Some(lopdf::Object::Stream(stream)) = doc.objects.get_mut(&obj_id) {
-                let actual_len = stream.content.len() as i64;
-                let old_len = stream.dict.get(b"Length").ok().and_then(|o| {
-                    if let lopdf::Object::Integer(v) = o {
-                        Some(*v)
-                    } else {
-                        None
-                    }
-                });
-                stream
-                    .dict
-                    .set("Length", lopdf::Object::Integer(actual_len));
-                match old_len {
-                    Some(old) => {
-                        result.log.push(format!(
-                            "fixed stream length for object {} {}: {} -> {}",
-                            obj_id.0, obj_id.1, old, actual_len
-                        ));
-                    }
-                    None => {
-                        result.log.push(format!(
-                            "added missing stream length for object {} {}: {}",
-                            obj_id.0, obj_id.1, actual_len
-                        ));
-                    }
+        if needs_fix && let Some(lopdf::Object::Stream(stream)) = doc.objects.get_mut(&obj_id) {
+            let actual_len = stream.content.len() as i64;
+            let old_len = stream.dict.get(b"Length").ok().and_then(|o| {
+                if let lopdf::Object::Integer(v) = o {
+                    Some(*v)
+                } else {
+                    None
+                }
+            });
+            stream
+                .dict
+                .set("Length", lopdf::Object::Integer(actual_len));
+            match old_len {
+                Some(old) => {
+                    result.log.push(format!(
+                        "fixed stream length for object {} {}: {} -> {}",
+                        obj_id.0, obj_id.1, old, actual_len
+                    ));
+                }
+                None => {
+                    result.log.push(format!(
+                        "added missing stream length for object {} {}: {}",
+                        obj_id.0, obj_id.1, actual_len
+                    ));
                 }
             }
         }
@@ -1850,7 +1759,9 @@ fn preserve_metadata_object(object: &lopdf::Object) -> MetadataValue {
 fn decode_metadata_string(bytes: &[u8]) -> String {
     if let Some(bytes) = bytes.strip_prefix(&[0xfe, 0xff]) {
         let words = bytes
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|chunk| u16::from_be_bytes([chunk[0], chunk[1]]));
         char::decode_utf16(words).filter_map(Result::ok).collect()
     } else {
@@ -2080,10 +1991,10 @@ fn resolve_bookmark_dest(
     pages_map: &std::collections::BTreeMap<u32, lopdf::ObjectId>,
 ) -> (Option<usize>, Option<f64>) {
     // Try /Dest first
-    if let Ok(dest_obj) = node_dict.get(b"Dest") {
-        if let Some(result) = resolve_dest_to_page(doc, dest_obj, pages_map) {
-            return result;
-        }
+    if let Ok(dest_obj) = node_dict.get(b"Dest")
+        && let Some(result) = resolve_dest_to_page(doc, dest_obj, pages_map)
+    {
+        return result;
     }
 
     // Try /A (Action) dictionary — only GoTo actions
@@ -2095,16 +2006,13 @@ fn resolve_bookmark_dest(
             },
             other => other,
         };
-        if let Ok(action_dict) = action_obj.as_dict() {
-            if let Ok(lopdf::Object::Name(action_type)) = action_dict.get(b"S") {
-                if String::from_utf8_lossy(action_type) == "GoTo" {
-                    if let Ok(dest_obj) = action_dict.get(b"D") {
-                        if let Some(result) = resolve_dest_to_page(doc, dest_obj, pages_map) {
-                            return result;
-                        }
-                    }
-                }
-            }
+        if let Ok(action_dict) = action_obj.as_dict()
+            && let Ok(lopdf::Object::Name(action_type)) = action_dict.get(b"S")
+            && String::from_utf8_lossy(action_type) == "GoTo"
+            && let Ok(dest_obj) = action_dict.get(b"D")
+            && let Some(result) = resolve_dest_to_page(doc, dest_obj, pages_map)
+        {
+            return result;
         }
     }
 
@@ -2237,17 +2145,17 @@ fn resolve_named_dest(
             lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
             other => other,
         };
-        if let Ok(names_dict) = names_obj.as_dict() {
-            if let Ok(dests_obj) = names_dict.get(b"Dests") {
-                let dests_obj = match dests_obj {
-                    lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
-                    other => other,
-                };
-                if let Ok(dests_dict) = dests_obj.as_dict() {
-                    if let Some(result) = lookup_name_tree(doc, dests_dict, name, pages_map) {
-                        return Some(result);
-                    }
-                }
+        if let Ok(names_dict) = names_obj.as_dict()
+            && let Ok(dests_obj) = names_dict.get(b"Dests")
+        {
+            let dests_obj = match dests_obj {
+                lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+                other => other,
+            };
+            if let Ok(dests_dict) = dests_obj.as_dict()
+                && let Some(result) = lookup_name_tree(doc, dests_dict, name, pages_map)
+            {
+                return Some(result);
             }
         }
     }
@@ -2258,30 +2166,30 @@ fn resolve_named_dest(
             lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
             other => other,
         };
-        if let Ok(dests_dict) = dests_obj.as_dict() {
-            if let Ok(dest_obj) = dests_dict.get(name.as_bytes()) {
-                let dest_obj = match dest_obj {
-                    lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
-                    other => other,
-                };
-                // Could be an array directly or a dict with /D key
-                match dest_obj {
-                    lopdf::Object::Array(arr) => {
-                        if let Some(result) =
-                            resolve_dest_to_page(doc, &lopdf::Object::Array(arr.clone()), pages_map)
-                        {
-                            return Some(result);
-                        }
+        if let Ok(dests_dict) = dests_obj.as_dict()
+            && let Ok(dest_obj) = dests_dict.get(name.as_bytes())
+        {
+            let dest_obj = match dest_obj {
+                lopdf::Object::Reference(id) => doc.get_object(*id).ok()?,
+                other => other,
+            };
+            // Could be an array directly or a dict with /D key
+            match dest_obj {
+                lopdf::Object::Array(arr) => {
+                    if let Some(result) =
+                        resolve_dest_to_page(doc, &lopdf::Object::Array(arr.clone()), pages_map)
+                    {
+                        return Some(result);
                     }
-                    lopdf::Object::Dictionary(d) => {
-                        if let Ok(d_dest) = d.get(b"D") {
-                            if let Some(result) = resolve_dest_to_page(doc, d_dest, pages_map) {
-                                return Some(result);
-                            }
-                        }
-                    }
-                    _ => {}
                 }
+                lopdf::Object::Dictionary(d) => {
+                    if let Ok(d_dest) = d.get(b"D")
+                        && let Some(result) = resolve_dest_to_page(doc, d_dest, pages_map)
+                    {
+                        return Some(result);
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -2362,10 +2270,10 @@ fn lookup_name_tree(
                     },
                     other => other,
                 };
-                if let Ok(kid_dict) = kid_obj.as_dict() {
-                    if let Some(result) = lookup_name_tree(doc, kid_dict, name, pages_map) {
-                        return Some(result);
-                    }
+                if let Ok(kid_dict) = kid_obj.as_dict()
+                    && let Some(result) = lookup_name_tree(doc, kid_dict, name, pages_map)
+                {
+                    return Some(result);
                 }
             }
         }
@@ -2999,14 +2907,12 @@ fn parse_struct_kids(
                         }
                     }
                     lopdf::Object::Reference(id) => {
-                        if let Ok(obj) = doc.get_object(*id) {
-                            if let Ok(dict) = obj.as_dict() {
-                                if let Some(elem) =
-                                    parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
-                                {
-                                    elements.push(elem);
-                                }
-                            }
+                        if let Ok(obj) = doc.get_object(*id)
+                            && let Ok(dict) = obj.as_dict()
+                            && let Some(elem) =
+                                parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
+                        {
+                            elements.push(elem);
                         }
                     }
                     // Integer MCID at root level — create a minimal element
@@ -3027,14 +2933,11 @@ fn parse_struct_kids(
             }
         }
         lopdf::Object::Reference(id) => {
-            if let Ok(obj) = doc.get_object(*id) {
-                if let Ok(dict) = obj.as_dict() {
-                    if let Some(elem) =
-                        parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
-                    {
-                        return vec![elem];
-                    }
-                }
+            if let Ok(obj) = doc.get_object(*id)
+                && let Ok(dict) = obj.as_dict()
+                && let Some(elem) = parse_struct_element(doc, dict, depth + 1, max_depth, pages_map)
+            {
+                return vec![elem];
             }
             Vec::new()
         }
@@ -3178,10 +3081,10 @@ fn process_k_dict(
     // Check if this is a marked-content reference (MCR)
     if let Ok(mcid_obj) = dict.get(b"MCID") {
         let mcid_obj = resolve_object(doc, mcid_obj);
-        if let lopdf::Object::Integer(n) = mcid_obj {
-            if *n >= 0 {
-                mcids.push(*n as u32);
-            }
+        if let lopdf::Object::Integer(n) = mcid_obj
+            && *n >= 0
+        {
+            mcids.push(*n as u32);
         }
         return;
     }
@@ -3429,10 +3332,10 @@ fn extract_page_hyperlinks_with(
         let uri = resolve_target(doc, annot_dict);
 
         // Skip links without a resolvable URI
-        if let Some(uri) = uri {
-            if !uri.is_empty() {
-                hyperlinks.push(Hyperlink { bbox, uri });
-            }
+        if let Some(uri) = uri
+            && !uri.is_empty()
+        {
+            hyperlinks.push(Hyperlink { bbox, uri });
         }
     }
 
@@ -4337,37 +4240,6 @@ mod tests {
         let err = LopdfBackend::open(b"garbage").unwrap_err();
         let pdf_err: PdfError = err.into();
         assert_eq!(pdf_err.kind(), PdfErrorKind::Parse);
-    }
-
-    #[test]
-    fn object_dense_header_probe_requires_full_threshold() {
-        let mut bytes = Vec::new();
-        for _ in 0..OBJECT_DENSE_FAST_PATH_MIN_OBJECTS - 1 {
-            bytes.extend_from_slice(b"\n1 0 obj");
-        }
-        assert!(!has_many_indirect_object_headers(&bytes));
-
-        bytes.extend_from_slice(b"\n1 0 obj");
-        assert!(has_many_indirect_object_headers(&bytes));
-    }
-
-    #[test]
-    fn object_dense_fast_path_rejects_header_count_false_positive() {
-        let mut source = lopdf::Document::load_mem(&create_test_pdf(1)).unwrap();
-        let mut content = Vec::new();
-        for _ in 0..OBJECT_DENSE_FAST_PATH_MIN_OBJECTS {
-            content.extend_from_slice(b" obj");
-        }
-        source.add_object(lopdf::Stream::new(lopdf::Dictionary::new(), content));
-        let mut pdf_bytes = Vec::new();
-        source.save_to(&mut pdf_bytes).unwrap();
-
-        assert!(has_many_indirect_object_headers(&pdf_bytes));
-        assert!(try_load_object_dense_unencrypted(&pdf_bytes).is_none());
-        assert_eq!(
-            LopdfBackend::page_count(&LopdfBackend::open(&pdf_bytes).unwrap()),
-            1
-        );
     }
 
     // --- page_count() tests ---

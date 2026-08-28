@@ -44,8 +44,8 @@ covered by the build. A summary belonging to one method must not bleed into
 the next method's rustdoc.
 
 The [task-oriented Rust examples](rust-examples.md) are complete programs built
-with all features on both supported Continuous Integration toolchains. Ignored
-rustdoc snippets remain outside that compilation proof.
+with all features on the current stable Rust toolchain. Ignored rustdoc snippets
+remain outside that compilation proof.
 
 ## Compile-time diagnostics
 
@@ -58,9 +58,9 @@ The opaque `PdfError` has no matchable payload variants; branch on
 `PdfErrorKind`.
 
 Each intentional failure is adjacent to a compiling alternative in the public
-rustdoc. Continuous Integration runs the all-feature doctest suite on stable
-Rust and Rust 1.85, so a negative example fails the gate if it unexpectedly
-starts compiling and a positive replacement fails if it drifts from the API.
+rustdoc. Continuous Integration runs the all-feature doctest suite on current
+stable Rust, so a negative example fails the gate if it unexpectedly starts
+compiling and a positive replacement fails if it drifts from the API.
 
 ## Release SemVer gate
 
@@ -107,7 +107,7 @@ high-level contract.
 
 The all-feature facade doctest command separately compiles the ordinary
 examples and requires every `compile_fail` block to remain a compilation
-failure on both supported Rust toolchains.
+failure on the current stable Rust toolchain.
 
 The source-backed contract in
 [`compat/tests/test_rust_rustdoc.py`](../compat/tests/test_rust_rustdoc.py)

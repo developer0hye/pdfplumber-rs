@@ -1,7 +1,7 @@
 schema_version = 1
 observed_at = "2026-08-26"
 release_version = "0.3.0"
-rust_version = "1.85"
+rust_policy = "rolling-stable"
 license = "Apache-2.0"
 repository = "https://github.com/developer0hye/pdfplumber-rs"
 release_notes = "docs/releases/v0.3.0.md"
@@ -44,7 +44,7 @@ manifest_package = "pdfplumber"
 source_version = "0.3.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
-    "Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)",
+    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)",
 ]
 release_configured_targets = [
     "crates.io source package; no target-specific binary or installed-registry matrix",
@@ -127,7 +127,7 @@ manifest_package = "pdfplumber-cli"
 source_version = "0.3.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
-    "Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)",
+    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)",
 ]
 release_configured_targets = [
     "crates.io source package; no prebuilt binary or cross-platform installation matrix",

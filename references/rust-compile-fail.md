@@ -18,5 +18,5 @@ The facade pairs each `compile_fail` block with a compiling `no_run`
 alternative. The three protected rules are that `Pages` needs explicit
 conversion before iterator adapters, borrowed page views cannot escape their
 source `Pdf`, and opaque `PdfError` values are classified through `kind()`.
-Continuous Integration runs all-feature facade doctests on stable Rust and
-Rust 1.85 so both the negative and positive halves remain current.
+Continuous Integration runs all-feature facade doctests on current stable Rust
+so both the negative and positive halves remain current.

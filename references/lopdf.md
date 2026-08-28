@@ -1,7 +1,7 @@
 # lopdf (Rust)
 
 - **URL:** https://github.com/J-F-Liu/lopdf
-- **Stars:** 2.1k | **License:** MIT | **MSRV:** 1.85
+- **Stars:** 2.2k | **License:** MIT | **Release:** 0.44.0
 - **Status:** Actively maintained (current backend for pdfplumber-rs)
 
 ## What It Does
@@ -26,8 +26,8 @@ Low-level PDF document manipulation: read, create, modify PDF files at the objec
 
 ## Input Loading Pattern
 
-Verified against lopdf 0.39.0 source commit
-[`6cd9a622fbbb727f392c156311d13eb7ab461e04`](https://github.com/J-F-Liu/lopdf/blob/6cd9a622fbbb727f392c156311d13eb7ab461e04/src/reader.rs),
+Verified against lopdf 0.44.0 source commit
+[`8c454dd93d9c37e608c552a2b304d1d31d1cb2e1`](https://github.com/J-F-Liu/lopdf/blob/8c454dd93d9c37e608c552a2b304d1d31d1cb2e1/src/reader.rs),
 the version resolved by this workspace:
 
 - `Document::load` opens a filesystem path and reads the file into an owned buffer.

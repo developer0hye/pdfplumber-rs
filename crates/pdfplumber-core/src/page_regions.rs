@@ -165,12 +165,11 @@ fn detect_repeating_text(masked_texts: &[String], min_pages: usize) -> Vec<bool>
 
     // A text is "repeating" if it appears on >= min_pages pages
     for (i, text) in masked_texts.iter().enumerate() {
-        if !text.is_empty() {
-            if let Some(&count) = counts.get(text.as_str()) {
-                if count >= min_pages {
-                    is_repeating[i] = true;
-                }
-            }
+        if !text.is_empty()
+            && let Some(&count) = counts.get(text.as_str())
+            && count >= min_pages
+        {
+            is_repeating[i] = true;
         }
     }
 

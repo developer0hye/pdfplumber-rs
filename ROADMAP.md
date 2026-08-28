@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Hold the Minimum Supported Rust Version
+### Make feature combinations predictable
 
-Lock the Minimum Supported Rust Version so dependency updates cannot silently
-raise it without a reviewed task and changelog entry.
+Audit default and optional features, test representative combinations, and
+ensure integrations do not silently change extraction behavior.
 
-Detailed task: [`DX-013`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-014`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -27,12 +27,12 @@ Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
 
-### Make feature combinations predictable
+### Define a deprecation policy
 
-Audit default and optional features, test representative combinations, and
-ensure integrations do not silently change extraction behavior.
+Give users a predictable migration window for deprecated Rust APIs, with
+explicit exceptions only for safety or unsoundness.
 
-Detailed task: [`DX-014`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-015`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Define a credible Python migration beta
 

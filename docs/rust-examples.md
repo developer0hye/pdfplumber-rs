@@ -1,8 +1,8 @@
 # Task-oriented Rust examples
 
 Every example below is a complete fallible program compiled with all features
-on stable Rust and Rust 1.85 in Continuous Integration. Replace the sample path
-with your own local PDF. Arguments after `--` belong to the example.
+on current stable Rust in Continuous Integration. Replace the sample path with
+your own local PDF. Arguments after `--` belong to the example.
 
 ## Extraction and inspection
 

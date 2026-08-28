@@ -8,6 +8,8 @@ All current surfaces use `Apache-2.0` and the canonical repository [https://gith
 
 Maturity is assigned per surface using the [surface maturity contract](../PRD.md#06-surface-maturity-contract). `Experimental` and `alpha` surfaces may change; neither label is a production-readiness promise.
 
+Rust packages follow the rolling stable channel: required CI uses the current stable toolchain, package manifests publish no fixed Minimum Supported Rust Version, and older compilers are not part of the support contract.
+
 ## Positioning and registry descriptions
 
 Evidence-driven PDF extraction for Rust, with an alpha Python pdfplumber migration path.
@@ -38,7 +40,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)
+- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)
 
 **Release-configured targets**
 
@@ -59,7 +61,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 with Rust 1.85 and stable (source check and test)
+- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)
 
 **Release-configured targets**
 
@@ -177,4 +179,4 @@ python3 scripts/generate_support_matrix.py
 python3 scripts/generate_support_matrix.py --check
 ```
 
-The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, workspace Minimum Supported Rust Version, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.
+The generator validates all four required surfaces, their package/import/executable names, source manifest names and versions, license, repository, release-note path, rolling-stable Rust policy, evidence paths, maturity values, and deterministic output. Continuous Integration rejects stale generated content.

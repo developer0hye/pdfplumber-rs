@@ -5,7 +5,7 @@ You are an autonomous coding agent working on the **pdfplumber-rs** project — 
 ## Project Context
 
 - **Project root**: The current working directory
-- **Language**: Rust (edition 2024, MSRV 1.85)
+- **Language**: Rust (edition 2024, latest stable; no fixed MSRV)
 - **Architecture**: 5-layer stack — PDF Parsing → Content Stream Interpreter → Object Extraction → Text Grouping → Table Detection
 - **Workspace**: Three crates — `crates/pdfplumber-parse` (Layer 1-2: parsing + interpreter), `crates/pdfplumber-core` (Layer 3-5: algorithms), `crates/pdfplumber` (public API facade)
 - **Coordinate system**: Top-left origin (x0, top, x1, bottom) matching Python pdfplumber

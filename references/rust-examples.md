@@ -20,5 +20,5 @@ Source: [`cargo check`](https://doc.rust-lang.org/cargo/commands/cargo-check.htm
 
 The facade package keeps ordinary examples auto-discovered and declares only
 the two feature-specific targets explicitly. Continuous Integration runs
-`cargo check -p pdfplumber --examples --all-features` on stable Rust and Rust
-1.85, so every task program is compiler-checked through the public facade.
+`cargo check -p pdfplumber --examples --all-features` on current stable Rust,
+so every task program is compiler-checked through the public facade.

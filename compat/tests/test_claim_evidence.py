@@ -153,12 +153,14 @@ class ProductClaimEvidenceContractTests(unittest.TestCase):
             [(phrase, paragraph_containing(text, phrase)) for phrase in phrases],
         )
 
-    def test_readme_use_case_feature_wasm_and_msrv_claims_link_evidence(self) -> None:
+    def test_readme_use_case_feature_wasm_and_toolchain_claims_link_evidence(
+        self,
+    ) -> None:
         text = README.read_text(encoding="utf-8")
         choose = markdown_section(text, "## Choose `pdfplumber-rs` when…")
         features = markdown_section(text, "## Features")
         wasm = markdown_section(text, "## WASM Support")
-        msrv = markdown_section(text, "## Minimum Supported Rust Version")
+        toolchain = markdown_section(text, "## Rust toolchain policy")
         claims = [
             (f"choose:{index}", item)
             for index, item in enumerate(list_items(choose), start=1)
@@ -171,7 +173,10 @@ class ProductClaimEvidenceContractTests(unittest.TestCase):
             (
                 ("choose:ocr", paragraph_containing(choose, "does not perform")),
                 ("wasm", paragraph_containing(wasm, "wasm32-unknown-unknown")),
-                ("msrv", paragraph_containing(msrv, "Rust 1.85")),
+                (
+                    "toolchain",
+                    paragraph_containing(toolchain, "latest stable Rust"),
+                ),
             )
         )
         self.assert_claims_have_evidence(README, claims)

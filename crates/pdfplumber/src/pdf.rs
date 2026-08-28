@@ -556,14 +556,14 @@ impl Pdf {
         actual_value: usize,
         options: Option<&ExtractOptions>,
     ) -> Result<(), PdfError> {
-        if let Some(max_bytes) = options.and_then(|options| options.max_input_bytes) {
-            if actual_value > max_bytes {
-                return Err(PdfError::limit_exceeded(
-                    "max_input_bytes",
-                    max_bytes,
-                    actual_value,
-                ));
-            }
+        if let Some(max_bytes) = options.and_then(|options| options.max_input_bytes)
+            && actual_value > max_bytes
+        {
+            return Err(PdfError::limit_exceeded(
+                "max_input_bytes",
+                max_bytes,
+                actual_value,
+            ));
         }
         Ok(())
     }
@@ -597,10 +597,10 @@ impl Pdf {
         let page_count = LopdfBackend::page_count(&doc);
 
         // Check max_pages before processing
-        if let Some(max_pages) = options.max_pages {
-            if page_count > max_pages {
-                return Err(PdfError::limit_exceeded("max_pages", max_pages, page_count));
-            }
+        if let Some(max_pages) = options.max_pages
+            && page_count > max_pages
+        {
+            return Err(PdfError::limit_exceeded("max_pages", max_pages, page_count));
         }
 
         let mut page_widths = Vec::with_capacity(page_count);
@@ -1260,12 +1260,11 @@ impl Pdf {
                 }
 
                 // Optionally extract image data
-                if self.options.extract_image_data {
-                    if let Ok(content) =
+                if self.options.extract_image_data
+                    && let Ok(content) =
                         LopdfBackend::extract_image_content(&self.doc, &lopdf_page, &event.name)
-                    {
-                        img.data = Some(content.data);
-                    }
+                {
+                    img.data = Some(content.data);
                 }
 
                 if needs_rotation {
