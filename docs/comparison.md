@@ -25,7 +25,7 @@ At the observation date, GitHub repository metadata reported all four external r
 
 ## Reproducible measurements
 
-No cross-project performance result is currently claimed by `pdfplumber-rs`.
+The versioned assets report reproducible cross-project observations; `pdfplumber-rs` draws no broad cross-project performance conclusion from them.
 
 `pdf_oxide` and `pdfsink-rs` publish performance and accuracy figures in their own revision-pinned READMEs. Those figures describe their authors' fixtures, requested outputs, environments, and methods. This project has not independently reproduced them and therefore does not repeat them as a ranking.
 
