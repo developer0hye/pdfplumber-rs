@@ -328,7 +328,17 @@ def validate_run_metadata(metadata: Mapping[str, object], *, repetitions: int) -
     invocation = _required_mapping(metadata, "invocation", "run metadata")
     if _mapping_string(invocation, "working_directory", "invocation") != ".":
         raise BenchmarkProvenanceError("invocation.working_directory must be .")
-    _metadata_command_argv(invocation, "invocation")
+    invocation_argv = _metadata_command_argv(invocation, "invocation")
+    if any(
+        Path(argument).is_absolute()
+        or argument == "~"
+        or argument.startswith(("file://", "~/"))
+        for argument in invocation_argv
+    ):
+        raise BenchmarkProvenanceError(
+            "invocation.command_argv must be relocatable and contain no absolute, "
+            "home-relative, or file URI paths"
+        )
     if invocation.get("repetitions") != repetitions:
         raise BenchmarkProvenanceError(f"invocation.repetitions must be {repetitions}")
     if (

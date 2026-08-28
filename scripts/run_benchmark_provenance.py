@@ -7,6 +7,7 @@ import argparse
 import os
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -41,6 +42,25 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_CANDIDATE_PYTHON,
     )
     return parser.parse_args()
+
+
+def recorded_invocation_argv(command_argv: Sequence[str]) -> list[str]:
+    """Keep the reproducible command while removing its machine-local output path."""
+
+    recorded: list[str] = []
+    redact_output_value = False
+    for argument in command_argv:
+        if redact_output_value:
+            recorded.append("<output-json>")
+            redact_output_value = False
+        elif argument == "--output":
+            recorded.append(argument)
+            redact_output_value = True
+        elif argument.startswith("--output="):
+            recorded.append("--output=<output-json>")
+        else:
+            recorded.append(argument)
+    return recorded
 
 
 def load_plan() -> benchmark_provenance.ProvenancePlan:
@@ -143,7 +163,7 @@ def main() -> int:
             plan,
             args.reference_python,
             args.candidate_python,
-            sys.argv,
+            recorded_invocation_argv(sys.argv),
         )
         records, decisions, scenario_timings = scenario_runner.execute_local_run(
             plan.scenario_suite,
