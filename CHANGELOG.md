@@ -40,7 +40,10 @@ commit list.
   key and emits sample-bound minimum, median, mean, maximum, sample-deviation, and
   relative-deviation summaries. A separate exact-tag workflow now retains the complete raw JSON,
   concise human projection, and SHA-256 checksums as versioned benchmark release assets without
-  defining a ranking or broad product performance claim.
+  defining a ranking or broad product performance claim. A digest-bound retention registry and
+  read-only exact-tag audit now withdraw those three assets after confirmed semantic or
+  output-equivalence drift while preserving the source tag and machine-readable audit tombstone;
+  incomplete setup or network runs are inconclusive and cannot remove evidence.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

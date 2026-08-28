@@ -501,7 +501,7 @@ def render_markdown(suite: ScenarioSuite) -> str:
             "python3 scripts/run_benchmark_scenarios.py --run --output /tmp/pdfplumber-rs-scenarios.json",
             "```",
             "",
-            "Scenario results are not published without the complete SCORE-007 environment, repetition, and statistical provenance. SCORE-008 publishes that exact-tag result bundle; the result-removal policy remains SCORE-009.",
+            "Scenario results are not published without the complete SCORE-007 environment, repetition, and statistical provenance. SCORE-008 publishes that exact-tag result bundle; the SCORE-009 retention audit withdraws its three result assets if exact-tag semantic reproduction or output equivalence fails.",
             "",
         )
     )

@@ -442,7 +442,8 @@ def render_markdown(suite: MetricSuite) -> str:
                 "SCORE-005 component results are not published independently. SCORE-006 and "
                 "SCORE-007 add scenario separation, complete environment capture, five raw "
                 "repetitions, and statistical summaries. SCORE-008 publishes only the complete "
-                "exact-tag result bundle; the result-removal policy remains SCORE-009."
+                "exact-tag result bundle; SCORE-009 re-audits its semantics and withdraws the "
+                "three result assets if exact reproduction or output equivalence fails."
             ),
             "",
         )
