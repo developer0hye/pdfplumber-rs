@@ -93,6 +93,35 @@ class WorkflowScorecardContractTests(unittest.TestCase):
         self.assertIn("fixture", opened["evidence_kinds"])
         self.assertIn("api", opened["evidence_kinds"])
 
+    def test_open_projection_keeps_an_unreported_indexed_fixture_not_tested(
+        self,
+    ) -> None:
+        machine = self.machine_scorecard()
+        machine["observations"] = [
+            observation
+            for observation in machine["observations"]
+            if observation["id"] != "fixture-not-tested"
+        ]
+
+        report = workflow_scorecard.build(
+            machine,
+            self.workflow_definitions(),
+            machine_path="scorecard-v0.3.0.json",
+            machine_sha256="a" * 64,
+            indexed_fixture_ids=(
+                "fixtures/observed.pdf",
+                "fixtures/reference-failure.pdf",
+                "fixtures/not-tested.pdf",
+            ),
+        )
+        opened = report["workflows"][0]
+
+        self.assertEqual(opened["unreported_fixture_count"], 1)
+        self.assertEqual(
+            opened["status_counts"],
+            self.counts(exact=1, reference_failure=1, not_tested=1),
+        )
+
     def test_absent_workflow_dimension_is_not_tested_instead_of_inferred(self) -> None:
         report = workflow_scorecard.build(
             self.machine_scorecard(),
