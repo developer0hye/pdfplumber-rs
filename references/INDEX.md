@@ -78,3 +78,4 @@ Projects organized by domain. Read the specific file matching your current probl
 |---------|----------|------|----------|
 | [Polars](https://github.com/pola-rs/polars) | Rust/Python | [polars.md](polars.md) | Keeping product or performance claims adjacent to their evidence |
 | [reqwest](https://github.com/seanmonstar/reqwest) | Rust | [reqwest.md](reqwest.md) | Writing a concise, complete, fallible Rust quick start |
+| [wpt.fyi and EARL](https://github.com/web-platform-tests/wpt.fyi) | Go / standard | [compatibility-scorecards.md](compatibility-scorecards.md) | Designing machine-readable compatibility runs, identities, provenance, and explicit untested outcomes |
