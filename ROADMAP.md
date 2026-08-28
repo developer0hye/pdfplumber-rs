@@ -24,7 +24,7 @@ evidence will follow the correctness gate, not substitute for it.
 
 Completed foundations: `SCORE-001`, `SCORE-002`, `SCORE-003`, and `SCORE-004`.
 
-Detailed task: [`SCORE-005`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+Detailed tasks: [`SCORE-005`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-006`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
 ## Next
 
