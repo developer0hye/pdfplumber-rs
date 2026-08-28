@@ -37,6 +37,7 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
     def test_runbook_captures_the_actual_independent_publication_graph(self) -> None:
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         topology = section(self.runbook, "Release topology and first response")
+        normalized_topology = " ".join(topology.split())
 
         for package in (
             "pdfplumber-core",
@@ -52,9 +53,15 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
 
         self.assertIn("needs: [publish, metadata, scorecards]", workflow)
         self.assertIn("crates.io", topology)
-        self.assertRegex(topology, r"(?i)PyPI.*npm.*independent|independent.*PyPI.*npm")
+        self.assertRegex(
+            normalized_topology,
+            r"(?i)PyPI.*npm.*independent|independent.*PyPI.*npm",
+        )
         self.assertIn("gh run cancel <run-id>", topology)
-        self.assertRegex(topology, r"(?i)do not (re-?run|restart) the whole workflow")
+        self.assertRegex(
+            normalized_topology,
+            r"(?i)do not (re-?run|restart) the whole workflow",
+        )
 
     def test_incident_record_preserves_exact_identity_and_per_target_state(self) -> None:
         incident = section(self.runbook, "Incident record")
@@ -106,10 +113,20 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
             )
         }
         for heading, body in scenarios.items():
+            normalized_body = " ".join(body.split())
             with self.subTest(heading=heading):
                 self.assertTrue(body, f"missing {heading} section")
-                self.assertRegex(body, r"(?i)(stop|cancel|freeze|do not publish)")
-                self.assertRegex(body, r"(?i)(resume|close|exit|complete|publish again)")
+                self.assertRegex(
+                    normalized_body, r"(?i)(stop|cancel|freeze|do not publish)"
+                )
+                self.assertRegex(
+                    normalized_body,
+                    r"(?i)(resume|close|exit|complete|publish again)",
+                )
+
+        scenarios = {
+            heading: " ".join(body.split()) for heading, body in scenarios.items()
+        }
 
         self.assertRegex(scenarios["Registry lag"], r"(?i)bounded.*poll")
         self.assertRegex(scenarios["Registry lag"], r"(?i)expected version.*resolv")
@@ -143,7 +160,8 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
             "https://doc.rust-lang.org/cargo/commands/cargo-yank.html",
             "https://docs.pypi.org/project-management/yanking/",
             "https://docs.npmjs.com/policies/unpublish/",
-            "https://docs.github.com/en/code-security/tutorials/remediate-leaked-secrets/remediating-a-leaked-secret",
+            "https://docs.github.com/en/code-security/tutorials/"
+            "remediate-leaked-secrets/remediating-a-leaked-secret",
         ):
             with self.subTest(official_url=official_url):
                 self.assertIn(official_url, references)
