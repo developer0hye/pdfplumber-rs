@@ -163,8 +163,9 @@ Rust API's 0-based convention.
 
 No text-extraction, table-detection, or memory advantage is currently claimed for
 the Python surface. The compatibility corpus measures behavior, not a fair timing
-comparison. Cross-project results remain deferred until `SCORE-001` through
-`SCORE-009` satisfy the [comparison policy](../../docs/comparison.md).
+comparison. The [versioned benchmark corpus](../../docs/benchmarks/corpus-v0.3.0.md)
+defines shared inputs only; cross-project results remain deferred until `SCORE-002`
+through `SCORE-009` satisfy the [comparison policy](../../docs/comparison.md).
 
 ## License
 

@@ -11,6 +11,11 @@ commit list.
 
 ### Added
 
+- **Performance:** Defined a versioned, redistributable ten-document benchmark
+  corpus covering text, word geometry, tables, graphics, CJK, right-to-left,
+  images, encryption, malformed inputs, and measured small/large sizes. Exact
+  fixture digests and access metadata are checked against the licensed corpus;
+  no timing comparison is published before output equivalence passes.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,
