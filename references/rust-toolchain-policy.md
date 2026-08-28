@@ -26,3 +26,7 @@ Required CI installs `stable`, and published manifests intentionally omit
 `rust-version`. Dependency upgrades may therefore raise the effective compiler
 requirement without a separate MSRV-preservation task; current stable CI remains
 the compatibility gate.
+
+DIST-015 additionally pins the current release and a complete official-image
+digest for a reproducible contributor snapshot. That snapshot is updated when
+rolling stable advances; it does not create a fixed compiler support floor.

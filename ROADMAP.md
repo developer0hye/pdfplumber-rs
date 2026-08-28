@@ -10,20 +10,19 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Prove reproducible Rust development
-
-Keep a reproducible clean environment that exercises the same first-use and
-focused contributor paths as source Continuous Integration. Every publishable
-Rust package already crosses a verified Cargo package and dry-run boundary from
-the exact candidate commit before a tagged release can publish it.
-
-Detailed task: [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
-
 ### Turn compatibility results into a public scorecard
 
 Publish machine-readable and workflow-oriented views of the compatibility harness. Results will distinguish exact matches, approved deltas, unsupported behavior, reference failures, candidate failures, and cases that have not been tested.
 
 Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-011`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-012`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+
+### Establish comparable benchmark inputs
+
+Define a redistributable workload corpus and reject timing comparisons unless
+the requested outputs and semantics are materially equivalent. Performance
+evidence will follow the correctness gate, not substitute for it.
+
+Detailed tasks: [`SCORE-001`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-002`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
 ## Next
 

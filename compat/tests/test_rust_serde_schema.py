@@ -84,7 +84,7 @@ class RustSerdeSchemaContractTests(unittest.TestCase):
             self.assertIn("rust-serde-schema", document)
         self.assertIn("serde-json-v1", CHANGELOG)
         self.assertNotIn("### Version Rust-native schemas", ROADMAP)
-        self.assertIn("DIST-015", ROADMAP)
+        self.assertIn("SCORE-010", ROADMAP)
         self.assertTrue(REFERENCE.is_file())
         reference = REFERENCE.read_text(encoding="utf-8")
         self.assertIn("Serde enum representations", reference)

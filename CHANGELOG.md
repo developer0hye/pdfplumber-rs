@@ -33,6 +33,10 @@ commit list.
   publication. Coordinated workspace dependencies are patched only during the
   candidate preflight; ordinary publication still verifies registry-resolvable
   predecessors.
+- **Platform:** Added a reproducible Rust development container pinned to the
+  official Rust 1.98.0 Bookworm image digest. One command runs the rendered Rust
+  quick starts, focused extraction and concurrency tests, and all-feature
+  contributor examples in an isolated, read-only checkout.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional

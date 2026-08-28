@@ -164,7 +164,7 @@ class RustTtfvContractTests(unittest.TestCase):
     def test_roadmap_and_prd_advance_after_versioned_evidence(self) -> None:
         self.assertNotIn("### Measure and reduce Rust time to first value", ROADMAP)
         self.assertNotIn("DIST-001", ROADMAP)
-        self.assertIn("DIST-015", ROADMAP)
+        self.assertIn("SCORE-010", ROADMAP)
         self.assertIn("- [x] **DX-018**", PRD)
         self.assertRegex(
             PRD,

@@ -230,7 +230,7 @@ class RustReleaseWorkflowTests(unittest.TestCase):
         self.assertTrue(reference_path.is_file())
         self.assertIn("rust-semver-checks.md", references)
         self.assertIn("release-type: patch", reference_path.read_text(encoding="utf-8"))
-        self.assertIn("DIST-015", roadmap)
+        self.assertIn("SCORE-010", roadmap)
         self.assertNotIn("DX-012", roadmap)
 
 

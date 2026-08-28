@@ -329,6 +329,14 @@ the facade and from the facade/parser to core:
 | `pdfplumber-py` | Python compatibility package and PyO3 adapter |
 | `pdfplumber-wasm` | WebAssembly and JavaScript/TypeScript adapter |
 
+## Rust Development Environment
+
+Run the rendered Rust quick starts and focused contributor tests in the pinned,
+non-root [Rust development container](docs/rust-development.md) with
+`scripts/check_rust_dev_container.sh`. The same Dockerfile backs the checked-in
+Development Container configuration and the required Continuous Integration
+job.
+
 ## Rust toolchain policy
 
 The project tracks the [latest stable Rust](docs/support.md#rust) release and

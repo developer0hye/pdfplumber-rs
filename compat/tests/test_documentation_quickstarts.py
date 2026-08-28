@@ -3,9 +3,13 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from dataclasses import dataclass
 from pathlib import Path
+from unittest import mock
+
+from scripts import check_doc_quickstarts
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "scripts/check_doc_quickstarts.py"
@@ -114,6 +118,42 @@ class DocumentationQuickStartContractTests(unittest.TestCase):
             completed.returncode,
             f"{completed.stdout}\n{completed.stderr}",
         )
+
+    def test_rust_runner_keeps_an_explicit_container_target_outside_source(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            target = Path(temporary_directory) / "isolated-target"
+            successful_run = subprocess.CompletedProcess(
+                [],
+                0,
+                check_doc_quickstarts.PRIMARY_RUST_OUTPUT_MARKER,
+                "",
+            )
+            missing_input = subprocess.CompletedProcess([], 1, "", "missing input")
+            with (
+                mock.patch.dict(
+                    check_doc_quickstarts.os.environ,
+                    {"CARGO_TARGET_DIR": str(target)},
+                ),
+                mock.patch.object(
+                    check_doc_quickstarts,
+                    "run",
+                    return_value=successful_run,
+                ) as run_command,
+                mock.patch.object(
+                    check_doc_quickstarts.subprocess,
+                    "run",
+                    return_value=missing_input,
+                ),
+            ):
+                check_doc_quickstarts.run_rust_quick_starts()
+
+            observed_targets = {
+                Path(call.kwargs["env"]["CARGO_TARGET_DIR"])
+                for call in run_command.call_args_list
+            }
+            self.assertEqual(observed_targets, {target / "doc-quickstarts" / "rust"})
 
 
 if __name__ == "__main__":

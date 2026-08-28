@@ -1,0 +1,9 @@
+{
+  "name": "pdfplumber-rs Rust",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "rustdev",
+  "updateRemoteUserUID": true
+}
