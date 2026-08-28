@@ -31,6 +31,8 @@
 //! can depend on the separate `pdfplumber-parse` crate explicitly. The
 //! [public rustdoc contract](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-api.md)
 //! defines the stable facade and the documentation gates applied to it.
+//! Stable facade changes also follow the
+//! [Rust deprecation policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-deprecation-policy.md).
 //!
 //! The library is split into three crates:
 //!

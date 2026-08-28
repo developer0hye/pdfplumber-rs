@@ -32,6 +32,10 @@ commit list.
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional
   integrations do not silently change text, geometry, or table extraction.
+- **Documentation:** Added a Rust deprecation policy that retains stable facade
+  items through at least two subsequent published minor releases, requires
+  compiler-visible replacement guidance, and limits shorter windows to urgent
+  safety issues or demonstrated unsoundness.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

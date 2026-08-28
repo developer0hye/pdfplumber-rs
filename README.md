@@ -182,6 +182,11 @@ increment and documented with concrete replacement guidance, as defined by the
 [release SemVer policy](docs/rust-api.md#release-semver-gate).
 ([workflow evidence](compat/tests/test_rust_semver_release.py))
 
+Stable facade items follow the [Rust deprecation policy](docs/rust-deprecation-policy.md):
+complete compiler guidance, two subsequent published minor releases of support,
+and a SemVer-compatible migration path before ordinary removal.
+([policy evidence](compat/tests/test_rust_deprecation_policy.py))
+
 For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
 `pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser
 internals for advanced contributors; they are not additional steps in the

@@ -87,7 +87,7 @@ class RustConcurrencyContractTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertIn(source, reference)
         self.assertNotIn("### Define Rust concurrency guarantees", ROADMAP)
-        self.assertIn("DX-015", ROADMAP)
+        self.assertIn("DX-016", ROADMAP)
 
 
 if __name__ == "__main__":
