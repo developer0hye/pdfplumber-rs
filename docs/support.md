@@ -40,7 +40,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)
+- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archives)
 
 **Release-configured targets**
 
@@ -61,7 +61,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)
+- Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archive)
 
 **Release-configured targets**
 
@@ -91,6 +91,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Source-backed six-crate architecture, extraction flow, cache, and extension guide
 - Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
 - Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
+- Exact-clean-commit cargo package and cargo publish dry-run verification for all four crates.io candidates before tagged publication
 
 **Known limitations**
 
@@ -116,6 +117,9 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/rust-ttfv.md`](../docs/rust-ttfv.md)
 - [`docs/measurements/rust-ttfv-workspace-2026-08-28.json`](../docs/measurements/rust-ttfv-workspace-2026-08-28.json)
 - [`compat/tests/test_rust_ttfv.py`](../compat/tests/test_rust_ttfv.py)
+- [`docs/crates-release.md`](../docs/crates-release.md)
+- [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
+- [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 
@@ -150,6 +154,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Text, character, word, table, annotation, form, link, bookmark, image, search, validation, and debug commands
 - Page selection plus text, JSON, and CSV outputs where implemented
 - Password and repair options on applicable commands
+- Exact-clean-commit Cargo package and publish dry-run verification before tagged publication
 
 **Known limitations**
 
@@ -163,6 +168,9 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 - [`crates/pdfplumber-cli/Cargo.toml`](../crates/pdfplumber-cli/Cargo.toml)
 - [`crates/pdfplumber-cli/src/cli.rs`](../crates/pdfplumber-cli/src/cli.rs)
+- [`docs/crates-release.md`](../docs/crates-release.md)
+- [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
+- [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
 - [`PRD.md`](../PRD.md)
 
 ### WebAssembly

@@ -81,9 +81,10 @@ published registry artifact. A cold trial of published release 0.3.0 on
 from that release; the current README uses the newer canonical constructor. The
 failed trial is explicit in the JSON and is not counted as a passing TTFV.
 
-Exact package-boundary and post-publication installation proof remain open under
-`DIST-001` and `DIST-007`. A passing current-source result must not be used to
-claim that the current public registry release runs the same example.
+Exact clean-commit package-boundary proof is now enforced under `DIST-001`.
+Post-publication installation and execution remain open under `DIST-007`. A
+passing current-source result must not be used to claim that the current public
+registry release runs the same example.
 
 ## Reproduce
 

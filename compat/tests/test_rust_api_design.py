@@ -157,7 +157,7 @@ class RustApiDesignContractTests(unittest.TestCase):
         self.assertIn("docs/rust-api-design.md", SUPPORT_SOURCE)
         self.assertIn("compat/tests/test_rust_api_design.py", SUPPORT_SOURCE)
         self.assertNotIn("### Review Rust API design", ROADMAP)
-        self.assertIn("DIST-001", ROADMAP)
+        self.assertIn("DIST-015", ROADMAP)
         self.assertIn("- [x] **DX-017**", PRD)
         self.assertRegex(
             PRD,

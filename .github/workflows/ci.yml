@@ -70,10 +70,7 @@ jobs:
 
       - name: Build and verify Rust crate artifacts
         run: |
-          cargo package -p pdfplumber-core --no-verify
-          cargo package -p pdfplumber-parse --no-verify
-          cargo package -p pdfplumber --no-verify
-          cargo package -p pdfplumber-cli --no-verify
+          python scripts/check_crates_release.py --expected-commit "$GITHUB_SHA" --package-only
           python scripts/check_package_licenses.py --rust target/package/*.crate
           python scripts/check_package_metadata.py --rust target/package/*.crate
 

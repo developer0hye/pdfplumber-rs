@@ -43,7 +43,7 @@
     "resolve_build_execute": 18.414
   },
   "registry_trial": {
-    "disposition": "not counted as passing TTFV; DIST-001 and DIST-007 remain open",
+    "disposition": "not counted as passing TTFV; DIST-001 now verifies the candidate package boundary, while DIST-007 remains open for the public registry",
     "reason": "Pdf::open_path is absent from the published release",
     "result": "compile failure",
     "version": "0.3.0"

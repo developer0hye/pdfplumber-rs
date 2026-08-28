@@ -26,9 +26,22 @@ jobs:
 
   # ── crates.io ──────────────────────────────────────────────
 
+  crates-package-preflight:
+    name: Verify crates.io release candidates
+    needs: [ci, metadata]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Package and dry-run every crates.io candidate from the release tag
+        run: python scripts/check_crates_release.py --release-tag "$GITHUB_REF_NAME"
+
   publish:
     name: Publish to crates.io
-    needs: [ci, metadata]
+    needs: [crates-package-preflight, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

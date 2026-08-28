@@ -44,7 +44,7 @@ manifest_package = "pdfplumber"
 source_version = "0.3.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
-    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)",
+    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archives)",
 ]
 release_configured_targets = [
     "crates.io source package; no target-specific binary or installed-registry matrix",
@@ -58,6 +58,7 @@ features = [
     "Source-backed six-crate architecture, extraction flow, cache, and extension guide",
     "Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility",
     "Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary",
+    "Exact-clean-commit cargo package and cargo publish dry-run verification for all four crates.io candidates before tagged publication",
 ]
 known_limitations = [
     "The 0.3.x API is alpha and may change before the stable contract is complete.",
@@ -81,6 +82,9 @@ evidence = [
     "docs/rust-ttfv.md",
     "docs/measurements/rust-ttfv-workspace-2026-08-28.json",
     "compat/tests/test_rust_ttfv.py",
+    "docs/crates-release.md",
+    "compat/tests/test_crates_release_gate.py",
+    "scripts/check_crates_release.py",
     "README.md",
     "PRD.md",
 ]
@@ -144,7 +148,7 @@ manifest_package = "pdfplumber-cli"
 source_version = "0.3.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
-    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check and test)",
+    "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archive)",
 ]
 release_configured_targets = [
     "crates.io source package; no prebuilt binary or cross-platform installation matrix",
@@ -153,6 +157,7 @@ features = [
     "Text, character, word, table, annotation, form, link, bookmark, image, search, validation, and debug commands",
     "Page selection plus text, JSON, and CSV outputs where implemented",
     "Password and repair options on applicable commands",
+    "Exact-clean-commit Cargo package and publish dry-run verification before tagged publication",
 ]
 known_limitations = [
     "The Rust-native subcommand interface does not yet match Python pdfplumber's positional Command-Line Interface contract.",
@@ -164,6 +169,9 @@ evidence = [
     ".github/workflows/release.yml",
     "crates/pdfplumber-cli/Cargo.toml",
     "crates/pdfplumber-cli/src/cli.rs",
+    "docs/crates-release.md",
+    "compat/tests/test_crates_release_gate.py",
+    "scripts/check_crates_release.py",
     "PRD.md",
 ]
 
