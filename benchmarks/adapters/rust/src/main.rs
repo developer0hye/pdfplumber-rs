@@ -487,10 +487,7 @@ fn run_pdfplumber_rs(request: &Request) -> Result<Execution, String> {
     }
 }
 
-fn run_pdfplumber_rs_scenario(
-    request: &Request,
-    scenario: &str,
-) -> Result<Execution, String> {
+fn run_pdfplumber_rs_scenario(request: &Request, scenario: &str) -> Result<Execution, String> {
     match scenario {
         "cold-document-open" => {
             let (document, wall_time_ns) =
@@ -527,9 +524,8 @@ fn run_pdfplumber_rs_scenario(
         }
         "full-document-text" => {
             let document = open_pdfplumber_rs(request)?;
-            let (value, wall_time_ns) = measured(request.timed, false, || {
-                pdfplumber_rs_text(&document)
-            })?;
+            let (value, wall_time_ns) =
+                measured(request.timed, false, || pdfplumber_rs_text(&document))?;
             Ok(Execution {
                 value,
                 wall_time_ns,
