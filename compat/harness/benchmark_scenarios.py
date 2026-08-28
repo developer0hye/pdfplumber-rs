@@ -272,6 +272,14 @@ def _validate_cross_scenario_contracts(
         raise BenchmarkScenarioError("single-page and full-document fixtures must match")
     if single.page_selection != "first-page" or full.page_selection != "all-pages":
         raise BenchmarkScenarioError("page scopes are not explicit")
+    for scenario in (single, full):
+        if (
+            "pdfsink-rs" not in scenario.semantic_implementations
+            or "pdfsink-rs" in scenario.timed_implementations
+        ):
+            raise BenchmarkScenarioError(
+                "eager pdfsink-rs page content must remain semantic-only"
+            )
     parallel = by_id["parallel-page-batch-text"]
     if (
         parallel.concurrency_model != "bounded-rayon-thread-pool"
@@ -475,6 +483,8 @@ def render_markdown(suite: ScenarioSuite) -> str:
             "## Equivalence and timing",
             "",
             "Every implementation first emits an untimed canonical result. Timing is allowed only when that exact fixture, request, and output match pinned Python `pdfplumber`; timed invocations must reproduce the same output. Process launch and all listed setup operations remain outside the clock.",
+            "",
+            "Pinned `pdfsink-rs` remains a semantic participant for single-page and full-document text but is not timed there because its document-open API eagerly materializes page content. Assigning its later extraction access the same lazy post-open scope would be misleading.",
             "",
             "The parallel scenario uses a four-worker Rayon pool and preserves page-index order. Pinned Python `pdfplumber` provides its untimed semantic reference, while only the parallel Rust implementation is clocked.",
             "",

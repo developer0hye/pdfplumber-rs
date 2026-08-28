@@ -7,8 +7,8 @@ SCORE-006 distinguishes process and library-cache state, page scope, and bounded
 | `cold-document-open` | `cjk-vertical`, `encrypted-document`, `graphics-heavy-table`, `image-heavy-pages`, `large-multipage`, `recoverable-malformed`, `right-to-left-arabic`, `small-text`, `table-heavy`, `word-geometry` | `fresh-adapter-process` / `library-state-empty` | `none` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide`, `pdfsink-rs` | `open-path-and-parse-document` |
 | `warm-document-open` | `cjk-vertical`, `encrypted-document`, `graphics-heavy-table`, `image-heavy-pages`, `large-multipage`, `recoverable-malformed`, `right-to-left-arabic`, `small-text`, `table-heavy`, `word-geometry` | `reused-adapter-process` / `prior-identical-open-completed` | `none` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide`, `pdfsink-rs` | `open-path-and-parse-document` |
 | `cache-hit-characters` | `small-text`, `word-geometry` | `reused-adapter-process` / `first-identical-access-completed` | `first-page` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs-python` | `second-page-chars-access` |
-| `single-page-text` | `large-multipage` | `fresh-adapter-process` / `document-open-page-cache-empty` | `first-page` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide`, `pdfsink-rs` | `extract-first-page-plain-text` |
-| `full-document-text` | `large-multipage` | `fresh-adapter-process` / `document-open-page-cache-empty` | `all-pages` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide`, `pdfsink-rs` | `extract-all-pages-plain-text` |
+| `single-page-text` | `large-multipage` | `fresh-adapter-process` / `document-open-page-cache-empty` | `first-page` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide` | `extract-first-page-plain-text` |
+| `full-document-text` | `large-multipage` | `fresh-adapter-process` / `document-open-page-cache-empty` | `all-pages` | `serial` (1) | `pdfplumber-python`, `pdfplumber-rs`, `pdf-oxide` | `extract-all-pages-plain-text` |
 | `parallel-page-batch-text` | `large-multipage` | `fresh-adapter-process` / `document-open-page-cache-empty` | `all-pages` | `bounded-rayon-thread-pool` (4) | `pdfplumber-rs` | `extract-all-pages-plain-text-in-parallel` |
 
 ## State boundary
@@ -18,6 +18,8 @@ SCORE-006 distinguishes process and library-cache state, page scope, and bounded
 ## Equivalence and timing
 
 Every implementation first emits an untimed canonical result. Timing is allowed only when that exact fixture, request, and output match pinned Python `pdfplumber`; timed invocations must reproduce the same output. Process launch and all listed setup operations remain outside the clock.
+
+Pinned `pdfsink-rs` remains a semantic participant for single-page and full-document text but is not timed there because its document-open API eagerly materializes page content. Assigning its later extraction access the same lazy post-open scope would be misleading.
 
 The parallel scenario uses a four-worker Rayon pool and preserves page-index order. Pinned Python `pdfplumber` provides its untimed semantic reference, while only the parallel Rust implementation is clocked.
 

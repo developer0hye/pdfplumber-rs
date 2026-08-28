@@ -93,6 +93,10 @@ class BenchmarkScenarioContractTests(unittest.TestCase):
         self.assertEqual(single_page.page_selection, "first-page")
         self.assertEqual(full_document.page_selection, "all-pages")
         self.assertEqual(single_page.fixture_ids, full_document.fixture_ids)
+        for scenario in (single_page, full_document):
+            with self.subTest(fused_implementation=scenario.id):
+                self.assertIn("pdfsink-rs", scenario.semantic_implementations)
+                self.assertNotIn("pdfsink-rs", scenario.timed_implementations)
         self.assertTrue(
             all(
                 suite.competitor_suite.corpus.fixture(fixture_id).page_count > 1
