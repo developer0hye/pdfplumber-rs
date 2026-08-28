@@ -188,6 +188,47 @@ class CompatibilityScorecardContractTests(unittest.TestCase):
                 runs=(run,),
             )
 
+    def test_indexed_fixture_absent_from_api_report_is_explicitly_not_tested(
+        self,
+    ) -> None:
+        run = self.observed_run()
+        run.report["fixtures"] = run.report["fixtures"][:1]
+        run = replace(run, scopes=("api",))
+
+        scorecard = compatibility_scorecard.build(
+            subject_version="0.3.0",
+            subject_revision="a" * 40,
+            corpus=self.corpus(),
+            corpus_sha256="b" * 64,
+            runs=(run,),
+        )
+
+        missing = [
+            record
+            for record in scorecard["observations"]
+            if record.get("fixture_id")
+            == "tests/fixtures/downloaded/broken.pdf"
+        ]
+        self.assertEqual(
+            missing,
+            [
+                {
+                    "id": (
+                        "macos-arm64-wheel::fixture::"
+                        "tests/fixtures/downloaded/broken.pdf::not-tested"
+                    ),
+                    "run_id": "macos-arm64-wheel",
+                    "kind": "fixture",
+                    "platform_id": "macos-15-arm64-cpython-3.13",
+                    "artifact_type": "wheel",
+                    "fixture_class": "regression",
+                    "fixture_id": "tests/fixtures/downloaded/broken.pdf",
+                    "status": "not_tested",
+                    "reason": "absent_from_parity_report",
+                }
+            ],
+        )
+
     @staticmethod
     def corpus() -> corpus_index.CorpusIndex:
         return corpus_index.CorpusIndex(
