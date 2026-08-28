@@ -37,6 +37,10 @@
 //! [workspace and extraction architecture guide](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/architecture.md)
 //! traces the parser, core algorithms, binding adapters, caches, extension boundaries, and
 //! one complete text request without expanding the stable facade.
+//! Proposals that change the stable facade follow the
+//! [Rust API-design review](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-api-design.md),
+//! which records ownership, allocation, iterator, determinism, error, extension-trait, and
+//! future-compatibility decisions before merge.
 //!
 //! The library is split into three crates:
 //!

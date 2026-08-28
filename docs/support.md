@@ -89,6 +89,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Optional serde and parallel features with an additive combination contract
 - Two-subsequent-minor-release deprecation window for the stable Rust facade
 - Source-backed six-crate architecture, extraction flow, cache, and extension guide
+- Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
 
 **Known limitations**
 
@@ -108,6 +109,8 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`compat/tests/test_rust_deprecation_policy.py`](../compat/tests/test_rust_deprecation_policy.py)
 - [`docs/architecture.md`](../docs/architecture.md)
 - [`compat/tests/test_rust_architecture.py`](../compat/tests/test_rust_architecture.py)
+- [`docs/rust-api-design.md`](../docs/rust-api-design.md)
+- [`compat/tests/test_rust_api_design.py`](../compat/tests/test_rust_api_design.py)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 

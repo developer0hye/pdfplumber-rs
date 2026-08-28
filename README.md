@@ -187,6 +187,13 @@ complete compiler guidance, two subsequent published minor releases of support,
 and a SemVer-compatible migration path before ordinary removal.
 ([policy evidence](compat/tests/test_rust_deprecation_policy.py))
 
+New or changed stable facade items also follow the
+[Rust API-design review](docs/rust-api-design.md). Each review records the
+signature and observable contract, then resolves ownership, allocation,
+iterator, determinism, error-composition, extension-trait, and future-evolution
+questions before merge.
+([review evidence](compat/tests/test_rust_api_design.py))
+
 For ordinary applications, do not add direct dependencies on `pdfplumber-core` or
 `pdfplumber-parse`. Those workspace crates contain reusable algorithms and parser
 internals for advanced contributors; they are not additional steps in the

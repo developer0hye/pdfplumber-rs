@@ -10,12 +10,12 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Review Rust API design
+### Measure and reduce Rust time to first value
 
-Review ownership, allocations, iterator behavior, determinism, error
-composition, extension traits, and future compatibility across the facade.
+Measure the clean-project path to a first useful extraction and remove every
+setup step or conceptual dependency that is not required for that result.
 
-Detailed task: [`DX-017`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed task: [`DX-018`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
 
 ### Turn compatibility results into a public scorecard
 
@@ -27,12 +27,13 @@ Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
 
-### Measure and reduce Rust time to first value
+### Prove clean Rust package consumption
 
-Measure the clean-project path to a first useful extraction and remove every
-setup step or conceptual dependency that is not required for that result.
+Build every publishable Rust package through Cargo's package boundary and keep
+a reproducible clean environment that exercises the same first-use and focused
+contributor paths as source Continuous Integration.
 
-Detailed task: [`DX-018`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed tasks: [`DIST-001`](PRD.md#824-p1--distribution-and-installation), [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
 
 ### Define a credible Python migration beta
 

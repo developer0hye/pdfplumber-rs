@@ -31,6 +31,11 @@ one text request flows through those layers, and where advanced parser or
 binding extensions stop. Architecture visibility does not promote those lower
 or host-specific APIs into this stable facade.
 
+Proposals that add or change stable facade items must complete the
+[Rust API-design review](rust-api-design.md). The record makes ownership,
+allocation, iterator, ordering, error, extension-trait, and future-compatibility
+decisions explicit before implementation and merge.
+
 Compatibility aliases marked `#[doc(hidden)]` remain callable during the alpha
 line but are not a second generated facade. Other types and algorithms
 re-exported at the crate root remain source compatible for now, but only the
@@ -138,3 +143,7 @@ The release detector and workflow contract live in
 [`compat/tests/test_rust_semver_release.py`](../compat/tests/test_rust_semver_release.py),
 with upstream behavior recorded in
 [`references/rust-semver-checks.md`](../references/rust-semver-checks.md).
+The source-backed design-review contract lives in
+[`compat/tests/test_rust_api_design.py`](../compat/tests/test_rust_api_design.py),
+with its primary-source mapping in
+[`references/rust-api-design.md`](../references/rust-api-design.md).

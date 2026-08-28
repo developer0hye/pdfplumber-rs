@@ -39,6 +39,9 @@ commit list.
 - **Documentation:** Added a source-backed architecture guide for all six
   workspace crates, including dependency direction, one extraction request,
   cache lifetimes, extension boundaries, and contributor ownership.
+- **Documentation:** Added required API-design review criteria for stable Rust
+  facade changes, covering ownership, allocations, iterator behavior,
+  determinism, error composition, extension traits, and future compatibility.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale
