@@ -1,0 +1,17 @@
+[workspace]
+
+[package]
+name = "pdfplumber-competitor-adapters"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "pdf-benchmark-adapter"
+path = "src/main.rs"
+
+[dependencies]
+pdfplumber = { path = "../../../crates/pdfplumber" }
+pdf_oxide = { path = "../.sources/pdf_oxide" }
+pdfsink-rs = { path = "../.sources/pdfsink-rs" }
+serde_json = "1"
