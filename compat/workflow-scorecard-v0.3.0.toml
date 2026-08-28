@@ -1,0 +1,68 @@
+schema_version = 1
+machine_scorecard = "docs/compatibility/scorecard-v0.3.0.json"
+output = "docs/compatibility/workflows-v0.3.0.md"
+
+[[workflows]]
+id = "open"
+title = "Open"
+projection = "document_open"
+
+[[workflows]]
+id = "text"
+title = "Text"
+apis = [
+  "chars",
+  "extract_text",
+  "extract_text_lines",
+  "extract_text_simple",
+  "layout_text",
+  "page_text",
+  "simple_text",
+  "text_lines",
+  "utils.extract_text",
+]
+
+[[workflows]]
+id = "words"
+title = "Words"
+apis = ["extract_words", "words"]
+
+[[workflows]]
+id = "crop"
+title = "Crop"
+not_tested_reason = "The v1 machine scorecard has no crop or bounding-box operation observation; uncropped extraction does not establish crop parity."
+
+[[workflows]]
+id = "search"
+title = "Search"
+apis = ["search"]
+
+[[workflows]]
+id = "tables"
+title = "Tables"
+apis = ["extract_tables", "tables"]
+
+[[workflows]]
+id = "serialization"
+title = "Serialization"
+not_tested_reason = "The v1 machine scorecard has no JSON or CSV observation; separate serialization contracts are not promoted into this parity artifact."
+
+[[workflows]]
+id = "annotations"
+title = "Annotations"
+apis = ["annotations", "hyperlinks"]
+
+[[workflows]]
+id = "structure"
+title = "Structure"
+apis = ["structure_tree"]
+
+[[workflows]]
+id = "rendering"
+title = "Rendering"
+not_tested_reason = "The v1 machine scorecard has no page-image rendering observation; extraction results do not establish rendering parity."
+
+[[workflows]]
+id = "cli"
+title = "Command-Line Interface"
+not_tested_reason = "The source-built harness transport is not a product Command-Line Interface parity test; arguments, output, and exit behavior have no v1 machine observation."

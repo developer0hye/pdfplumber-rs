@@ -12,9 +12,9 @@ The current focus is making the `0.3.x` alpha release easy to evaluate and hard 
 
 ### Turn compatibility results into a public scorecard
 
-The versioned [machine-readable scorecard](docs/compatibility/scorecard-v0.3.0.json) now exposes API, option, fixture-class, page, platform, and artifact results with distinct exact, approved-delta, unsupported, failure, and untested outcomes. Next, publish the workflow-oriented view for common evaluation paths.
+The versioned [machine-readable scorecard](docs/compatibility/scorecard-v0.3.0.json) exposes API, option, fixture-class, page, platform, and artifact results. Its generated [human workflow view](docs/compatibility/workflows-v0.3.0.md) keeps exact, approved-delta, unsupported, failure, and untested outcomes distinct across eleven common evaluation paths.
 
-Completed foundation: `SCORE-010`. Next task: [`SCORE-011`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+Completed foundations: `SCORE-010`, `SCORE-011`, and `SCORE-012`.
 
 ### Establish comparable benchmark inputs
 
