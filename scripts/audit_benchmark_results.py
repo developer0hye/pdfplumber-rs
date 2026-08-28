@@ -25,6 +25,7 @@ POLICY_PATH = REPO_ROOT / "benchmarks" / "equivalence-v0.3.0.toml"
 REGISTRY_PATH = REPO_ROOT / "compat" / "fixture-provenance.toml"
 INDEX_PATH = REPO_ROOT / "docs" / "benchmarks" / "results-v0.3.0.md"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "benchmark-result-audit.yml"
+WITHDRAWAL_SCRIPT_PATH = REPO_ROOT / "scripts" / "withdraw_benchmark_results.py"
 
 
 def parse_args() -> argparse.Namespace:
@@ -87,6 +88,23 @@ def check_repository(plan: benchmark_retention.RetentionPlan) -> None:
             raise benchmark_retention.BenchmarkRetentionError(
                 f"read-only benchmark audit workflow contains {prohibited!r}"
             )
+    withdrawal_script = WITHDRAWAL_SCRIPT_PATH.read_text(encoding="utf-8")
+    for fragment in (
+        'EXPECTED_GITHUB_LOGIN = "developer0hye"',
+        'GITHUB_REPOSITORY = "developer0hye/pdfplumber-rs"',
+        '"delete-asset"',
+        '"--notes-file"',
+        '"--prerelease"',
+        '"upload"',
+    ):
+        if fragment not in withdrawal_script:
+            raise benchmark_retention.BenchmarkRetentionError(
+                f"benchmark withdrawal command lacks {fragment!r}"
+            )
+    if "delete-tag" in withdrawal_script:
+        raise benchmark_retention.BenchmarkRetentionError(
+            "benchmark withdrawal command must retain the source tag"
+        )
     ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(
         encoding="utf-8"
     )
