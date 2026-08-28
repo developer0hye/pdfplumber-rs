@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import copy
+import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -161,10 +163,8 @@ class BenchmarkRegressionTests(unittest.TestCase):
             for timing in baseline["scenario_timings"]:
                 if timing["implementation"]["id"] == "pdfplumber-python":
                     timing["wall_time_ns"] = round(timing["wall_time_ns"] / 1.2)
-            baseline["statistical_summaries"] = (
-                benchmark_provenance.summarize_samples(
-                    baseline["scenario_timings"], repetitions=5
-                )
+            baseline["statistical_summaries"] = benchmark_provenance.summarize_samples(
+                baseline["scenario_timings"], repetitions=5
             )
 
         decision = benchmark_regressions.compare_runs(
@@ -221,10 +221,8 @@ class BenchmarkRegressionTests(unittest.TestCase):
             for timing in candidate["scenario_timings"]:
                 if timing["implementation"]["id"] == "pdfplumber-rs":
                     timing["semantic_output_sha256"] = "f" * 64
-            candidate["statistical_summaries"] = (
-                benchmark_provenance.summarize_samples(
-                    candidate["scenario_timings"], repetitions=5
-                )
+            candidate["statistical_summaries"] = benchmark_provenance.summarize_samples(
+                candidate["scenario_timings"], repetitions=5
             )
 
         decision = benchmark_regressions.compare_runs(
@@ -233,7 +231,9 @@ class BenchmarkRegressionTests(unittest.TestCase):
 
         self.assertEqual(decision.status, "semantic-failure")
         self.assertEqual(decision.comparisons, ())
-        self.assertTrue(any("output-equivalence" in reason for reason in decision.reasons))
+        self.assertTrue(
+            any("output-equivalence" in reason for reason in decision.reasons)
+        )
 
     def test_cli_and_read_only_workflow_run_abba_and_retain_decision(self) -> None:
         completed = subprocess.run(
@@ -261,9 +261,15 @@ class BenchmarkRegressionTests(unittest.TestCase):
             "benchmark-regression-decision.json",
         ):
             self.assertIn(required, workflow)
-        self.assertLess(workflow.index("baseline-a.json"), workflow.index("candidate-a.json"))
-        self.assertLess(workflow.index("candidate-a.json"), workflow.index("candidate-b.json"))
-        self.assertLess(workflow.index("candidate-b.json"), workflow.index("baseline-b.json"))
+        self.assertLess(
+            workflow.index("baseline-a.json"), workflow.index("candidate-a.json")
+        )
+        self.assertLess(
+            workflow.index("candidate-a.json"), workflow.index("candidate-b.json")
+        )
+        self.assertLess(
+            workflow.index("candidate-b.json"), workflow.index("baseline-b.json")
+        )
         for prohibited in ("contents: write", "issues: write", "pull-requests: write"):
             self.assertNotIn(prohibited, workflow)
 
@@ -271,6 +277,40 @@ class BenchmarkRegressionTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("python scripts/check_benchmark_regressions.py --check", ci)
+
+    def test_incomplete_run_still_retains_an_inconclusive_decision(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            directory = Path(temporary_directory)
+            decision_path = directory / "decision.json"
+            missing_path = directory / "missing.json"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT_PATH),
+                    "--compare",
+                    "--baseline-run",
+                    str(missing_path),
+                    "--baseline-run",
+                    str(missing_path),
+                    "--candidate-run",
+                    str(missing_path),
+                    "--candidate-run",
+                    str(missing_path),
+                    "--decision-output",
+                    str(decision_path),
+                ],
+                cwd=REPO_ROOT,
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            decision = json.loads(decision_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(completed.returncode, 1, completed.stderr)
+        self.assertEqual(decision["status"], "inconclusive")
+        self.assertTrue(
+            any("cannot read benchmark run" in reason for reason in decision["reasons"])
+        )
 
 
 if __name__ == "__main__":

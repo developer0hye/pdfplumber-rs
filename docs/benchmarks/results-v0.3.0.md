@@ -25,3 +25,7 @@ The initial [confirmed reproduction and publication run](https://github.com/deve
 A scheduled read-only audit reruns the immutable tag and compares semantic records, preflight decisions, timed keys, fixture bindings, and semantic digests. Host identity and timing values may differ. A completed audit that changes any semantic result produces a machine-readable withdrawal decision; transient setup or network failures are inconclusive and cannot remove evidence.
 
 Withdrawal removes the three result-bearing assets and replaces the Release body with a tombstone under the verified `developer0hye` identity. It never deletes the source tag or the audit decision.
+
+## Regression alerts
+
+The separate [SCORE-013 regression policy](regressions-v0.3.0.md) uses this retained tag as its immutable baseline. It checks exact semantic and timing-eligibility identities before applying its paired-run noise rule; alert decisions do not alter these Release assets.

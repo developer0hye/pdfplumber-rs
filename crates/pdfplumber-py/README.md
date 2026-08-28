@@ -179,6 +179,9 @@ The versioned `SCORE-008` [benchmark result assets](../../docs/benchmarks/result
 retain that complete exact-tag run. The `SCORE-009` retention audit and
 [comparison policy](../../docs/comparison.md) withdraw those assets if semantic
 reproduction or output equivalence fails, without promoting a ranking.
+The `SCORE-013` [regression alert policy](../../docs/benchmarks/regressions-v0.3.0.md)
+compares paired baseline/current runs only after the same exact semantic gate and
+records noisy overlap without promoting it into a regression.
 
 ## License
 

@@ -94,6 +94,7 @@ class BenchmarkResultRetentionTests(unittest.TestCase):
         self.assertIn("confirmed reproduction", index)
         self.assertIn(plan.audit_evidence_url, index)
         self.assertIn(plan.publication_plan.raw_url, index)
+        self.assertIn("regressions-v0.3.0.md", index)
 
     def test_reproduction_retains_result_despite_new_host_timings(self) -> None:
         plan = load_plan()
