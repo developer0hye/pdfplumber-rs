@@ -213,7 +213,7 @@ class BenchmarkStageContractTests(unittest.TestCase):
         self.assertIn("`SCORE-006`", roadmap)
         self.assertIn("`SCORE-007`", roadmap)
         self.assertIn("`SCORE-008`", roadmap)
-        self.assertIn("`SCORE-009`, and `SCORE-013`", roadmap)
+        self.assertIn("`SCORE-009`, `SCORE-013`, and `SCORE-014`", roadmap)
         self.assertNotIn("Detailed task: [`SCORE-009`]", roadmap)
         changelog = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
         self.assertIn("seven component clocks", changelog)

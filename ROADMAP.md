@@ -22,15 +22,15 @@ Define a redistributable workload corpus and reject timing comparisons unless
 the requested outputs and semantics are materially equivalent. Performance
 evidence will follow the correctness gate, not substitute for it.
 
-Completed foundations: `SCORE-001`, `SCORE-002`, `SCORE-003`, `SCORE-004`, `SCORE-005`, `SCORE-006`, `SCORE-007`, `SCORE-008`, `SCORE-009`, and `SCORE-013`.
+Completed foundations: `SCORE-001`, `SCORE-002`, `SCORE-003`, `SCORE-004`, `SCORE-005`, `SCORE-006`, `SCORE-007`, `SCORE-008`, `SCORE-009`, `SCORE-013`, and `SCORE-014`.
 
 The versioned [benchmark result index](docs/benchmarks/results-v0.3.0.md) links the published exact-tag raw JSON, concise human report, and checksum assets.
 
 The [benchmark regression policy](docs/benchmarks/regressions-v0.3.0.md) documents paired-run ordering, pinned host controls, noise qualification, and semantic-first failure behavior.
 
-The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) is the chronological view for repeated competitor and compatibility scorecards. Its first verified candidate run remains required before `SCORE-014` is complete.
+The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) is the chronological view for repeated competitor and compatibility scorecards. It begins with the first verified candidate run; later candidates append instead of replacing earlier observations.
 
-Next benchmark task: [`SCORE-014`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+Next evidence-lifecycle task: [`DIST-016`](PRD.md#824-p1--distribution-and-installation).
 
 ## Next
 
