@@ -68,8 +68,8 @@ class RustCompileFailContractTests(unittest.TestCase):
         self.assertTrue(reference_path.is_file())
         self.assertIn("rust-compile-fail.md", references)
         self.assertIn("`compile_fail`", reference_path.read_text(encoding="utf-8"))
-        self.assertIn("DX-015", roadmap)
-        self.assertRegex(roadmap, r"(?i)deprecation policy")
+        self.assertIn("DX-016", roadmap)
+        self.assertRegex(roadmap, r"(?i)extraction architecture")
         self.assertNotIn("DX-011", roadmap)
 
 

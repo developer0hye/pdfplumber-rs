@@ -87,6 +87,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Cropping, embedded-font metrics, CJK, right-to-left, rotated-page, tagged-PDF, and reading-order handling
 - Path, byte, page-at-a-time iteration, serialization, and resource-budget APIs
 - Optional serde and parallel features with an additive combination contract
+- Two-subsequent-minor-release deprecation window for the stable Rust facade
 
 **Known limitations**
 
@@ -102,6 +103,8 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/rust-features.md`](../docs/rust-features.md)
 - [`compat/tests/test_rust_features.py`](../compat/tests/test_rust_features.py)
 - [`crates/pdfplumber/tests/feature_semantics.rs`](../crates/pdfplumber/tests/feature_semantics.rs)
+- [`docs/rust-deprecation-policy.md`](../docs/rust-deprecation-policy.md)
+- [`compat/tests/test_rust_deprecation_policy.py`](../compat/tests/test_rust_deprecation_policy.py)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 

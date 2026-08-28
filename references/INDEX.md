@@ -32,6 +32,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Cargo | [cargo-features.md](cargo-features.md) | Reviewing additive feature flags, defaults, unification, and representative combination gates |
 | rustdoc | [rust-compile-fail.md](rust-compile-fail.md) | Reviewing intentional compilation failures and their positive alternatives |
 | cargo-semver-checks and Cargo | [rust-semver-checks.md](rust-semver-checks.md) | Reviewing release API compatibility, baselines, approved breaks, or migration-note gates |
+| Rust Reference and Cargo | [rust-deprecation.md](rust-deprecation.md) | Reviewing deprecation annotations, support windows, removal gates, or safety exceptions |
 | Rust and Cargo | [rust-toolchain-policy.md](rust-toolchain-policy.md) | Reviewing the rolling stable toolchain policy or dependency compiler requirements |
 
 ## Font Parsing

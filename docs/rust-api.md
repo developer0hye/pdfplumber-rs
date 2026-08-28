@@ -97,6 +97,15 @@ lifetime, and partial-feature changes. Maintainer review and the migration-note
 contract remain required rather than treating a green tool result as a complete
 compatibility proof.
 
+## Deprecation lifecycle
+
+Stable facade items follow the [Rust deprecation policy](rust-deprecation-policy.md).
+Ordinary deprecations provide complete `since` and replacement metadata, remain
+callable through two subsequent published minor releases, and are removed only
+in a SemVer-incompatible release after the existing migration-note gate passes.
+Only an urgent safety issue or demonstrated unsoundness can shorten that window.
+Hidden aliases are not implicitly deprecated.
+
 ## Enforced gates
 
 The facade crate carries `#![deny(missing_docs)]` and
