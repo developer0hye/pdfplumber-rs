@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import tempfile
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -294,6 +296,62 @@ class OptionMatrixSnapshotTests(unittest.TestCase):
             expected_root=generate_option_matrix.environment.CANDIDATE_VENV,
         )
         verify_reference.assert_not_called()
+
+    def test_candidate_error_records_keep_diagnostics_and_identity(self) -> None:
+        class Page:
+            def extract_words(self, **options: object) -> object:
+                warnings.warn("candidate warning", UserWarning)
+                logging.getLogger("pdfplumber").warning("candidate log")
+                raise TypeError(
+                    f"unexpected option {next(iter(options))}"
+                )
+
+        class Pdf:
+            pages = [Page()]
+
+            def __enter__(self) -> "Pdf":
+                return self
+
+            def __exit__(self, *args: object) -> None:
+                return None
+
+        class Package:
+            @staticmethod
+            def open(path: Path) -> Pdf:
+                self.assertEqual(path, option_matrix.TEXT_FIXTURE)
+                return Pdf()
+
+        case = option_matrix.Case(
+            identifier="text.extract_words.candidate_only",
+            domain="text",
+            api="extract_words",
+            fixture=option_matrix.TEXT_FIXTURE,
+            page_number=1,
+            options={"candidate_only": True},
+            covers=("extract_words.candidate_only",),
+            arguments={},
+        )
+
+        record = option_matrix._run_case(Package(), case)
+
+        self.assertEqual(record["status"], "error")
+        self.assertEqual(record["options"], {"candidate_only": True})
+        self.assertEqual(record["arguments"], {})
+        self.assertEqual(
+            record["warnings"],
+            [{"category": "builtins.UserWarning", "message": "candidate warning"}],
+        )
+        self.assertEqual(
+            record["logs"],
+            [
+                {
+                    "level": "WARNING",
+                    "logger": "pdfplumber",
+                    "message": "candidate log",
+                }
+            ],
+        )
+        self.assertEqual(record["error"]["type"], "builtins.TypeError")
 
 
 if __name__ == "__main__":
