@@ -192,6 +192,12 @@ class BenchmarkProvenanceContractTests(unittest.TestCase):
         self.assertIn("--release", rust_build.flags)
         self.assertIn("--locked", rust_build.flags)
         self.assertIn("features=parallel", rust_build.flags)
+        candidate_build = next(
+            build for build in plan.builds if build.id == "candidate-python-wheel"
+        )
+        self.assertIn("maturin=1.14.1", candidate_build.flags)
+        self.assertIn("pip=--no-deps", candidate_build.flags)
+        self.assertIn("profile=release", candidate_build.flags)
         self.assertEqual(
             {tool.id for tool in plan.tools},
             {
