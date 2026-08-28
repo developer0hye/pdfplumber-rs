@@ -90,11 +90,13 @@ A release-configured target is not considered supported or CI-verified until an 
 - Two-subsequent-minor-release deprecation window for the stable Rust facade
 - Source-backed six-crate architecture, extraction flow, cache, and extension guide
 - Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
+- Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
 
 **Known limitations**
 
 - The 0.3.x API is alpha and may change before the stable contract is complete.
 - Required CI verifies Ubuntu Linux only; registry installation and other targets are not smoke-tested.
+- The current-source Rust quick start passes, but published 0.3.0 predates Pdf::open_path and its recorded cold registry trial fails compilation.
 - Image-only PDFs require a separate Optical Character Recognition stage.
 
 **Evidence**
@@ -111,6 +113,9 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`compat/tests/test_rust_architecture.py`](../compat/tests/test_rust_architecture.py)
 - [`docs/rust-api-design.md`](../docs/rust-api-design.md)
 - [`compat/tests/test_rust_api_design.py`](../compat/tests/test_rust_api_design.py)
+- [`docs/rust-ttfv.md`](../docs/rust-ttfv.md)
+- [`docs/measurements/rust-ttfv-workspace-2026-08-28.json`](../docs/measurements/rust-ttfv-workspace-2026-08-28.json)
+- [`compat/tests/test_rust_ttfv.py`](../compat/tests/test_rust_ttfv.py)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 

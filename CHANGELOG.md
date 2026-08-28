@@ -42,6 +42,11 @@ commit list.
 - **Documentation:** Added required API-design review criteria for stable Rust
   facade changes, covering ownership, allocations, iterator behavior,
   determinism, error composition, extension traits, and future compatibility.
+- **Documentation:** Measured the current-source Rust time to first value from an
+  empty Cargo project and cache at under five minutes, including dependency
+  resolution, code copy, execution, and interpretation. Optional features and
+  internal crates now follow rather than interrupt the first useful extraction;
+  public-registry installation remains a separate release gate.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale

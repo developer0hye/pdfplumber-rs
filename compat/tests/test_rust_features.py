@@ -121,7 +121,7 @@ class RustFeatureContractTests(unittest.TestCase):
         self.assertIn("cargo-features.md", (ROOT / "references/INDEX.md").read_text())
 
         self.assertNotIn("### Make feature combinations predictable", ROADMAP)
-        self.assertIn("DX-018", ROADMAP)
+        self.assertIn("DIST-001", ROADMAP)
         self.assertIn("- [x] **DX-014**", PRD)
         self.assertRegex(
             PRD,

@@ -172,7 +172,7 @@ class RustArchitectureContractTests(unittest.TestCase):
         self.assertIn("docs/architecture.md", SUPPORT_SOURCE)
         self.assertIn("compat/tests/test_rust_architecture.py", SUPPORT_SOURCE)
         self.assertNotIn("### Explain the extraction architecture", ROADMAP)
-        self.assertIn("DX-018", ROADMAP)
+        self.assertIn("DIST-001", ROADMAP)
         self.assertIn("- [x] **DX-016**", PRD)
         self.assertIn("- [x] **DOC-016**", PRD)
         self.assertRegex(
