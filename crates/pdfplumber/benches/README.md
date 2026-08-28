@@ -4,8 +4,10 @@ This Criterion suite measures changes within the current Rust implementation on
 synthetic fixtures. It does not request materially equivalent outputs from another
 library and publishes no cross-project result. A separate
 [versioned corpus](../../../docs/benchmarks/corpus-v0.3.0.md) now defines shared
-inputs; cross-project measurements remain deferred until `SCORE-002` through
-`SCORE-009` satisfy the [comparison policy](../../../docs/comparison.md).
+inputs. Its [output-equivalence preflight](../../../docs/benchmarks/equivalence-v0.3.0.md)
+rejects mismatched semantics or canonical results before timing. Cross-project
+measurements remain deferred until `SCORE-003` through `SCORE-009` satisfy the
+[comparison policy](../../../docs/comparison.md).
 
 ## Running Benchmarks
 

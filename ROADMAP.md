@@ -22,9 +22,9 @@ Define a redistributable workload corpus and reject timing comparisons unless
 the requested outputs and semantics are materially equivalent. Performance
 evidence will follow the correctness gate, not substitute for it.
 
-Completed foundation: `SCORE-001`.
+Completed foundations: `SCORE-001` and `SCORE-002`.
 
-Detailed tasks: [`SCORE-002`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-003`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
+Detailed tasks: [`SCORE-003`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards), [`SCORE-004`](PRD.md#825-p1--public-benchmarks-and-compatibility-scorecards).
 
 ## Next
 

@@ -14,8 +14,10 @@ commit list.
 - **Performance:** Defined a versioned, redistributable ten-document benchmark
   corpus covering text, word geometry, tables, graphics, CJK, right-to-left,
   images, encryption, malformed inputs, and measured small/large sizes. Exact
-  fixture digests and access metadata are checked against the licensed corpus;
-  no timing comparison is published before output equivalence passes.
+  fixture digests and access metadata are checked against the licensed corpus.
+  A fail-closed preflight now requires identical fixture digests, request
+  semantics, output schemas, and canonical JSON results before a case is
+  eligible for timing; no cross-project timing comparison is published yet.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

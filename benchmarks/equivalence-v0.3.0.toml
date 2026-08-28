@@ -1,0 +1,47 @@
+# Canonical untimed request and output contracts. Competitor-specific adapters
+# must project into these records before any performance command runs.
+
+[schema]
+version = 1
+
+[policy]
+id = "pdfplumber-rs-equivalence-v0.3.0"
+release = "0.3.0"
+corpus_id = "pdfplumber-rs-v0.3.0"
+reference = "references/mlperf-inference.md"
+
+[[workloads]]
+id = "document-open"
+output_schema = "page-count-v1"
+semantic_classes = ["*"]
+request = { operation = "open", page_selection = "all", password_source = "fixture-metadata", repair = "disabled" }
+
+[[workloads]]
+id = "graphics"
+output_schema = "page-graphics-v1"
+semantic_classes = ["graphics-heavy"]
+request = { coordinate_system = "top-origin-points", page_selection = "all", primitives = ["curve", "line", "rect"], preserve_path_order = true }
+
+[[workloads]]
+id = "images"
+output_schema = "page-images-v1"
+semantic_classes = ["image-heavy"]
+request = { coordinate_system = "top-origin-points", include_stream_data = true, page_selection = "all", preserve_page_order = true }
+
+[[workloads]]
+id = "tables"
+output_schema = "page-tables-v1"
+semantic_classes = ["table-heavy"]
+request = { horizontal_strategy = "lines", intersection_tolerance_points = 3.0, join_tolerance_points = 3.0, min_words_horizontal = 1, min_words_vertical = 3, page_selection = "all", preserve_cell_nulls = true, snap_tolerance_points = 3.0, vertical_strategy = "lines" }
+
+[[workloads]]
+id = "text"
+output_schema = "page-text-v1"
+semantic_classes = ["cjk", "right-to-left", "text-only"]
+request = { layout = false, normalization = "none", page_selection = "all", preserve_page_boundaries = true }
+
+[[workloads]]
+id = "words"
+output_schema = "page-words-v1"
+semantic_classes = ["word-geometry"]
+request = { coordinate_system = "top-origin-points", expand_ligatures = true, keep_blank_chars = false, page_selection = "all", preserve_word_order = true, use_text_flow = false, x_tolerance_points = 3.0, y_tolerance_points = 3.0 }

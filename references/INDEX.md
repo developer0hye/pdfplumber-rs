@@ -39,6 +39,12 @@ Projects organized by domain. Read the specific file matching your current probl
 | Cargo | [cargo-packaging.md](cargo-packaging.md) | Reviewing verified crate archives, publish dry runs, coordinated workspace releases, or exact-commit package provenance |
 | Development Containers, Docker, and Rust Official Images | [rust-dev-containers.md](rust-dev-containers.md) | Reproducing the pinned Rust contributor environment or updating its image digest |
 
+## Benchmark Design
+
+| Source | File | Use When |
+|---|---|---|
+| [MLPerf Inference](https://github.com/mlcommons/inference_policies) | [mlperf-inference.md](mlperf-inference.md) | Separating output accuracy or equivalence validation from performance measurement |
+
 ## Font Parsing
 
 | Project | Language | File | Use When |
