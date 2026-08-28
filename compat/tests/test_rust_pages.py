@@ -46,9 +46,9 @@ class RustPageApiContractTests(unittest.TestCase):
 
     def test_roadmap_advances_after_page_traversal(self) -> None:
         self.assertNotIn("### Make page traversal explicit", ROADMAP)
-        self.assertIn("DIST-015", ROADMAP)
+        self.assertIn("SCORE-010", ROADMAP)
         normalized = " ".join(ROADMAP.split())
-        self.assertRegex(normalized, r"(?i)reproducible Rust development")
+        self.assertRegex(normalized, r"(?i)public scorecard")
 
     def test_public_change_and_design_sources_are_traceable(self) -> None:
         self.assertIn("`Pdf::pages`", CHANGELOG)

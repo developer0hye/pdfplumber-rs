@@ -77,6 +77,14 @@ jobs:
       - name: Test rendered Rust and CLI quick starts
         run: python scripts/check_doc_quickstarts.py --rust --cli
 
+  rust-dev-container:
+    name: Rust development container
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run the reproducible Rust contributor paths
+        run: scripts/check_rust_dev_container.sh
+
   python-native-layout:
     name: Python native package layout
     runs-on: ubuntu-latest

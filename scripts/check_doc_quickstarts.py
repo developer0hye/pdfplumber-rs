@@ -214,7 +214,8 @@ def rust_program(snippet: str) -> str:
             in_imports = False
             body.append(line)
     indented = "\n".join(f"    {line}" if line else "" for line in body)
-    return f"{'\n'.join(imports).rstrip()}\n\nfn main() {{\n{indented}\n}}\n"
+    imports_block = "\n".join(imports).rstrip()
+    return f"{imports_block}\n\nfn main() {{\n{indented}\n}}\n"
 
 
 def run_rust_quick_starts() -> None:
@@ -242,7 +243,8 @@ def run_rust_quick_starts() -> None:
             (bins / f"{name}.rs").write_text(rust_program(snippet), encoding="utf-8")
 
         env = os.environ.copy()
-        env["CARGO_TARGET_DIR"] = str(ROOT / "target/doc-quickstarts/rust")
+        target_root = Path(env.get("CARGO_TARGET_DIR", ROOT / "target"))
+        env["CARGO_TARGET_DIR"] = str(target_root / "doc-quickstarts/rust")
         for index, name in enumerate(names, start=1):
             completed = run(
                 ["cargo", "run", "--quiet", "--bin", name], cwd=consumer, env=env
@@ -268,7 +270,8 @@ def run_cli_quick_start() -> None:
         consumer = Path(temp)
         install_root = consumer / "install"
         env = os.environ.copy()
-        env["CARGO_TARGET_DIR"] = str(ROOT / "target/doc-quickstarts/cli")
+        target_root = Path(env.get("CARGO_TARGET_DIR", ROOT / "target"))
+        env["CARGO_TARGET_DIR"] = str(target_root / "doc-quickstarts/cli")
         run(
             [
                 "cargo",

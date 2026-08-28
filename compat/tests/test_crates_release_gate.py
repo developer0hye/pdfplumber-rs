@@ -211,8 +211,8 @@ class CratesReleaseGateTests(unittest.TestCase):
             prd,
         )
         self.assertIn("| `DIST-001` | 2026-08-28 | Codex |", prd)
-        self.assertIn("Prove reproducible Rust development", roadmap)
-        self.assertIn("`DIST-015`", roadmap)
+        self.assertIn("Turn compatibility results into a public scorecard", roadmap)
+        self.assertIn("`SCORE-010`", roadmap)
         self.assertNotIn(
             "Detailed tasks: [`DIST-001`](PRD.md#824-p1--distribution-and-installation)",
             roadmap,

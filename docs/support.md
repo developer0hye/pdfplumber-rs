@@ -92,6 +92,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
 - Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
 - Exact-clean-commit cargo package and cargo publish dry-run verification for all four crates.io candidates before tagged publication
+- Digest-pinned Rust 1.98.0 Bookworm development container for the rendered Rust quick starts and focused contributor tests
 
 **Known limitations**
 
@@ -120,6 +121,12 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/crates-release.md`](../docs/crates-release.md)
 - [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
 - [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
+- [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)
+- [`.devcontainer/Dockerfile`](../.devcontainer/Dockerfile)
+- [`docs/rust-development.md`](../docs/rust-development.md)
+- [`scripts/check_rust_dev_container.sh`](../scripts/check_rust_dev_container.sh)
+- [`scripts/check_rust_dev_environment.sh`](../scripts/check_rust_dev_environment.sh)
+- [`compat/tests/test_rust_dev_environment.py`](../compat/tests/test_rust_dev_environment.py)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 
