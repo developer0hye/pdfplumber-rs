@@ -348,7 +348,8 @@ class BenchmarkProvenanceContractTests(unittest.TestCase):
         roadmap = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
         self.assertIn("`SCORE-007`", roadmap)
         self.assertIn("`SCORE-008`", roadmap)
-        self.assertIn("[`SCORE-009`]", roadmap)
+        self.assertIn("`SCORE-008`, and `SCORE-009`", roadmap)
+        self.assertNotIn("Detailed task: [`SCORE-009`]", roadmap)
 
 
 if __name__ == "__main__":

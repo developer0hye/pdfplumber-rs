@@ -207,6 +207,9 @@ jobs:
       - name: Validate benchmark result publication
         run: python scripts/publish_benchmark_results.py --check
 
+      - name: Validate benchmark result retention
+        run: python scripts/audit_benchmark_results.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

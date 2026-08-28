@@ -15,6 +15,8 @@
   verification scripts bind data to checksums.
 - Preprocessing and postprocessing semantics are explicit so a faster but
   materially different task is not treated as the same benchmark.
+- Replicability is mandatory. A materially failed post-publication audit can
+  move or remove the invalid result, while the audit record is retained.
 
 ## Relevance to pdfplumber-rs
 
@@ -22,3 +24,7 @@
 untimed canonical outputs for the same digest-bound fixture and semantic request.
 Only exact equivalent output is eligible for later timing. MLPerf thresholds and
 machine-learning-specific scenarios are not copied into this project.
+`SCORE-009` also adopts the audit-lifecycle shape: confirmed semantic drift
+withdraws the result-bearing assets while retaining the immutable source tag,
+Release tombstone, and machine-readable audit decision. Infrastructure failures
+remain inconclusive rather than causing destructive removal.

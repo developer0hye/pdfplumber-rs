@@ -35,4 +35,4 @@ python3 scripts/run_benchmark_provenance.py --build
 python3 scripts/run_benchmark_provenance.py --run --output /tmp/pdfplumber-rs-provenance.json
 ```
 
-SCORE-008 promotes a complete run only through the exact `benchmark-results-v0.3.0` tag target and retains the raw JSON, concise human report, and checksums as release assets. SCORE-009 remains the result-removal policy. These descriptive observations do not create a broad product performance claim.
+SCORE-008 promotes a complete run only through the exact `benchmark-results-v0.3.0` tag target and retains the raw JSON, concise human report, and checksums as release assets. SCORE-009 re-audits the immutable tag and withdraws all three result assets if semantic reproduction or output equivalence fails while retaining the tag and audit tombstone. These descriptive observations do not create a broad product performance claim.

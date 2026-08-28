@@ -176,8 +176,9 @@ separates warmed opens, same-live-page cache hits, and matched page scopes.
 The [run-provenance contract](../../docs/benchmarks/provenance-v0.3.0.md)
 records environment/build inputs and retains five raw repetitions plus descriptive summaries.
 The versioned `SCORE-008` [benchmark result assets](../../docs/benchmarks/results-v0.3.0.md)
-retain that complete exact-tag run; `SCORE-009` and the
-[comparison policy](../../docs/comparison.md) govern removal without promoting a ranking.
+retain that complete exact-tag run. The `SCORE-009` retention audit and
+[comparison policy](../../docs/comparison.md) withdraw those assets if semantic
+reproduction or output equivalence fails, without promoting a ranking.
 
 ## License
 

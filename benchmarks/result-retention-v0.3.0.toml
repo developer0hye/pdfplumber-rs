@@ -1,0 +1,17 @@
+# SCORE-009 validity registry for the exact SCORE-008 Release bundle.
+
+[schema]
+version = 1
+
+[result]
+id = "pdfplumber-rs-benchmark-results-v0.3.0-retention"
+publication_id = "pdfplumber-rs-benchmark-results-v0.3.0"
+release_tag = "benchmark-results-v0.3.0"
+source_revision = "5a3807d0a99a7ee2e12632a0a07887be200c96ad"
+status = "retained"
+raw_sha256 = "07e2f5face4b35d88a68243214c76407d7c4ff716608785968130056bc04a0b0"
+report_sha256 = "7354f174ce506fd939d10775e85c53be5e1e2b9fe00a96f46b5f513972ba922c"
+checksums_sha256 = "db56fde739c1a9556c48c0be2336ab4e869ea90ac103a76ded093ff119945bda"
+audit_evidence_url = "https://github.com/developer0hye/pdfplumber-rs/actions/runs/33194166728"
+audit_policy = "exact-semantic-reproduction"
+withdrawal_policy = "remove-assets-tombstone-release-retain-tag"

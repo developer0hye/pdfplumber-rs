@@ -13,8 +13,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from compat.harness import benchmark_results
+from compat.harness import benchmark_results, benchmark_retention
 
+RETENTION_PATH = REPO_ROOT / "benchmarks" / "result-retention-v0.3.0.toml"
 PUBLICATION_PATH = REPO_ROOT / "benchmarks" / "results-v0.3.0.toml"
 PROVENANCE_PATH = REPO_ROOT / "benchmarks" / "provenance-v0.3.0.toml"
 SCENARIOS_PATH = REPO_ROOT / "benchmarks" / "scenarios-v0.3.0.toml"
@@ -52,12 +53,28 @@ def load_plan() -> benchmark_results.PublicationPlan:
     )
 
 
+def load_retention_plan() -> benchmark_retention.RetentionPlan:
+    return benchmark_retention.audit_repository(
+        REPO_ROOT,
+        RETENTION_PATH,
+        PUBLICATION_PATH,
+        PROVENANCE_PATH,
+        SCENARIOS_PATH,
+        SUITE_PATH,
+        CORPUS_PATH,
+        POLICY_PATH,
+        REGISTRY_PATH,
+    )
+
+
 def check_plan(plan: benchmark_results.PublicationPlan) -> None:
     if not INDEX_PATH.is_file():
         raise benchmark_results.BenchmarkResultError(
             f"benchmark result index is missing: {INDEX_PATH}"
         )
-    if INDEX_PATH.read_text(encoding="utf-8") != benchmark_results.render_index(plan):
+    if INDEX_PATH.read_text(encoding="utf-8") != benchmark_retention.render_index(
+        load_retention_plan()
+    ):
         raise benchmark_results.BenchmarkResultError(
             f"benchmark result index is stale: {INDEX_PATH}"
         )
@@ -153,7 +170,10 @@ def read_local_run(path: Path) -> dict[str, object]:
 
 def write_index(plan: benchmark_results.PublicationPlan) -> None:
     INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
-    INDEX_PATH.write_text(benchmark_results.render_index(plan), encoding="utf-8")
+    INDEX_PATH.write_text(
+        benchmark_retention.render_index(load_retention_plan()),
+        encoding="utf-8",
+    )
 
 
 def main() -> int:

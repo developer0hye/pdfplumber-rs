@@ -10,9 +10,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from compat.harness import benchmark_provenance, benchmark_results
+from compat.harness import benchmark_provenance, benchmark_results, benchmark_retention
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+RETENTION_PATH = REPO_ROOT / "benchmarks" / "result-retention-v0.3.0.toml"
 PUBLICATION_PATH = REPO_ROOT / "benchmarks" / "results-v0.3.0.toml"
 PROVENANCE_PATH = REPO_ROOT / "benchmarks" / "provenance-v0.3.0.toml"
 SCENARIOS_PATH = REPO_ROOT / "benchmarks" / "scenarios-v0.3.0.toml"
@@ -355,6 +356,17 @@ class BenchmarkResultPublicationTests(unittest.TestCase):
 
     def test_cli_check_gates_workflow_index_ci_and_public_links(self) -> None:
         plan = self.load_plan()
+        retention_plan = benchmark_retention.audit_repository(
+            REPO_ROOT,
+            RETENTION_PATH,
+            PUBLICATION_PATH,
+            PROVENANCE_PATH,
+            SCENARIOS_PATH,
+            SUITE_PATH,
+            CORPUS_PATH,
+            POLICY_PATH,
+            REGISTRY_PATH,
+        )
         completed = subprocess.run(
             [sys.executable, str(SCRIPT_PATH), "--check"],
             cwd=REPO_ROOT,
@@ -367,7 +379,7 @@ class BenchmarkResultPublicationTests(unittest.TestCase):
         self.assertIn(plan.release_tag, completed.stdout)
         self.assertEqual(
             INDEX_PATH.read_text(encoding="utf-8"),
-            benchmark_results.render_index(plan),
+            benchmark_retention.render_index(retention_plan),
         )
         workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
         for required in (

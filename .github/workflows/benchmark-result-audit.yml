@@ -1,0 +1,94 @@
+name: Benchmark Result Retention Audit
+
+on:
+  schedule:
+    - cron: "17 3 1 * *"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Exact benchmark result tag to audit
+        required: true
+        default: benchmark-results-v0.3.0
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  RELEASE_TAG: ${{ inputs.release_tag || 'benchmark-results-v0.3.0' }}
+
+jobs:
+  audit:
+    name: Reproduce retained benchmark semantics
+    runs-on: macos-14
+    steps:
+      - name: Check out the current retention policy
+        uses: actions/checkout@v4
+        with:
+          path: policy
+          fetch-depth: 0
+
+      - name: Check out the immutable result source
+        uses: actions/checkout@v4
+        with:
+          path: source
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.98.0
+
+      - name: Install the pinned wheel builder
+        run: python -m pip install --disable-pip-version-check maturin==1.14.1
+
+      - name: Download the retained Release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release download "$RELEASE_TAG"
+          --repo developer0hye/pdfplumber-rs
+          --dir policy/published-assets
+          --pattern 'pdfplumber-rs-benchmark-results-v0.3.0.*'
+
+      - name: Validate the committed reproduction harness
+        working-directory: source
+        run: python scripts/run_benchmark_provenance.py --check
+
+      - name: Build the exact-tag benchmark environments
+        working-directory: source
+        run: python scripts/run_benchmark_provenance.py --build
+
+      - name: Run a fresh exact-output-gated reproduction
+        working-directory: source
+        run: >-
+          python scripts/run_benchmark_provenance.py --run
+          --output benchmark-reproduced-result.json
+
+      - name: Compare the retained result with the reproduction
+        id: retention-audit
+        continue-on-error: true
+        run: >-
+          python policy/scripts/audit_benchmark_results.py --audit
+          --published-dir policy/published-assets
+          --reproduced-run source/benchmark-reproduced-result.json
+          --decision-output policy/retention-decision.json
+          --release-tag "$RELEASE_TAG"
+          --source-revision "$(git -C source rev-parse HEAD)"
+
+      - name: Retain the machine-readable audit decision
+        if: always() && hashFiles('policy/retention-decision.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.RELEASE_TAG }}-retention-audit
+          path: policy/retention-decision.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Fail closed when the completed audit requires withdrawal
+        if: steps.retention-audit.outcome != 'success'
+        run: exit 1

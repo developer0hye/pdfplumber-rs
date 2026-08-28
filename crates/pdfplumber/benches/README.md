@@ -17,8 +17,9 @@ distinguishes cold/warm state, cache hits, page scope, and bounded parallel work
 Its [run-provenance contract](../../../docs/benchmarks/provenance-v0.3.0.md)
 binds environment/build inputs, five raw repetitions, and descriptive summaries.
 The versioned `SCORE-008` [benchmark result assets](../../../docs/benchmarks/results-v0.3.0.md)
-retain that complete exact-tag run; `SCORE-009` and the
-[comparison policy](../../../docs/comparison.md) govern removal without promoting a ranking.
+retain that complete exact-tag run. The `SCORE-009` retention audit and
+[comparison policy](../../../docs/comparison.md) withdraw those assets if semantic
+reproduction or output equivalence fails, without promoting a ranking.
 
 ## Running Benchmarks
 
