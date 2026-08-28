@@ -24,11 +24,18 @@ jobs:
         id: metadata
         run: python scripts/check_package_metadata.py --release-tag "$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"
 
+  scorecards:
+    name: Verify release-candidate scorecards
+    needs: [ci, metadata]
+    uses: ./.github/workflows/release-candidate-scorecards.yml
+    with:
+      candidate_id: ${{ github.ref_name }}
+
   # ── crates.io ──────────────────────────────────────────────
 
   crates-package-preflight:
     name: Verify crates.io release candidates
-    needs: [ci, metadata]
+    needs: [ci, metadata, scorecards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,21 +86,28 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: [publish, metadata]
+    needs: [publish, metadata, scorecards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-candidate-scorecards-*
+          path: release-scorecards
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           body_path: ${{ needs.metadata.outputs.release-notes }}
           prerelease: ${{ needs.metadata.outputs.prerelease }}
           generate_release_notes: true
+          files: release-scorecards/*
+          fail_on_unmatched_files: true
 
   # ── PyPI (maturin wheels + sdist) ──────────────────────────
 
   build-wheels:
     name: Build wheel (${{ matrix.os }}, ${{ matrix.target }})
-    needs: [ci, metadata]
+    needs: [ci, metadata, scorecards]
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -155,7 +169,7 @@ jobs:
 
   build-sdist:
     name: Build sdist
-    needs: [ci, metadata]
+    needs: [ci, metadata, scorecards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -190,7 +204,7 @@ jobs:
 
   publish-npm:
     name: Publish to npm
-    needs: [ci, metadata]
+    needs: [ci, metadata, scorecards]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

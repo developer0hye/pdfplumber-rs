@@ -213,6 +213,9 @@ jobs:
       - name: Validate benchmark regression alerts
         run: python scripts/check_benchmark_regressions.py --check
 
+      - name: Validate release-candidate scorecard history
+        run: python scripts/build_release_candidate_scorecards.py --check
+
       - name: Validate the versioned compatibility scorecard
         run: python scripts/generate_compatibility_scorecard.py --check
 

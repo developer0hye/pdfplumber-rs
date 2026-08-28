@@ -48,6 +48,10 @@ commit list.
   one runner, executes two five-sample runs per revision in ABBA order, normalizes shared host
   movement through pinned competitor controls, and alerts only when fixed effect-size,
   robust-noise, and distribution-separation rules agree. Semantic drift fails before timing.
+  Release publication now waits for a fresh competitor and compatibility scorecard rerun on
+  the pinned macOS runner. Exact candidate assets include raw benchmark data, machine and human
+  compatibility views, a cumulative digest-chained history, and checksums; earlier candidate
+  summaries remain visible instead of being replaced by one favorable snapshot.
 - **Compatibility:** Published a versioned machine-readable scorecard with
   per-API, per-option, per-fixture-class, per-page, per-platform, and
   per-artifact results. Exact matches, approved deltas, unsupported behavior,

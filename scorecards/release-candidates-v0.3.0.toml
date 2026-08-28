@@ -1,0 +1,27 @@
+# SCORE-014 release-candidate rerun and append-only history policy.
+
+[schema]
+version = 1
+
+[policy]
+id = "pdfplumber-rs-release-candidate-scorecards-v0.3"
+release_line = "0.3"
+release_version = "0.3.0"
+runner = "macos-14"
+artifact_prefix = "pdfplumber-rs-release-candidate-scorecards"
+artifact_retention_days = 90
+
+[paths]
+history = "docs/scorecards/release-candidate-history-v0.3.json"
+report = "docs/scorecards/release-candidate-history-v0.3.md"
+workflow_definitions = "compat/workflow-scorecard-v0.3.0.toml"
+corpus = "compat/fixture-provenance.toml"
+
+[benchmark]
+publication = "benchmarks/results-v0.3.0.toml"
+provenance = "benchmarks/provenance-v0.3.0.toml"
+scenarios = "benchmarks/scenarios-v0.3.0.toml"
+competitors = "benchmarks/competitors-v0.3.0.toml"
+corpus = "benchmarks/corpus-v0.3.0.toml"
+equivalence = "benchmarks/equivalence-v0.3.0.toml"
+registry = "compat/fixture-provenance.toml"

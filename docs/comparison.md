@@ -47,6 +47,8 @@ The [run-provenance contract](benchmarks/provenance-v0.3.0.md) requires a clean 
 
 `SCORE-013` adds a read-only [regression alert policy](benchmarks/regressions-v0.3.0.md). The retained baseline and current revision are built on one `macos-14` runner and executed in ABBA order for ten samples per revision. Pinned Python and Rust competitor groups normalize shared host movement. A target group alerts only when its control-normalized median slowdown exceeds the fixed 20% floor, three times the larger relative median absolute deviation, and a non-overlap rule between current and baseline quartiles. Exact semantic records, output-equivalence decisions, eligible group identities, fixtures, and output digests are checked first; semantic drift is a hard failure and never reaches the timing thresholds.
 
+Release candidates use the same pinned competitor and compatibility inputs on `macos-14`. The [release-candidate history](scorecards/release-candidate-history-v0.3.md) keeps every candidate's exact outcome counts, benchmark statistical groups, compatibility summaries, source revision, and asset digests in chronological order. Release publication waits for that rerun, and later candidates append instead of replacing earlier observations.
+
 ## Product interpretation
 
 The guidance in this section is the `pdfplumber-rs` maintainers' interpretation of the observed facts, not a measured winner declaration.

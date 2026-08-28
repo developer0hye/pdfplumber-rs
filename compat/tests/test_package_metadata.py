@@ -183,14 +183,17 @@ class PackageMetadataContractTests(unittest.TestCase):
         for phrase in (
             "python scripts/check_package_metadata.py --release-tag",
             '"$GITHUB_REF_NAME" --github-output "$GITHUB_OUTPUT"',
+            "uses: ./.github/workflows/release-candidate-scorecards.yml",
             "body_path: ${{ needs.metadata.outputs.release-notes }}",
             "prerelease: ${{ needs.metadata.outputs.prerelease }}",
             "generate_release_notes: true",
+            "pattern: release-candidate-scorecards-*",
+            "files: release-scorecards/*",
         ):
             with self.subTest(release_workflow=phrase):
                 self.assertIn(phrase, release)
-        self.assertEqual(release.count("needs: [ci, metadata]"), 4)
-        self.assertIn("needs: [publish, metadata]", release)
+        self.assertEqual(release.count("needs: [ci, metadata, scorecards]"), 4)
+        self.assertIn("needs: [publish, metadata, scorecards]", release)
 
 
 if __name__ == "__main__":

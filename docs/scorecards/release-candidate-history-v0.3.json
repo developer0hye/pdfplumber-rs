@@ -1,0 +1,14 @@
+{
+  "policy_id": "pdfplumber-rs-release-candidate-scorecards-v0.3",
+  "release_line": "0.3",
+  "runs": [],
+  "schema_version": 1,
+  "status_vocabulary": {
+    "approved_delta": "The exact observed difference has a reviewed approval entry.",
+    "candidate_failure": "The candidate failed or differed without an approved delta.",
+    "exact": "Reference and candidate results are structurally equal.",
+    "not_tested": "No compatibility comparison was executed for this scope.",
+    "reference_failure": "The pinned reference could not produce a comparable result.",
+    "unsupported": "The candidate explicitly reports that the API is unsupported."
+  }
+}
