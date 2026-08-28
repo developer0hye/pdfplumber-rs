@@ -10,6 +10,7 @@ import tarfile
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from scripts import check_crates_release
 
@@ -96,6 +97,54 @@ class CratesReleaseGateTests(unittest.TestCase):
                     archive,
                     package,
                     source_commit,
+                )
+
+    def test_full_gate_does_not_require_dry_run_to_retain_an_archive(self) -> None:
+        source_commit = "2" * 40
+        package = check_crates_release.WorkspacePackage(
+            name="example-package",
+            version="1.2.3",
+            manifest_path=Path("example-package/Cargo.toml"),
+            dependencies=frozenset(),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            workspace = check_crates_release.Workspace(
+                root=root,
+                target_directory=root / "target",
+                packages=(package,),
+            )
+            archive = check_crates_release.archive_path(workspace, package)
+
+            def simulate_cargo(command: list[str], cwd: Path) -> None:
+                self.assertEqual(cwd, root)
+                archive.parent.mkdir(parents=True, exist_ok=True)
+                archive.unlink(missing_ok=True)
+                if command[1] != "package":
+                    return
+                vcs_info = json.dumps(
+                    {
+                        "git": {"sha1": source_commit},
+                        "path_in_vcs": "example-package",
+                    }
+                ).encode("utf-8")
+                member = tarfile.TarInfo(
+                    "example-package-1.2.3/.cargo_vcs_info.json"
+                )
+                member.size = len(vcs_info)
+                with tarfile.open(archive, mode="w:gz") as package_archive:
+                    package_archive.addfile(member, io.BytesIO(vcs_info))
+
+            with mock.patch.object(
+                check_crates_release,
+                "run_live",
+                side_effect=simulate_cargo,
+            ):
+                check_crates_release.run_gate(
+                    workspace,
+                    source_commit,
+                    package_only=False,
                 )
 
     def test_continuous_integration_builds_verified_candidate_archives(self) -> None:
