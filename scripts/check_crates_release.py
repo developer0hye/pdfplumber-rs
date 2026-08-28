@@ -330,7 +330,12 @@ def verify_archive(
     git = vcs_info.get("git")
     if not isinstance(git, dict):
         raise CratesReleaseError(f"{archive} has no Git provenance")
-    if git.get("sha1") != source_commit or git.get("dirty") is not False:
+    dirty = git.get("dirty", False)
+    if (
+        git.get("sha1") != source_commit
+        or not isinstance(dirty, bool)
+        or dirty
+    ):
         raise CratesReleaseError(
             f"{archive} is not bound to clean commit {source_commit}: {git}"
         )

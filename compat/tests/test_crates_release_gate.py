@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
+import tarfile
+import tempfile
 import unittest
 from pathlib import Path
+
+from scripts import check_crates_release
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_crates_release.py"
@@ -53,6 +58,45 @@ class CratesReleaseGateTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("exact source commit", result.stderr)
         self.assertIn(mismatched_commit, result.stderr)
+
+    def test_archive_accepts_cargo_clean_omission_and_rejects_dirty_true(
+        self,
+    ) -> None:
+        source_commit = "1" * 40
+        package = check_crates_release.WorkspacePackage(
+            name="example-package",
+            version="1.2.3",
+            manifest_path=Path("example-package/Cargo.toml"),
+            dependencies=frozenset(),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            archive = Path(temporary_directory) / "example-package-1.2.3.crate"
+
+            def write_archive(git: dict[str, object]) -> None:
+                vcs_info = json.dumps(
+                    {"git": git, "path_in_vcs": "example-package"}
+                ).encode("utf-8")
+                member = tarfile.TarInfo(
+                    "example-package-1.2.3/.cargo_vcs_info.json"
+                )
+                member.size = len(vcs_info)
+                with tarfile.open(archive, mode="w:gz") as package_archive:
+                    package_archive.addfile(member, io.BytesIO(vcs_info))
+
+            write_archive({"sha1": source_commit})
+            check_crates_release.verify_archive(archive, package, source_commit)
+
+            write_archive({"sha1": source_commit, "dirty": True})
+            with self.assertRaisesRegex(
+                check_crates_release.CratesReleaseError,
+                "not bound to clean commit",
+            ):
+                check_crates_release.verify_archive(
+                    archive,
+                    package,
+                    source_commit,
+                )
 
     def test_continuous_integration_builds_verified_candidate_archives(self) -> None:
         workflow = CI_PATH.read_text(encoding="utf-8")
