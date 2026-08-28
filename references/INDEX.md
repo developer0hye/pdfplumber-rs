@@ -29,6 +29,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust standard library, Rayon, and PyO3 | [rust-concurrency.md](rust-concurrency.md) | Reviewing `Send`/`Sync`, shared resource budgets, parallel page ordering, thread pools, or Python GIL boundaries |
 | rustc, rustdoc, and Clippy | [rust-rustdoc.md](rust-rustdoc.md) | Reviewing missing public docs, link validation, or fallible and panicking API documentation gates |
 | Cargo | [rust-examples.md](rust-examples.md) | Reviewing compiled example targets and feature-specific example gates |
+| Cargo | [cargo-features.md](cargo-features.md) | Reviewing additive feature flags, defaults, unification, and representative combination gates |
 | rustdoc | [rust-compile-fail.md](rust-compile-fail.md) | Reviewing intentional compilation failures and their positive alternatives |
 | cargo-semver-checks and Cargo | [rust-semver-checks.md](rust-semver-checks.md) | Reviewing release API compatibility, baselines, approved breaks, or migration-note gates |
 | Rust and Cargo | [rust-toolchain-policy.md](rust-toolchain-policy.md) | Reviewing the rolling stable toolchain policy or dependency compiler requirements |

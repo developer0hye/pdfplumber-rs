@@ -86,7 +86,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Text, character, word, geometry, image, metadata, and lattice, stream, or explicit table extraction
 - Cropping, embedded-font metrics, CJK, right-to-left, rotated-page, tagged-PDF, and reading-order handling
 - Path, byte, page-at-a-time iteration, serialization, and resource-budget APIs
-- Optional serde and parallel features
+- Optional serde and parallel features with an additive combination contract
 
 **Known limitations**
 
@@ -99,6 +99,9 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 - [`crates/pdfplumber/Cargo.toml`](../crates/pdfplumber/Cargo.toml)
+- [`docs/rust-features.md`](../docs/rust-features.md)
+- [`compat/tests/test_rust_features.py`](../compat/tests/test_rust_features.py)
+- [`crates/pdfplumber/tests/feature_semantics.rs`](../crates/pdfplumber/tests/feature_semantics.rs)
 - [`README.md`](../README.md)
 - [`PRD.md`](../PRD.md)
 

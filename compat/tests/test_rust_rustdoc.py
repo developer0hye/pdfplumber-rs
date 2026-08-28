@@ -102,7 +102,7 @@ class RustRustdocContractTests(unittest.TestCase):
         for public_entry in (README, CRATE_ROOT, CHANGELOG):
             self.assertIn("rust-api.md", public_entry)
         self.assertNotIn("### Complete public Rust API documentation", ROADMAP)
-        self.assertIn("DX-014", ROADMAP)
+        self.assertIn("DX-015", ROADMAP)
         self.assertTrue(REFERENCE.is_file())
         reference = REFERENCE.read_text(encoding="utf-8")
         self.assertIn("The `missing_docs` lint", reference)

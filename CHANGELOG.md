@@ -28,6 +28,10 @@ commit list.
   the published library baselines. Detected breaks require both a compatible
   release-version increment and actionable migration notes in the release
   changelog.
+- **Platform:** Added an additive Rust feature policy and a Continuous
+  Integration matrix for no-default, default, Serde, parallel, all-feature,
+  and parser-tracing builds. Exact fixture fingerprints ensure optional
+  integrations do not silently change text, geometry, or table extraction.
 - **Documentation:** Major README and versioned release-note claims now carry
   adjacent links to repository tests, readiness scorecards, benchmark artifacts, or
   generated support entries, with a contract test that rejects missing or stale
