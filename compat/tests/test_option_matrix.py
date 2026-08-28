@@ -8,11 +8,11 @@ import tempfile
 import unittest
 import warnings
 from pathlib import Path
+from typing import Self
 from unittest import mock
 
 from compat.harness import lockfile, option_matrix, upstream
 from scripts import generate_option_matrix
-
 
 SNAPSHOT_PATH: Path = (
     upstream.REPO_ROOT
@@ -307,9 +307,10 @@ class OptionMatrixSnapshotTests(unittest.TestCase):
                 )
 
         class Pdf:
-            pages = [Page()]
+            def __init__(self) -> None:
+                self.pages = [Page()]
 
-            def __enter__(self) -> "Pdf":
+            def __enter__(self) -> Self:
                 return self
 
             def __exit__(self, *args: object) -> None:

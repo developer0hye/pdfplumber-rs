@@ -13,13 +13,13 @@ import json
 import logging
 import math
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 from compat.harness import lockfile, upstream
-
 
 SCHEMA_VERSION: int = 1
 GENERATION_COMMAND: str = "scripts/generate_option_matrix.py"

@@ -6,11 +6,10 @@ import copy
 import hashlib
 import json
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Mapping, Sequence
 
 from compat.harness import corpus_index, machine_report
-
 
 SCHEMA_VERSION: int = 1
 GENERATOR: str = "scripts/generate_compatibility_scorecard.py"
@@ -51,6 +50,15 @@ class Platform:
 
 
 @dataclass(frozen=True)
+class Toolchain:
+    """Exact compiler, package manager, and artifact builder identities."""
+
+    rustc: str
+    cargo: str
+    builder: str
+
+
+@dataclass(frozen=True)
 class RunInput:
     """One observed parity run or one explicitly untested coverage cell."""
 
@@ -59,10 +67,12 @@ class RunInput:
     artifact_type: str
     artifact_name: str | None = None
     artifact_sha256: str | None = None
+    toolchain: Toolchain | None = None
     command: str | None = None
     report: Mapping[str, object] | None = None
     not_tested_reason: str | None = None
     evidence: tuple[str, ...] = ()
+    scopes: tuple[str, ...] = ("api", "option")
 
 
 def build(
@@ -84,7 +94,6 @@ def build(
         raise ScorecardError("at least one platform/artifact run is required")
 
     fixture_by_path = {fixture.path: fixture for fixture in corpus.fixtures}
-    class_by_id = {collection.id: collection for collection in corpus.collections}
     run_ids: set[str] = set()
     platform_by_id: dict[str, Platform] = {}
     target: dict[str, object] | None = None
@@ -198,6 +207,140 @@ def render(scorecard: Mapping[str, object]) -> str:
     ) + "\n"
 
 
+def validate(
+    scorecard: Mapping[str, object],
+    *,
+    corpus: corpus_index.CorpusIndex,
+    corpus_sha256: str,
+) -> None:
+    """Validate a published scorecard without requiring its transient raw report."""
+
+    if scorecard.get("schema_version") != SCHEMA_VERSION:
+        raise ScorecardError("published scorecard has an unsupported schema")
+    if scorecard.get("generated_by") != GENERATOR:
+        raise ScorecardError("published scorecard names an unknown generator")
+    if scorecard.get("status_vocabulary") != STATUS_VOCABULARY:
+        raise ScorecardError("published scorecard status vocabulary has drifted")
+    subject = _required_mapping(scorecard, "subject", "published scorecard")
+    _require_non_empty(subject.get("version"), "published subject version")
+    revision = subject.get("revision")
+    if not isinstance(revision, str) or HEX_40.fullmatch(revision) is None:
+        raise ScorecardError("published subject revision is not a full Git SHA")
+    published_corpus = _required_mapping(
+        scorecard,
+        "corpus",
+        "published scorecard",
+    )
+    if published_corpus.get("sha256") != corpus_sha256:
+        raise ScorecardError("published scorecard corpus fingerprint is stale")
+    if published_corpus.get("fixture_count") != len(corpus.fixtures):
+        raise ScorecardError("published scorecard corpus fixture count is stale")
+
+    raw_runs = scorecard.get("runs")
+    raw_observations = scorecard.get("observations")
+    dimensions = _required_mapping(
+        scorecard,
+        "dimensions",
+        "published scorecard",
+    )
+    if not isinstance(raw_runs, list) or not raw_runs:
+        raise ScorecardError("published scorecard runs must be a non-empty list")
+    if not isinstance(raw_observations, list) or not raw_observations:
+        raise ScorecardError(
+            "published scorecard observations must be a non-empty list"
+        )
+    runs: dict[str, Mapping[str, object]] = {}
+    for position, raw_run in enumerate(raw_runs):
+        if not isinstance(raw_run, dict):
+            raise ScorecardError(f"published run {position} is not an object")
+        run_id = _required_string(raw_run, "id", f"published run {position}")
+        if run_id in runs:
+            raise ScorecardError(f"duplicate published run ID: {run_id}")
+        status = _required_string(raw_run, "status", f"published run {run_id}")
+        if status not in {"observed", "not_tested"}:
+            raise ScorecardError(f"published run {run_id} has unknown status")
+        toolchain = raw_run.get("toolchain")
+        if status == "observed":
+            if not isinstance(toolchain, dict):
+                raise ScorecardError(
+                    f"published run {run_id} has no exact toolchain"
+                )
+            for key in ("rustc", "cargo", "builder"):
+                _required_string(toolchain, key, f"published run {run_id} toolchain")
+        elif toolchain is not None:
+            raise ScorecardError(
+                f"not-tested published run {run_id} claims a toolchain"
+            )
+        scopes = raw_run.get("scopes")
+        if (
+            not isinstance(scopes, list)
+            or not scopes
+            or any(scope not in {"api", "option"} for scope in scopes)
+        ):
+            raise ScorecardError(f"published run {run_id} has invalid scopes")
+        runs[run_id] = raw_run
+
+    fixture_by_path = {fixture.path: fixture for fixture in corpus.fixtures}
+    observation_ids: set[str] = set()
+    observations: list[Mapping[str, object]] = []
+    for position, raw_observation in enumerate(raw_observations):
+        if not isinstance(raw_observation, dict):
+            raise ScorecardError(
+                f"published observation {position} is not an object"
+            )
+        identifier = _required_string(
+            raw_observation,
+            "id",
+            f"published observation {position}",
+        )
+        if identifier in observation_ids:
+            raise ScorecardError(f"duplicate published observation ID: {identifier}")
+        observation_ids.add(identifier)
+        run_id = _required_string(raw_observation, "run_id", identifier)
+        if run_id not in runs:
+            raise ScorecardError(f"observation {identifier} names unknown run {run_id}")
+        status = _required_string(raw_observation, "status", identifier)
+        if status not in STATUSES:
+            raise ScorecardError(
+                f"observation {identifier} has unknown status {status!r}"
+            )
+        kind = _required_string(raw_observation, "kind", identifier)
+        if kind not in {"run", "fixture", "api", "option"}:
+            raise ScorecardError(
+                f"observation {identifier} has unknown kind {kind!r}"
+            )
+        if kind != "run":
+            fixture_id = _required_string(raw_observation, "fixture_id", identifier)
+            fixture = fixture_by_path.get(fixture_id)
+            if fixture is None:
+                raise ScorecardError(
+                    f"observation {identifier} names unknown fixture {fixture_id}"
+                )
+            if raw_observation.get("fixture_class") != fixture.collection:
+                raise ScorecardError(
+                    f"observation {identifier} has a stale fixture class"
+                )
+        observations.append(raw_observation)
+
+    expected_summary = _summary(observations)
+    if scorecard.get("summary") != expected_summary:
+        raise ScorecardError("published scorecard summary is stale")
+    expected_classes = [
+        {"id": collection.id, "description": collection.description}
+        for collection in sorted(corpus.collections, key=lambda value: value.id)
+    ]
+    if dimensions.get("fixture_classes") != expected_classes:
+        raise ScorecardError("published scorecard fixture classes are stale")
+    expected_artifacts = sorted(
+        {
+            _required_string(run, "artifact_type", f"published run {run_id}")
+            for run_id, run in runs.items()
+        }
+    )
+    if dimensions.get("artifact_types") != expected_artifacts:
+        raise ScorecardError("published scorecard artifact types are stale")
+
+
 def _validate_run(run: RunInput) -> None:
     _require_non_empty(run.id, "run ID")
     _require_non_empty(run.platform.id, f"run {run.id} platform ID")
@@ -209,11 +352,21 @@ def _validate_run(run: RunInput) -> None:
         ("artifact type", run.artifact_type),
     ):
         _require_non_empty(value, f"run {run.id} {field}")
+    if not run.scopes or set(run.scopes) - {"api", "option"}:
+        raise ScorecardError(
+            f"run {run.id} scopes must contain only api and option"
+        )
+    if len(set(run.scopes)) != len(run.scopes):
+        raise ScorecardError(f"run {run.id} scopes contain duplicates")
     if run.report is None:
         _require_non_empty(run.not_tested_reason, f"run {run.id} not-tested reason")
         if run.artifact_name is not None or run.artifact_sha256 is not None:
             raise ScorecardError(
                 f"not-tested run {run.id} cannot claim a parity artifact"
+            )
+        if run.toolchain is not None:
+            raise ScorecardError(
+                f"not-tested run {run.id} cannot claim an execution toolchain"
             )
         return
     _require_non_empty(run.artifact_name, f"run {run.id} artifact name")
@@ -222,6 +375,14 @@ def _validate_run(run: RunInput) -> None:
     ) is None:
         raise ScorecardError(f"run {run.id} artifact SHA-256 is invalid")
     _require_non_empty(run.command, f"run {run.id} command")
+    if not isinstance(run.toolchain, Toolchain):
+        raise ScorecardError(f"run {run.id} has no exact toolchain")
+    for field, value in (
+        ("rustc", run.toolchain.rustc),
+        ("cargo", run.toolchain.cargo),
+        ("builder", run.toolchain.builder),
+    ):
+        _require_non_empty(value, f"run {run.id} toolchain {field}")
     if run.not_tested_reason is not None:
         raise ScorecardError(f"observed run {run.id} has a not-tested reason")
     if run.report.get("schema_version") != machine_report.SCHEMA_VERSION:
@@ -232,6 +393,7 @@ def _observed_run_record(run: RunInput) -> dict[str, object]:
     assert run.report is not None
     assert run.artifact_name is not None
     assert run.artifact_sha256 is not None
+    assert run.toolchain is not None
     assert run.command is not None
     record: dict[str, object] = {
         "id": run.id,
@@ -240,8 +402,14 @@ def _observed_run_record(run: RunInput) -> dict[str, object]:
         "artifact_type": run.artifact_type,
         "artifact_name": run.artifact_name,
         "artifact_sha256": run.artifact_sha256,
+        "toolchain": {
+            "rustc": run.toolchain.rustc,
+            "cargo": run.toolchain.cargo,
+            "builder": run.toolchain.builder,
+        },
         "command": run.command,
         "parity_report_sha256": _digest(run.report),
+        "scopes": list(run.scopes),
     }
     report_status = run.report.get("status")
     if isinstance(report_status, str) and report_status:
@@ -258,6 +426,7 @@ def _not_tested_run_record(run: RunInput) -> dict[str, object]:
         "platform_id": run.platform.id,
         "artifact_type": run.artifact_type,
         "reason": run.not_tested_reason,
+        "scopes": list(run.scopes),
     }
     if run.evidence:
         record["evidence"] = list(run.evidence)
@@ -279,104 +448,133 @@ def _report_observations(
     pages: dict[tuple[str, int], dict[str, object]] = {}
     apis: set[str] = set()
 
-    raw_fixtures = run.report.get("fixtures")
-    if not isinstance(raw_fixtures, list):
-        raise ScorecardError(f"run {run.id} fixtures must be a list")
-    for raw_fixture in sorted(raw_fixtures, key=_fixture_sort_key):
-        if not isinstance(raw_fixture, dict):
-            raise ScorecardError(f"run {run.id} contains a non-object fixture")
-        fixture_id = _required_string(raw_fixture, "fixture_id", "fixture")
-        fixture = fixture_by_path.get(fixture_id)
-        if fixture is None:
-            raise ScorecardError(f"unknown fixture in run {run.id}: {fixture_id}")
-        fixture_status = _required_string(raw_fixture, "status", fixture_id)
-        if fixture_status != "compared":
-            observations.append(
-                _fixture_failure_observation(run, fixture, raw_fixture, fixture_status)
-            )
-            continue
-        raw_pages = raw_fixture.get("pages")
-        if not isinstance(raw_pages, list):
-            raise ScorecardError(f"{fixture_id} pages must be a list")
-        for raw_page in sorted(raw_pages, key=_page_sort_key):
-            if not isinstance(raw_page, dict):
-                raise ScorecardError(f"{fixture_id} contains a non-object page")
-            page_number = _page_number(raw_page, fixture_id)
-            pages[(fixture_id, page_number)] = _page_dimension(fixture, page_number)
-            page_status = _required_string(
-                raw_page,
-                "status",
-                f"{fixture_id} page {page_number}",
-            )
-            raw_apis = raw_page.get("apis")
-            if not isinstance(raw_apis, dict):
+    if "api" in run.scopes:
+        raw_fixtures = run.report.get("fixtures")
+        if not isinstance(raw_fixtures, list):
+            raise ScorecardError(f"run {run.id} fixtures must be a list")
+        reported_fixture_ids: set[str] = set()
+        for raw_fixture in sorted(raw_fixtures, key=_fixture_sort_key):
+            if not isinstance(raw_fixture, dict):
+                raise ScorecardError(f"run {run.id} contains a non-object fixture")
+            fixture_id = _required_string(raw_fixture, "fixture_id", "fixture")
+            fixture = fixture_by_path.get(fixture_id)
+            if fixture is None:
+                raise ScorecardError(f"unknown fixture in run {run.id}: {fixture_id}")
+            if fixture_id in reported_fixture_ids:
                 raise ScorecardError(
-                    f"{fixture_id} page {page_number} APIs must be an object"
+                    f"duplicate fixture in run {run.id}: {fixture_id}"
                 )
-            missing = sorted(set(PAGE_APIS) - set(raw_apis))
-            extra = sorted(set(raw_apis) - set(PAGE_APIS))
-            if missing or extra:
-                raise ScorecardError(
-                    f"{fixture_id} page {page_number} API identities differ; "
-                    f"missing={missing}, extra={extra}"
-                )
-            for api in PAGE_APIS:
-                raw_api = raw_apis[api]
-                if not isinstance(raw_api, dict):
-                    raise ScorecardError(f"{fixture_id} page {page_number} {api} is invalid")
+            reported_fixture_ids.add(fixture_id)
+            fixture_status = _required_string(raw_fixture, "status", fixture_id)
+            if fixture_status != "compared":
                 observations.append(
-                    _api_observation(
-                        run,
-                        fixture,
-                        page_number,
-                        page_status,
-                        api,
-                        raw_api,
+                    _fixture_failure_observation(
+                        run, fixture, raw_fixture, fixture_status
                     )
                 )
-                apis.add(api)
-
-    raw_options = run.report.get("options")
-    if not isinstance(raw_options, list):
-        raise ScorecardError(f"run {run.id} options must be a list")
-    for raw_option in sorted(raw_options, key=_option_sort_key):
-        if not isinstance(raw_option, dict):
-            raise ScorecardError(f"run {run.id} contains a non-object option")
-        option_id = _required_string(raw_option, "id", "option")
-        api = _required_string(raw_option, "api", f"option {option_id}")
-        fixture_id = _required_string(
-            raw_option,
-            "fixture_path",
-            f"option {option_id}",
-        )
-        fixture = fixture_by_path.get(fixture_id)
-        if fixture is None:
-            raise ScorecardError(
-                f"unknown fixture in run {run.id} option {option_id}: {fixture_id}"
-            )
-        page_number = _page_number(raw_option, f"option {option_id}")
-        pages[(fixture_id, page_number)] = _page_dimension(fixture, page_number)
-        option_identity = {
-            "id": option_id,
-            "api": api,
-            "fixture_id": fixture_id,
-            "fixture_class": fixture.collection,
-            "page_number": page_number,
-            "covers": copy.deepcopy(raw_option.get("covers")),
-            "options": copy.deepcopy(raw_option.get("options")),
-        }
-        options[option_id] = option_identity
-        observations.append(
-            _option_observation(
+                continue
+            raw_pages = raw_fixture.get("pages")
+            if not isinstance(raw_pages, list):
+                raise ScorecardError(f"{fixture_id} pages must be a list")
+            for raw_page in sorted(raw_pages, key=_page_sort_key):
+                if not isinstance(raw_page, dict):
+                    raise ScorecardError(f"{fixture_id} contains a non-object page")
+                page_number = _page_number(raw_page, fixture_id)
+                pages[(fixture_id, page_number)] = _page_dimension(
+                    fixture, page_number
+                )
+                page_status = _required_string(
+                    raw_page,
+                    "status",
+                    f"{fixture_id} page {page_number}",
+                )
+                raw_apis = raw_page.get("apis")
+                if not isinstance(raw_apis, dict):
+                    raise ScorecardError(
+                        f"{fixture_id} page {page_number} APIs must be an object"
+                    )
+                missing = sorted(set(PAGE_APIS) - set(raw_apis))
+                extra = sorted(set(raw_apis) - set(PAGE_APIS))
+                if missing or extra:
+                    raise ScorecardError(
+                        f"{fixture_id} page {page_number} API identities differ; "
+                        f"missing={missing}, extra={extra}"
+                    )
+                for api in PAGE_APIS:
+                    raw_api = raw_apis[api]
+                    if not isinstance(raw_api, dict):
+                        raise ScorecardError(
+                            f"{fixture_id} page {page_number} {api} is invalid"
+                        )
+                    observations.append(
+                        _api_observation(
+                            run,
+                            fixture,
+                            page_number,
+                            page_status,
+                            api,
+                            raw_api,
+                        )
+                    )
+                    apis.add(api)
+        for fixture_id in sorted(set(fixture_by_path) - reported_fixture_ids):
+            fixture = fixture_by_path[fixture_id]
+            record = _observation_base(
                 run,
                 fixture,
-                page_number,
-                option_id,
-                api,
-                raw_option,
+                "fixture",
+                "not_tested",
             )
-        )
-        apis.add(api)
+            record.update(
+                {
+                    "id": f"{run.id}::fixture::{fixture_id}::not-tested",
+                    "reason": "absent_from_parity_report",
+                }
+            )
+            observations.append(record)
+
+    if "option" in run.scopes:
+        raw_options = run.report.get("options")
+        if not isinstance(raw_options, list):
+            raise ScorecardError(f"run {run.id} options must be a list")
+        for raw_option in sorted(raw_options, key=_option_sort_key):
+            if not isinstance(raw_option, dict):
+                raise ScorecardError(f"run {run.id} contains a non-object option")
+            option_id = _required_string(raw_option, "id", "option")
+            api = _required_string(raw_option, "api", f"option {option_id}")
+            fixture_id = _required_string(
+                raw_option,
+                "fixture_path",
+                f"option {option_id}",
+            )
+            fixture = fixture_by_path.get(fixture_id)
+            if fixture is None:
+                raise ScorecardError(
+                    f"unknown fixture in run {run.id} option {option_id}: {fixture_id}"
+                )
+            page_number = _page_number(raw_option, f"option {option_id}")
+            pages[(fixture_id, page_number)] = _page_dimension(fixture, page_number)
+            option_identity = {
+                "id": option_id,
+                "api": api,
+                "fixture_id": fixture_id,
+                "fixture_class": fixture.collection,
+                "page_number": page_number,
+                "covers": copy.deepcopy(raw_option.get("covers")),
+                "options": copy.deepcopy(raw_option.get("options")),
+            }
+            options[option_id] = option_identity
+            observations.append(
+                _option_observation(
+                    run,
+                    fixture,
+                    page_number,
+                    option_id,
+                    api,
+                    raw_option,
+                )
+            )
+            apis.add(api)
     return observations, options, pages, apis
 
 

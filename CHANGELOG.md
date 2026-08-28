@@ -11,6 +11,11 @@ commit list.
 
 ### Added
 
+- **Compatibility:** Published a versioned machine-readable scorecard with
+  per-API, per-option, per-fixture-class, per-page, per-platform, and
+  per-artifact results. Exact matches, approved deltas, unsupported behavior,
+  reference failures, candidate failures, and untested coverage remain
+  distinct countable outcomes rather than one percentage.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.
