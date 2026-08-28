@@ -1,0 +1,91 @@
+schema_version = 1
+subject_version = "0.3.0"
+subject_revision = "8c6281d62d5272e2b91dd2082fa08f81d77fe638"
+corpus_sha256 = "9f3ec1f7d15c71bd73cf585a906ba33ef67c5378029e5ea10be4005dd74db376"
+output = "docs/compatibility/scorecard-v0.3.0.json"
+
+[[runs]]
+id = "macos-26.6.2-arm64-source-api"
+status = "observed"
+scopes = ["api"]
+platform_id = "macos-26.6.2-arm64-cpython-3.13"
+platform_system = "macOS"
+platform_release = "26.6.2"
+platform_machine = "arm64"
+python_version = "3.13.12"
+artifact_type = "source"
+artifact_name = "pdfplumber-rs-8c6281d62d5272e2b91dd2082fa08f81d77fe638.tar"
+artifact_sha256 = "8a50ed2644acb59aa723c417f077064b9cd6ae3d2f7df5160701f174ae3900dc"
+parity_report_sha256 = "c2c9cc1745ab92b846c2b015619e402c62ad1e7ad6b1d462070f5c813786efc9"
+rustc_version = "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+cargo_version = "cargo 1.98.0 (797e8a9bc 2026-08-05)"
+builder_version = "cargo run with Cargo 1.98.0"
+command = ".venv-reference/bin/python scripts/parity_report.py --repo \"$PWD\" --fixtures \"$PWD\" --candidate-options /tmp/pdfplumber-score010.Jq7p3h/candidate-options.json --json /tmp/pdfplumber-score010.Jq7p3h/parity.json"
+evidence = [
+    "compat/upstream.toml",
+    "compat/requirements-golden.txt",
+    "compat/fixture-provenance.toml",
+    "scripts/parity_report.py",
+]
+
+[[runs]]
+id = "macos-26.6.2-arm64-wheel-option"
+status = "observed"
+scopes = ["option"]
+platform_id = "macos-26.6.2-arm64-cpython-3.13"
+platform_system = "macOS"
+platform_release = "26.6.2"
+platform_machine = "arm64"
+python_version = "3.13.12"
+artifact_type = "wheel"
+artifact_name = "pdfplumber_rs-0.3.0-cp313-cp313-macosx_11_0_arm64.whl"
+artifact_sha256 = "ab497f932809d38beabe8705e7cf25e7dc9d29bd2552020655c3a73910e71f49"
+parity_report_sha256 = "c2c9cc1745ab92b846c2b015619e402c62ad1e7ad6b1d462070f5c813786efc9"
+rustc_version = "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+cargo_version = "cargo 1.98.0 (797e8a9bc 2026-08-05)"
+builder_version = "maturin 1.14.1"
+command = ".venv-candidate/bin/python scripts/generate_option_matrix.py --candidate-output /tmp/pdfplumber-score010.Jq7p3h/candidate-options.json"
+evidence = [
+    "compat/snapshots/pdfplumber-v0.11.10-option-matrix.json",
+    "scripts/generate_option_matrix.py",
+    "scripts/setup_candidate_venv.py",
+]
+
+[[runs]]
+id = "ubuntu-latest-x86_64-source-api"
+status = "not_tested"
+scopes = ["api"]
+platform_id = "ubuntu-latest-x86_64-cpython-3.13"
+platform_system = "Ubuntu Linux"
+platform_release = "GitHub-hosted ubuntu-latest"
+platform_machine = "x86_64"
+python_version = "3.13"
+artifact_type = "source"
+reason = "CI validates the harness and builds the pinned reference environment, but does not execute the full all-page parity report."
+evidence = [".github/workflows/ci.yml"]
+
+[[runs]]
+id = "ubuntu-latest-x86_64-wheel-option"
+status = "not_tested"
+scopes = ["option"]
+platform_id = "ubuntu-latest-x86_64-cpython-3.13"
+platform_system = "Ubuntu Linux"
+platform_release = "GitHub-hosted ubuntu-latest"
+platform_machine = "x86_64"
+python_version = "3.13"
+artifact_type = "wheel"
+reason = "CI installs and verifies the candidate wheel, but does not execute the candidate option matrix against that installed artifact."
+evidence = [".github/workflows/ci.yml"]
+
+[[runs]]
+id = "ubuntu-latest-x86_64-sdist"
+status = "not_tested"
+scopes = ["api", "option"]
+platform_id = "ubuntu-latest-x86_64-cpython-3.13"
+platform_system = "Ubuntu Linux"
+platform_release = "GitHub-hosted ubuntu-latest"
+platform_machine = "x86_64"
+python_version = "3.13"
+artifact_type = "sdist"
+reason = "CI installs and checks the source-distribution layout, but does not execute page/API or option parity from the installed artifact."
+evidence = [".github/workflows/ci.yml"]

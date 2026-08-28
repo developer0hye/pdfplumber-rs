@@ -13,13 +13,13 @@ import json
 import logging
 import math
 import warnings
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Any, Literal
 
 from compat.harness import lockfile, upstream
-
 
 SCHEMA_VERSION: int = 1
 GENERATION_COMMAND: str = "scripts/generate_option_matrix.py"
@@ -475,7 +475,7 @@ def _run_case(root_package: Any, case: Case) -> dict[str, object]:
         "covers": list(case.covers),
     }
 
-    captured: list[warnings.WarningMessage]
+    captured: list[warnings.WarningMessage] = []
     log_records: list[logging.LogRecord] = []
 
     class CaptureHandler(logging.Handler):
@@ -506,23 +506,6 @@ def _run_case(root_package: Any, case: Case) -> dict[str, object]:
                     root_package, case, page, resolved_options
                 )
         base["status"] = "ok"
-        base["warnings"] = [
-            {
-                "category": (
-                    f"{item.category.__module__}.{item.category.__qualname__}"
-                ),
-                "message": str(item.message),
-            }
-            for item in captured
-        ]
-        base["logs"] = [
-            {
-                "level": record.levelname,
-                "logger": record.name,
-                "message": record.getMessage(),
-            }
-            for record in log_records
-        ]
         base["result"] = _normalize(result)
     except Exception as error:  # noqa: BLE001 - errors are reference behavior
         error_type: type[BaseException] = type(error)
@@ -534,6 +517,21 @@ def _run_case(root_package: Any, case: Case) -> dict[str, object]:
     finally:
         package_logger.removeHandler(handler)
         package_logger.propagate = old_propagate
+    base["warnings"] = [
+        {
+            "category": f"{item.category.__module__}.{item.category.__qualname__}",
+            "message": str(item.message),
+        }
+        for item in captured
+    ]
+    base["logs"] = [
+        {
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        for record in log_records
+    ]
     return base
 
 

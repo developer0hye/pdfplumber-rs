@@ -184,6 +184,9 @@ jobs:
       - name: Validate the unified compatibility corpus index
         run: python scripts/check_corpus_index.py
 
+      - name: Validate the versioned compatibility scorecard
+        run: python scripts/generate_compatibility_scorecard.py --check
+
       - name: Verify the pinned upstream PDF fixture corpus
         run: python scripts/import_upstream_fixtures.py --check
 
