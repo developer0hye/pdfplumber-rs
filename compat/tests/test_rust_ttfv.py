@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "scripts/measure_rust_ttfv.py"
 GUIDE = ROOT / "docs/rust-ttfv.md"
-RESULT = ROOT / "docs/measurements/rust-ttfv-v0.3.0.json"
+RESULT = ROOT / "docs/measurements/rust-ttfv-workspace-2026-08-28.json"
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 SUPPORT_SOURCE = (ROOT / "support-matrix.toml").read_text(encoding="utf-8")
@@ -81,14 +81,15 @@ class RustTtfvContractTests(unittest.TestCase):
             },
         )
 
-    def test_result_is_bound_to_public_release_docs_fixture_and_environment(self) -> None:
+    def test_result_is_bound_to_current_source_docs_fixture_and_environment(self) -> None:
         result = self.result()
         if not result:
             return
 
-        self.assertEqual(result["source"]["kind"], "crates.io")
+        self.assertEqual(result["source"]["kind"], "workspace candidate")
         self.assertEqual(result["source"]["crate"], "pdfplumber")
         self.assertEqual(result["source"]["resolved_version"], "0.3.0")
+        self.assertRegex(result["source"]["tree_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(result["isolation"]["project"], "new cargo project")
         self.assertEqual(result["isolation"]["cargo_home"], "empty temporary directory")
         self.assertEqual(result["isolation"]["target"], "new project-local directory")
@@ -99,6 +100,10 @@ class RustTtfvContractTests(unittest.TestCase):
         for key in ("os", "architecture", "rustc", "cargo"):
             with self.subTest(key=key):
                 self.assertTrue(result["environment"][key])
+        self.assertEqual(result["registry_trial"]["result"], "compile failure")
+        self.assertIn("Pdf::open_path", result["registry_trial"]["reason"])
+        self.assertIn("DIST-001", result["registry_trial"]["disposition"])
+        self.assertIn("DIST-007", result["registry_trial"]["disposition"])
 
     def test_methodology_defines_clock_boundary_prerequisite_and_limitations(self) -> None:
         self.assertTrue(GUIDE.is_file(), f"missing methodology: {GUIDE}")
@@ -109,7 +114,7 @@ class RustTtfvContractTests(unittest.TestCase):
 
         self.assertIn("## Clock boundary", guide)
         self.assertIn("## Reproduce", guide)
-        self.assertIn("rust-ttfv-v0.3.0.json", guide)
+        self.assertIn("rust-ttfv-workspace-2026-08-28.json", guide)
         self.assertRegex(normalized, r"(?i)starts before.*cargo new")
         self.assertRegex(normalized, r"(?i)stops after.*interpret")
         self.assertRegex(normalized, r"(?i)stable Rust.*prerequisite")
@@ -117,6 +122,9 @@ class RustTtfvContractTests(unittest.TestCase):
         self.assertRegex(normalized, r"(?i)not.*human.*reading|does not.*human.*reading")
         self.assertRegex(normalized, r"(?i)network.*var")
         self.assertRegex(normalized, r"(?i)remeasure.*release")
+        self.assertRegex(normalized, r"(?i)published.*0\.3\.0.*open_path")
+        self.assertIn("DIST-001", guide)
+        self.assertIn("DIST-007", guide)
 
     def test_primary_path_precedes_optional_concepts_and_names_the_only_input(self) -> None:
         installation = README.index("## Installation")
@@ -136,7 +144,10 @@ class RustTtfvContractTests(unittest.TestCase):
     def test_checker_and_public_evidence_are_wired_into_ci(self) -> None:
         self.assertIn("python scripts/measure_rust_ttfv.py --check", WORKFLOW)
         self.assertIn("docs/rust-ttfv.md", SUPPORT_SOURCE)
-        self.assertIn("docs/measurements/rust-ttfv-v0.3.0.json", SUPPORT_SOURCE)
+        self.assertIn(
+            "docs/measurements/rust-ttfv-workspace-2026-08-28.json",
+            SUPPORT_SOURCE,
+        )
         self.assertIn("compat/tests/test_rust_ttfv.py", SUPPORT_SOURCE)
         self.assertRegex(CHANGELOG, r"(?is)Rust.*time to first value.*five minutes")
         self.assertIn("rust-ttfv.md", REFERENCE_INDEX)

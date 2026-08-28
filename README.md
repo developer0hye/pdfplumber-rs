@@ -58,16 +58,10 @@ Add to your `Cargo.toml`:
 pdfplumber = "0.3"
 ```
 
-### Feature Flags
-
-| Feature    | Default | Description                                                    |
-|------------|---------|----------------------------------------------------------------|
-| `std`      | Yes     | Enables file-path APIs (`Pdf::open_path`). Disable for WASM.  |
-| `serde`    | No      | Adds `Serialize`/`Deserialize`; curated-model JSON follows [`serde-json-v1`](docs/rust-serde-schema.md). |
-| `parallel` | No      | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible.|
-
-Defaults, additive behavior, workspace packaging flags, and the tested
-combination matrix are defined in the [Rust feature policy](docs/rust-features.md).
+Only the `pdfplumber` library dependency is required for the first extraction.
+Put a searchable PDF at `document.pdf`, then copy the first example below into
+`src/main.rs`. The [versioned clean-project measurement](docs/rust-ttfv.md)
+covers this exact path from project creation through interpreting extracted text.
 
 ## Quick Start
 
@@ -161,6 +155,17 @@ fn main() {
     }
 }
 ```
+
+## Optional Feature Flags
+
+| Feature    | Default | Description                                                    |
+|------------|---------|----------------------------------------------------------------|
+| `std`      | Yes     | Enables file-path APIs (`Pdf::open_path`). Disable for WASM.  |
+| `serde`    | No      | Adds `Serialize`/`Deserialize`; curated-model JSON follows [`serde-json-v1`](docs/rust-serde-schema.md). |
+| `parallel` | No      | Enables `Pdf::pages_parallel()` via rayon. Not WASM-compatible.|
+
+Defaults, additive behavior, workspace packaging flags, and the tested
+combination matrix are defined in the [Rust feature policy](docs/rust-features.md).
 
 ## Rust API Boundary
 

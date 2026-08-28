@@ -102,8 +102,8 @@ class RustExamplesContractTests(unittest.TestCase):
         self.assertTrue(reference_path.is_file())
         self.assertIn("rust-examples.md", references)
         self.assertIn("Cargo Targets", reference_path.read_text(encoding="utf-8"))
-        self.assertIn("DX-018", roadmap)
-        self.assertRegex(roadmap, r"(?i)time to first value")
+        self.assertIn("DIST-001", roadmap)
+        self.assertRegex(roadmap, r"(?i)clean Rust package consumption")
         self.assertNotIn("DX-010", roadmap)
 
 

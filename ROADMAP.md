@@ -10,12 +10,13 @@ The detailed [PRD](PRD.md) remains the authoritative task registry and evidence 
 
 The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
 
-### Measure and reduce Rust time to first value
+### Prove clean Rust package consumption
 
-Measure the clean-project path to a first useful extraction and remove every
-setup step or conceptual dependency that is not required for that result.
+Build every publishable Rust package through Cargo's package boundary and keep
+a reproducible clean environment that exercises the same first-use and focused
+contributor paths as source Continuous Integration.
 
-Detailed task: [`DX-018`](PRD.md#823-p0--rust-developer-experience-and-api-stability).
+Detailed tasks: [`DIST-001`](PRD.md#824-p1--distribution-and-installation), [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
 
 ### Turn compatibility results into a public scorecard
 
@@ -27,29 +28,21 @@ Detailed tasks: [`SCORE-010`](PRD.md#825-p1--public-benchmarks-and-compatibility
 
 After the trust reset, Rust and Python advance toward beta independently. Neither surface inherits the other's maturity.
 
-### Prove clean Rust package consumption
-
-Build every publishable Rust package through Cargo's package boundary and keep
-a reproducible clean environment that exercises the same first-use and focused
-contributor paths as source Continuous Integration.
-
-Detailed tasks: [`DIST-001`](PRD.md#824-p1--distribution-and-installation), [`DIST-015`](PRD.md#824-p1--distribution-and-installation).
-
 ### Define a credible Python migration beta
 
 Provide a migration guide, prove installed-wheel behavior rather than source-tree behavior, and test the declared operating-system, architecture, and Python-version matrix.
 
 Detailed tasks: [`DOC-003`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality), [`PYAPI-017`](PRD.md#82-p0--python-packaging-and-import-architecture), [`CI-007`](PRD.md#819-p1--continuous-integration-and-release-engineering).
 
-## Later
-
-Later work expands distribution and ecosystem reach only after the underlying surface contracts are ready.
-
 ### Ship verifiable automation artifacts
 
 Provide prebuilt Command-Line Interface binaries, publish checksums and provenance, and test installation from public registries after publication.
 
 Detailed tasks: [`DIST-003`](PRD.md#824-p1--distribution-and-installation), [`DIST-005`](PRD.md#824-p1--distribution-and-installation), [`DIST-007`](PRD.md#824-p1--distribution-and-installation).
+
+## Later
+
+Later work expands distribution and ecosystem reach only after the underlying surface contracts are ready.
 
 ### Prove the browser workflow
 

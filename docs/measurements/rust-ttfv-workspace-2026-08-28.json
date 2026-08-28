@@ -1,0 +1,62 @@
+{
+  "commands": [
+    "cargo new --bin --vcs none --name pdfplumber-ttfv consumer",
+    "cargo run --quiet"
+  ],
+  "coverage": {
+    "code_copy": true,
+    "execution": true,
+    "installation": true,
+    "interpretation": true
+  },
+  "environment": {
+    "architecture": "arm64",
+    "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+    "os": "Darwin 25.6.0",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+  },
+  "inputs": {
+    "cargo_lock_sha256": "3828c7789663d9f04c402de7d68bb550baa6eb6f6e40ed915674c7480ced2421",
+    "fixture": "tests/fixtures/generated/basic_text.pdf",
+    "fixture_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
+    "installation_sha256": "f037163fd5fba99e828fd445e3efe3a0bbad3183102d7a0a163bbcd68eeb4bce",
+    "quick_start_sha256": "3707334a1937d3de6bf9d23cad50963268a63229b79b26ce0f1bf9a0e8399300"
+  },
+  "isolation": {
+    "candidate_substitution": "path patch outside the documented user steps",
+    "cargo_home": "empty temporary directory",
+    "cargo_lock_at_start": "absent",
+    "project": "new cargo project",
+    "target": "new project-local directory"
+  },
+  "measured_at_utc": "2026-08-28T04:57:59Z",
+  "observation": {
+    "kind": "automated clean-state lower bound",
+    "network": "live crates.io access for transitive dependencies; latency is uncontrolled",
+    "toolchain": "preinstalled rolling stable Rust prerequisite"
+  },
+  "phases": {
+    "code_copy": 0.001,
+    "dependency_declaration": 0.0,
+    "interpretation": 0.0,
+    "project_creation": 0.048,
+    "resolve_build_execute": 18.414
+  },
+  "registry_trial": {
+    "disposition": "not counted as passing TTFV; DIST-001 and DIST-007 remain open",
+    "reason": "Pdf::open_path is absent from the published release",
+    "result": "compile failure",
+    "version": "0.3.0"
+  },
+  "result": "pass",
+  "schema_version": 1,
+  "source": {
+    "crate": "pdfplumber",
+    "kind": "workspace candidate",
+    "requirement": "[dependencies]\npdfplumber = \"0.3\"",
+    "resolved_version": "0.3.0",
+    "tree_sha256": "9a5fb57597e72b9b1eccd1613c6229264a6894a47f62f89e1fe4629f48e70db3"
+  },
+  "threshold_seconds": 300,
+  "total_seconds": 18.464
+}
