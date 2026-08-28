@@ -1,0 +1,109 @@
+# SCORE-006 workload states and scopes. "Cold" means a fresh adapter process
+# with empty library state; the operating-system filesystem cache is not reset.
+
+[schema]
+version = 1
+
+[suite]
+id = "pdfplumber-rs-scenarios-v0.3.0"
+release = "0.3.0"
+competitor_suite_id = "pdfplumber-rs-competitors-v0.3.0"
+candidate_python_id = "pdfplumber-rs-python"
+candidate_python_adapter = "benchmarks/adapters/python_pdfplumber_rs.py"
+filesystem_cache_control = "uncontrolled-recorded"
+
+[[scenarios]]
+id = "cold-document-open"
+output_schema = "page-count-v1"
+fixture_ids = ["cjk-vertical", "encrypted-document", "graphics-heavy-table", "image-heavy-pages", "large-multipage", "recoverable-malformed", "right-to-left-arabic", "small-text", "table-heavy", "word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+process_state = "fresh-adapter-process"
+cache_state = "library-state-empty"
+page_selection = "none"
+setup_operations = ["fixture-digest-verified"]
+timed_operation = "open-path-and-parse-document"
+clock = "monotonic-wall"
+concurrency_model = "serial"
+worker_count = 1
+output_order = "not-applicable"
+
+[[scenarios]]
+id = "warm-document-open"
+output_schema = "page-count-v1"
+fixture_ids = ["cjk-vertical", "encrypted-document", "graphics-heavy-table", "image-heavy-pages", "large-multipage", "recoverable-malformed", "right-to-left-arabic", "small-text", "table-heavy", "word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+process_state = "reused-adapter-process"
+cache_state = "prior-identical-open-completed"
+page_selection = "none"
+setup_operations = ["fixture-digest-verified", "untimed-identical-open-and-close"]
+timed_operation = "open-path-and-parse-document"
+clock = "monotonic-wall"
+concurrency_model = "serial"
+worker_count = 1
+output_order = "not-applicable"
+
+[[scenarios]]
+id = "cache-hit-characters"
+output_schema = "page-characters-v1"
+fixture_ids = ["small-text", "word-geometry"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs-python"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs-python"]
+process_state = "reused-adapter-process"
+cache_state = "first-identical-access-completed"
+page_selection = "first-page"
+setup_operations = ["document-open", "first-page-materialized", "same-live-page", "first-page-chars-access"]
+timed_operation = "second-page-chars-access"
+clock = "monotonic-wall"
+concurrency_model = "serial"
+worker_count = 1
+output_order = "character-order"
+
+[[scenarios]]
+id = "single-page-text"
+output_schema = "page-text-v1"
+fixture_ids = ["large-multipage"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+process_state = "fresh-adapter-process"
+cache_state = "document-open-page-cache-empty"
+page_selection = "first-page"
+setup_operations = ["fixture-digest-verified", "document-open"]
+timed_operation = "extract-first-page-plain-text"
+clock = "monotonic-wall"
+concurrency_model = "serial"
+worker_count = 1
+output_order = "page-index-order"
+
+[[scenarios]]
+id = "full-document-text"
+output_schema = "page-text-v1"
+fixture_ids = ["large-multipage"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+timed_implementations = ["pdfplumber-python", "pdfplumber-rs", "pdf-oxide", "pdfsink-rs"]
+process_state = "fresh-adapter-process"
+cache_state = "document-open-page-cache-empty"
+page_selection = "all-pages"
+setup_operations = ["fixture-digest-verified", "document-open"]
+timed_operation = "extract-all-pages-plain-text"
+clock = "monotonic-wall"
+concurrency_model = "serial"
+worker_count = 1
+output_order = "page-index-order"
+
+[[scenarios]]
+id = "parallel-page-batch-text"
+output_schema = "page-text-v1"
+fixture_ids = ["large-multipage"]
+semantic_implementations = ["pdfplumber-python", "pdfplumber-rs"]
+timed_implementations = ["pdfplumber-rs"]
+process_state = "fresh-adapter-process"
+cache_state = "document-open-page-cache-empty"
+page_selection = "all-pages"
+setup_operations = ["fixture-digest-verified", "document-open", "four-worker-pool-ready"]
+timed_operation = "extract-all-pages-plain-text-in-parallel"
+clock = "monotonic-wall"
+concurrency_model = "bounded-rayon-thread-pool"
+worker_count = 4
+output_order = "page-index-order"

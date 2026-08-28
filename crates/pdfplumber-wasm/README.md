@@ -172,9 +172,11 @@ rejects mismatched semantics or canonical results before timing. The
 native component clocks. The [resource and artifact suite](../../docs/benchmarks/metrics-v0.3.0.md)
 measures the candidate Node package's WebAssembly module plus JavaScript glue
 and uses a fresh Node process for each in-process module-load/startup clock.
-Those one-sample results remain local and unpublished; browser startup, memory,
-and scenario/statistical gates remain open. Cross-project results remain
-deferred through `SCORE-006` to `SCORE-009` until they satisfy the
+The [workload-scenario suite](../../docs/benchmarks/scenarios-v0.3.0.md) defines
+native cold/warm, page-scope, cache-hit, and bounded parallel workloads without
+claiming that they cover browser execution. Those one-sample results remain local
+and unpublished; browser startup, memory, and statistical gates remain open.
+Cross-project results remain deferred through `SCORE-007` to `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License

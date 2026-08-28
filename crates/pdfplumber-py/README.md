@@ -171,7 +171,9 @@ component clocks, including installed-candidate PyO3 conversion. The
 [resource metric suite](../../docs/benchmarks/metrics-v0.3.0.md) repeats only
 exact-output-eligible cases for separately instrumented CPU, process-lifetime
 peak memory, and explicitly `tracemalloc`-scoped Python allocation fields.
-Cross-project results remain deferred through `SCORE-006` to `SCORE-009` until they satisfy the
+The [workload-scenario suite](../../docs/benchmarks/scenarios-v0.3.0.md)
+separates warmed opens, same-live-page cache hits, and matched page scopes.
+Cross-project results remain deferred through `SCORE-007` to `SCORE-009` until they satisfy the
 [comparison policy](../../docs/comparison.md).
 
 ## License
