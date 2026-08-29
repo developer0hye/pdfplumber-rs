@@ -418,6 +418,15 @@ class ReleaseArtifactIntegrityTests(unittest.TestCase):
             with self.subTest(package_workflow=phrase):
                 self.assertIn(phrase, package_workflow)
         self.assertGreaterEqual(package_workflow.count("uses: actions/attest@v4"), 6)
+        wheel_job = package_workflow[
+            package_workflow.index("  wheels:") : package_workflow.index("\n  sdist:")
+        ]
+        preparation = "mkdir -p dist/subjects dist/integrity"
+        self.assertIn(preparation, wheel_job)
+        self.assertLess(
+            wheel_job.index(preparation),
+            wheel_job.index("      - name: Build wheels"),
+        )
 
         cli_workflow = CLI_WORKFLOW_PATH.read_text(encoding="utf-8")
         for phrase in (
