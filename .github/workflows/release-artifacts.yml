@@ -130,6 +130,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Prepare wheel artifact directories on the host
+        shell: bash
+        run: mkdir -p dist/subjects dist/integrity
+
       - uses: actions/setup-python@v5
         if: matrix.os != 'linux'
         with:
@@ -150,10 +154,6 @@ jobs:
             --interpreter ${{ matrix.interpreter }}
             --manifest-path crates/pdfplumber-py/Cargo.toml
           manylinux: ${{ matrix.manylinux || 'auto' }}
-
-      - name: Prepare the wheel integrity directory
-        shell: bash
-        run: mkdir -p dist/integrity
 
       - name: Generate the wheel SPDX document
         uses: anchore/sbom-action@v0
