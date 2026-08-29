@@ -7,11 +7,12 @@ import importlib.util
 import json
 import sys
 import tempfile
-import tomllib
 import unittest
 from pathlib import Path
 from types import ModuleType
 from unittest import mock
+
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = REPO_ROOT / "python-wheel-targets.toml"
@@ -193,6 +194,27 @@ class LinuxWheelCompatibilityTests(unittest.TestCase):
                     target_policy,
                     wheel_name,
                 )
+
+    def test_checker_rejects_auditor_dependency_version_drift(self) -> None:
+        checker = self.require_checker()
+        auditor_policy = tomllib.loads(POLICY_PATH.read_text(encoding="utf-8"))[
+            "auditor"
+        ]
+        installed_versions = {
+            "auditwheel": "6.8.1",
+            "packaging": "0.0.0",
+            "pyelftools": "0.33",
+        }
+
+        with mock.patch.object(
+            checker.importlib.metadata,
+            "version",
+            side_effect=installed_versions.__getitem__,
+        ), self.assertRaisesRegex(
+            checker.LinuxWheelError,
+            "packaging version '0.0.0' does not equal '26.3'",
+        ):
+            checker.verify_auditor_environment(auditor_policy)
 
     def test_cli_retains_the_verified_auditwheel_report(self) -> None:
         checker = self.require_checker()

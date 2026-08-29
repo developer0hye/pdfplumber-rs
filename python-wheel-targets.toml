@@ -1,0 +1,22 @@
+schema_version = 1
+
+[auditor]
+auditwheel_version = "6.8.1"
+packaging_version = "26.3"
+pyelftools_version = "0.33"
+
+[[targets]]
+target = "x86_64"
+python_tag = "cp313"
+abi_tag = "cp313"
+manylinux = "2014"
+auditwheel_tag = "manylinux_2_17_x86_64"
+filename_platform_tag = "manylinux_2_17_x86_64.manylinux2014_x86_64"
+
+[[targets]]
+target = "aarch64"
+python_tag = "cp313"
+abi_tag = "cp313"
+manylinux = "2014"
+auditwheel_tag = "manylinux_2_17_aarch64"
+filename_platform_tag = "manylinux_2_17_aarch64.manylinux2014_aarch64"

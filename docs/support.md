@@ -148,6 +148,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - A native pdfplumber package targeting Python pdfplumber v0.11.10 workflows
 - PDF and Page objects backed by the same Rust extraction core
 - Installed wheel and source-distribution layout checks
+- Exact manylinux 2.17 / manylinux2014 release-wheel tag, external-library, and instruction-set inspection for x86-64 and AArch64
 
 **Known limitations**
 
@@ -155,16 +156,22 @@ A release-configured target is not considered supported or CI-verified until an 
 - The current-source policy for the next Python release supports exactly CPython 3.13 on Ubuntu for both the wheel and source distribution.
 - Published Python 0.3.0 metadata predates the current-source policy and still advertises Python 3.9 and PyPy; those immutable legacy classifiers are not support evidence.
 - Python 3.14 and PyPy are explicitly unsupported by the next-release source metadata and are not release targets.
+- Linux auditwheel inspection proves artifact compatibility metadata and non-policy shared-library independence; it is not installation or runtime evidence for a Linux distribution.
 - Co-installation with the Python `pdfplumber` distribution is unsupported; use a fresh environment containing exactly one distribution.
 
 **Evidence**
 
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+- [`.github/workflows/release-artifacts.yml`](../.github/workflows/release-artifacts.yml)
 - [`crates/pdfplumber-py/Cargo.toml`](../crates/pdfplumber-py/Cargo.toml)
 - [`crates/pdfplumber-py/pyproject.toml`](../crates/pdfplumber-py/pyproject.toml)
 - [`docs/python-support.md`](../docs/python-support.md)
+- [`docs/linux-wheels.md`](../docs/linux-wheels.md)
 - [`compat/tests/test_python_support_policy.py`](../compat/tests/test_python_support_policy.py)
+- [`compat/tests/test_linux_wheel_compatibility.py`](../compat/tests/test_linux_wheel_compatibility.py)
+- [`python-wheel-targets.toml`](../python-wheel-targets.toml)
+- [`scripts/check_linux_wheel.py`](../scripts/check_linux_wheel.py)
 - [`compat/upstream.toml`](../compat/upstream.toml)
 - [`PRD.md`](../PRD.md)
 
