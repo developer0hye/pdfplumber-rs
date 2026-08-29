@@ -116,13 +116,15 @@ jobs:
             manylinux: "2014"
             interpreter: "3.13"
           - os: macos
-            runner: macos-latest
+            runner: macos-15-intel
             target: x86_64
             interpreter: "3.13"
+            deployment_target: "10.12"
           - os: macos
-            runner: macos-latest
+            runner: macos-15
             target: aarch64
             interpreter: "3.13"
+            deployment_target: "11.0"
           - os: windows
             runner: windows-latest
             target: x86_64
@@ -138,9 +140,15 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Export the macOS deployment target
+        if: matrix.os == 'macos'
+        shell: bash
+        run: echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}" >> "$GITHUB_ENV"
+
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
+          maturin-version: "1.14.1"
           target: ${{ matrix.target }}
           args: >-
             --release
@@ -167,6 +175,26 @@ jobs:
           --target "${{ matrix.target }}"
           --wheel-dir dist/subjects
           --output dist/integrity/python-wheels-linux-${{ matrix.target }}.auditwheel.json
+
+      - name: Install the macOS wheel on its native architecture
+        if: matrix.os == 'macos'
+        shell: bash
+        run: |
+          python -m venv dist/macos-wheel-venv
+          dist/macos-wheel-venv/bin/python -m pip install --disable-pip-version-check --no-deps dist/subjects/*.whl
+
+      - name: Verify macOS wheel deployment and installed behavior
+        if: matrix.os == 'macos'
+        shell: bash
+        run: >-
+          python scripts/check_macos_wheel.py
+          --policy python-macos-wheel-targets.toml
+          --target "${{ matrix.target }}"
+          --wheel-dir dist/subjects
+          --installed-python dist/macos-wheel-venv/bin/python
+          --fixture tests/fixtures/generated/basic_text.pdf
+          --expected tests/fixtures/expected/cli-release-basic-text.jsonl
+          --output dist/integrity/python-wheels-macos-${{ matrix.target }}.macho.json
 
       - name: Generate the wheel SPDX document
         uses: anchore/sbom-action@v0

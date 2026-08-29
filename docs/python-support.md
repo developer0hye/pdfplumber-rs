@@ -32,6 +32,13 @@ Linux release wheels have a separate artifact-inspection gate. The
 unsupported instruction-set requirement on x86-64 or AArch64. That inspection
 does not replace installed-wheel testing.
 
+macOS release wheels use native installed-artifact jobs on both
+[`macos-15-intel` and `macos-15`](macos-wheels.md). Those jobs require the
+exact x86-64 or arm64 Mach-O architecture, the Rust macOS 10.12 or 11.0
+deployment floor, imports from an isolated wheel installation, and exact text
+from a real fixture. Deployment metadata is not described as execution on the
+oldest declared operating-system version.
+
 ## Explicit exclusions
 
 Python 3.14 is excluded from the current metadata. The workspace pins PyO3

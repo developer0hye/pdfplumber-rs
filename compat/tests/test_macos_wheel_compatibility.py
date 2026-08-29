@@ -94,7 +94,7 @@ class MacosWheelCompatibilityTests(unittest.TestCase):
             'deployment_target: "10.12"',
             'deployment_target: "11.0"',
             'maturin-version: "1.14.1"',
-            'MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}',
+            "MACOSX_DEPLOYMENT_TARGET=${{ matrix.deployment_target }}",
             "python -m venv dist/macos-wheel-venv",
             "pip install --disable-pip-version-check --no-deps dist/subjects/*.whl",
             "python scripts/check_macos_wheel.py",
@@ -144,8 +144,9 @@ Load command 8
         self.assertEqual(checker.parse_deployment_target(modern), "11.0")
 
         for output in ("", legacy + modern):
-            with self.subTest(output=output), self.assertRaises(
-                checker.MacosWheelError
+            with (
+                self.subTest(output=output),
+                self.assertRaises(checker.MacosWheelError),
             ):
                 checker.parse_deployment_target(output)
 
@@ -187,8 +188,9 @@ Load command 8
             ),
         )
         for function, arguments in failures:
-            with self.subTest(function=function.__name__), self.assertRaises(
-                checker.MacosWheelError
+            with (
+                self.subTest(function=function.__name__),
+                self.assertRaises(checker.MacosWheelError),
             ):
                 function(*arguments)
 
@@ -205,9 +207,16 @@ Load command 8
         }
         probe = {
             "distribution_version": "0.3.0",
+            "python_version": "3.13.12",
             "machine": "arm64",
+            "package_file": "lib/python3.13/site-packages/pdfplumber/__init__.py",
+            "native_module_file": (
+                "lib/python3.13/site-packages/pdfplumber/_native.cpython-313-darwin.so"
+            ),
             "page_count": 1,
             "text_sha256": "b" * 64,
+            "fixture_sha256": "c" * 64,
+            "expected_sha256": "d" * 64,
         }
 
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -232,7 +241,9 @@ Load command 8
     def test_guidance_and_support_record_proof_and_platform_boundaries(self) -> None:
         for path in (GUIDE_PATH, REFERENCE_PATH):
             with self.subTest(path=path.relative_to(REPO_ROOT)):
-                self.assertTrue(path.is_file(), f"missing {path.relative_to(REPO_ROOT)}")
+                self.assertTrue(
+                    path.is_file(), f"missing {path.relative_to(REPO_ROOT)}"
+                )
 
         if GUIDE_PATH.is_file():
             guide = GUIDE_PATH.read_text(encoding="utf-8")
