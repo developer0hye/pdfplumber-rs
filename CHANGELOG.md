@@ -80,6 +80,7 @@ commit list.
   re-baselining, isolated release environments, and reversible rollback.
 - **Page numbering:** Added a cross-surface [page-numbering guide](docs/page-numbering.md) for one-based Python document numbers, zero-based Python list positions, and zero-based Rust, WebAssembly, and native-extension indexes.
 - **Coordinate systems:** Added a diagrammed cross-surface [coordinate-system guide](docs/coordinate-systems.md) for native PDF and displayed page axes, rotation-aware object boxes, source page-box metadata, Python bottom-origin fields, document-top coordinates, conversions, and unambiguous persisted names.
+- **Crop semantics:** Added a diagrammed cross-surface [crop-semantics guide](docs/crop-semantics.md) for pinned Python intersection, clipping, root-coordinate, relative, strict, and derived-bbox behavior versus the current Rust rebased-center model and the Python alpha's mixed migration state.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.

@@ -57,6 +57,9 @@ safe conversions between them.
 The [coordinate-system guide](coordinate-systems.md) is the cross-surface
 authority for displayed `BBox` values, source page-box arrays, rotations,
 Python bottom-origin companions, and document-top coordinates.
+The [crop-semantics guide](crop-semantics.md) distinguishes the current Rust
+center-selection and rebased-view contract from pinned Python intersection,
+clipping, root-coordinate, nesting, and validation behavior.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

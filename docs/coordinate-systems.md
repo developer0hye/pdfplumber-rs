@@ -125,9 +125,10 @@ determines whether the second and fourth fields are source PDF `y` slots or
 display-space vertical distances. The persistence rule is to keep source
 page-box arrays separate from normalized display boxes.
 
-Crop inclusion, clipping, and rebasing semantics belong to DOC-007. This guide
-does not promise that a CropBox automatically clips extraction, nor does it
-define the older center-based crop behavior.
+Crop inclusion, clipping, and rebasing semantics belong to DOC-007. The
+[crop-semantics guide](crop-semantics.md) now defines those rules, nested boxes,
+and the current surface split. A CropBox does not automatically clip extraction,
+and a source page box is not a crop-operation request.
 
 ## Page-local top and document top
 

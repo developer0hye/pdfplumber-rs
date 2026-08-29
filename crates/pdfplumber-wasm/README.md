@@ -124,6 +124,9 @@ Serialized object boxes and page dimensions use rotation-aware, top-left
 displayed page space. See the
 [coordinate-system guide](../../docs/coordinate-systems.md) before exchanging
 geometry with native PDF or Python bottom-origin fields.
+WebAssembly does not currently expose cropping or derived pages; the
+[crop-semantics guide](../../docs/crop-semantics.md) defines that boundary and
+prevents Rust crop behavior from being inferred as a WebAssembly contract.
 
 ### TypeScript Types
 

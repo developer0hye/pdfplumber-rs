@@ -131,6 +131,9 @@ Page and object geometry crosses top- and bottom-origin conventions. The
 [coordinate-system guide](../../docs/coordinate-systems.md) diagrams the
 transform and distinguishes `mediabox`, `cropbox`, `bbox`, `top`/`bottom`,
 `y0`/`y1`, and `doctop` before these values leave the Python surface.
+The [crop-semantics guide](../../docs/crop-semantics.md) documents the current
+mixed migration state: object-list properties apply upstream-style transforms,
+while extraction methods still consume the legacy Rust cropped view.
 
 ### Table
 
