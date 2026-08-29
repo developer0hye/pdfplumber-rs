@@ -95,6 +95,11 @@ commit list.
   checksums, group-scoped SPDX 2.3 Software Bills of Materials, GitHub Actions
   build provenance, and signed SBOM attestations. Publication fails on an
   omitted, changed, repeated, or unregistered subject.
+- **Platform:** Tagged crates.io, PyPI, and npm publication now requests
+  workflow-bound short-lived credentials through OpenID Connect instead of
+  stored registry secrets. Identity permission is scoped to each publisher,
+  while GitHub Release content write remains limited to its own job. Registry
+  trust bindings require separate maintainer verification before the next tag.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional

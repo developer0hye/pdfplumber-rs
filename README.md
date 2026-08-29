@@ -69,7 +69,10 @@ archives](docs/cli-binaries.md). Their build and executable formats plus one
 hash-bound exact-output fixture smoke are gated on every native target. The
 [release integrity gate](docs/release-integrity.md) publishes SHA-256 checksums,
 group-scoped SPDX documents, build provenance, and Sigstore attestations for
-the verified Rust archives, Python packages, and native CLI archives.
+the verified Rust archives, Python packages, and native CLI archives. Tagged
+registry uploads follow the separate [trusted publishing](docs/trusted-publishing.md)
+contract: registry jobs use short-lived OpenID Connect credentials and the
+GitHub Release job uses only its job-scoped repository token.
 
 ## Quick Start
 

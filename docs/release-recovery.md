@@ -107,11 +107,14 @@ provider immediately. Deleting a GitHub Actions secret does not revoke the
 provider credential. Replace the repository secret only after provider
 revocation; use a new least-privilege or identity-based credential.
 
-Audit the compromise scope: Actions logs and runs, GitHub security/authentication
-events, registry publication history, package owners, new versions, yanks,
-deprecations, release/tag changes, and the credential's issue and last-used
-times. Treat any unauthorized package as a supply-chain incident and follow the
-registry's security/support process in addition to this runbook.
+For trusted publishing, disable or remove the provider-side publisher binding
+and the affected GitHub environment before changing source; a repository
+workflow edit does not revoke an already trusted identity. Audit the compromise
+scope: Actions logs and runs, GitHub security/authentication events, registry
+publisher settings and publication history, package owners, new versions,
+yanks, deprecations, release/tag changes, and any credential's issue and
+last-used times. Treat any unauthorized package as a supply-chain incident and
+follow the registry's security/support process in addition to this runbook.
 
 Resume publication only after revocation is confirmed, the audit scope is
 bounded, unexpected changes are contained, and a clean exact-tag candidate has
