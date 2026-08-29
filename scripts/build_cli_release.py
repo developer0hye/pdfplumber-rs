@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import gzip
+import hashlib
 import io
 import json
 import re
@@ -12,6 +13,7 @@ import struct
 import subprocess
 import sys
 import tarfile
+import tempfile
 import zipfile
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -21,6 +23,7 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_TARGETS_PATH = REPO_ROOT / "cli-release-targets.toml"
+DEFAULT_SMOKE_POLICY_PATH = REPO_ROOT / "cli-release-smoke.toml"
 DEFAULT_MANIFEST_PATH = REPO_ROOT / "crates" / "pdfplumber-cli" / "Cargo.toml"
 DEFAULT_LICENSE_PATH = REPO_ROOT / "LICENSE"
 DEFAULT_README_PATH = REPO_ROOT / "crates" / "pdfplumber-cli" / "README.md"
@@ -33,6 +36,16 @@ TARGET_KEYS = {
     "archive_format",
     "rust_tier",
 }
+SMOKE_KEYS = {
+    "schema_version",
+    "fixture",
+    "fixture_sha256",
+    "expected_stdout",
+    "expected_stdout_sha256",
+    "args",
+    "timeout_seconds",
+}
+SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 
 
 class CliReleaseError(RuntimeError):
@@ -57,6 +70,16 @@ class ReleaseTarget:
             "archive_format": self.archive_format,
             "rust_tier": self.rust_tier,
         }
+
+
+@dataclass(frozen=True)
+class SmokePolicy:
+    fixture_path: Path
+    fixture_sha256: str
+    expected_stdout_path: Path
+    expected_stdout_sha256: str
+    args: tuple[str, ...]
+    timeout_seconds: int
 
 
 def require_regular_file(path: Path, description: str) -> bytes:
@@ -147,6 +170,87 @@ def load_targets(path: Path = DEFAULT_TARGETS_PATH) -> tuple[ReleaseTarget, ...]
     if len(set(triples)) != len(triples):
         raise CliReleaseError("CLI release target policy contains duplicate triples")
     return targets
+
+
+def resolve_policy_file(policy_path: Path, raw_value: object, description: str) -> Path:
+    if (
+        not isinstance(raw_value, str)
+        or not raw_value
+        or raw_value != raw_value.strip()
+    ):
+        raise CliReleaseError(f"CLI smoke {description} must be a relative path")
+    relative_path = Path(raw_value)
+    if relative_path.is_absolute() or any(
+        part in {"", ".", ".."} for part in relative_path.parts
+    ):
+        raise CliReleaseError(
+            f"CLI smoke {description} must stay below the policy root"
+        )
+    policy_root = policy_path.parent.resolve()
+    resolved_path = (policy_root / relative_path).resolve()
+    try:
+        resolved_path.relative_to(policy_root)
+    except ValueError as error:
+        raise CliReleaseError(
+            f"CLI smoke {description} must stay below the policy root"
+        ) from error
+    return resolved_path
+
+
+def require_sha256(raw_value: object, description: str) -> str:
+    if not isinstance(raw_value, str) or SHA256_PATTERN.fullmatch(raw_value) is None:
+        raise CliReleaseError(f"CLI smoke {description} must be lowercase SHA-256")
+    return raw_value
+
+
+def load_smoke_policy(path: Path = DEFAULT_SMOKE_POLICY_PATH) -> SmokePolicy:
+    try:
+        source = tomllib.loads(require_regular_file(path, "CLI smoke policy").decode())
+    except (UnicodeError, tomllib.TOMLDecodeError) as error:
+        raise CliReleaseError(
+            f"cannot read CLI smoke policy {path}: {error}"
+        ) from error
+    if set(source) != SMOKE_KEYS:
+        missing = sorted(SMOKE_KEYS - set(source))
+        unexpected = sorted(set(source) - SMOKE_KEYS)
+        raise CliReleaseError(
+            "CLI smoke policy has invalid keys: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+    if source["schema_version"] != 1:
+        raise CliReleaseError("CLI smoke policy must use schema version 1")
+    raw_args = source["args"]
+    if not isinstance(raw_args, list) or not raw_args:
+        raise CliReleaseError("CLI smoke args must be a non-empty array")
+    if any(
+        not isinstance(argument, str)
+        or not argument
+        or argument != argument.strip()
+        or "\0" in argument
+        for argument in raw_args
+    ):
+        raise CliReleaseError("CLI smoke args must contain non-empty strings")
+    if raw_args.count("{fixture}") != 1 or any(
+        "{fixture}" in argument and argument != "{fixture}" for argument in raw_args
+    ):
+        raise CliReleaseError(
+            "CLI smoke args must contain one exact {fixture} argument"
+        )
+    timeout_seconds = source["timeout_seconds"]
+    if type(timeout_seconds) is not int or not 1 <= timeout_seconds <= 300:
+        raise CliReleaseError("CLI smoke timeout_seconds must be from 1 through 300")
+    return SmokePolicy(
+        fixture_path=resolve_policy_file(path, source["fixture"], "fixture"),
+        fixture_sha256=require_sha256(source["fixture_sha256"], "fixture digest"),
+        expected_stdout_path=resolve_policy_file(
+            path, source["expected_stdout"], "expected standard output"
+        ),
+        expected_stdout_sha256=require_sha256(
+            source["expected_stdout_sha256"], "expected standard-output digest"
+        ),
+        args=tuple(raw_args),
+        timeout_seconds=timeout_seconds,
+    )
 
 
 def github_matrix(path: Path = DEFAULT_TARGETS_PATH) -> dict[str, object]:
@@ -350,6 +454,163 @@ def verify_archive(
         raise CliReleaseError(f"cannot verify {path}: {error}") from error
 
 
+def release_archive_name(target: str, version: str) -> str:
+    policy = target_policy(target)
+    version = validate_version(version)
+    suffix = ".zip" if policy.archive_format == "zip" else ".tar.gz"
+    return f"pdfplumber-cli-{version}-{target}{suffix}"
+
+
+def read_archive_executable(archive_path: Path, target: str, version: str) -> bytes:
+    policy = target_policy(target)
+    expected_archive_name = release_archive_name(target, version)
+    if archive_path.name != expected_archive_name:
+        raise CliReleaseError(
+            f"CLI smoke archive must be named {expected_archive_name}"
+        )
+    require_regular_file(archive_path, "CLI release archive")
+    archive_root = expected_archive_name.removesuffix(
+        ".zip" if policy.archive_format == "zip" else ".tar.gz"
+    )
+    executable_name = (
+        "pdfplumber.exe" if target.endswith("windows-msvc") else "pdfplumber"
+    )
+    executable_member_name = f"{archive_root}/{executable_name}"
+    expected_member_names = [
+        executable_member_name,
+        f"{archive_root}/README.md",
+        f"{archive_root}/LICENSE",
+    ]
+    executable: bytes | None = None
+    try:
+        if policy.archive_format == "tar.gz":
+            with tarfile.open(archive_path, "r:gz") as archive:
+                if archive.getnames() != expected_member_names:
+                    raise CliReleaseError(
+                        f"{archive_path} has an unexpected smoke archive layout"
+                    )
+                for member_name in expected_member_names:
+                    member = archive.getmember(member_name)
+                    extracted = archive.extractfile(member)
+                    expected_mode = (
+                        0o755 if member_name == executable_member_name else 0o644
+                    )
+                    if (
+                        not member.isfile()
+                        or member.mode != expected_mode
+                        or extracted is None
+                    ):
+                        raise CliReleaseError(
+                            f"{archive_path} has invalid member {member_name}"
+                        )
+                    content = extracted.read()
+                    if not content:
+                        raise CliReleaseError(
+                            f"{archive_path} has empty member {member_name}"
+                        )
+                    if member_name == executable_member_name:
+                        executable = content
+        else:
+            with zipfile.ZipFile(archive_path) as archive:
+                if archive.namelist() != expected_member_names:
+                    raise CliReleaseError(
+                        f"{archive_path} has an unexpected smoke archive layout"
+                    )
+                for member_name in expected_member_names:
+                    member = archive.getinfo(member_name)
+                    expected_mode = (
+                        0o100755 if member_name == executable_member_name else 0o100644
+                    )
+                    content = archive.read(member)
+                    if (
+                        member.is_dir()
+                        or member.external_attr >> 16 != expected_mode
+                        or not content
+                    ):
+                        raise CliReleaseError(
+                            f"{archive_path} has invalid member {member_name}"
+                        )
+                    if member_name == executable_member_name:
+                        executable = content
+    except (KeyError, OSError, tarfile.TarError, zipfile.BadZipFile) as error:
+        raise CliReleaseError(
+            f"cannot inspect smoke archive {archive_path}: {error}"
+        ) from error
+    if executable is None:
+        raise CliReleaseError(f"{archive_path} omitted the smoke executable")
+    validate_executable(executable, target)
+    return executable
+
+
+def sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+SmokeRunner = Callable[..., subprocess.CompletedProcess[bytes]]
+
+
+def smoke_release(
+    *,
+    archive_path: Path,
+    target: str,
+    version: str,
+    policy: SmokePolicy,
+    runner: SmokeRunner | None = None,
+) -> None:
+    fixture = require_regular_file(policy.fixture_path, "CLI smoke fixture")
+    if sha256(fixture) != policy.fixture_sha256:
+        raise CliReleaseError("CLI smoke fixture SHA-256 does not match policy")
+    expected_stdout = require_regular_file(
+        policy.expected_stdout_path, "CLI smoke expected standard output"
+    )
+    if sha256(expected_stdout) != policy.expected_stdout_sha256:
+        raise CliReleaseError(
+            "CLI smoke expected standard-output SHA-256 does not match policy"
+        )
+    executable = read_archive_executable(archive_path, target, version)
+    executable_name = (
+        "pdfplumber.exe" if target.endswith("windows-msvc") else "pdfplumber"
+    )
+    arguments = tuple(
+        str(policy.fixture_path.resolve()) if argument == "{fixture}" else argument
+        for argument in policy.args
+    )
+    execution_runner = runner or subprocess.run
+    try:
+        with tempfile.TemporaryDirectory(prefix="pdfplumber-cli-smoke-") as directory:
+            executable_path = Path(directory) / executable_name
+            executable_path.write_bytes(executable)
+            executable_path.chmod(0o755)
+            completed = execution_runner(
+                (str(executable_path), *arguments),
+                check=False,
+                capture_output=True,
+                timeout=policy.timeout_seconds,
+            )
+    except subprocess.TimeoutExpired as error:
+        raise CliReleaseError(
+            f"{target} smoke exceeded {policy.timeout_seconds} seconds"
+        ) from error
+    except OSError as error:
+        raise CliReleaseError(
+            f"cannot execute {target} smoke binary: {error}"
+        ) from error
+    if completed.returncode != 0:
+        raise CliReleaseError(
+            f"{target} smoke returned exit code {completed.returncode}"
+        )
+    if completed.stderr:
+        raise CliReleaseError(
+            f"{target} smoke wrote {len(completed.stderr)} bytes to standard error"
+        )
+    if completed.stdout != expected_stdout:
+        raise CliReleaseError(
+            f"{target} smoke standard output did not match policy: "
+            f"expected_sha256={policy.expected_stdout_sha256} "
+            f"actual_sha256={sha256(completed.stdout)}"
+        )
+
+
 def package_release(
     *,
     binary_path: Path,
@@ -477,6 +738,17 @@ def create_parser() -> argparse.ArgumentParser:
     package_parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
     package_parser.add_argument("--license", type=Path, default=DEFAULT_LICENSE_PATH)
     package_parser.add_argument("--readme", type=Path, default=DEFAULT_README_PATH)
+
+    smoke_parser = subparsers.add_parser(
+        "smoke", help="execute one packaged native binary against the smoke fixture"
+    )
+    smoke_parser.add_argument("--target", required=True)
+    smoke_parser.add_argument("--release-tag", default="")
+    archive_group = smoke_parser.add_mutually_exclusive_group()
+    archive_group.add_argument("--archive", type=Path)
+    archive_group.add_argument("--archive-dir", type=Path, default=REPO_ROOT / "dist")
+    smoke_parser.add_argument("--policy", type=Path, default=DEFAULT_SMOKE_POLICY_PATH)
+    smoke_parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
     return parser
 
 
@@ -489,6 +761,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         version = version_from_manifest(arguments.manifest)
         validate_release_tag(arguments.release_tag, version)
+        if arguments.command == "smoke":
+            archive_path = arguments.archive or (
+                arguments.archive_dir / release_archive_name(arguments.target, version)
+            )
+            smoke_policy = load_smoke_policy(arguments.policy)
+            smoke_release(
+                archive_path=archive_path,
+                target=arguments.target,
+                version=version,
+                policy=smoke_policy,
+            )
+            print(
+                f"target={arguments.target} version={version} outcome=smoke-passed "
+                f"fixture_sha256={smoke_policy.fixture_sha256} "
+                f"stdout_sha256={smoke_policy.expected_stdout_sha256}",
+                flush=True,
+            )
+            return 0
+
         binary_path = arguments.binary or default_binary_path(arguments.target)
         archive = package_release(
             binary_path=binary_path,
@@ -508,7 +799,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
     except CliReleaseError as error:
-        print(f"CLI release packaging failed: {error}", file=sys.stderr, flush=True)
+        print(f"CLI release command failed: {error}", file=sys.stderr, flush=True)
         return 2
 
 

@@ -17,5 +17,6 @@ Sources used for the five-target prebuilt Command-Line Interface design.
 
 This repository additionally requires a native host match, validates the
 executable header and architecture, generates the matrix from one checked TOML
-policy, and blocks GitHub Release creation on the complete matrix. Runtime
-fixture smoke tests and integrity/provenance assets remain separate tasks.
+policy, and blocks GitHub Release creation on the complete matrix. Every archive
+is extracted and executed natively against one hash-bound real fixture with
+byte-exact output. Integrity and provenance assets remain a separate task.

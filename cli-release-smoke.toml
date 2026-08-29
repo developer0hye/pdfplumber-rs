@@ -1,0 +1,7 @@
+schema_version = 1
+fixture = "tests/fixtures/generated/basic_text.pdf"
+fixture_sha256 = "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec"
+expected_stdout = "tests/fixtures/expected/cli-release-basic-text.jsonl"
+expected_stdout_sha256 = "67da756fd0700e77e43d628fa5d2ed66abba651f8514469c92b79a4f4b4d2b1a"
+args = ["text", "{fixture}", "--format", "json"]
+timeout_seconds = 30
