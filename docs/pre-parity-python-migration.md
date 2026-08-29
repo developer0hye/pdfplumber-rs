@@ -183,6 +183,9 @@ methods do not yet accept the pinned settings argument.
 Use the [object-dictionary schema guide](object-dictionary-schemas.md) to
 compare family presence, exact key order, value shapes, derived edges, and
 serialization before accepting any 0.2.0 object baseline.
+Use the [visual-debugging guide](visual-debugging.md) to revalidate every image
+size, crop, overlay, save, viewer, and Command-Line Interface workflow; the
+current 0.3.x Python adapter does not expose the pinned `PageImage` API.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

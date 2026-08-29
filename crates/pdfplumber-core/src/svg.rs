@@ -153,7 +153,7 @@ impl Default for SvgOptions {
 /// All flags default to `true`.
 #[derive(Debug, Clone)]
 pub struct SvgDebugOptions {
-    /// Show detected edges (red lines).
+    /// Show detected edges (orange lines).
     pub show_edges: bool,
     /// Show intersection points (small circles).
     pub show_intersections: bool,

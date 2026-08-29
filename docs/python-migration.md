@@ -146,6 +146,9 @@ matrix. Use it to classify every table settings dictionary explicitly.
 The [object-dictionary schema guide](object-dictionary-schemas.md) gives the
 exact pinned family and key inventory, derived-edge rules, serialization
 shapes, and current gaps. Compare ordered keys as well as values and types.
+The [visual-debugging guide](visual-debugging.md) gives the exact pinned
+PDFium/Pillow render, overlay, crop, save, display, and table-debug behavior,
+then separates it from the current SVG extension and absent Python adapter API.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

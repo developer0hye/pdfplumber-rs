@@ -80,6 +80,12 @@ Object field names, presence, and order are surface-specific too. The
 observed pinned family, derived-edge schema, serialization boundary, and known
 current adapter gap without treating documentation as parity evidence.
 
+Visual debugging is surface-specific as well. The
+[visual-debugging guide](visual-debugging.md) documents pinned Python's
+PDFium/Pillow raster and overlay behavior, its local viewer and file side
+effects, the current Rust/Command-Line Interface SVG extension, and the absent
+Python-adapter and WebAssembly visual APIs.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is

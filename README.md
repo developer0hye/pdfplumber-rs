@@ -241,6 +241,9 @@ compatible examples and a current cross-surface boundary matrix.
 The [object-dictionary schema guide](docs/object-dictionary-schemas.md) records
 the pinned ordered keys for every observed page-object family, derived-edge and
 serialization behavior, and the narrower current surface boundaries.
+The [visual-debugging guide](docs/visual-debugging.md) separates pinned Python
+PDFium/Pillow raster images and mutable overlays from the current Rust/CLI SVG
+extension and the absent Python-adapter and WebAssembly debug surfaces.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the
