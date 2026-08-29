@@ -32,7 +32,7 @@ The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.m
 
 Completed release-integrity foundation: `DIST-005`.
 
-Next claim-boundary task: [`DOC-002`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality).
+Next claim-boundary task: [`DOC-001`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality).
 
 ## Next
 
