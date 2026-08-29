@@ -83,4 +83,6 @@ verification is not a claim that public installation has passed.
 If a registry, credential, package, or published claim fails after upload starts,
 follow the [release recovery runbook](release-recovery.md). It records each
 registry independently and avoids re-running already published immutable
-versions.
+versions. Ordinary uploads receive a temporary crates.io credential through
+the repository's [trusted publishing contract](trusted-publishing.md), never a
+stored registry token.
