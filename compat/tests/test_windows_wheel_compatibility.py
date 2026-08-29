@@ -325,4 +325,4 @@ OPTIONAL HEADER VALUES
         index = REFERENCE_INDEX_PATH.read_text(encoding="utf-8")
         self.assertIn("python-windows-wheels.md", index)
         prd = (REPO_ROOT / "PRD.md").read_text(encoding="utf-8")
-        self.assertIn("- [ ] **DIST-012**", prd)
+        self.assertIn("- [x] **DIST-012**", prd)
