@@ -65,8 +65,9 @@ covers this exact path from project creation through interpreting extracted text
 
 For the Rust-native `pdfplumber` executable, tagged releases created by the
 current workflow are configured to attach five versioned [prebuilt CLI
-archives](docs/cli-binaries.md). Their build and executable formats are gated;
-target-runtime smoke tests and checksums remain explicit follow-up work.
+archives](docs/cli-binaries.md). Their build and executable formats plus one
+hash-bound exact-output fixture smoke are gated on every native target;
+checksums and provenance remain explicit follow-up work.
 
 ## Quick Start
 

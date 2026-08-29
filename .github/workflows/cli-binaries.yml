@@ -57,6 +57,14 @@ jobs:
           --release-tag "${{ inputs.release_tag }}"
           --output-dir dist
 
+      - name: Smoke-test the extracted archive against the exact fixture
+        shell: bash
+        run: >-
+          python scripts/build_cli_release.py smoke
+          --target "${{ matrix.target }}"
+          --release-tag "${{ inputs.release_tag }}"
+          --archive-dir "dist"
+
       - name: Retain the verified release archive
         uses: actions/upload-artifact@v4
         with:

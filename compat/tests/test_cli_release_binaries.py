@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import struct
 import subprocess
@@ -16,13 +17,29 @@ from types import ModuleType
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ATTRIBUTES_PATH = REPO_ROOT / ".gitattributes"
 TARGETS_PATH = REPO_ROOT / "cli-release-targets.toml"
+SMOKE_POLICY_PATH = REPO_ROOT / "cli-release-smoke.toml"
 PACKAGER_PATH = REPO_ROOT / "scripts" / "build_cli_release.py"
+SMOKE_EXPECTED_PATH = (
+    REPO_ROOT / "tests" / "fixtures" / "expected" / "cli-release-basic-text.jsonl"
+)
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-binaries.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-binaries-ci.yml"
 RELEASE_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
 GUIDE_PATH = REPO_ROOT / "docs" / "cli-binaries.md"
 REFERENCE_PATH = REPO_ROOT / "references" / "rust-cli-binaries.md"
+
+SMOKE_FIXTURE_SHA256 = (
+    "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec"
+)
+SMOKE_EXPECTED_STDOUT = (
+    '{"page":1,"text":"The quick brown fox jumps over the lazy dog.\\n'
+    'Special chars: \\"quotes\\", copyright ©, registered ®, section §, '
+    "degree °, plus-minus ±\\nAccented: café, naïve, résumé, über, piñata, "
+    "à la carte\\nNumbers: 0 1 2 3 4 5 6 7 8 9. Price: $1,234.56. "
+    'Ratio: 3:1. Percent: 99.9%"}\n'
+).encode()
 
 
 EXPECTED_TARGETS = {
@@ -98,6 +115,34 @@ def executable_bytes(target: str) -> bytes:
     return bytes(binary)
 
 
+def sha256(content: bytes) -> str:
+    return hashlib.sha256(content).hexdigest()
+
+
+def write_smoke_policy(root: Path) -> tuple[Path, Path, Path]:
+    fixture_path = root / "fixture.pdf"
+    fixture_path.write_bytes(b"%PDF-1.7\nrealistic fixture bytes\n")
+    expected_path = root / "expected.jsonl"
+    expected_path.write_bytes(SMOKE_EXPECTED_STDOUT)
+    policy_path = root / "smoke.toml"
+    policy_path.write_text(
+        "\n".join(
+            (
+                "schema_version = 1",
+                f'fixture = "{fixture_path.name}"',
+                f'fixture_sha256 = "{sha256(fixture_path.read_bytes())}"',
+                f'expected_stdout = "{expected_path.name}"',
+                f'expected_stdout_sha256 = "{sha256(SMOKE_EXPECTED_STDOUT)}"',
+                'args = ["text", "{fixture}", "--format", "json"]',
+                "timeout_seconds = 30",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    return policy_path, fixture_path, expected_path
+
+
 class CliReleaseBinaryTests(unittest.TestCase):
     def require_packager(self) -> ModuleType:
         packager = load_packager()
@@ -127,6 +172,211 @@ class CliReleaseBinaryTests(unittest.TestCase):
                 self.assertEqual(entry["runner"], expected["runner"])
                 self.assertEqual(entry["runner_os"], expected["runner_os"])
                 self.assertEqual(entry["runner_arch"], expected["runner_arch"])
+
+    def test_smoke_policy_binds_the_real_fixture_and_exact_stdout(self) -> None:
+        self.assertTrue(SMOKE_POLICY_PATH.is_file(), "missing CLI smoke policy")
+        self.assertTrue(SMOKE_EXPECTED_PATH.is_file(), "missing exact smoke output")
+        policy = tomllib.loads(SMOKE_POLICY_PATH.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            set(policy),
+            {
+                "schema_version",
+                "fixture",
+                "fixture_sha256",
+                "expected_stdout",
+                "expected_stdout_sha256",
+                "args",
+                "timeout_seconds",
+            },
+        )
+        self.assertEqual(policy["schema_version"], 1)
+        self.assertEqual(policy["fixture"], "tests/fixtures/generated/basic_text.pdf")
+        self.assertEqual(policy["fixture_sha256"], SMOKE_FIXTURE_SHA256)
+        fixture = REPO_ROOT / policy["fixture"]
+        self.assertEqual(sha256(fixture.read_bytes()), SMOKE_FIXTURE_SHA256)
+        self.assertEqual(
+            policy["expected_stdout"],
+            "tests/fixtures/expected/cli-release-basic-text.jsonl",
+        )
+        self.assertEqual(SMOKE_EXPECTED_PATH.read_bytes(), SMOKE_EXPECTED_STDOUT)
+        self.assertEqual(
+            policy["expected_stdout_sha256"], sha256(SMOKE_EXPECTED_STDOUT)
+        )
+        self.assertEqual(policy["args"], ["text", "{fixture}", "--format", "json"])
+        self.assertEqual(policy["timeout_seconds"], 30)
+
+    def test_exact_smoke_output_checkout_bytes_are_platform_independent(self) -> None:
+        attributes = ATTRIBUTES_PATH.read_text(encoding="utf-8").splitlines()
+        self.assertIn(
+            "tests/fixtures/expected/cli-release-basic-text.jsonl text eol=lf",
+            attributes,
+        )
+
+    def test_smoke_executes_the_executable_extracted_from_each_archive_format(
+        self,
+    ) -> None:
+        packager = self.require_packager()
+        cases = (
+            ("aarch64-apple-darwin", "macOS", "ARM64", "pdfplumber"),
+            ("x86_64-pc-windows-msvc", "Windows", "X64", "pdfplumber.exe"),
+        )
+        for target, runner_os, runner_arch, executable_name in cases:
+            with (
+                self.subTest(target=target),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                root = Path(directory)
+                binary_content = executable_bytes(target)
+                binary_path = root / executable_name
+                binary_path.write_bytes(binary_content)
+                license_path = root / "LICENSE"
+                license_path.write_text("Apache-2.0\n", encoding="utf-8")
+                readme_path = root / "README.md"
+                readme_path.write_text("# CLI\n", encoding="utf-8")
+                archive = packager.package_release(
+                    binary_path=binary_path,
+                    target=target,
+                    runner_os=runner_os,
+                    runner_arch=runner_arch,
+                    rustc_host=target,
+                    version="1.2.3",
+                    output_dir=root / "dist",
+                    license_path=license_path,
+                    readme_path=readme_path,
+                )
+                policy_path, fixture_path, _expected_path = write_smoke_policy(root)
+                manifest_path = root / "Cargo.toml"
+                manifest_path.write_text(
+                    '[package]\nname = "pdfplumber-cli"\nversion = "1.2.3"\n',
+                    encoding="utf-8",
+                )
+                observed: dict[str, object] = {}
+
+                def runner(
+                    command: tuple[str, ...],
+                    observed_result: dict[str, object] = observed,
+                    **options: object,
+                ) -> subprocess.CompletedProcess[bytes]:
+                    extracted_executable = Path(command[0])
+                    observed_result["binary"] = extracted_executable.read_bytes()
+                    observed_result["name"] = extracted_executable.name
+                    observed_result["args"] = command[1:]
+                    observed_result["options"] = options
+                    return subprocess.CompletedProcess(
+                        command, 0, stdout=SMOKE_EXPECTED_STDOUT, stderr=b""
+                    )
+
+                original_runner = packager.subprocess.run
+                packager.subprocess.run = runner
+                try:
+                    result = packager.main(
+                        [
+                            "smoke",
+                            "--target",
+                            target,
+                            "--archive",
+                            str(archive),
+                            "--policy",
+                            str(policy_path),
+                            "--manifest",
+                            str(manifest_path),
+                        ]
+                    )
+                finally:
+                    packager.subprocess.run = original_runner
+
+                self.assertEqual(result, 0)
+                self.assertEqual(observed["binary"], binary_content)
+                self.assertEqual(observed["name"], executable_name)
+                self.assertEqual(
+                    observed["args"],
+                    ("text", str(fixture_path.resolve()), "--format", "json"),
+                )
+                self.assertEqual(
+                    observed["options"],
+                    {"check": False, "capture_output": True, "timeout": 30},
+                )
+
+    def test_smoke_fails_closed_on_input_or_process_drift(self) -> None:
+        packager = self.require_packager()
+        target = "aarch64-apple-darwin"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            binary = root / "pdfplumber"
+            binary.write_bytes(executable_bytes(target))
+            license_path = root / "LICENSE"
+            license_path.write_text("Apache-2.0\n", encoding="utf-8")
+            readme_path = root / "README.md"
+            readme_path.write_text("# CLI\n", encoding="utf-8")
+            archive = packager.package_release(
+                binary_path=binary,
+                target=target,
+                runner_os="macOS",
+                runner_arch="ARM64",
+                rustc_host=target,
+                version="1.2.3",
+                output_dir=root / "dist",
+                license_path=license_path,
+                readme_path=readme_path,
+            )
+            policy_path, fixture_path, _expected_path = write_smoke_policy(root)
+            policy = packager.load_smoke_policy(policy_path)
+            fixture_content = fixture_path.read_bytes()
+            fixture_path.write_bytes(fixture_content + b"drift")
+
+            with self.assertRaisesRegex(packager.CliReleaseError, "fixture SHA-256"):
+                packager.smoke_release(
+                    archive_path=archive,
+                    target=target,
+                    version="1.2.3",
+                    policy=policy,
+                )
+
+            fixture_path.write_bytes(fixture_content)
+            process_cases = (
+                (
+                    subprocess.CompletedProcess(
+                        (), 1, stdout=SMOKE_EXPECTED_STDOUT, stderr=b""
+                    ),
+                    "exit code 1",
+                ),
+                (
+                    subprocess.CompletedProcess(
+                        (), 0, stdout=SMOKE_EXPECTED_STDOUT, stderr=b"warning"
+                    ),
+                    "standard error",
+                ),
+                (
+                    subprocess.CompletedProcess(
+                        (), 0, stdout=SMOKE_EXPECTED_STDOUT + b" ", stderr=b""
+                    ),
+                    "standard output",
+                ),
+            )
+            for completed, expected_error in process_cases:
+                with self.subTest(expected_error=expected_error):
+
+                    def runner(
+                        _command: tuple[str, ...],
+                        completed_result: subprocess.CompletedProcess[
+                            bytes
+                        ] = completed,
+                        **_options: object,
+                    ) -> subprocess.CompletedProcess[bytes]:
+                        return completed_result
+
+                    with self.assertRaisesRegex(
+                        packager.CliReleaseError, expected_error
+                    ) as caught:
+                        packager.smoke_release(
+                            archive_path=archive,
+                            target=target,
+                            version="1.2.3",
+                            policy=policy,
+                            runner=runner,
+                        )
+                    self.assertNotIn("warning", str(caught.exception))
 
     def test_linux_archive_is_versioned_and_contains_only_public_files(self) -> None:
         packager = self.require_packager()
@@ -354,6 +604,8 @@ class CliReleaseBinaryTests(unittest.TestCase):
             "targets: ${{ matrix.target }}",
             "cargo build --locked --release --package pdfplumber-cli --target",
             "python scripts/build_cli_release.py package",
+            "python scripts/build_cli_release.py smoke",
+            '--archive-dir "dist"',
             '--runner-os "${{ runner.os }}"',
             '--runner-arch "${{ runner.arch }}"',
             "actions/upload-artifact@v4",
@@ -367,6 +619,12 @@ class CliReleaseBinaryTests(unittest.TestCase):
         self.assertIn("pull_request:", ci_workflow)
         self.assertIn("branches: [main]", ci_workflow)
         self.assertIn("uses: ./.github/workflows/cli-binaries.yml", ci_workflow)
+        for smoke_input in (
+            "cli-release-smoke.toml",
+            "tests/fixtures/generated/basic_text.pdf",
+            "tests/fixtures/expected/cli-release-basic-text.jsonl",
+        ):
+            self.assertIn(smoke_input, ci_workflow)
 
         release = RELEASE_PATH.read_text(encoding="utf-8")
         self.assertIn("uses: ./.github/workflows/cli-binaries.yml", release)
@@ -391,8 +649,9 @@ class CliReleaseBinaryTests(unittest.TestCase):
             "Windows 10",
             "native runner",
             "executable format",
-            "DIST-004",
-            "not runtime-smoke-tested",
+            "basic_text.pdf",
+            "exact standard output",
+            "target operating system",
             "DIST-005",
         ):
             with self.subTest(phrase=phrase):
@@ -418,10 +677,11 @@ class CliReleaseBinaryTests(unittest.TestCase):
         for target in EXPECTED_TARGETS:
             with self.subTest(target=target):
                 self.assertIn(target, configured)
-                self.assertNotIn(target, verified)
-        self.assertIn("DIST-004", limitations)
-        self.assertIn("not runtime-smoke-tested", limitations)
+                self.assertIn(target, verified)
+        self.assertNotIn("DIST-004", limitations)
+        self.assertNotIn("not runtime-smoke-tested", limitations)
         self.assertIn("cli-release-targets.toml", evidence)
+        self.assertIn("cli-release-smoke.toml", evidence)
         self.assertIn("scripts/build_cli_release.py", evidence)
         self.assertIn("docs/cli-binaries.md", evidence)
 

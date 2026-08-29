@@ -86,6 +86,10 @@ commit list.
   official Rust 1.98.0 Bookworm image digest. One command runs the rendered Rust
   quick starts, focused extraction and concurrency tests, and all-feature
   contributor examples in an isolated, read-only checkout.
+- **Platform:** Prebuilt Command-Line Interface archives for Linux x86-64 and
+  AArch64, macOS Intel and Apple Silicon, and Windows x86-64 now execute their
+  extracted binary on the native target against one hash-bound PDF fixture and
+  require byte-exact JSON output before release attachment.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional
