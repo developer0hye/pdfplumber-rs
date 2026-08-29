@@ -166,6 +166,10 @@ def render(report: Mapping[str, object]) -> str:
             "unsupported behavior, reference failures, candidate failures, and "
             "untested coverage remain separate counts."
         ),
+        (
+            "The canonical [compatibility terminology](terms.md) defines the "
+            "scope of compatible, extension, and approved-deviation claims."
+        ),
         "",
         "## Provenance",
         "",

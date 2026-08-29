@@ -3,6 +3,7 @@
 This human-readable view is generated from the versioned [machine-readable scorecard](scorecard-v0.3.0.json). It groups parity observations by user workflow; it is not a release-support or readiness claim.
 
 No success percentage is computed. Exact matches, approved deltas, unsupported behavior, reference failures, candidate failures, and untested coverage remain separate counts.
+The canonical [compatibility terminology](terms.md) defines the scope of compatible, extension, and approved-deviation claims.
 
 ## Provenance
 
