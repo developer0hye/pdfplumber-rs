@@ -6,6 +6,11 @@ Alpha Python migration path for `pdfplumber` workflows, powered by evidence-driv
 
 Distribution `pdfplumber-rs` installs import package `pdfplumber` and native module `pdfplumber._native`. Release `0.3.0` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
 
+The current-source policy for the next release supports exactly CPython 3.13.
+Both the wheel and source distribution are installed and executed in required
+Continuous Integration. Python 3.14 is excluded by `Requires-Python`, and PyPy
+is not supported; see the [Python support policy](../../docs/python-support.md).
+
 ## Installation
 
 ```bash

@@ -109,24 +109,24 @@ jobs:
             runner: ubuntu-latest
             target: x86_64
             manylinux: auto
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
+            interpreter: "3.13"
           - os: linux
             runner: ubuntu-latest
             target: aarch64
             manylinux: auto
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
+            interpreter: "3.13"
           - os: macos
             runner: macos-latest
             target: x86_64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
+            interpreter: "3.13"
           - os: macos
             runner: macos-latest
             target: aarch64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
+            interpreter: "3.13"
           - os: windows
             runner: windows-latest
             target: x86_64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
+            interpreter: "3.13"
     steps:
       - uses: actions/checkout@v4
 
@@ -137,12 +137,7 @@ jobs:
       - uses: actions/setup-python@v5
         if: matrix.os != 'linux'
         with:
-          python-version: |
-            3.9
-            3.10
-            3.11
-            3.12
-            3.13
+          python-version: "3.13"
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1

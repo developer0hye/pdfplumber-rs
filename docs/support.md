@@ -54,7 +54,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Release-configured targets**
 
-- CPython 3.9-3.13 wheels for Linux x86_64/aarch64, macOS x86_64/aarch64, and Windows x86_64
+- CPython 3.13 wheels for Linux x86_64/aarch64, macOS x86_64/aarch64, and Windows x86_64
 - Source distribution built on Ubuntu Linux
 
 ### Command-Line Interface
@@ -152,9 +152,10 @@ A release-configured target is not considered supported or CI-verified until an 
 **Known limitations**
 
 - Compatibility is incomplete and is not yet a full drop-in replacement.
-- Required installed-artifact CI covers only CPython 3.13 on Ubuntu; the broader release wheel matrix is build-configured, not install-verified.
+- The current-source policy for the next Python release supports exactly CPython 3.13 on Ubuntu for both the wheel and source distribution.
+- Published Python 0.3.0 metadata predates the current-source policy and still advertises Python 3.9 and PyPy; those immutable legacy classifiers are not support evidence.
+- Python 3.14 and PyPy are explicitly unsupported by the next-release source metadata and are not release targets.
 - Co-installation with the Python `pdfplumber` distribution is unsupported; use a fresh environment containing exactly one distribution.
-- The complete supported-Python policy remains open.
 
 **Evidence**
 
@@ -162,6 +163,8 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
 - [`crates/pdfplumber-py/Cargo.toml`](../crates/pdfplumber-py/Cargo.toml)
 - [`crates/pdfplumber-py/pyproject.toml`](../crates/pdfplumber-py/pyproject.toml)
+- [`docs/python-support.md`](../docs/python-support.md)
+- [`compat/tests/test_python_support_policy.py`](../compat/tests/test_python_support_policy.py)
 - [`compat/upstream.toml`](../compat/upstream.toml)
 - [`PRD.md`](../PRD.md)
 

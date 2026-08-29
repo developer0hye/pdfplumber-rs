@@ -41,6 +41,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust, GitHub Actions, and Typst | [rust-cli-binaries.md](rust-cli-binaries.md) | Reviewing native target matrices, versioned CLI archives, or release-asset build gates |
 | GitHub Actions and Anchore Syft | [release-artifact-integrity.md](release-artifact-integrity.md) | Reviewing release checksums, SPDX SBOMs, build provenance, Sigstore attestations, or verification commands |
 | crates.io, PyPI, npm, GitHub Actions, and Node.js | [trusted-publishing.md](trusted-publishing.md) | Reviewing registry OpenID Connect bindings, short-lived publisher credentials, job permissions, or client-version floors |
+| Python Packaging User Guide, PyO3, and CPython | [python-support-metadata.md](python-support-metadata.md) | Reviewing `Requires-Python`, version and implementation classifiers, tested artifact matrices, or Python 3.14 exclusions |
 | Cargo, PyPI, npm, and GitHub | [release-recovery.md](release-recovery.md) | Containing registry lag, partial publication, compromised credentials, or incorrect release claims |
 | Development Containers, Docker, and Rust Official Images | [rust-dev-containers.md](rust-dev-containers.md) | Reproducing the pinned Rust contributor environment or updating its image digest |
 

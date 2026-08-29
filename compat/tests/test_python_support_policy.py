@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-import tomllib
 import unittest
 from pathlib import Path
 
+import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
@@ -82,7 +82,10 @@ class PythonSupportPolicyContractTests(unittest.TestCase):
         self.assertEqual(set(interpreters), {"3.13"})
         for unsupported in ("3.9", "3.10", "3.11", "3.12", "3.14"):
             with self.subTest(unsupported=unsupported):
-                self.assertNotRegex(wheels, rf"^\s+{re.escape(unsupported)}$",)
+                self.assertNotRegex(
+                    wheels,
+                    rf"(?m)^[ \t]+{re.escape(unsupported)}[ \t]*$",
+                )
 
     def test_public_guidance_states_the_exclusions(self) -> None:
         for path in (GUIDE_PATH, REFERENCE_PATH):

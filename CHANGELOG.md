@@ -100,6 +100,11 @@ commit list.
   stored registry secrets. Identity permission is scoped to each publisher,
   while GitHub Release content write remains limited to its own job. Registry
   trust bindings require separate maintainer verification before the next tag.
+- **Platform:** Python package support metadata now derives from the required
+  installed-artifact matrix. The next package supports exactly CPython 3.13,
+  installs and executes both its wheel and source distribution, publishes
+  `Requires-Python: >=3.13,<3.14`, and removes untested CPython 3.9-3.12 and
+  PyPy classifiers. Python 3.14 and PyPy remain explicitly unsupported.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional
