@@ -140,6 +140,9 @@ accepts.
 The [table-setting guide](../../docs/table-settings.md) does the same for all
 pinned table settings and records that this alpha's two table methods currently
 accept no settings argument.
+The [object-dictionary schema guide](../../docs/object-dictionary-schemas.md)
+lists the pinned ordered schemas, accessors, derived edges, and serialization
+rules before identifying every current Python-adapter schema gap.
 
 ### Table
 

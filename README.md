@@ -238,6 +238,9 @@ current Rust, Python, and WebAssembly controls without implying parity.
 The [table-setting guide](docs/table-settings.md) catalogs every pinned Python
 table keyword, fallback, validation rule, and forwarding interaction with
 compatible examples and a current cross-surface boundary matrix.
+The [object-dictionary schema guide](docs/object-dictionary-schemas.md) records
+the pinned ordered keys for every observed page-object family, derived-edge and
+serialization behavior, and the narrower current surface boundaries.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

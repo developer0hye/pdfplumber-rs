@@ -57,6 +57,9 @@ Rust-only column controls explicit.
 The [table-setting guide](table-settings.md) maps `TableSettings`, `Strategy`,
 and `ExplicitLines` to the larger pinned Python table settings while keeping
 Rust-only quality and merged-content controls explicit.
+The [object-dictionary schema guide](object-dictionary-schemas.md) keeps these
+typed models and their nested Serde shapes distinct from pinned Python's flat,
+ordered page-object dictionaries.
 
 The displayed page-space origin is top-left; x increases to the right and y increases down.
 A `BBox` is `(x0, top, x1, bottom)`, so width is `x1 - x0` and
