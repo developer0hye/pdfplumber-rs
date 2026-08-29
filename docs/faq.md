@@ -59,8 +59,9 @@ No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alph
 not a complete drop-in replacement. The installable distribution is `pdfplumber-rs`,
 while its import package is `pdfplumber`; those files conflict with the separate
 Python `pdfplumber` distribution. Use a fresh environment containing exactly one of
-the two distributions, follow the [Python guide](../crates/pdfplumber-py/README.md),
-and validate the APIs your application uses against the published gaps.
+the two distributions, follow the [migration guide](python-migration.md), and
+validate the APIs your application uses against the published gaps. The
+[Python guide](../crates/pdfplumber-py/README.md) lists the current surface.
 
 ## Is the WebAssembly package ready for browser production use?
 

@@ -10,6 +10,9 @@ The current-source policy for the next release supports exactly CPython 3.13.
 Both the wheel and source distribution are installed and executed in required
 Continuous Integration. Python 3.14 is excluded by `Requires-Python`, and PyPy
 is not supported; see the [Python support policy](../../docs/python-support.md).
+Use the evidence-scoped [migration guide](../../docs/python-migration.md) to
+inventory an upstream application, build isolated reference and candidate
+environments, compare the same workload, and make a reversible cutover decision.
 
 ## Installation
 
