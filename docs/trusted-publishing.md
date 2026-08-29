@@ -31,6 +31,17 @@ Connect exchanges without an explicit password or token.
 1. Configure all four crates.io projects, the PyPI project, and the npm package
    with the exact bindings above. Registry publisher configuration is private
    account state and is not publicly visible or proved by this source tree.
+   An authenticated npm 11.15.0-or-newer maintainer can create the npm record
+   with:
+
+   ```bash
+   npm trust github pdfplumber-wasm \
+     --file release.yml \
+     --repo developer0hye/pdfplumber-rs \
+     --env npm \
+     --allow-publish
+   ```
+
 2. Verify the three GitHub environments and registry entries independently.
    Keep a private maintainer record of the observed settings without copying
    tokens, session data, or recovery codes.
@@ -54,8 +65,11 @@ runbook. Never restore a broad long-lived token just to make a release green.
 
 Local and pull-request checks can prove permission scope, exact identities,
 minimum client versions, and the absence of secret references without
-publishing. They cannot prove private registry configuration or a future token
-exchange. [`DIST-006`](../PRD.md#824-p1--distribution-and-installation) remains
-open until those bindings are independently verified; public-registry install
-and execution remain the separate [`DIST-007`](../PRD.md#824-p1--distribution-and-installation)
+publishing. On 2026-08-29, authenticated crates.io API reads independently
+verified exactly one matching configuration for each of the four Rust crates;
+the current PyPI and npm settings could not be authenticated and remain
+unverified. None of those registry settings proves a future token exchange.
+[`DIST-006`](../PRD.md#824-p1--distribution-and-installation) remains open until
+the remaining bindings are verified; public-registry install and execution
+remain the separate [`DIST-007`](../PRD.md#824-p1--distribution-and-installation)
 gate.

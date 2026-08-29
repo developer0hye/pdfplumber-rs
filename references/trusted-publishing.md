@@ -14,6 +14,9 @@ Official registry and GitHub documentation defines the identity contract.
 - [npm trusted publishers](https://docs.npmjs.com/trusted-publishers/) require
   npm 11.5.1 or later, Node 22.14.0 or later, a GitHub-hosted runner,
   `id-token: write`, the exact workflow filename, and an allowed operation.
+- [`npm trust`](https://docs.npmjs.com/cli/v11/commands/npm-trust/) manages
+  publisher records from an authenticated npm 11.15.0-or-newer client and
+  supports exact repository, workflow, environment, and operation flags.
 - [Node.js 24.5.0](https://nodejs.org/en/blog/release/v24.5.0) bundles npm
   11.5.1, satisfying npm's documented client floor without a mutable install.
 - [GitHub OpenID Connect](https://docs.github.com/en/actions/reference/security/oidc)
