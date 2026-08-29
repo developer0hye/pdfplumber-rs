@@ -126,7 +126,7 @@ jobs:
             interpreter: "3.13"
             deployment_target: "11.0"
           - os: windows
-            runner: windows-latest
+            runner: windows-2025
             target: x86_64
             interpreter: "3.13"
     steps:
@@ -195,6 +195,45 @@ jobs:
           --fixture tests/fixtures/generated/basic_text.pdf
           --expected tests/fixtures/expected/cli-release-basic-text.jsonl
           --output dist/integrity/python-wheels-macos-${{ matrix.target }}.macho.json
+
+      - name: Locate DUMPBIN for Windows wheel inspection
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+            throw "VSWhere is unavailable at $vswhere"
+          }
+          $dumpbin = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC\Tools\MSVC\**\bin\Hostx64\x64\dumpbin.exe' | Select-Object -First 1
+          if (-not $dumpbin) {
+            throw 'DUMPBIN was not found in the installed x64 Visual C++ toolchain'
+          }
+          "WINDOWS_DUMPBIN=$dumpbin" >> $env:GITHUB_ENV
+
+      - name: Install the Windows wheel on its native architecture
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $wheel = @(Get-ChildItem -LiteralPath dist/subjects -Filter '*.whl')
+          if ($wheel.Count -ne 1) {
+            throw "Expected exactly one Windows wheel, found $($wheel.Count)"
+          }
+          python -m venv dist/windows-wheel-venv
+          & dist/windows-wheel-venv/Scripts/python.exe -m pip install --disable-pip-version-check --no-deps $wheel[0].FullName
+
+      - name: Verify Windows wheel dependencies and installed path behavior
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: >-
+          python scripts/check_windows_wheel.py
+          --policy python-windows-wheel-targets.toml
+          --target "${{ matrix.target }}"
+          --wheel-dir dist/subjects
+          --dumpbin "$env:WINDOWS_DUMPBIN"
+          --installed-python dist/windows-wheel-venv/Scripts/python.exe
+          --fixture tests/fixtures/generated/basic_text.pdf
+          --expected tests/fixtures/expected/cli-release-basic-text.jsonl
+          --output dist/integrity/python-wheels-windows-${{ matrix.target }}.pe.json
 
       - name: Generate the wheel SPDX document
         uses: anchore/sbom-action@v0

@@ -1,0 +1,25 @@
+schema_version = 1
+
+[[targets]]
+target = "x86_64"
+runner = "windows-2025"
+runner_arch = "X64"
+machine = "AMD64"
+python_tag = "cp313"
+abi_tag = "cp313"
+platform_tag = "win_amd64"
+pe_machine = "8664"
+pe_format = "PE32+"
+long_paths_enabled = 1
+minimum_long_path_characters = 280
+required_dependencies = [
+    "api-ms-win-core-synch-l1-2-0.dll",
+    "api-ms-win-crt-heap-l1-1-0.dll",
+    "api-ms-win-crt-math-l1-1-0.dll",
+    "api-ms-win-crt-runtime-l1-1-0.dll",
+    "bcryptprimitives.dll",
+    "kernel32.dll",
+    "ntdll.dll",
+    "python313.dll",
+    "vcruntime140.dll",
+]

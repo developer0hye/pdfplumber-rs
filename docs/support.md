@@ -53,6 +53,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Ubuntu Linux x86_64 with CPython 3.13 (installed wheel and source distribution)
 - macOS 15 Intel x86_64 with CPython 3.13 (native installed wheel, exact Mach-O architecture, and macOS 10.12 deployment target inspection)
 - macOS 15 Apple Silicon arm64 with CPython 3.13 (native installed wheel, exact Mach-O architecture, and macOS 11.0 deployment target inspection)
+- Windows Server 2025 x86-64 with CPython 3.13 (native installed wheel, exact PE32+ machine and DLL import inspection, and ordinary non-ASCII and long-path extraction with LongPathsEnabled=1)
 
 **Release-configured targets**
 
@@ -152,6 +153,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Installed wheel and source-distribution layout checks
 - Exact manylinux 2.17 / manylinux2014 release-wheel tag, external-library, and instruction-set inspection for x86-64 and AArch64
 - Native macOS Intel and Apple Silicon wheel installation, exact fixture execution, architecture inspection, and deployment-target inspection
+- Native Windows Server 2025 x86-64 wheel installation, exact PE dependency inspection, and non-ASCII and long-path fixture execution
 
 **Known limitations**
 
@@ -161,6 +163,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Python 3.14 and PyPy are explicitly unsupported by the next-release source metadata and are not release targets.
 - Linux auditwheel inspection proves artifact compatibility metadata and non-policy shared-library independence; it is not installation or runtime evidence for a Linux distribution.
 - macOS installed-wheel execution is on macOS 15; matching Mach-O 10.12 and 11.0 deployment metadata is not runtime evidence from those minimum operating-system releases.
+- Windows installed-wheel execution is on Windows Server 2025 x86-64 with LongPathsEnabled=1; it is not evidence for disabled long-path policy, other Windows versions or architectures, or every filesystem configuration.
 - Co-installation with the Python `pdfplumber` distribution is unsupported; use a fresh environment containing exactly one distribution.
 
 **Evidence**
@@ -173,13 +176,17 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/python-support.md`](../docs/python-support.md)
 - [`docs/linux-wheels.md`](../docs/linux-wheels.md)
 - [`docs/macos-wheels.md`](../docs/macos-wheels.md)
+- [`docs/windows-wheels.md`](../docs/windows-wheels.md)
 - [`compat/tests/test_python_support_policy.py`](../compat/tests/test_python_support_policy.py)
 - [`compat/tests/test_linux_wheel_compatibility.py`](../compat/tests/test_linux_wheel_compatibility.py)
 - [`compat/tests/test_macos_wheel_compatibility.py`](../compat/tests/test_macos_wheel_compatibility.py)
+- [`compat/tests/test_windows_wheel_compatibility.py`](../compat/tests/test_windows_wheel_compatibility.py)
 - [`python-wheel-targets.toml`](../python-wheel-targets.toml)
 - [`python-macos-wheel-targets.toml`](../python-macos-wheel-targets.toml)
+- [`python-windows-wheel-targets.toml`](../python-windows-wheel-targets.toml)
 - [`scripts/check_linux_wheel.py`](../scripts/check_linux_wheel.py)
 - [`scripts/check_macos_wheel.py`](../scripts/check_macos_wheel.py)
+- [`scripts/check_windows_wheel.py`](../scripts/check_windows_wheel.py)
 - [`compat/upstream.toml`](../compat/upstream.toml)
 - [`PRD.md`](../PRD.md)
 

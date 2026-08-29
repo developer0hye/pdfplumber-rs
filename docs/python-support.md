@@ -39,6 +39,14 @@ deployment floor, imports from an isolated wheel installation, and exact text
 from a real fixture. Deployment metadata is not described as execution on the
 oldest declared operating-system version.
 
+The Windows x86-64 release wheel uses a native installed-artifact job on
+[`windows-2025`](windows-wheels.md). It requires the exact AMD64 `PE32+`
+machine and direct DLL import allowlist, imports from an isolated CPython 3.13
+wheel installation, and extracts exact text from ordinary non-ASCII and
+longer-than-260-character paths while the runner reports
+`LongPathsEnabled=1`. That evidence is scoped to the named runner and enabled
+system policy.
+
 ## Explicit exclusions
 
 Python 3.14 is excluded from the current metadata. The workspace pins PyO3
