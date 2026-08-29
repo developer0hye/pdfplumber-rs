@@ -69,6 +69,12 @@ lists the complete pinned Python grouping, layout, line, and search controls,
 their interactions and examples, and the narrower current Rust, Python, and
 WebAssembly boundaries.
 
+Table configuration is likewise surface-specific. The
+[table-setting guide](table-settings.md) covers every pinned strategy,
+explicit-line input, tolerance, threshold, and forwarded text option, including
+their pipeline order and current Rust, Python, Command-Line Interface, and
+WebAssembly boundaries.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is

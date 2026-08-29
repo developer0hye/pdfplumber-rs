@@ -235,6 +235,9 @@ center-selection and rebased-view contract.
 The [text-option guide](docs/text-options.md) catalogs every pinned Python
 word, TextMap, text-line, and search option with examples and maps the narrower
 current Rust, Python, and WebAssembly controls without implying parity.
+The [table-setting guide](docs/table-settings.md) catalogs every pinned Python
+table keyword, fallback, validation rule, and forwarding interaction with
+compatible examples and a current cross-surface boundary matrix.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

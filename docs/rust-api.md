@@ -63,6 +63,9 @@ clipping, root-coordinate, nesting, and validation behavior.
 The [text-option guide](text-options.md) distinguishes typed Rust word, layout,
 and search options from the complete pinned Python option pipeline and its
 method-specific result controls.
+The [table-setting guide](table-settings.md) distinguishes typed Rust table
+strategies and extensions from the complete pinned Python settings, resolution,
+validation, and cell-text forwarding pipeline.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

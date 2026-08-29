@@ -54,6 +54,9 @@ cross-surface conversion rules.
 The [text-option guide](text-options.md) maps `WordOptions` and `TextOptions` to
 the larger pinned Python grouping and TextMap option families while keeping
 Rust-only column controls explicit.
+The [table-setting guide](table-settings.md) maps `TableSettings`, `Strategy`,
+and `ExplicitLines` to the larger pinned Python table settings while keeping
+Rust-only quality and merged-content controls explicit.
 
 The displayed page-space origin is top-left; x increases to the right and y increases down.
 A `BBox` is `(x0, top, x1, bottom)`, so width is `x1 - x0` and

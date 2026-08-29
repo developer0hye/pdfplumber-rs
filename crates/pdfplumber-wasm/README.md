@@ -130,6 +130,9 @@ prevents Rust crop behavior from being inferred as a WebAssembly contract.
 The [text-option guide](../../docs/text-options.md) maps `extractText`,
 `extractWords`, and `search` controls to the larger pinned Python option surface
 without treating matching names as compatible behavior.
+The [table-setting guide](../../docs/table-settings.md) maps every pinned table
+setting to the typed Rust core and records that WebAssembly table calls
+currently accept no settings.
 
 ### TypeScript Types
 
