@@ -14,6 +14,7 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLICY_PATH = REPO_ROOT / "python-windows-wheel-targets.toml"
+ATTRIBUTES_PATH = REPO_ROOT / ".gitattributes"
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_windows_wheel.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "release-artifacts.yml"
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "cli-binaries-ci.yml"
@@ -108,6 +109,13 @@ class WindowsWheelCompatibilityTests(unittest.TestCase):
             for target in policy.get("targets", [])
         }
         self.assertEqual(targets, {"x86_64": EXPECTED_TARGET})
+
+    def test_policy_keeps_lf_bytes_on_windows_for_source_digest_binding(self) -> None:
+        attributes = ATTRIBUTES_PATH.read_text(encoding="utf-8").splitlines()
+        self.assertIn(
+            "python-windows-wheel-targets.toml text eol=lf",
+            attributes,
+        )
 
     def test_release_matrix_installs_inspects_and_runs_paths_on_native_windows(
         self,
