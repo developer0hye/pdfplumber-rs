@@ -79,6 +79,7 @@ commit list.
   one-based compatibility page numbers, namespaced Rust extensions, output
   re-baselining, isolated release environments, and reversible rollback.
 - **Page numbering:** Added a cross-surface [page-numbering guide](docs/page-numbering.md) for one-based Python document numbers, zero-based Python list positions, and zero-based Rust, WebAssembly, and native-extension indexes.
+- **Coordinate systems:** Added a diagrammed cross-surface [coordinate-system guide](docs/coordinate-systems.md) for native PDF and displayed page axes, rotation-aware object boxes, source page-box metadata, Python bottom-origin fields, document-top coordinates, conversions, and unambiguous persisted names.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.

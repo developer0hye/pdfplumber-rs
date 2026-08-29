@@ -120,6 +120,10 @@ console.log(`Found ${matches.length} matches`);
 WebAssembly page selection and `pageNumber` both retain the Rust surface's
 zero-based convention. See the [page-numbering guide](../../docs/page-numbering.md)
 before exchanging page identity with the one-based Python compatibility surface.
+Serialized object boxes and page dimensions use rotation-aware, top-left
+displayed page space. See the
+[coordinate-system guide](../../docs/coordinate-systems.md) before exchanging
+geometry with native PDF or Python bottom-origin fields.
 
 ### TypeScript Types
 

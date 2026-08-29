@@ -127,6 +127,11 @@ Passing `laparams={}` to `pdfplumber.open` enables native horizontal layout anal
 | `.within_bbox(bbox)` / `.outside_bbox(bbox)` | Spatial filtering |
 | `.search(pattern, regex=True, case=True)` | Search for text |
 
+Page and object geometry crosses top- and bottom-origin conventions. The
+[coordinate-system guide](../../docs/coordinate-systems.md) diagrams the
+transform and distinguishes `mediabox`, `cropbox`, `bbox`, `top`/`bottom`,
+`y0`/`y1`, and `doctop` before these values leave the Python surface.
+
 ### Table
 
 | Method / Property | Description |

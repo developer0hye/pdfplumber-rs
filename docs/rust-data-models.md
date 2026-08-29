@@ -48,6 +48,9 @@ root currently re-exports them.
 Displayed page geometry uses PDF points: 72 points nominally equal one inch.
 `BBox`, `Line`, `Rect`, `Curve`, table geometry, character boxes, word boxes,
 and point-valued tolerances all use displayed page space after page rotation.
+The [coordinate-system guide](coordinate-systems.md) diagrams the native PDF,
+displayed page, source page-box, and document-top boundaries and gives the
+cross-surface conversion rules.
 
 The displayed page-space origin is top-left; x increases to the right and y increases down.
 A `BBox` is `(x0, top, x1, bottom)`, so width is `x1 - x0` and
