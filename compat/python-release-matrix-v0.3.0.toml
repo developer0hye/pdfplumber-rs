@@ -1,0 +1,72 @@
+schema_version = 1
+subject_version = "0.3.0"
+release_series = "0.11"
+upstream_repository = "https://github.com/jsvine/pdfplumber"
+release_index = "https://github.com/jsvine/pdfplumber/tags"
+output = "docs/compatibility/python-release-matrix-v0.3.0.md"
+
+[[releases]]
+version = "0.11.10"
+tag = "v0.11.10"
+status = "observed"
+scorecard = "docs/compatibility/scorecard-v0.3.0.json"
+
+[[releases]]
+version = "0.11.9"
+tag = "v0.11.9"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.9 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.8"
+tag = "v0.11.8"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.8 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.7"
+tag = "v0.11.7"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.7 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.6"
+tag = "v0.11.6"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.6 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.5"
+tag = "v0.11.5"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.5 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.4"
+tag = "v0.11.4"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.4 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.3"
+tag = "v0.11.3"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.3 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.2"
+tag = "v0.11.2"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.2 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.1"
+tag = "v0.11.1"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.1 with pdfplumber-rs 0.3.0."
+
+[[releases]]
+version = "0.11.0"
+tag = "v0.11.0"
+status = "not_tested"
+reason = "No release-specific compatibility scorecard has been executed for Python pdfplumber 0.11.0 with pdfplumber-rs 0.3.0."

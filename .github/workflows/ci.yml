@@ -239,6 +239,9 @@ jobs:
       - name: Validate the human compatibility workflow report
         run: python scripts/generate_workflow_scorecard.py --check
 
+      - name: Validate the Python release compatibility matrix
+        run: python scripts/generate_python_release_matrix.py --check
+
       - name: Verify the pinned upstream PDF fixture corpus
         run: python scripts/import_upstream_fixtures.py --check
 
