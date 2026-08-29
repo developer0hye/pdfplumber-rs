@@ -44,6 +44,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Python Packaging User Guide, PyO3, and CPython | [python-support-metadata.md](python-support-metadata.md) | Reviewing `Requires-Python`, version and implementation classifiers, tested artifact matrices, or Python 3.14 exclusions |
 | PyPA auditwheel, PEP 600, and Python Packaging User Guide | [python-linux-wheels.md](python-linux-wheels.md) | Reviewing Linux wheel platform tags, allowed system libraries, external shared-library audits, or instruction-set compatibility |
 | GitHub Actions, Rust, Apple, and Maturin | [python-macos-wheels.md](python-macos-wheels.md) | Reviewing native macOS wheel runners, deployment targets, Mach-O architectures, or installed-wheel execution |
+| GitHub Actions, Microsoft, and CPython | [python-windows-wheels.md](python-windows-wheels.md) | Reviewing Windows PE imports, native wheel installation, or non-ASCII and long-path execution |
 | Cargo, PyPI, npm, and GitHub | [release-recovery.md](release-recovery.md) | Containing registry lag, partial publication, compromised credentials, or incorrect release claims |
 | Development Containers, Docker, and Rust Official Images | [rust-dev-containers.md](rust-dev-containers.md) | Reproducing the pinned Rust contributor environment or updating its image digest |
 
