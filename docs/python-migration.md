@@ -134,12 +134,15 @@ Use the workflow report as an index, not as a substitute for your tests:
 | Tables | Settings, discovered geometry, row and cell order, values, types, and empty results. |
 | Objects and annotations | Object families, key order, values, numeric types, page identity, and serialization. |
 | Crop and derived pages | Bounding boxes, inclusion rules, rebased coordinates, page numbers, and chained operations. |
+| Rendering and Command-Line Interface | Executable dependencies, output bytes, exit status, standard error, and side effects. |
 
 The [text-option guide](text-options.md) gives the complete pinned v0.11.10
 keyword catalog, compatible examples, option interactions, and the current
 surface matrix. Use it to turn each text, word, text-line, or search call into
 an explicit migration decision.
-| Rendering and Command-Line Interface | Executable dependencies, output bytes, exit status, standard error, and side effects. |
+The [table-setting guide](table-settings.md) gives the corresponding complete
+table catalog, pipeline interactions, exact failures, and current surface
+matrix. Use it to classify every table settings dictionary explicitly.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

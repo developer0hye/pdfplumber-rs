@@ -137,6 +137,9 @@ while extraction methods still consume the legacy Rust cropped view.
 The [text-option guide](../../docs/text-options.md) lists every pinned v0.11.10
 text keyword and example, then distinguishes the options this alpha actually
 accepts.
+The [table-setting guide](../../docs/table-settings.md) does the same for all
+pinned table settings and records that this alpha's two table methods currently
+accept no settings argument.
 
 ### Table
 
