@@ -61,8 +61,8 @@ class PackageLicenseContractTests(unittest.TestCase):
             "python scripts/check_package_licenses.py --source",
             "python scripts/check_package_licenses.py --rust target/package/*.crate",
             "python scripts/check_package_licenses.py --python dist/*.whl dist/*.tar.gz",
-            "python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg",
-            "wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm",
+            "python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg-browser",
+            "wasm-pack build --target bundler --out-dir pkg-browser crates/pdfplumber-wasm",
         )
 
         for command in required_commands:

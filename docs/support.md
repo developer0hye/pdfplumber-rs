@@ -82,7 +82,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **CI-verified platforms**
 
-- Ubuntu Linux x86_64 bundler and Node.js package builds with license metadata/file inspection and an executed Node.js Quick Start
+- Ubuntu Linux x86-64 candidate archives installed and type-checked with TypeScript 7.0.2, executed in Node.js 24.20.0, and bundled with Vite 8.2.2 for Playwright 1.62.1 Chromium execution
 
 **Release-configured targets**
 
@@ -245,14 +245,18 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Known limitations**
 
-- The surface is experimental; the Node.js Quick Start is CI-contracted, but browser end-to-end behavior is not gated.
+- The surface is experimental; the prepublication gate covers one maintained Chromium build and does not establish compatibility with every browser.
 - The observed npm release is 0.2.0 while the repository source is 0.3.0.
-- Bundle size, startup time, memory, browser compatibility, and published-package installation are not gated.
+- Bundle size, startup time, memory, cross-browser behavior, and published-registry installation are independent gates.
 
 **Evidence**
 
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+- [`wasm-package-test-policy.toml`](../wasm-package-test-policy.toml)
+- [`scripts/check_wasm_package.py`](../scripts/check_wasm_package.py)
+- [`compat/tests/test_wasm_package_release.py`](../compat/tests/test_wasm_package_release.py)
+- [`docs/wasm-package-testing.md`](../docs/wasm-package-testing.md)
 - [`crates/pdfplumber-wasm/Cargo.toml`](../crates/pdfplumber-wasm/Cargo.toml)
 - [`crates/pdfplumber-wasm/README.md`](../crates/pdfplumber-wasm/README.md)
 - [`PRD.md`](../PRD.md)

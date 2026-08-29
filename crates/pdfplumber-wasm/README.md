@@ -149,6 +149,8 @@ wasm-pack build --target nodejs crates/pdfplumber-wasm
 wasm-pack build --target web crates/pdfplumber-wasm
 ```
 
+The prepublication gate installs fresh `nodejs` and `bundler` package archives, type-checks strict TypeScript consumers, and executes the same exact fixture in Node.js and Playwright Chromium. See [WebAssembly package prepublication testing](../../docs/wasm-package-testing.md) for the pinned tools, reproduction commands, evidence, and browser-support boundary.
+
 ## Comparison with Other Tools
 
 | Feature | pdfplumber-wasm | pdf.js | pdf-lib |

@@ -40,6 +40,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Cargo | [cargo-packaging.md](cargo-packaging.md) | Reviewing verified crate archives, publish dry runs, coordinated workspace releases, or exact-commit package provenance |
 | Rust, GitHub Actions, and Typst | [rust-cli-binaries.md](rust-cli-binaries.md) | Reviewing native target matrices, versioned CLI archives, or release-asset build gates |
 | GitHub Actions and Anchore Syft | [release-artifact-integrity.md](release-artifact-integrity.md) | Reviewing release checksums, SPDX SBOMs, build provenance, Sigstore attestations, or verification commands |
+| Node.js, TypeScript, Vite, Playwright, and wasm-pack | [wasm-package-testing.md](wasm-package-testing.md) | Reviewing prepublication Node and maintained-browser package installation, type-checking, or execution gates |
 | crates.io, PyPI, npm, GitHub Actions, and Node.js | [trusted-publishing.md](trusted-publishing.md) | Reviewing registry OpenID Connect bindings, short-lived publisher credentials, job permissions, or client-version floors |
 | Python Packaging User Guide, PyO3, and CPython | [python-support-metadata.md](python-support-metadata.md) | Reviewing `Requires-Python`, version and implementation classifiers, tested artifact matrices, or Python 3.14 exclusions |
 | PyPA auditwheel, PEP 600, and Python Packaging User Guide | [python-linux-wheels.md](python-linux-wheels.md) | Reviewing Linux wheel platform tags, allowed system libraries, external shared-library audits, or instruction-set compatibility |

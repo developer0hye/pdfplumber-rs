@@ -59,8 +59,7 @@ class TrustedRegistryPublishingTests(unittest.TestCase):
         self.assertIn("id: crates-io-auth", crates)
         self.assertEqual(
             crates.count(
-                "CARGO_REGISTRY_TOKEN: "
-                "${{ steps.crates-io-auth.outputs.token }}"
+                "CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}"
             ),
             4,
         )
@@ -79,7 +78,7 @@ class TrustedRegistryPublishingTests(unittest.TestCase):
         npm = job(self.workflow, "publish-npm")
         self.assertIn("environment:\n      name: npm", npm)
         self.assertIn("url: https://www.npmjs.com/package/pdfplumber-wasm", npm)
-        self.assertIn('node-version: "24.5.0"', npm)
+        self.assertIn('node-version: "24.20.0"', npm)
         self.assertIn(
             "npm publish crates/pdfplumber-wasm/pkg --access public",
             npm,
@@ -119,7 +118,9 @@ class TrustedRegistryPublishingTests(unittest.TestCase):
         self.assertRegex(normalized, r"(?i)do not.*publish.*test|without publishing")
         self.assertRegex(normalized, r"(?i)registry.*private|not publicly visible")
 
-    def test_public_guidance_and_task_state_preserve_the_evidence_boundary(self) -> None:
+    def test_public_guidance_and_task_state_preserve_the_evidence_boundary(
+        self,
+    ) -> None:
         self.assertIn(
             "[trusted publishing](docs/trusted-publishing.md)",
             text(README_PATH),

@@ -67,6 +67,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
         self,
     ) -> None:
         required = (
+            ".gitignore",
             "package.json",
             "package-lock.json",
             "tsconfig.node.json",
@@ -99,6 +100,10 @@ class WasmPackageReleaseTests(unittest.TestCase):
         )
         self.assertEqual(lock.get("lockfileVersion"), 3)
         self.assertTrue(lock.get("packages", {}).get("", {}).get("devDependencies"))
+        self.assertEqual(
+            (HARNESS_PATH / ".gitignore").read_text(encoding="utf-8"),
+            "node_modules/\n",
+        )
 
         node_source = (HARNESS_PATH / "node-consumer.ts").read_text(encoding="utf-8")
         browser_source = (HARNESS_PATH / "browser-consumer.ts").read_text(
@@ -113,6 +118,9 @@ class WasmPackageReleaseTests(unittest.TestCase):
         self.assertIn("chromium.launch", browser_runner)
         self.assertIn("data-wasm-status", browser_runner)
         self.assertNotIn("SKIP", node_source + browser_source + browser_runner)
+        checker = CHECKER_PATH.read_text(encoding="utf-8")
+        self.assertIn('"--ignore-scripts"', checker)
+        self.assertIn('"--offline"', checker)
 
     def test_ci_builds_packs_typechecks_installs_and_executes_both_consumers(
         self,
@@ -123,7 +131,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
             'node-version: "24.20.0"',
             "cache-dependency-path: compat/wasm-package-tests/package-lock.json",
             "version: v0.15.0",
-            "npm ci --prefix compat/wasm-package-tests",
+            "npm ci --prefix compat/wasm-package-tests --ignore-scripts",
             "npx --prefix compat/wasm-package-tests playwright install --with-deps chromium",
             "wasm-pack build --target bundler --out-dir pkg-browser crates/pdfplumber-wasm",
             "wasm-pack build --target nodejs --out-dir pkg-node crates/pdfplumber-wasm",

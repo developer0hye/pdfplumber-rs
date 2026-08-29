@@ -65,9 +65,10 @@ and validate the APIs your application uses against the published gaps.
 ## Is the WebAssembly package ready for browser production use?
 
 Treat it as experimental. Repository source is `0.3.0`.
-The observed npm release is `0.2.0`. Required Continuous Integration builds bundler
-and Node.js packages and executes the rendered Node.js Quick Start.
-The browser end-to-end behavior is not gated. Browser compatibility, bundle size,
+The observed npm release is `0.2.0`. Required Continuous Integration installs fresh
+bundler and Node.js package archives, type-checks strict consumers, and requires exact
+fixture output in Node.js 24.20.0 and Playwright 1.62.1 Chromium. This one maintained
+Chromium build does not establish cross-browser or production support. Bundle size,
 startup time, memory use, and installation from the published npm package remain
-unverified; see the
-[WebAssembly guide](../crates/pdfplumber-wasm/README.md) for the current API.
+independent gates; see the [WebAssembly guide](../crates/pdfplumber-wasm/README.md)
+and [prepublication test boundary](wasm-package-testing.md).

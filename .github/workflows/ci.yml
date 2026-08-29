@@ -281,24 +281,61 @@ jobs:
       - name: Verify the pinned upstream call contracts
         run: .venv-reference/bin/python compat/api_contract.py
 
-  wasm-package-license:
-    name: WASM package license
+  wasm-package-consumers:
+    name: WASM package consumers
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: compat/wasm-package-tests/package-lock.json
       - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.15.0
+
+      - name: Install the locked TypeScript and browser test tools
+        run: npm ci --prefix compat/wasm-package-tests --ignore-scripts
+
+      - name: Install the maintained Chromium runner
+        run: npx --prefix compat/wasm-package-tests playwright install --with-deps chromium
 
       - name: Build WASM bundler package
-        run: wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm
+        run: wasm-pack build --target bundler --out-dir pkg-browser crates/pdfplumber-wasm
 
       - name: Build WASM Node package
         run: wasm-pack build --target nodejs --out-dir pkg-node crates/pdfplumber-wasm
 
+      - name: Copy checked TypeScript declarations into candidate packages
+        run: |
+          cp crates/pdfplumber-wasm/pdfplumber-wasm.d.ts crates/pdfplumber-wasm/pkg-browser/pdfplumber_wasm.d.ts
+          cp crates/pdfplumber-wasm/pdfplumber-wasm.d.ts crates/pdfplumber-wasm/pkg-node/pdfplumber_wasm.d.ts
+
       - name: Verify npm package artifact
         run: |
-          python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg
-          python scripts/check_package_metadata.py --npm crates/pdfplumber-wasm/pkg
+          python scripts/check_package_licenses.py --npm crates/pdfplumber-wasm/pkg-browser
+          python scripts/check_package_metadata.py --npm crates/pdfplumber-wasm/pkg-browser
 
       - name: Test rendered Node/WebAssembly quick start
         run: python scripts/check_doc_quickstarts.py --wasm-node --npm-package crates/pdfplumber-wasm/pkg-node
+
+      - name: Type-check, install, and execute the candidate packages
+        run: >-
+          python scripts/check_wasm_package.py
+          --node-package crates/pdfplumber-wasm/pkg-node
+          --browser-package crates/pdfplumber-wasm/pkg-browser
+          --source-commit "$GITHUB_SHA"
+          --output dist/wasm-package-report.json
+
+      - name: Retain WebAssembly package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-package-evidence-${{ github.sha }}
+          path: |
+            dist/wasm-package-report.json
+            dist/pdfplumber-wasm-node.tgz
+            dist/pdfplumber-wasm-browser.tgz
+          if-no-files-found: error
+          compression-level: 0

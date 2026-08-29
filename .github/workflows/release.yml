@@ -240,11 +240,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "24.5.0"
+          node-version: "24.20.0"
           registry-url: https://registry.npmjs.org
 
       - name: Install wasm-pack
         uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: v0.15.0
 
       - name: Build WASM package
         run: wasm-pack build --target bundler --out-dir pkg crates/pdfplumber-wasm
