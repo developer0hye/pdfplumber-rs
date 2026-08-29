@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import importlib.util
+import math
 import subprocess
 import unittest
 from pathlib import Path
 from types import ModuleType
-from typing import Callable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLLER_PATH = REPO_ROOT / "scripts" / "wait_for_crate_resolution.py"
@@ -18,7 +18,9 @@ GUIDE_PATH = REPO_ROOT / "docs" / "crates-release.md"
 def load_poller() -> ModuleType | None:
     if not POLLER_PATH.is_file():
         return None
-    spec = importlib.util.spec_from_file_location("wait_for_crate_resolution", POLLER_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "wait_for_crate_resolution", POLLER_PATH
+    )
     if spec is None or spec.loader is None:
         return None
     module = importlib.util.module_from_spec(spec)
@@ -158,14 +160,37 @@ class CratesRegistryPollingTests(unittest.TestCase):
 
         self.assertEqual(clock.delays, [])
 
+    def test_non_finite_timing_policy_cannot_disable_the_deadline(self) -> None:
+        poller = self.require_poller()
+
+        def runner(
+            command: tuple[str, ...], timeout_seconds: float
+        ) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+        for invalid_timeout in (math.inf, math.nan):
+            with (
+                self.subTest(invalid_timeout=invalid_timeout),
+                self.assertRaises(poller.CrateResolutionError),
+            ):
+                poller.wait_until_resolvable(
+                    "pdfplumber-core",
+                    "0.4.0",
+                    timeout_seconds=invalid_timeout,
+                    runner=runner,
+                    emit=lambda message: None,
+                )
+
     def test_release_tag_supplies_the_exact_expected_version(self) -> None:
         poller = self.require_poller()
 
         self.assertEqual(poller.version_from_release_tag("v0.4.0"), "0.4.0")
         for invalid_tag in ("0.4.0", "v", "v0.4"):
-            with self.subTest(invalid_tag=invalid_tag):
-                with self.assertRaises(poller.CrateResolutionError):
-                    poller.version_from_release_tag(invalid_tag)
+            with (
+                self.subTest(invalid_tag=invalid_tag),
+                self.assertRaises(poller.CrateResolutionError),
+            ):
+                poller.version_from_release_tag(invalid_tag)
 
     def test_release_workflow_polls_each_predecessor_without_fixed_sleeps(
         self,
@@ -192,12 +217,8 @@ class CratesRegistryPollingTests(unittest.TestCase):
                 publish_predecessor = publish_job.index(
                     f"cargo publish -p {predecessor}\n"
                 )
-                poll_predecessor = publish_job.index(
-                    f"{poller_command} {predecessor} "
-                )
-                publish_dependent = publish_job.index(
-                    f"cargo publish -p {dependent}\n"
-                )
+                poll_predecessor = publish_job.index(f"{poller_command} {predecessor} ")
+                publish_dependent = publish_job.index(f"cargo publish -p {dependent}\n")
                 self.assertLess(publish_predecessor, poll_predecessor)
                 self.assertLess(poll_predecessor, publish_dependent)
 
