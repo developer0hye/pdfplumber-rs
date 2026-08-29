@@ -22,6 +22,7 @@ GUIDE_PATH = REPO_ROOT / "docs" / "wasm-package-testing.md"
 REFERENCE_PATH = REPO_ROOT / "references" / "wasm-package-testing.md"
 REFERENCE_INDEX_PATH = REPO_ROOT / "references" / "INDEX.md"
 SUPPORT_PATH = REPO_ROOT / "support-matrix.toml"
+PRD_PATH = REPO_ROOT / "PRD.md"
 
 EXPECTED_POLICY = {
     "schema_version": 1,
@@ -320,6 +321,40 @@ class WasmPackageReleaseTests(unittest.TestCase):
             self.assertIn(relative, wasm["evidence"])
         index = REFERENCE_INDEX_PATH.read_text(encoding="utf-8")
         self.assertIn("[wasm-package-testing.md](wasm-package-testing.md)", index)
+
+    def test_prd_records_verified_remote_evidence(self) -> None:
+        prd = PRD_PATH.read_text(encoding="utf-8")
+        self.assertIn(
+            "- [x] **DIST-013** Build, type-check, install, and execute the "
+            "WebAssembly/TypeScript package in Node and a maintained browser "
+            "runner before publication.",
+            prd,
+        )
+
+        active_work = prd[prd.index("## 12. Active Work") : prd.index("## 13. Evidence Ledger")]
+        self.assertNotIn("| `DIST-013` |", active_work)
+
+        evidence = prd[prd.index("## 13. Evidence Ledger") : prd.index("## 14. Decision Log")]
+        row = next(
+            (line for line in evidence.splitlines() if line.startswith("| `DIST-013` |")),
+            "",
+        )
+        for phrase in (
+            "PR #472",
+            "43ad69615b3a2e2ac6fc96bb4c0bc7bf25688a65",
+            "11a847831c75b339f50fb1fa2c24f378201b900f",
+            "33246020239",
+            "33246020258",
+            "33246288048",
+            "33246288128",
+            "70f773e39e7befa492d4bd595b79672ac75388dec9407d779fd079d58fc67a94",
+            "f06c8887e31b87b989be8ced8908a55a4ec6a938000dd74f4762da2406dee0f8",
+            "14357e3e778374363364bfc5a8c11e920c84cc7420f5ae65b59d2245093d243b",
+            "05399459d670e5d36c3f8978efc81aab81fca0ed0544b2304bdb67c53013891f",
+            "f9679cc2159ee8b6b68480c44e3b1bfcc678e9d77d2193fe5113e446f2658c9e",
+        ):
+            with self.subTest(evidence_phrase=phrase):
+                self.assertIn(phrase, row)
 
 
 if __name__ == "__main__":
