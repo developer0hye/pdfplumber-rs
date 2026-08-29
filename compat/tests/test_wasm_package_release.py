@@ -82,7 +82,9 @@ class WasmPackageReleaseTests(unittest.TestCase):
         if not all((HARNESS_PATH / relative).is_file() for relative in required):
             return
 
-        package = json.loads((HARNESS_PATH / "package.json").read_text(encoding="utf-8"))
+        package = json.loads(
+            (HARNESS_PATH / "package.json").read_text(encoding="utf-8")
+        )
         self.assertEqual(
             package.get("devDependencies"),
             {
@@ -102,9 +104,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
         browser_source = (HARNESS_PATH / "browser-consumer.ts").read_text(
             encoding="utf-8"
         )
-        browser_runner = (HARNESS_PATH / "run-browser.mjs").read_text(
-            encoding="utf-8"
-        )
+        browser_runner = (HARNESS_PATH / "run-browser.mjs").read_text(encoding="utf-8")
         for source in (node_source, browser_source):
             self.assertIn('from "pdfplumber-wasm"', source)
             self.assertIn("WasmPdf.open", source)
@@ -139,8 +139,14 @@ class WasmPackageReleaseTests(unittest.TestCase):
                 self.assertIn(phrase, workflow)
         for earlier, later in (
             ("npm ci --prefix", "playwright install --with-deps chromium"),
-            ("wasm-pack build --target bundler", "Copy checked TypeScript declarations"),
-            ("Copy checked TypeScript declarations", "python scripts/check_wasm_package.py"),
+            (
+                "wasm-pack build --target bundler",
+                "Copy checked TypeScript declarations",
+            ),
+            (
+                "Copy checked TypeScript declarations",
+                "python scripts/check_wasm_package.py",
+            ),
         ):
             self.assertLess(workflow.index(earlier), workflow.index(later))
 
@@ -168,6 +174,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
             "vite": "8.2.2",
             "playwright": "1.62.1",
         }
+        checker.validate_source_checkout("1" * 40, "1" * 40, "")
         checker.validate_tool_versions(policy, versions)
         checker.validate_package_manifest(
             {
@@ -191,6 +198,8 @@ class WasmPackageReleaseTests(unittest.TestCase):
         )
 
         failures = (
+            (checker.validate_source_checkout, ("1" * 40, "2" * 40, "")),
+            (checker.validate_source_checkout, ("1" * 40, "1" * 40, " M file")),
             (checker.validate_tool_versions, (policy, {**versions, "node": "25.5.0"})),
             (
                 checker.validate_package_manifest,
@@ -214,8 +223,9 @@ class WasmPackageReleaseTests(unittest.TestCase):
             ),
         )
         for function, arguments in failures:
-            with self.subTest(function=function.__name__), self.assertRaises(
-                checker.WasmPackageError
+            with (
+                self.subTest(function=function.__name__),
+                self.assertRaises(checker.WasmPackageError),
             ):
                 function(*arguments)
 
@@ -282,13 +292,17 @@ class WasmPackageReleaseTests(unittest.TestCase):
                     self.assertIn(phrase, guide)
 
         support = tomllib.loads(SUPPORT_PATH.read_text(encoding="utf-8"))
-        wasm = next(surface for surface in support["surfaces"] if surface["id"] == "wasm")
+        wasm = next(
+            surface for surface in support["surfaces"] if surface["id"] == "wasm"
+        )
         verified = "\n".join(wasm["ci_verified_platforms"])
         self.assertIn("Node.js 24.20.0", verified)
         self.assertIn("Playwright 1.62.1 Chromium", verified)
         limitations = "\n".join(wasm["known_limitations"])
         self.assertNotIn("browser end-to-end behavior is not gated", limitations)
-        self.assertIn("does not establish compatibility with every browser", limitations)
+        self.assertIn(
+            "does not establish compatibility with every browser", limitations
+        )
         for relative in (
             "wasm-package-test-policy.toml",
             "scripts/check_wasm_package.py",
