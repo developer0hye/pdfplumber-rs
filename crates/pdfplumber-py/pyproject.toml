@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "pdfplumber-rs"
 description = "Alpha Python migration path for pdfplumber workflows, powered by evidence-driven PDF extraction in Rust"
-requires-python = ">= 3.9"
+requires-python = ">=3.13,<3.14"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 keywords = ["pdf", "table", "text-extraction", "pdfplumber", "document", "parsing"]
@@ -19,12 +19,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Text Processing",
     "Topic :: Software Development :: Libraries :: Python Modules",

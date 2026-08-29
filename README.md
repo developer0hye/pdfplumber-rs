@@ -73,6 +73,10 @@ the verified Rust archives, Python packages, and native CLI archives. Tagged
 registry uploads follow the separate [trusted publishing](docs/trusted-publishing.md)
 contract: registry jobs use short-lived OpenID Connect credentials and the
 GitHub Release job uses only its job-scoped repository token.
+The current-source policy for the next Python release supports only CPython
+3.13; its exact installed wheel/source-distribution matrix, `Requires-Python`
+interval, and explicit Python 3.14 and PyPy exclusions are defined in the
+[Python support policy](docs/python-support.md).
 
 ## Quick Start
 

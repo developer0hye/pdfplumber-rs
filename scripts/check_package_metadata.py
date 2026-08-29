@@ -10,6 +10,7 @@ import sys
 import tarfile
 import zipfile
 from email.parser import Parser
+from itertools import pairwise
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,7 @@ def parse_args() -> argparse.Namespace:
     modes.add_argument("--source", action="store_true")
     modes.add_argument("--rust", nargs="+", type=Path, metavar="CRATE")
     modes.add_argument("--python", nargs="+", type=Path, metavar="DIST")
+    modes.add_argument("--python-support-matrix", action="store_true")
     modes.add_argument("--npm", type=Path, metavar="PACKAGE_DIR")
     modes.add_argument("--release-tag", metavar="TAG")
     parser.add_argument("--github-output", type=Path, metavar="PATH")
@@ -301,11 +303,83 @@ def load_matrix() -> dict[str, Any]:
         matrix["github_prerelease"] == expected_prerelease,
         "matrix.github_prerelease disagrees with surface maturity",
     )
+    python_support_policy(matrix)
     return matrix
 
 
 def surfaces_by_id(matrix: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {surface["id"]: surface for surface in matrix["surfaces"]}
+
+
+def python_support_policy(matrix: dict[str, Any]) -> dict[str, Any]:
+    policy = matrix.get("python_support")
+    require(isinstance(policy, dict), "matrix.python_support must be a table")
+    require(
+        set(policy)
+        == {
+            "implementation",
+            "tested_versions",
+            "installed_artifacts",
+            "explicitly_excluded_versions",
+        },
+        "matrix.python_support fields are incomplete or unknown",
+    )
+    implementation = require_string(policy, "implementation", "python_support")
+    require(
+        implementation == "CPython",
+        "python_support implementation must be CPython until another runtime is tested",
+    )
+    versions = require_string_list(policy, "tested_versions", "python_support")
+    parsed_versions: list[tuple[int, int]] = []
+    for version in versions:
+        match = re.fullmatch(r"([0-9]+)\.([0-9]+)", version)
+        require(match is not None, f"invalid tested Python version {version!r}")
+        parsed_versions.append((int(match.group(1)), int(match.group(2))))
+    require(
+        parsed_versions == sorted(parsed_versions),
+        "tested Python versions must be sorted",
+    )
+    require(
+        all(
+            current[0] == following[0] and following[1] == current[1] + 1
+            for current, following in pairwise(parsed_versions)
+        ),
+        "tested Python versions must be one consecutive interval",
+    )
+    artifacts = require_string_list(
+        policy,
+        "installed_artifacts",
+        "python_support",
+    )
+    require(
+        artifacts == ["wheel", "sdist"],
+        "python_support must install both wheel and sdist artifacts",
+    )
+    next_version = f"{parsed_versions[-1][0]}.{parsed_versions[-1][1] + 1}"
+    excluded = require_string_list(
+        policy,
+        "explicitly_excluded_versions",
+        "python_support",
+    )
+    require(
+        excluded == [next_version],
+        "python_support must explicitly exclude the next untested minor version",
+    )
+    minimum = versions[0]
+    requires_python = f">={minimum},<{next_version}"
+    classifiers = {
+        "Programming Language :: Python :: 3",
+        f"Programming Language :: Python :: Implementation :: {implementation}",
+        *(f"Programming Language :: Python :: {version}" for version in versions),
+    }
+    return {
+        "implementation": implementation,
+        "versions": versions,
+        "artifacts": artifacts,
+        "excluded": excluded,
+        "requires_python": requires_python,
+        "classifiers": classifiers,
+    }
 
 
 def changelog_release(matrix: dict[str, Any]) -> tuple[str, str]:
@@ -608,6 +682,26 @@ def check_source(matrix: dict[str, Any]) -> None:
         classifier in project.get("classifiers", []),
         f"Python maturity classifier is missing: {classifier}",
     )
+    python_policy = python_support_policy(matrix)
+    require(
+        str(project.get("requires-python", "")).replace(" ", "")
+        == python_policy["requires_python"],
+        "Python requires-python disagrees with the installed-artifact matrix",
+    )
+    python_classifiers = [
+        value
+        for value in project.get("classifiers", [])
+        if isinstance(value, str)
+        and value.startswith("Programming Language :: Python")
+    ]
+    require(
+        len(python_classifiers) == len(set(python_classifiers)),
+        "Python classifiers contain duplicates",
+    )
+    require(
+        set(python_classifiers) == python_policy["classifiers"],
+        "Python classifiers disagree with the installed-artifact matrix",
+    )
     require(
         python["import_name"] == python["native_module"].split(".", 1)[0],
         "Python import and native module roots disagree",
@@ -781,6 +875,7 @@ def parsed_metadata(content: bytes, context: str) -> Any:
 
 def check_python_metadata(matrix: dict[str, Any], metadata: Any, context: str) -> None:
     python = surfaces_by_id(matrix)["python"]
+    python_policy = python_support_policy(matrix)
     require(metadata.get("Name") == python["package"], f"{context} name mismatch")
     require(
         metadata.get("Version") == matrix["release_version"],
@@ -795,6 +890,21 @@ def check_python_metadata(matrix: dict[str, Any], metadata: Any, context: str) -
         PYTHON_MATURITY_CLASSIFIERS[python["maturity"]]
         in (metadata.get_all("Classifier") or []),
         f"{context} maturity classifier mismatch",
+    )
+    requires_python = metadata.get("Requires-Python")
+    require(
+        str(requires_python or "").replace(" ", "")
+        == python_policy["requires_python"],
+        f"{context} Requires-Python mismatch",
+    )
+    python_classifiers = {
+        value
+        for value in (metadata.get_all("Classifier") or [])
+        if value.startswith("Programming Language :: Python")
+    }
+    require(
+        python_classifiers == python_policy["classifiers"],
+        f"{context} Python classifiers mismatch",
     )
     project_urls = metadata.get_all("Project-URL") or []
     require(
@@ -914,6 +1024,24 @@ def write_release_outputs(
         ) from error
 
 
+def write_python_support_matrix(
+    matrix: dict[str, Any], github_output: Path | None
+) -> None:
+    require(
+        github_output is not None,
+        "--github-output is required with --python-support-matrix",
+    )
+    policy = python_support_policy(matrix)
+    matrix_output = {"python-version": policy["versions"]}
+    try:
+        with github_output.open("a", encoding="utf-8") as output:
+            output.write(f"matrix={json.dumps(matrix_output, separators=(',', ':'))}\n")
+    except OSError as error:
+        raise MetadataError(
+            f"cannot write GitHub output {github_output}: {error}"
+        ) from error
+
+
 def main() -> int:
     args = parse_args()
     try:
@@ -925,6 +1053,10 @@ def main() -> int:
             )
             check_source(matrix)
             family = "source"
+        elif args.python_support_matrix:
+            check_source(matrix)
+            write_python_support_matrix(matrix, args.github_output)
+            family = "Python support matrix"
         elif args.rust:
             require(
                 args.github_output is None,

@@ -85,15 +85,32 @@ jobs:
       - name: Run the reproducible Rust contributor paths
         run: scripts/check_rust_dev_container.sh
 
+  python-support-policy:
+    name: Python support policy
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.policy.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export the installed-artifact Python matrix
+        id: policy
+        run: >-
+          python3 scripts/check_package_metadata.py --python-support-matrix
+          --github-output "$GITHUB_OUTPUT"
+
   python-native-layout:
     name: Python native package layout
+    needs: python-support-policy
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.python-support-policy.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
 
       - name: Build wheel and source distribution
         run: |
