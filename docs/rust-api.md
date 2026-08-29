@@ -72,6 +72,9 @@ derived-edge dictionaries.
 The [visual-debugging guide](visual-debugging.md) distinguishes pinned Python's
 raster `PageImage` contract from Rust's white-canvas `SvgRenderer`, selective
 table-debug SVG, fixed Command-Line Interface overlays, and adapter gaps.
+The [error and resource-limit guide](errors-and-resource-limits.md) is the
+cross-surface authority for Python exceptions and warnings, Rust typed
+diagnostics, wired versus declarative extraction controls, and host isolation.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

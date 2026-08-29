@@ -4,6 +4,9 @@ The high-level `pdfplumber` crate returns the opaque `PdfError` type. Classify
 it with `PdfError::kind()` and the non-exhaustive `PdfErrorKind` enum instead of
 matching implementation-specific parser messages. `PdfErrorKind::code()` gives
 a stable uppercase code for logs, metrics, and retry policy.
+The cross-surface [error and resource-limit guide](errors-and-resource-limits.md)
+adds pinned Python behavior, complete Rust budget enforcement status, adapter
+translations, and host-level controls for untrusted inputs.
 
 ## Safe default output
 

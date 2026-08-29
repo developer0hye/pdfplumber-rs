@@ -42,6 +42,9 @@ separate `Pdf` values when each worker needs an independent budget.
 
 Opening limits such as `max_input_bytes` and `max_pages` are checked once while
 constructing the document and do not change afterward.
+The [error and resource-limit guide](errors-and-resource-limits.md) documents
+all option defaults and enforcement points, including the current fields that
+do not participate in runtime extraction.
 
 ## Parallel page processing
 

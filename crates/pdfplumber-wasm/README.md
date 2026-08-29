@@ -139,6 +139,9 @@ values currently exposed by WebAssembly.
 The [visual-debugging guide](../../docs/visual-debugging.md) distinguishes the
 pinned Python raster API and current Rust/CLI SVG extension from WebAssembly,
 which does not expose a raster or SVG visual-debug method today.
+The [error and resource-limit guide](../../docs/errors-and-resource-limits.md)
+records the current `JsError` conversion and the absence of WebAssembly
+resource, warning, password, repair, and timeout controls.
 
 ### TypeScript Types
 

@@ -149,6 +149,9 @@ shapes, and current gaps. Compare ordered keys as well as values and types.
 The [visual-debugging guide](visual-debugging.md) gives the exact pinned
 PDFium/Pillow render, overlay, crop, save, display, and table-debug behavior,
 then separates it from the current SVG extension and absent Python adapter API.
+The [error and resource-limit guide](errors-and-resource-limits.md) gives the
+exact pinned exception/warning boundary, Rust typed errors and active budgets,
+adapter gaps, and host controls needed for untrusted documents.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact
