@@ -180,6 +180,9 @@ only a subset of the pinned Python options.
 Use the [table-setting guide](table-settings.md) to inventory every table
 strategy and setting separately; the current compatibility facade's table
 methods do not yet accept the pinned settings argument.
+Use the [object-dictionary schema guide](object-dictionary-schemas.md) to
+compare family presence, exact key order, value shapes, derived edges, and
+serialization before accepting any 0.2.0 object baseline.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

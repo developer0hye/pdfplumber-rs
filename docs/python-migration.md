@@ -143,6 +143,9 @@ an explicit migration decision.
 The [table-setting guide](table-settings.md) gives the corresponding complete
 table catalog, pipeline interactions, exact failures, and current surface
 matrix. Use it to classify every table settings dictionary explicitly.
+The [object-dictionary schema guide](object-dictionary-schemas.md) gives the
+exact pinned family and key inventory, derived-edge rules, serialization
+shapes, and current gaps. Compare ordered keys as well as values and types.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

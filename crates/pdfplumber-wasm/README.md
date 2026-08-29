@@ -133,6 +133,9 @@ without treating matching names as compatible behavior.
 The [table-setting guide](../../docs/table-settings.md) maps every pinned table
 setting to the typed Rust core and records that WebAssembly table calls
 currently accept no settings.
+The [object-dictionary schema guide](../../docs/object-dictionary-schemas.md)
+separates pinned Python page dictionaries from the narrower serialized `Char`
+values currently exposed by WebAssembly.
 
 ### TypeScript Types
 

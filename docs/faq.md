@@ -75,6 +75,11 @@ explicit-line input, tolerance, threshold, and forwarded text option, including
 their pipeline order and current Rust, Python, Command-Line Interface, and
 WebAssembly boundaries.
 
+Object field names, presence, and order are surface-specific too. The
+[object-dictionary schema guide](object-dictionary-schemas.md) lists every
+observed pinned family, derived-edge schema, serialization boundary, and known
+current adapter gap without treating documentation as parity evidence.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is
