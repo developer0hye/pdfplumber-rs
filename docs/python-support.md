@@ -26,6 +26,12 @@ metadata, installs each into a clean environment, imports the installed
 package, and executes the native-layout contract. Building a wheel without
 installing it does not create a support claim.
 
+Linux release wheels have a separate artifact-inspection gate. The
+[Linux wheel policy](linux-wheels.md) requires exact `manylinux_2_17` /
+`manylinux2014` tags, no shared libraries outside the manylinux policy, and no
+unsupported instruction-set requirement on x86-64 or AArch64. That inspection
+does not replace installed-wheel testing.
+
 ## Explicit exclusions
 
 Python 3.14 is excluded from the current metadata. The workspace pins PyO3
