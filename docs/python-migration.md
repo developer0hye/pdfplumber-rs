@@ -16,6 +16,12 @@ Treat migration as an application-specific validation exercise. A successful
 build or import proves that one installed artifact loads; it does not prove that
 your imports, calls, outputs, failures, or lifecycle behavior match upstream.
 
+If the application already uses `pdfplumber-rs` 0.2.0 rather than Python
+`pdfplumber`, follow the separate
+[pre-parity binding migration guide](pre-parity-python-migration.md). It compares
+the project's legacy and current alpha APIs without treating that release-to-release
+comparison as upstream compatibility evidence.
+
 ## 1. Inventory the application
 
 List every Python-facing behavior your application depends on before changing
