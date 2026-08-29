@@ -26,7 +26,7 @@ SUPPORT_PATH = REPO_ROOT / "support-matrix.toml"
 EXPECTED_POLICY = {
     "schema_version": 1,
     "node_version": "24.20.0",
-    "wasm_pack_version": "0.14.0",
+    "wasm_pack_version": "0.15.0",
     "typescript_version": "7.0.2",
     "vite_version": "8.2.2",
     "playwright_version": "1.62.1",
@@ -122,7 +122,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
             "name: WASM package consumers",
             'node-version: "24.20.0"',
             "cache-dependency-path: compat/wasm-package-tests/package-lock.json",
-            "version: v0.14.0",
+            "version: v0.15.0",
             "npm ci --prefix compat/wasm-package-tests",
             "npx --prefix compat/wasm-package-tests playwright install --with-deps chromium",
             "wasm-pack build --target bundler --out-dir pkg-browser crates/pdfplumber-wasm",
@@ -150,7 +150,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
         publish = release[release.index("  publish-npm:") :]
         self.assertIn("needs: [ci, metadata, scorecards]", publish)
         self.assertIn('node-version: "24.20.0"', publish)
-        self.assertIn("version: v0.14.0", publish)
+        self.assertIn("version: v0.15.0", publish)
         self.assertLess(
             publish.index("Copy hand-authored type definitions"),
             publish.index("npm publish crates/pdfplumber-wasm/pkg --access public"),
@@ -163,7 +163,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
         policy = EXPECTED_POLICY.copy()
         versions = {
             "node": "24.20.0",
-            "wasm_pack": "0.14.0",
+            "wasm_pack": "0.15.0",
             "typescript": "7.0.2",
             "vite": "8.2.2",
             "playwright": "1.62.1",
@@ -241,7 +241,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
                 browser_wasm_sha256="3" * 64,
                 tool_versions={
                     "node": "24.20.0",
-                    "wasm_pack": "0.14.0",
+                    "wasm_pack": "0.15.0",
                     "typescript": "7.0.2",
                     "vite": "8.2.2",
                     "playwright": "1.62.1",
