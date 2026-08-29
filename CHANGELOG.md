@@ -70,6 +70,10 @@ commit list.
   `pdfplumber-rs` 0.3.0. It binds the observed Python `pdfplumber` 0.11.10 row
   to the exact machine scorecard and keeps 0.11.0 through 0.11.9 explicitly
   not tested instead of inheriting evidence across releases.
+- **Migration:** Added a Python migration guide for evaluating `pdfplumber`
+  v0.11.10 against the `pdfplumber-rs` 0.3.x alpha with isolated environments,
+  like-for-like application evidence, explicit outcome labels, and reversible
+  cutover and rollback decisions.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.
