@@ -65,7 +65,11 @@ A release-configured target is not considered supported or CI-verified until an 
 
 **Release-configured targets**
 
-- crates.io source package; no prebuilt binary or cross-platform installation matrix
+- crates.io source package plus native prebuilt archive build gate for x86_64-unknown-linux-gnu
+- Native prebuilt archive build gate for aarch64-unknown-linux-gnu
+- Native prebuilt archive build gate for x86_64-apple-darwin
+- Native prebuilt archive build gate for aarch64-apple-darwin
+- Native prebuilt archive build gate for x86_64-pc-windows-msvc
 
 ### WebAssembly
 
@@ -166,22 +170,30 @@ A release-configured target is not considered supported or CI-verified until an 
 - Password and repair options on applicable commands
 - Exact-clean-commit Cargo package and publish dry-run verification before tagged publication
 - Bounded exact-version crates.io resolution polling before dependent publication
+- Versioned tar.gz or ZIP archives with native-host and ELF, Mach-O, or PE architecture gates
 
 **Known limitations**
 
 - The Rust-native subcommand interface does not yet match Python pdfplumber's positional Command-Line Interface contract.
-- Required CI verifies source builds and tests on Ubuntu only; published installation is not smoke-tested.
-- Stable structured-output schemas, exit codes, and prebuilt binaries remain open work.
+- The next tagged release is configured for five native archives, but they are not runtime-smoke-tested; DIST-004 remains open.
+- Stable structured-output schemas and exit codes remain open work.
+- Release-archive checksums, Software Bills of Materials, provenance, and attestations remain open under DIST-005.
 
 **Evidence**
 
 - [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
 - [`.github/workflows/release.yml`](../.github/workflows/release.yml)
+- [`.github/workflows/cli-binaries.yml`](../.github/workflows/cli-binaries.yml)
+- [`.github/workflows/cli-binaries-ci.yml`](../.github/workflows/cli-binaries-ci.yml)
+- [`cli-release-targets.toml`](../cli-release-targets.toml)
 - [`crates/pdfplumber-cli/Cargo.toml`](../crates/pdfplumber-cli/Cargo.toml)
 - [`crates/pdfplumber-cli/src/cli.rs`](../crates/pdfplumber-cli/src/cli.rs)
+- [`docs/cli-binaries.md`](../docs/cli-binaries.md)
 - [`docs/crates-release.md`](../docs/crates-release.md)
+- [`compat/tests/test_cli_release_binaries.py`](../compat/tests/test_cli_release_binaries.py)
 - [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
 - [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
+- [`scripts/build_cli_release.py`](../scripts/build_cli_release.py)
 - [`compat/tests/test_crates_registry_polling.py`](../compat/tests/test_crates_registry_polling.py)
 - [`scripts/wait_for_crate_resolution.py`](../scripts/wait_for_crate_resolution.py)
 - [`PRD.md`](../PRD.md)

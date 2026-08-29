@@ -161,7 +161,11 @@ ci_verified_platforms = [
     "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archive)",
 ]
 release_configured_targets = [
-    "crates.io source package; no prebuilt binary or cross-platform installation matrix",
+    "crates.io source package plus native prebuilt archive build gate for x86_64-unknown-linux-gnu",
+    "Native prebuilt archive build gate for aarch64-unknown-linux-gnu",
+    "Native prebuilt archive build gate for x86_64-apple-darwin",
+    "Native prebuilt archive build gate for aarch64-apple-darwin",
+    "Native prebuilt archive build gate for x86_64-pc-windows-msvc",
 ]
 features = [
     "Text, character, word, table, annotation, form, link, bookmark, image, search, validation, and debug commands",
@@ -169,20 +173,28 @@ features = [
     "Password and repair options on applicable commands",
     "Exact-clean-commit Cargo package and publish dry-run verification before tagged publication",
     "Bounded exact-version crates.io resolution polling before dependent publication",
+    "Versioned tar.gz or ZIP archives with native-host and ELF, Mach-O, or PE architecture gates",
 ]
 known_limitations = [
     "The Rust-native subcommand interface does not yet match Python pdfplumber's positional Command-Line Interface contract.",
-    "Required CI verifies source builds and tests on Ubuntu only; published installation is not smoke-tested.",
-    "Stable structured-output schemas, exit codes, and prebuilt binaries remain open work.",
+    "The next tagged release is configured for five native archives, but they are not runtime-smoke-tested; DIST-004 remains open.",
+    "Stable structured-output schemas and exit codes remain open work.",
+    "Release-archive checksums, Software Bills of Materials, provenance, and attestations remain open under DIST-005.",
 ]
 evidence = [
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
+    ".github/workflows/cli-binaries.yml",
+    ".github/workflows/cli-binaries-ci.yml",
+    "cli-release-targets.toml",
     "crates/pdfplumber-cli/Cargo.toml",
     "crates/pdfplumber-cli/src/cli.rs",
+    "docs/cli-binaries.md",
     "docs/crates-release.md",
+    "compat/tests/test_cli_release_binaries.py",
     "compat/tests/test_crates_release_gate.py",
     "scripts/check_crates_release.py",
+    "scripts/build_cli_release.py",
     "compat/tests/test_crates_registry_polling.py",
     "scripts/wait_for_crate_resolution.py",
     "PRD.md",

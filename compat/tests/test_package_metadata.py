@@ -188,12 +188,13 @@ class PackageMetadataContractTests(unittest.TestCase):
             "prerelease: ${{ needs.metadata.outputs.prerelease }}",
             "generate_release_notes: true",
             "pattern: release-candidate-scorecards-*",
-            "files: release-scorecards/*",
+            "files: |",
+            "release-scorecards/*",
         ):
             with self.subTest(release_workflow=phrase):
                 self.assertIn(phrase, release)
         self.assertEqual(release.count("needs: [ci, metadata, scorecards]"), 4)
-        self.assertIn("needs: [publish, metadata, scorecards]", release)
+        self.assertIn("needs: [publish, metadata, scorecards, cli-binaries]", release)
 
 
 if __name__ == "__main__":

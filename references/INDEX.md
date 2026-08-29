@@ -38,6 +38,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | Rust API Guidelines, standard library, Rust Reference, and RFC 1105 | [rust-api-design.md](rust-api-design.md) | Reviewing ownership, allocations, iterators, determinism, errors, extension traits, or future compatibility |
 | Cargo | [rust-ttfv.md](rust-ttfv.md) | Reproducing or reviewing clean-project Rust time-to-first-value measurements and cache isolation |
 | Cargo | [cargo-packaging.md](cargo-packaging.md) | Reviewing verified crate archives, publish dry runs, coordinated workspace releases, or exact-commit package provenance |
+| Rust, GitHub Actions, and Typst | [rust-cli-binaries.md](rust-cli-binaries.md) | Reviewing native target matrices, versioned CLI archives, or release-asset build gates |
 | Cargo, PyPI, npm, and GitHub | [release-recovery.md](release-recovery.md) | Containing registry lag, partial publication, compromised credentials, or incorrect release claims |
 | Development Containers, Docker, and Rust Official Images | [rust-dev-containers.md](rust-dev-containers.md) | Reproducing the pinned Rust contributor environment or updating its image digest |
 

@@ -12,6 +12,11 @@ Crate `pdfplumber-cli` installs executable `pdfplumber`. Release `0.3.0` is alph
 cargo install pdfplumber-cli
 ```
 
+The current release workflow is also configured to attach versioned Linux
+x86-64/AArch64, macOS Intel/Apple Silicon, and Windows x86-64 archives to
+future tagged GitHub Releases. See the [prebuilt binary guide](../../docs/cli-binaries.md)
+for exact targets and the runtime-verification boundary.
+
 ## Quick Start
 
 ```bash
