@@ -186,6 +186,9 @@ serialization before accepting any 0.2.0 object baseline.
 Use the [visual-debugging guide](visual-debugging.md) to revalidate every image
 size, crop, overlay, save, viewer, and Command-Line Interface workflow; the
 current 0.3.x Python adapter does not expose the pinned `PageImage` API.
+Use the [error and resource-limit guide](errors-and-resource-limits.md) to
+revalidate exception classes, warning/log channels, safe reporting, and every
+resource assumption; adapter constructors do not expose Rust budgets.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

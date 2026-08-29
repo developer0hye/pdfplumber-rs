@@ -146,6 +146,9 @@ rules before identifying every current Python-adapter schema gap.
 The [visual-debugging guide](../../docs/visual-debugging.md) records the pinned
 PDFium/Pillow raster contract and makes explicit that this alpha does not expose
 `Page.to_image`, `PageImage`, or the visual drawing helpers.
+The [error and resource-limit guide](../../docs/errors-and-resource-limits.md)
+separates pinned exception/warning behavior from the adapter's private native
+error classes and its currently absent resource-budget controls.
 
 ### Table
 

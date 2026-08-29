@@ -244,6 +244,9 @@ serialization behavior, and the narrower current surface boundaries.
 The [visual-debugging guide](docs/visual-debugging.md) separates pinned Python
 PDFium/Pillow raster images and mutable overlays from the current Rust/CLI SVG
 extension and the absent Python-adapter and WebAssembly debug surfaces.
+The [error and resource-limit guide](docs/errors-and-resource-limits.md) maps
+pinned Python exceptions, warnings, and unbounded behavior to the typed Rust
+errors and the limits actually enforced by each current surface.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

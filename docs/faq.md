@@ -86,6 +86,11 @@ PDFium/Pillow raster and overlay behavior, its local viewer and file side
 effects, the current Rust/Command-Line Interface SVG extension, and the absent
 Python-adapter and WebAssembly visual APIs.
 
+Error handling and resource protection are also surface-specific. The
+[error and resource-limit guide](errors-and-resource-limits.md) lists exact
+pinned Python exception/warning behavior, typed Rust errors, enforced and
+declarative-only budgets, adapter gaps, and safe operational controls.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is
