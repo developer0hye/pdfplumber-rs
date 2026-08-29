@@ -20,9 +20,15 @@ from typing import Any
 
 import tomllib
 
+try:
+    from release_version import load_release_identity
+except ModuleNotFoundError:
+    from scripts.release_version import load_release_identity
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "wasm-package-test-policy.toml"
 DEFAULT_TOOLS = ROOT / "compat" / "wasm-package-tests"
+RELEASE_VERSION = load_release_identity(ROOT).version
 
 
 class WasmPackageError(RuntimeError):
@@ -91,7 +97,7 @@ def validate_source_checkout(
 def validate_package_manifest(manifest: dict[str, Any]) -> None:
     expected = {
         "name": "pdfplumber-wasm",
-        "version": "0.3.0",
+        "version": RELEASE_VERSION,
         "types": "pdfplumber_wasm.d.ts",
     }
     observed = {key: manifest.get(key) for key in expected}

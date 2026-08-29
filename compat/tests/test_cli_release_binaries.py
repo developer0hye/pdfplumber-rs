@@ -555,6 +555,24 @@ class CliReleaseBinaryTests(unittest.TestCase):
             ):
                 packager.validate_release_tag(invalid_tag, "1.2.3")
 
+    def test_cli_version_resolves_workspace_inheritance(self) -> None:
+        packager = self.require_packager()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            manifest = root / "crates" / "pdfplumber-cli" / "Cargo.toml"
+            manifest.parent.mkdir(parents=True)
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers = ["crates/pdfplumber-cli"]\n\n'
+                '[workspace.package]\nversion = "1.2.3"\n',
+                encoding="utf-8",
+            )
+            manifest.write_text(
+                '[package]\nname = "pdfplumber-cli"\nversion.workspace = true\n',
+                encoding="utf-8",
+            )
+
+            self.assertEqual(packager.version_from_manifest(manifest), "1.2.3")
+
     def test_binary_lookup_uses_cargo_metadata_target_directory(self) -> None:
         packager = self.require_packager()
         with tempfile.TemporaryDirectory() as temporary_directory:

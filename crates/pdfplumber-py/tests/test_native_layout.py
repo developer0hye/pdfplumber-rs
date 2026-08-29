@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import importlib.machinery
+import importlib.metadata
 import inspect
 import json
 import os
@@ -22,6 +23,12 @@ from pdfplumber import _native
 
 
 class NativeLayoutTests(unittest.TestCase):
+    def test_distribution_and_native_versions_match(self) -> None:
+        self.assertEqual(
+            importlib.metadata.version("pdfplumber-rs"),
+            _native.__version__,
+        )
+
     @staticmethod
     def fixture() -> Path:
         return (

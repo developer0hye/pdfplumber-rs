@@ -16,6 +16,21 @@ from typing import Any
 
 import tomllib
 
+try:
+    from release_version import (
+        ReleaseIdentity,
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+except ModuleNotFoundError:
+    from scripts.release_version import (
+        ReleaseIdentity,
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
 LICENSE_POLICY_PATH = REPO_ROOT / "license-policy.toml"
@@ -186,7 +201,9 @@ def validate_claim_evidence_path(value: str, context: str) -> None:
     )
 
 
-def load_matrix() -> dict[str, Any]:
+def load_matrix(release: ReleaseIdentity | None = None) -> dict[str, Any]:
+    if release is None:
+        release = load_release_identity(REPO_ROOT)
     matrix = load_toml(MATRIX_PATH)
     require(matrix.get("schema_version") == 1, "matrix schema_version must be 1")
     observed_at = require_string(matrix, "observed_at", "matrix")
@@ -196,6 +213,10 @@ def load_matrix() -> dict[str, Any]:
     )
     version = require_string(matrix, "release_version", "matrix")
     require(bool(VERSION_PATTERN.fullmatch(version)), "invalid matrix release_version")
+    require(
+        version == release.version,
+        f"matrix release_version {version} != workspace {release.version}",
+    )
     for key in (
         "license",
         "repository",
@@ -219,8 +240,8 @@ def load_matrix() -> dict[str, Any]:
         "matrix.github_prerelease must be a boolean",
     )
     require(
-        matrix["release_notes"] == f"docs/releases/v{version}.md",
-        "matrix release_notes must be versioned from release_version",
+        matrix["release_notes"] == release.release_notes.as_posix(),
+        "matrix release_notes must be selected by the workspace release",
     )
     upgrade_guidance = require_string_list(
         matrix,
@@ -563,7 +584,7 @@ def render_release_notes(matrix: dict[str, Any]) -> str:
     )
 
 
-def check_source(matrix: dict[str, Any]) -> None:
+def check_source(matrix: dict[str, Any], release: ReleaseIdentity) -> None:
     surfaces = surfaces_by_id(matrix)
     policy = load_toml(LICENSE_POLICY_PATH)
     require(
@@ -575,12 +596,16 @@ def check_source(matrix: dict[str, Any]) -> None:
         "license policy and support matrix repositories disagree",
     )
     require(
-        policy.get("source_version") == matrix["release_version"],
-        "license policy and support matrix versions disagree",
+        policy.get("source_version") == release.version,
+        "license policy and workspace versions disagree",
     )
 
     workspace = load_toml(REPO_ROOT / "Cargo.toml")
     workspace_package = workspace.get("workspace", {}).get("package", {})
+    require(
+        workspace_package.get("version") == release.version,
+        "workspace package version disagrees with release identity",
+    )
     require(
         workspace_package.get("license") == matrix["license"],
         "workspace license disagrees with support matrix",
@@ -597,14 +622,32 @@ def check_source(matrix: dict[str, Any]) -> None:
     require(
         isinstance(members, list) and bool(members), "workspace members are missing"
     )
-    for member in members:
-        relative = f"{member}/Cargo.toml"
-        manifest = load_toml(repository_path(relative, "workspace member"))
+    member_manifests = {
+        f"{member}/Cargo.toml": load_toml(
+            repository_path(f"{member}/Cargo.toml", "workspace member")
+        )
+        for member in members
+    }
+    internal_names = {
+        manifest.get("package", {}).get("name")
+        for manifest in member_manifests.values()
+    }
+    require(
+        all(isinstance(name, str) for name in internal_names),
+        "workspace member package names are incomplete",
+    )
+    for relative, manifest in member_manifests.items():
         package = manifest.get("package", {})
         require(isinstance(package, dict), f"{relative} package table is missing")
         require(
-            package.get("version") == matrix["release_version"],
-            f"{relative} version disagrees with release_version",
+            resolve_package_version(
+                package,
+                workspace_package,
+                relative,
+                require_inheritance=True,
+            )
+            == release.version,
+            f"{relative} version disagrees with workspace release",
         )
         require(
             resolved_package_value(package, workspace_package, "license")
@@ -637,6 +680,30 @@ def check_source(matrix: dict[str, Any]) -> None:
                 description == surface["registry_description"],
                 f"{relative} description disagrees with support matrix",
             )
+
+        dependency_tables = [manifest.get("dependencies", {})]
+        dependency_tables.extend(
+            target.get("dependencies", {})
+            for target in manifest.get("target", {}).values()
+            if isinstance(target, dict)
+        )
+        for dependencies in dependency_tables:
+            require(
+                isinstance(dependencies, dict),
+                f"{relative} dependency table must be a table",
+            )
+            for dependency, specification in dependencies.items():
+                if dependency not in internal_names or not isinstance(
+                    specification, dict
+                ):
+                    continue
+                requirement = specification.get("version")
+                if requirement is not None:
+                    require(
+                        requirement == release.version,
+                        f"{relative} dependency {dependency} version "
+                        f"{requirement} != workspace {release.version}",
+                    )
 
     rust = surfaces["rust"]
     rust_manifest = load_toml(repository_path(rust["manifest"], "Rust manifest"))
@@ -793,7 +860,9 @@ def tar_member_bytes(archive: tarfile.TarFile, name: str) -> bytes:
     return extracted.read()
 
 
-def check_rust(matrix: dict[str, Any], paths: list[Path]) -> None:
+def check_rust(
+    matrix: dict[str, Any], release: ReleaseIdentity, paths: list[Path]
+) -> None:
     surfaces = surfaces_by_id(matrix)
     policy = load_toml(LICENSE_POLICY_PATH)
     expected = set(policy.get("rust_packages", []))
@@ -832,7 +901,7 @@ def check_rust(matrix: dict[str, Any], paths: list[Path]) -> None:
                 else surfaces["rust"]
             )
             require(
-                package.get("version") == matrix["release_version"],
+                package.get("version") == release.version,
                 f"{name} version mismatch",
             )
             require(
@@ -873,12 +942,17 @@ def parsed_metadata(content: bytes, context: str) -> Any:
         raise MetadataError(f"{context} metadata is not UTF-8: {error}") from error
 
 
-def check_python_metadata(matrix: dict[str, Any], metadata: Any, context: str) -> None:
+def check_python_metadata(
+    matrix: dict[str, Any],
+    release: ReleaseIdentity,
+    metadata: Any,
+    context: str,
+) -> None:
     python = surfaces_by_id(matrix)["python"]
     python_policy = python_support_policy(matrix)
     require(metadata.get("Name") == python["package"], f"{context} name mismatch")
     require(
-        metadata.get("Version") == matrix["release_version"],
+        metadata.get("Version") == release.version,
         f"{context} version mismatch",
     )
     license_expression = metadata.get("License-Expression") or metadata.get("License")
@@ -917,7 +991,9 @@ def check_python_metadata(matrix: dict[str, Any], metadata: Any, context: str) -
     )
 
 
-def check_python(matrix: dict[str, Any], paths: list[Path]) -> None:
+def check_python(
+    matrix: dict[str, Any], release: ReleaseIdentity, paths: list[Path]
+) -> None:
     python = surfaces_by_id(matrix)["python"]
     wheels = [path for path in paths if path.name.endswith(".whl")]
     sdists = [path for path in paths if path.name.endswith(".tar.gz")]
@@ -935,6 +1011,7 @@ def check_python(matrix: dict[str, Any], paths: list[Path]) -> None:
             require(len(metadata_names) == 1, f"{path} has ambiguous METADATA")
             check_python_metadata(
                 matrix,
+                release,
                 parsed_metadata(archive.read(metadata_names[0]), str(path)),
                 str(path),
             )
@@ -958,6 +1035,7 @@ def check_python(matrix: dict[str, Any], paths: list[Path]) -> None:
             root = roots.pop()
             check_python_metadata(
                 matrix,
+                release,
                 parsed_metadata(
                     tar_member_bytes(archive, f"{root}/PKG-INFO"), str(path)
                 ),
@@ -974,7 +1052,9 @@ def normalized_repository(value: Any) -> str:
     return normalized
 
 
-def check_npm(matrix: dict[str, Any], directory: Path) -> None:
+def check_npm(
+    matrix: dict[str, Any], release: ReleaseIdentity, directory: Path
+) -> None:
     require(directory.is_dir(), f"npm package directory does not exist: {directory}")
     try:
         package = json.loads((directory / "package.json").read_text(encoding="utf-8"))
@@ -983,7 +1063,7 @@ def check_npm(matrix: dict[str, Any], directory: Path) -> None:
     wasm = surfaces_by_id(matrix)["wasm"]
     require(package.get("name") == wasm["package"], "npm package name mismatch")
     require(
-        package.get("version") == matrix["release_version"],
+        package.get("version") == release.version,
         "npm package version mismatch",
     )
     require(package.get("license") == matrix["license"], "npm package license mismatch")
@@ -1005,13 +1085,13 @@ def check_npm(matrix: dict[str, Any], directory: Path) -> None:
 
 def write_release_outputs(
     matrix: dict[str, Any],
+    release: ReleaseIdentity,
     tag: str,
     github_output: Path | None,
 ) -> None:
-    expected_tag = f"v{matrix['release_version']}"
-    require(tag == expected_tag, f"release tag {tag} != source {expected_tag}")
+    require(tag == release.tag, f"release tag {tag} != source {release.tag}")
     require(github_output is not None, "--github-output is required with --release-tag")
-    release_notes = repository_path(matrix["release_notes"], "release notes")
+    release_notes = REPO_ROOT / release.release_notes
     require(release_notes.is_file(), "release notes file is missing")
     prerelease = str(matrix["github_prerelease"]).lower()
     try:
@@ -1045,16 +1125,17 @@ def write_python_support_matrix(
 def main() -> int:
     args = parse_args()
     try:
-        matrix = load_matrix()
+        release = load_release_identity(REPO_ROOT)
+        matrix = load_matrix(release)
         if args.source:
             require(
                 args.github_output is None,
                 "--github-output is only valid with --release-tag",
             )
-            check_source(matrix)
+            check_source(matrix, release)
             family = "source"
         elif args.python_support_matrix:
-            check_source(matrix)
+            check_source(matrix, release)
             write_python_support_matrix(matrix, args.github_output)
             family = "Python support matrix"
         elif args.rust:
@@ -1062,29 +1143,32 @@ def main() -> int:
                 args.github_output is None,
                 "--github-output is only valid with --release-tag",
             )
-            check_rust(matrix, args.rust)
+            check_rust(matrix, release, args.rust)
             family = "Rust"
         elif args.python:
             require(
                 args.github_output is None,
                 "--github-output is only valid with --release-tag",
             )
-            check_python(matrix, args.python)
+            check_python(matrix, release, args.python)
             family = "Python"
         elif args.npm:
             require(
                 args.github_output is None,
                 "--github-output is only valid with --release-tag",
             )
-            check_npm(matrix, args.npm)
+            check_npm(matrix, release, args.npm)
             family = "npm"
         else:
-            check_source(matrix)
-            write_release_outputs(matrix, args.release_tag, args.github_output)
+            check_source(matrix, release)
+            write_release_outputs(
+                matrix, release, args.release_tag, args.github_output
+            )
             family = "release"
     except (
         KeyError,
         MetadataError,
+        ReleaseVersionError,
         OSError,
         tarfile.TarError,
         zipfile.BadZipFile,

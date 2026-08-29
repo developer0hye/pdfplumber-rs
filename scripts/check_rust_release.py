@@ -71,6 +71,17 @@ def load_manifest(text: str, context: str) -> dict[str, Any]:
     return package
 
 
+def load_workspace_package(text: str, context: str) -> dict[str, Any]:
+    try:
+        manifest = tomllib.loads(text)
+    except tomllib.TOMLDecodeError as error:
+        raise ReleaseError(f"cannot parse {context}: {error}") from error
+    package = manifest.get("workspace", {}).get("package")
+    if not isinstance(package, dict):
+        raise ReleaseError(f"{context} has no [workspace.package] table")
+    return package
+
+
 def read_current_manifest(repo_root: Path, relative: Path) -> dict[str, Any]:
     path = repo_root / relative
     try:
@@ -95,10 +106,41 @@ def read_baseline_manifest(
     return load_manifest(result.stdout, f"{base_revision}:{relative}")
 
 
-def package_version(package: dict[str, Any], expected_name: str, context: str) -> str:
+def read_current_workspace_package(repo_root: Path) -> dict[str, Any]:
+    path = repo_root / "Cargo.toml"
+    try:
+        return load_workspace_package(path.read_text(encoding="utf-8"), "Cargo.toml")
+    except OSError as error:
+        raise ReleaseError(f"cannot read Cargo.toml: {error}") from error
+
+
+def read_baseline_workspace_package(
+    repo_root: Path, base_revision: str
+) -> dict[str, Any]:
+    result = subprocess.run(
+        ("git", "show", f"{base_revision}:Cargo.toml"),
+        cwd=repo_root,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        detail = result.stderr.strip() or "git show failed"
+        raise ReleaseError(f"cannot read baseline Cargo.toml: {detail}")
+    return load_workspace_package(result.stdout, f"{base_revision}:Cargo.toml")
+
+
+def package_version(
+    package: dict[str, Any],
+    workspace_package: dict[str, Any],
+    expected_name: str,
+    context: str,
+) -> str:
     if package.get("name") != expected_name:
         raise ReleaseError(f"{context} package name must be {expected_name!r}")
     version = package.get("version")
+    if version == {"workspace": True}:
+        version = workspace_package.get("version")
     if not isinstance(version, str) or VERSION_PATTERN.fullmatch(version) is None:
         raise ReleaseError(f"{context} version must use X.Y.Z")
     return version
@@ -112,14 +154,18 @@ def version_tuple(version: str) -> tuple[int, int, int]:
 def detect_release(repo_root: Path, base_revision: str) -> ReleaseInfo | None:
     base_versions: dict[str, str] = {}
     current_versions: dict[str, str] = {}
+    base_workspace = read_baseline_workspace_package(repo_root, base_revision)
+    current_workspace = read_current_workspace_package(repo_root)
     for package_name, relative in PUBLISHABLE_MANIFESTS.items():
         base_versions[package_name] = package_version(
             read_baseline_manifest(repo_root, base_revision, relative),
+            base_workspace,
             package_name,
             f"baseline {relative}",
         )
         current_versions[package_name] = package_version(
             read_current_manifest(repo_root, relative),
+            current_workspace,
             package_name,
             str(relative),
         )

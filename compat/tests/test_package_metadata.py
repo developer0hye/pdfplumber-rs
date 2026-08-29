@@ -12,21 +12,29 @@ import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
+WORKSPACE_PATH = REPO_ROOT / "Cargo.toml"
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_package_metadata.py"
-RELEASE_NOTES_PATH = REPO_ROOT / "docs" / "releases" / "v0.3.0.md"
+RELEASE_VERSION = tomllib.loads(WORKSPACE_PATH.read_text(encoding="utf-8"))[
+    "workspace"
+]["package"]["version"]
+RELEASE_TAG = f"v{RELEASE_VERSION}"
+RELEASE_NOTES_PATH = REPO_ROOT / "docs" / "releases" / f"{RELEASE_TAG}.md"
 
 
 class PackageMetadataContractTests(unittest.TestCase):
-    def test_support_matrix_defines_the_canonical_release_identity(self) -> None:
+    def test_support_matrix_tracks_the_workspace_release_identity(self) -> None:
         matrix = tomllib.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+        workspace = tomllib.loads(WORKSPACE_PATH.read_text(encoding="utf-8"))
 
-        self.assertEqual(matrix["release_version"], "0.3.0")
+        self.assertEqual(
+            matrix["release_version"], workspace["workspace"]["package"]["version"]
+        )
         self.assertEqual(matrix["license"], "Apache-2.0")
         self.assertEqual(
             matrix["repository"],
             "https://github.com/developer0hye/pdfplumber-rs",
         )
-        self.assertEqual(matrix["release_notes"], "docs/releases/v0.3.0.md")
+        self.assertEqual(matrix["release_notes"], f"docs/releases/{RELEASE_TAG}.md")
         self.assertIs(matrix["github_prerelease"], True)
 
         surfaces = {surface["id"]: surface for surface in matrix["surfaces"]}
@@ -82,7 +90,7 @@ class PackageMetadataContractTests(unittest.TestCase):
                     sys.executable,
                     str(CHECKER_PATH),
                     "--release-tag",
-                    "v0.3.0",
+                    RELEASE_TAG,
                     "--github-output",
                     github_output.name,
                 ],
@@ -98,7 +106,7 @@ class PackageMetadataContractTests(unittest.TestCase):
             )
             github_output.seek(0)
             outputs = github_output.read().decode("utf-8")
-        self.assertIn("release-notes=docs/releases/v0.3.0.md\n", outputs)
+        self.assertIn(f"release-notes=docs/releases/{RELEASE_TAG}.md\n", outputs)
         self.assertIn("prerelease=true\n", outputs)
 
         with tempfile.NamedTemporaryFile() as github_output:
@@ -107,7 +115,7 @@ class PackageMetadataContractTests(unittest.TestCase):
                     sys.executable,
                     str(CHECKER_PATH),
                     "--release-tag",
-                    "v0.3.1",
+                    f"v{RELEASE_VERSION}.invalid",
                     "--github-output",
                     github_output.name,
                 ],
@@ -117,12 +125,15 @@ class PackageMetadataContractTests(unittest.TestCase):
                 text=True,
             )
         self.assertNotEqual(mismatched.returncode, 0)
-        self.assertIn("release tag v0.3.1 != source v0.3.0", mismatched.stderr)
+        self.assertIn(
+            f"release tag v{RELEASE_VERSION}.invalid != source {RELEASE_TAG}",
+            mismatched.stderr,
+        )
 
     def test_public_readmes_and_release_notes_display_exact_identity(self) -> None:
         required_readme_phrases = {
             "README.md": (
-                "Release `0.3.0`",
+                f"Release `{RELEASE_VERSION}`",
                 "Rust crate `pdfplumber` (import `pdfplumber`) is alpha",
                 "Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha",
                 "CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha",
@@ -130,15 +141,15 @@ class PackageMetadataContractTests(unittest.TestCase):
             ),
             "crates/pdfplumber-py/README.md": (
                 "Distribution `pdfplumber-rs` installs import package `pdfplumber`",
-                "Release `0.3.0` is alpha",
+                f"Release `{RELEASE_VERSION}` is alpha",
             ),
             "crates/pdfplumber-cli/README.md": (
                 "Crate `pdfplumber-cli` installs executable `pdfplumber`",
-                "Release `0.3.0` is alpha",
+                f"Release `{RELEASE_VERSION}` is alpha",
             ),
             "crates/pdfplumber-wasm/README.md": (
                 "npm package and import name are `pdfplumber-wasm`",
-                "Release `0.3.0` is experimental",
+                f"Release `{RELEASE_VERSION}` is experimental",
             ),
         }
         for relative, phrases in required_readme_phrases.items():
@@ -147,12 +158,14 @@ class PackageMetadataContractTests(unittest.TestCase):
                 with self.subTest(readme=relative, phrase=phrase):
                     self.assertIn(phrase, content)
 
-        self.assertTrue(RELEASE_NOTES_PATH.is_file(), "missing v0.3.0 release notes")
+        self.assertTrue(
+            RELEASE_NOTES_PATH.is_file(), f"missing {RELEASE_TAG} release notes"
+        )
         if not RELEASE_NOTES_PATH.is_file():
             return
         notes = RELEASE_NOTES_PATH.read_text(encoding="utf-8")
         for phrase in (
-            "# v0.3.0 release notes",
+            f"# {RELEASE_TAG} release notes",
             "Apache-2.0",
             "https://github.com/developer0hye/pdfplumber-rs",
             "`pdfplumber` | `pdfplumber` | Alpha",
