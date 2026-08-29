@@ -47,6 +47,7 @@ Projects organized by domain. Read the specific file matching your current probl
 | GitHub Actions, Rust, Apple, and Maturin | [python-macos-wheels.md](python-macos-wheels.md) | Reviewing native macOS wheel runners, deployment targets, Mach-O architectures, or installed-wheel execution |
 | GitHub Actions, Microsoft, and CPython | [python-windows-wheels.md](python-windows-wheels.md) | Reviewing Windows PE imports, native wheel installation, or non-ASCII and long-path execution |
 | Cargo, PyPI, npm, and GitHub | [release-recovery.md](release-recovery.md) | Containing registry lag, partial publication, compromised credentials, or incorrect release claims |
+| Cargo, Maturin, wasm-pack, and GitHub | [release-versioning.md](release-versioning.md) | Reviewing the root workspace release source, inherited package versions, artifact metadata, documentation selectors, or exact tags |
 | Development Containers, Docker, and Rust Official Images | [rust-dev-containers.md](rust-dev-containers.md) | Reproducing the pinned Rust contributor environment or updating its image digest |
 
 ## Benchmark Design

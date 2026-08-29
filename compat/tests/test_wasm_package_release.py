@@ -188,7 +188,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
         checker.validate_package_manifest(
             {
                 "name": "pdfplumber-wasm",
-                "version": "0.3.0",
+                "version": checker.RELEASE_VERSION,
                 "types": "pdfplumber_wasm.d.ts",
             }
         )
@@ -212,7 +212,7 @@ class WasmPackageReleaseTests(unittest.TestCase):
             (checker.validate_tool_versions, (policy, {**versions, "node": "25.5.0"})),
             (
                 checker.validate_package_manifest,
-                ({"name": "not-pdfplumber", "version": "0.3.0"},),
+                ({"name": "not-pdfplumber", "version": checker.RELEASE_VERSION},),
             ),
             (
                 checker.validate_runtime_result,

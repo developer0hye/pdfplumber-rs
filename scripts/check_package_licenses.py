@@ -14,6 +14,19 @@ from email.parser import Parser
 from pathlib import Path
 from typing import Any
 
+try:
+    from release_version import (
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+except ModuleNotFoundError:
+    from scripts.release_version import (
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = REPO_ROOT / "license-policy.toml"
@@ -131,6 +144,10 @@ def check_source(policy: dict[str, Any]) -> None:
 
     workspace = load_toml(REPO_ROOT / "Cargo.toml")
     workspace_package = workspace.get("workspace", {}).get("package", {})
+    require(
+        workspace_package.get("version") == policy["source_version"],
+        "workspace version does not match policy source_version",
+    )
     require(workspace_package.get("license") == spdx, "workspace SPDX mismatch")
     require(
         workspace_package.get("repository") == repository,
@@ -163,7 +180,13 @@ def check_source(policy: dict[str, Any]) -> None:
             f"{relative} must not combine license and license-file metadata",
         )
         require(
-            package.get("version") == policy["source_version"],
+            resolve_package_version(
+                package,
+                workspace_package,
+                relative,
+                require_inheritance=True,
+            )
+            == policy["source_version"],
             f"{relative} version does not match policy source_version",
         )
         if package.get("publish") is not False:
@@ -377,6 +400,11 @@ def main() -> int:
     args = parse_args()
     try:
         policy = load_policy()
+        release = load_release_identity(REPO_ROOT)
+        require(
+            policy["source_version"] == release.version,
+            "policy source_version does not match workspace release",
+        )
         if args.source:
             check_source(policy)
             family = "source"
@@ -392,6 +420,7 @@ def main() -> int:
     except (
         OSError,
         PolicyError,
+        ReleaseVersionError,
         KeyError,
         tarfile.TarError,
         zipfile.BadZipFile,

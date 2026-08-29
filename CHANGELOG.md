@@ -77,6 +77,10 @@ commit list.
   the published library baselines. Detected breaks require both a compatible
   release-version increment and actionable migration notes in the release
   changelog.
+- **Platform:** The root Cargo workspace package version is now the single
+  release authority for all six crates. Source, built Rust/Python/npm artifacts,
+  the native Python version, documentation selectors, and exact Git tags are
+  checked against that identity before publication.
 - **Platform:** Every crates.io candidate now runs verified `cargo package` and
   `cargo publish --dry-run` commands from one exact clean commit before tagged
   publication. Coordinated workspace dependencies are patched only during the
@@ -116,6 +120,9 @@ commit list.
 - **Documentation:** Added a source-backed architecture guide for all six
   workspace crates, including dependency direction, one extraction request,
   cache lifetimes, extension boundaries, and contributor ownership.
+- **Documentation:** Added the coordinated version-bump protocol, including
+  inherited crate metadata, generated documentation selectors, artifact checks,
+  and exact-tag requirements.
 - **Documentation:** Added required API-design review criteria for stable Rust
   facade changes, covering ownership, allocations, iterator behavior,
   determinism, error composition, extension traits, and future compatibility.

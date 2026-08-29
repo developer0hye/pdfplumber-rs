@@ -14,6 +14,11 @@ from typing import Any
 
 import tomllib
 
+try:
+    from release_version import ReleaseVersionError, load_release_identity
+except ModuleNotFoundError:
+    from scripts.release_version import ReleaseVersionError, load_release_identity
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = REPO_ROOT / "readiness.toml"
 OUTPUT_DIR = REPO_ROOT / "docs" / "readiness"
@@ -207,6 +212,7 @@ def resolve_test_contract(identifier: str) -> TestContract:
 
 
 def load_readiness(path: Path = SOURCE_PATH) -> Readiness:
+    release = load_release_identity(REPO_ROOT)
     source = load_toml(path, path.relative_to(REPO_ROOT).as_posix())
     if source.get("schema_version") != 1:
         raise ReadinessError("schema_version must be 1")
@@ -214,6 +220,10 @@ def load_readiness(path: Path = SOURCE_PATH) -> Readiness:
     release_version = require_string(source, "release_version", "readiness")
     if not VERSION_PATTERN.fullmatch(release_version):
         raise ReadinessError("readiness.release_version must be a semantic version")
+    if release_version != release.version:
+        raise ReadinessError(
+            f"readiness release {release_version} != workspace {release.version}"
+        )
     support_source = require_string(source, "support_source", "readiness")
     milestone_source = require_string(source, "milestone_source", "readiness")
     support_path = repository_file(support_source, "readiness.support_source")
@@ -392,7 +402,7 @@ def main() -> int:
     try:
         readiness = load_readiness()
         generated = render(readiness)
-    except ReadinessError as error:
+    except (ReadinessError, ReleaseVersionError) as error:
         print(f"readiness validation failed: {error}", file=sys.stderr)
         return 1
 

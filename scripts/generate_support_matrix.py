@@ -12,6 +12,19 @@ from typing import Any
 
 import tomllib
 
+try:
+    from release_version import (
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+except ModuleNotFoundError:
+    from scripts.release_version import (
+        ReleaseVersionError,
+        load_release_identity,
+        resolve_package_version,
+    )
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_PATH = REPO_ROOT / "support-matrix.toml"
 OUTPUT_PATH = REPO_ROOT / "docs" / "support.md"
@@ -92,6 +105,7 @@ def repository_path(value: str, context: str) -> Path:
 
 
 def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
+    release = load_release_identity(REPO_ROOT)
     try:
         source: dict[str, Any] = tomllib.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
@@ -107,10 +121,18 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
     release_version = require_string(source, "release_version", "matrix")
     if not VERSION_PATTERN.fullmatch(release_version):
         raise MatrixError("matrix.release_version must be a semantic version")
+    if release_version != release.version:
+        raise MatrixError(
+            f"matrix.release_version {release_version} != workspace {release.version}"
+        )
     rust_policy = require_string(source, "rust_policy", "matrix")
     license_expression = require_string(source, "license", "matrix")
     repository = require_string(source, "repository", "matrix")
     release_notes = require_string(source, "release_notes", "matrix")
+    if release_notes != release.release_notes.as_posix():
+        raise MatrixError(
+            "matrix.release_notes must be selected by the workspace release"
+        )
     positioning = require_string(source, "positioning", "matrix")
     github_description = require_string(source, "github_description", "matrix")
     if github_description != positioning:
@@ -208,10 +230,18 @@ def load_source(path: Path = SOURCE_PATH) -> dict[str, Any]:
                 f"{context}.manifest_package {surface['manifest_package']} "
                 f"!= manifest {package.get('name')}"
             )
-        if package.get("version") != source_version:
+        if (
+            resolve_package_version(
+                package,
+                workspace_package,
+                str(manifest_path.relative_to(REPO_ROOT)),
+                require_inheritance=True,
+            )
+            != source_version
+        ):
             raise MatrixError(
                 f"{context}.source_version {source_version} "
-                f"!= manifest {package.get('version')}"
+                "!= inherited workspace version"
             )
         if package.get("description") != surface["registry_description"]:
             raise MatrixError(
@@ -390,7 +420,7 @@ def main() -> int:
     args = parse_args()
     try:
         generated = render(load_source())
-    except MatrixError as error:
+    except (MatrixError, ReleaseVersionError) as error:
         print(f"support matrix validation failed: {error}", file=sys.stderr)
         return 1
 

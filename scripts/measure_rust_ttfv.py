@@ -24,10 +24,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import check_doc_quickstarts as quick_starts
+from scripts.release_version import ReleaseVersionError, load_release_identity
 
 SCHEMA_VERSION = 1
 TTFV_LIMIT_SECONDS = 300
-DEFAULT_CANDIDATE_VERSION = "0.3.0"
 FIXTURE = ROOT / "tests/fixtures/generated/basic_text.pdf"
 CANDIDATE_CRATES = (
     ROOT / "crates/pdfplumber-core",
@@ -142,10 +142,7 @@ def candidate_source_sha256() -> str:
 
 
 def candidate_version() -> str:
-    manifest = tomllib.loads(
-        (ROOT / "crates/pdfplumber/Cargo.toml").read_text(encoding="utf-8")
-    )
-    return str(manifest["package"]["version"])
+    return load_release_identity(ROOT).version
 
 
 def require_clean_candidate_source() -> None:
@@ -444,7 +441,7 @@ def parse_args() -> argparse.Namespace:
     mode.add_argument("--check", type=Path, metavar="RESULT", help="validate a result")
     parser.add_argument(
         "--expected-version",
-        default=DEFAULT_CANDIDATE_VERSION,
+        default=None,
         help="exact current-source version expected in the generated Cargo.lock",
     )
     parser.add_argument("--output", type=Path, help="write the measured JSON here")
@@ -461,7 +458,7 @@ def main() -> int:
         )
         return 0
 
-    result = measure(args.expected_version)
+    result = measure(args.expected_version or candidate_version())
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output is None:
         print(rendered, end="")
@@ -480,6 +477,6 @@ def main() -> int:
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except MeasurementError as error:
+    except (MeasurementError, ReleaseVersionError) as error:
         print(f"Rust TTFV measurement failed: {error}", file=sys.stderr)
         raise SystemExit(1) from error

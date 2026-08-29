@@ -8,7 +8,12 @@ import difflib
 import sys
 from pathlib import Path
 
-from check_package_metadata import MetadataError, load_matrix, render_release_notes
+from check_package_metadata import (
+    MetadataError,
+    ReleaseVersionError,
+    load_matrix,
+    render_release_notes,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -29,7 +34,7 @@ def main() -> int:
         matrix = load_matrix()
         output_path = REPO_ROOT / matrix["release_notes"]
         expected = render_release_notes(matrix)
-    except MetadataError as error:
+    except (MetadataError, ReleaseVersionError) as error:
         print(f"release-note generation failed: {error}", file=sys.stderr)
         return 1
 

@@ -67,7 +67,10 @@ fn version_flag_prints_version() {
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pdfplumber 0.3.0"));
+        .stdout(predicate::str::contains(format!(
+            "pdfplumber {}",
+            env!("CARGO_PKG_VERSION")
+        )));
 }
 
 #[test]

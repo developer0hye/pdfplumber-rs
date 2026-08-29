@@ -1,5 +1,8 @@
 # Verified crates.io release candidates
 
+Package versions follow the repository's
+[single release-version source](release-versioning.md).
+
 Every publishable Rust workspace package crosses the same package boundary
 before a tag can publish it:
 

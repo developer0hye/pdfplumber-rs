@@ -30,7 +30,8 @@ class RustReleaseFixture:
         self._run("git", "init", "-q")
         self._run("git", "config", "user.name", "Release Test")
         self._run("git", "config", "user.email", "release@example.com")
-        self.write_versions("0.3.0")
+        self.write_workspace_version("0.3.0")
+        self.write_versions(None)
         self.write_changelog("0.3.0", migration_note=None)
         self._run("git", "add", ".")
         self._run("git", "commit", "-q", "-m", "baseline")
@@ -46,15 +47,29 @@ class RustReleaseFixture:
         )
 
     def write_versions(
-        self, version: str, packages: tuple[str, ...] = PUBLISHABLE_PACKAGES
+        self, version: str | None, packages: tuple[str, ...] = PUBLISHABLE_PACKAGES
     ) -> None:
         for package in packages:
             manifest = self.root / "crates" / package / "Cargo.toml"
             manifest.parent.mkdir(parents=True, exist_ok=True)
-            manifest.write_text(
-                f'[package]\nname = "{package}"\nversion = "{version}"\n',
-                encoding="utf-8",
+            version_line = (
+                "version.workspace = true"
+                if version is None
+                else f'version = "{version}"'
             )
+            manifest.write_text(
+                f'[package]\nname = "{package}"\n{version_line}\n', encoding="utf-8"
+            )
+
+    def write_workspace_version(self, version: str) -> None:
+        members = ",\n".join(
+            f'    "crates/{package}"' for package in PUBLISHABLE_PACKAGES
+        )
+        (self.root / "Cargo.toml").write_text(
+            f"[workspace]\nmembers = [\n{members},\n]\n"
+            f'\n[workspace.package]\nversion = "{version}"\n',
+            encoding="utf-8",
+        )
 
     def write_changelog(self, version: str, migration_note: str | None) -> None:
         migration = ""
@@ -118,7 +133,7 @@ class RustReleaseCheckerTests(unittest.TestCase):
         self.assertIn("pdfplumber-cli", result.stderr)
 
     def test_release_exports_semver_library_packages(self) -> None:
-        self.fixture.write_versions("0.4.0")
+        self.fixture.write_workspace_version("0.4.0")
         self.fixture.write_changelog("0.4.0", migration_note=None)
 
         result = self.fixture.check()
@@ -132,7 +147,7 @@ class RustReleaseCheckerTests(unittest.TestCase):
         )
 
     def test_approved_break_requires_actionable_migration_note(self) -> None:
-        self.fixture.write_versions("0.4.0")
+        self.fixture.write_workspace_version("0.4.0")
         self.fixture.write_changelog("0.4.0", migration_note=None)
 
         missing = self.fixture.check("--require-migration-notes")

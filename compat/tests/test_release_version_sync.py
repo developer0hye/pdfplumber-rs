@@ -27,8 +27,6 @@ VERSION_GUIDE_PATH = REPO_ROOT / "docs" / "release-versioning.md"
 REFERENCE_INDEX_PATH = REPO_ROOT / "references" / "INDEX.md"
 CI_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
-EXPECTED_VERSION = "0.3.0"
-EXPECTED_TAG = "v0.3.0"
 
 
 def load_toml(path: Path) -> dict[str, object]:
@@ -50,7 +48,8 @@ def load_release_helper() -> ModuleType | None:
 class ReleaseVersionSyncTests(unittest.TestCase):
     def test_workspace_package_version_is_inherited_by_every_member(self) -> None:
         workspace = load_toml(WORKSPACE_PATH)["workspace"]
-        self.assertEqual(workspace["package"]["version"], EXPECTED_VERSION)
+        release_version = workspace["package"]["version"]
+        self.assertRegex(release_version, r"^(?:0|[1-9][0-9]*)\.[0-9]+\.[0-9]+$")
         members = workspace["members"]
         self.assertEqual(
             members,
@@ -70,6 +69,7 @@ class ReleaseVersionSyncTests(unittest.TestCase):
 
     def test_internal_dependency_requirements_match_the_workspace_release(self) -> None:
         workspace = load_toml(WORKSPACE_PATH)["workspace"]
+        release_version = workspace["package"]["version"]
         internal_names = {
             load_toml(REPO_ROOT / member / "Cargo.toml")["package"]["name"]
             for member in workspace["members"]
@@ -92,7 +92,7 @@ class ReleaseVersionSyncTests(unittest.TestCase):
         self.assertTrue(requirements, "no publish-time internal versions discovered")
         for member, dependency, version in requirements:
             with self.subTest(member=member, dependency=dependency):
-                self.assertEqual(version, EXPECTED_VERSION)
+                self.assertEqual(version, release_version)
 
     def test_python_metadata_and_native_version_derive_from_cargo(self) -> None:
         pyproject = load_toml(PYPROJECT_PATH)
@@ -166,10 +166,17 @@ class ReleaseVersionSyncTests(unittest.TestCase):
             return
 
         release = helper.load_release_identity(REPO_ROOT)
-        self.assertEqual(release.version, EXPECTED_VERSION)
-        self.assertEqual(release.tag, EXPECTED_TAG)
-        self.assertEqual(release.release_notes, Path("docs/releases/v0.3.0.md"))
-        self.assertEqual(release.readiness, Path("docs/readiness/v0.3.0.md"))
+        workspace_version = load_toml(WORKSPACE_PATH)["workspace"]["package"][
+            "version"
+        ]
+        self.assertEqual(release.version, workspace_version)
+        self.assertEqual(release.tag, f"v{workspace_version}")
+        self.assertEqual(
+            release.release_notes, Path(f"docs/releases/v{workspace_version}.md")
+        )
+        self.assertEqual(
+            release.readiness, Path(f"docs/readiness/v{workspace_version}.md")
+        )
 
         release_workflow = RELEASE_PATH.read_text(encoding="utf-8")
         self.assertIn(
@@ -191,12 +198,17 @@ class ReleaseVersionSyncTests(unittest.TestCase):
         )
         self.assertEqual(source.returncode, 0, f"{source.stdout}{source.stderr}")
 
+        workspace_version = load_toml(WORKSPACE_PATH)["workspace"]["package"][
+            "version"
+        ]
+        major, minor, patch = (int(part) for part in workspace_version.split("."))
+        mismatched_version = f"{major}.{minor}.{patch + 1}"
         mismatch = subprocess.run(
             [
                 sys.executable,
                 str(METADATA_CHECKER_PATH),
                 "--release-tag",
-                "v0.3.1",
+                f"v{mismatched_version}",
                 "--github-output",
                 "/dev/null",
             ],
@@ -206,7 +218,10 @@ class ReleaseVersionSyncTests(unittest.TestCase):
             text=True,
         )
         self.assertNotEqual(mismatch.returncode, 0)
-        self.assertIn("release tag v0.3.1 != source v0.3.0", mismatch.stderr)
+        self.assertIn(
+            f"release tag v{mismatched_version} != source v{workspace_version}",
+            mismatch.stderr,
+        )
 
 
 if __name__ == "__main__":

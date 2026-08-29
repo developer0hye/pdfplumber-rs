@@ -286,8 +286,27 @@ def version_from_manifest(path: Path = DEFAULT_MANIFEST_PATH) -> str:
         raise CliReleaseError(
             f"cannot read CLI package version from {path}: {error}"
         ) from error
+    if version == {"workspace": True}:
+        for parent in path.resolve().parents:
+            workspace_path = parent / "Cargo.toml"
+            if workspace_path == path.resolve() or not workspace_path.is_file():
+                continue
+            try:
+                workspace = tomllib.loads(workspace_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeError, tomllib.TOMLDecodeError) as error:
+                raise CliReleaseError(
+                    f"cannot read workspace package version from {workspace_path}: "
+                    f"{error}"
+                ) from error
+            workspace_package = workspace.get("workspace", {}).get("package")
+            if isinstance(workspace_package, dict):
+                version = workspace_package.get("version")
+                break
     if not isinstance(version, str):
-        raise CliReleaseError(f"CLI package version in {path} must be a string")
+        raise CliReleaseError(
+            f"CLI package version in {path} must be a string or inherit from "
+            "[workspace.package]"
+        )
     return validate_version(version)
 
 

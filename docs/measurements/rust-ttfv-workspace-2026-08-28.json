@@ -55,7 +55,7 @@
     "kind": "workspace candidate",
     "requirement": "[dependencies]\npdfplumber = \"0.3\"",
     "resolved_version": "0.3.0",
-    "tree_sha256": "9a5fb57597e72b9b1eccd1613c6229264a6894a47f62f89e1fe4629f48e70db3"
+    "tree_sha256": "c28562dd7bdbb7aabad9a2f386705c35d9dc738570c2775bbf4b67750b4db1d7"
   },
   "threshold_seconds": 300,
   "total_seconds": 18.464
