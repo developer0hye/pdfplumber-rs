@@ -1,1 +1,2 @@
 *.pdf binary
+tests/fixtures/expected/cli-release-basic-text.jsonl text eol=lf
