@@ -60,6 +60,12 @@ commit list.
   report groups those observations into eleven common workflows and leaves
   absent crop, serialization, rendering, and Command-Line Interface parity
   evidence explicitly untested.
+- **Compatibility:** Defined the exact public meaning of compatible,
+  extension, and approved deviation in a canonical
+  [terminology policy](docs/compatibility/terms.md). The policy requires scoped
+  claims to name their reference, surface, operation, options, input,
+  environment, and artifact; additive extensions never count as parity, and
+  digest-bound approved deviations remain separate from exact results.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.
