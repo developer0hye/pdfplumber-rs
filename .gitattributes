@@ -1,2 +1,3 @@
 *.pdf binary
 tests/fixtures/expected/cli-release-basic-text.jsonl text eol=lf
+python-windows-wheel-targets.toml text eol=lf
