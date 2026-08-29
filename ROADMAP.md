@@ -54,11 +54,11 @@ Detailed tasks: [`DIST-006`](PRD.md#824-p1--distribution-and-installation), [`DI
 
 Later work expands distribution and ecosystem reach only after the underlying surface contracts are ready.
 
-### Prove the browser workflow
+### Harden the WebAssembly release path
 
-Build, type-check, install, and execute the WebAssembly package in Node and a maintained browser runner, then maintain a local-file example that does not upload the user's PDF.
+Synchronize release versions from one source of truth, then maintain a local-file browser example that does not upload the user's PDF.
 
-Detailed tasks: [`DIST-013`](PRD.md#824-p1--distribution-and-installation), [`ECOSYS-006`](PRD.md#826-p1--ecosystem-integration-and-example-quality).
+Detailed tasks: [`DIST-014`](PRD.md#824-p1--distribution-and-installation), [`ECOSYS-006`](PRD.md#826-p1--ecosystem-integration-and-example-quality).
 
 ### Earn the `1.0` claim
 
