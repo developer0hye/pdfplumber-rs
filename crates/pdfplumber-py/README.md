@@ -13,6 +13,9 @@ is not supported; see the [Python support policy](../../docs/python-support.md).
 Use the evidence-scoped [migration guide](../../docs/python-migration.md) to
 inventory an upstream application, build isolated reference and candidate
 environments, compare the same workload, and make a reversible cutover decision.
+If upgrading from this project's 0.2.0 pre-parity Python API, use the
+[pre-parity binding guide](../../docs/pre-parity-python-migration.md) for the
+method-to-property, page-number, extension-namespace, and rollback changes.
 
 ## Installation
 

@@ -61,7 +61,10 @@ while its import package is `pdfplumber`; those files conflict with the separate
 Python `pdfplumber` distribution. Use a fresh environment containing exactly one of
 the two distributions, follow the [migration guide](python-migration.md), and
 validate the APIs your application uses against the published gaps. The
-[Python guide](../crates/pdfplumber-py/README.md) lists the current surface.
+[Python guide](../crates/pdfplumber-py/README.md) lists the current surface. If
+your application already uses `pdfplumber-rs` 0.2.0, use the
+[pre-parity binding guide](pre-parity-python-migration.md) instead of treating
+the 0.3.x alpha as an in-place compatible upgrade.
 
 ## Is the WebAssembly package ready for browser production use?
 
