@@ -30,7 +30,7 @@ The [benchmark regression policy](docs/benchmarks/regressions-v0.3.0.md) documen
 
 The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) is the chronological view for repeated competitor and compatibility scorecards. It begins with the first verified candidate run; later candidates append instead of replacing earlier observations.
 
-Next release-distribution task: [`DIST-002`](PRD.md#824-p1--distribution-and-installation).
+Next release-distribution task: [`DIST-003`](PRD.md#824-p1--distribution-and-installation).
 
 ## Next
 
@@ -46,7 +46,7 @@ Detailed tasks: [`DOC-003`](PRD.md#821-p2--documentation-migration-and-ecosystem
 
 Provide prebuilt Command-Line Interface binaries, publish checksums and provenance, and test installation from public registries after publication.
 
-Detailed tasks: [`DIST-003`](PRD.md#824-p1--distribution-and-installation), [`DIST-005`](PRD.md#824-p1--distribution-and-installation), [`DIST-007`](PRD.md#824-p1--distribution-and-installation).
+Detailed tasks: [`DIST-005`](PRD.md#824-p1--distribution-and-installation), [`DIST-007`](PRD.md#824-p1--distribution-and-installation).
 
 ## Later
 

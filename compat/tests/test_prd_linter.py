@@ -166,7 +166,7 @@ class PrdLinterContractTests(unittest.TestCase):
         )
 
         self.assertGreater(result.task_count, 700)
-        self.assertEqual(result.checked_count, 58)
+        self.assertEqual(result.checked_count, 59)
         self.assertGreaterEqual(result.evidence_count, result.checked_count)
 
 
