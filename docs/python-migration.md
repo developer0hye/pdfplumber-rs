@@ -22,6 +22,11 @@ If the application already uses `pdfplumber-rs` 0.2.0 rather than Python
 the project's legacy and current alpha APIs without treating that release-to-release
 comparison as upstream compatibility evidence.
 
+Page identity crosses more than one convention. Read the
+[page-numbering guide](page-numbering.md) before translating Python list
+positions, compatibility page numbers, Rust indexes, or native-extension
+destinations.
+
 ## 1. Inventory the application
 
 List every Python-facing behavior your application depends on before changing

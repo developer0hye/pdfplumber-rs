@@ -78,6 +78,7 @@ commit list.
   `pdfplumber-rs` 0.2.0 to the 0.3.x alpha, covering method-to-property changes,
   one-based compatibility page numbers, namespaced Rust extensions, output
   re-baselining, isolated release environments, and reversible rollback.
+- **Page numbering:** Added a cross-surface [page-numbering guide](docs/page-numbering.md) for one-based Python document numbers, zero-based Python list positions, and zero-based Rust, WebAssembly, and native-extension indexes.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.

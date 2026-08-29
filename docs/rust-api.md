@@ -51,6 +51,9 @@ ownership and borrowing, ordering, option effects, empty or absent results,
 resource accounting, and feature availability. Accessor documentation may
 delegate shared units and field semantics to the
 [data-model contract](rust-data-models.md) instead of repeating it.
+The [page-numbering guide](page-numbering.md) is the cross-surface authority for
+Rust indexes, Python list positions and page numbers, WebAssembly indexes, and
+safe conversions between them.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

@@ -117,6 +117,10 @@ console.log(`Found ${matches.length} matches`);
 | `.extractTables()` | Extract tables as 2D text arrays |
 | `.search(pattern, regex?, case?)` | Search for text patterns |
 
+WebAssembly page selection and `pageNumber` both retain the Rust surface's
+zero-based convention. See the [page-numbering guide](../../docs/page-numbering.md)
+before exchanging page identity with the one-based Python compatibility surface.
+
 ### TypeScript Types
 
 Import type definitions for rich typing:
