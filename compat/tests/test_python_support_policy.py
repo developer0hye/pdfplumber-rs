@@ -106,7 +106,10 @@ class PythonSupportPolicyContractTests(unittest.TestCase):
         prd = (REPO_ROOT / "PRD.md").read_text(encoding="utf-8")
         for task in ("DIST-008", "DIST-009", "PYAPI-016"):
             with self.subTest(task=task):
-                self.assertIn(f"- [ ] **{task}**", prd)
+                self.assertRegex(
+                    prd,
+                    rf"(?m)^- \[[ x]\] \*\*{re.escape(task)}\*\*",
+                )
 
 
 if __name__ == "__main__":
