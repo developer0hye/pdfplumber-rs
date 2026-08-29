@@ -279,7 +279,7 @@ Load command 8
         index = REFERENCE_INDEX_PATH.read_text(encoding="utf-8")
         self.assertIn("python-macos-wheels.md", index)
         prd = (REPO_ROOT / "PRD.md").read_text(encoding="utf-8")
-        self.assertRegex(prd, r"(?m)^- \[ \] \*\*DIST-011\*\*")
+        self.assertRegex(prd, r"(?m)^- \[x\] \*\*DIST-011\*\*")
 
 
 if __name__ == "__main__":
