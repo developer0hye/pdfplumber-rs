@@ -232,6 +232,9 @@ coordinates across Rust, WebAssembly, and Python.
 The [crop-semantics guide](docs/crop-semantics.md) separates pinned Python
 intersection, clipping, and root-coordinate behavior from the current Rust
 center-selection and rebased-view contract.
+The [text-option guide](docs/text-options.md) catalogs every pinned Python
+word, TextMap, text-line, and search option with examples and maps the narrower
+current Rust, Python, and WebAssembly controls without implying parity.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

@@ -60,6 +60,9 @@ Python bottom-origin companions, and document-top coordinates.
 The [crop-semantics guide](crop-semantics.md) distinguishes the current Rust
 center-selection and rebased-view contract from pinned Python intersection,
 clipping, root-coordinate, nesting, and validation behavior.
+The [text-option guide](text-options.md) distinguishes typed Rust word, layout,
+and search options from the complete pinned Python option pipeline and its
+method-specific result controls.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

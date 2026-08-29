@@ -134,6 +134,9 @@ transform and distinguishes `mediabox`, `cropbox`, `bbox`, `top`/`bottom`,
 The [crop-semantics guide](../../docs/crop-semantics.md) documents the current
 mixed migration state: object-list properties apply upstream-style transforms,
 while extraction methods still consume the legacy Rust cropped view.
+The [text-option guide](../../docs/text-options.md) lists every pinned v0.11.10
+text keyword and example, then distinguishes the options this alpha actually
+accepts.
 
 ### Table
 
