@@ -226,6 +226,9 @@ or continue using their source-compatible crate-root re-exports. The
 [Rust data-model contract](docs/rust-data-models.md) defines the stable `0.3.x`
 families and documents their units, top-left coordinate system, collection
 ordering, optional fields, and the separate serialized-schema boundary.
+The [coordinate-system guide](docs/coordinate-systems.md) diagrams native PDF
+space, rotation-aware displayed geometry, page-box metadata, and document-top
+coordinates across Rust, WebAssembly, and Python.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

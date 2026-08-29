@@ -51,7 +51,9 @@ Public Rust bounding boxes use a top-left origin and PDF points. The tuple
 and distance from the page top to the lower edge. `doctop` adds the heights of earlier
 pages to the page-local `top` value. The Python compatibility dictionaries also expose
 bottom-origin `y0` and `y1` fields. Check the surface-specific geometry before mixing
-these values, especially for rotated or cropped pages.
+these values, especially for rotated or cropped pages. The diagrammed
+[coordinate-system guide](coordinate-systems.md) defines the transforms, page boxes,
+surface matrix, formulas, and persistence names.
 
 ## Is the Python package a drop-in replacement for pdfplumber?
 

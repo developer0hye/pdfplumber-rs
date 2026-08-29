@@ -54,6 +54,9 @@ delegate shared units and field semantics to the
 The [page-numbering guide](page-numbering.md) is the cross-surface authority for
 Rust indexes, Python list positions and page numbers, WebAssembly indexes, and
 safe conversions between them.
+The [coordinate-system guide](coordinate-systems.md) is the cross-surface
+authority for displayed `BBox` values, source page-box arrays, rotations,
+Python bottom-origin companions, and document-top coordinates.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must
