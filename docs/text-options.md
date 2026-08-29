@@ -229,9 +229,9 @@ textmap = utils.chars_to_textmap(chars, layout=True)
 ### Simple text and text lines
 
 `extract_text_simple` accepts only the two fixed tolerances and deliberately
-uses a faster, less flexible algorithm. `extract_text_lines` defaults to
-`strip=True` and `return_chars=True`. Its remaining keyword options are the
-same options accepted by `Page.extract_text`.
+uses a separate, less flexible algorithm. `extract_text_lines` defaults to
+`strip=True` and `return_chars=True`. Its remaining keyword options are the same
+options accepted by `Page.extract_text`.
 
 ```python
 simple_text = page.extract_text_simple(x_tolerance=1, y_tolerance=1)
