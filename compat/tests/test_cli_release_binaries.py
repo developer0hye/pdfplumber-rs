@@ -605,7 +605,7 @@ class CliReleaseBinaryTests(unittest.TestCase):
             "cargo build --locked --release --package pdfplumber-cli --target",
             "python scripts/build_cli_release.py package",
             "python scripts/build_cli_release.py smoke",
-            '--archive-dir "dist"',
+            '--archive-dir "dist/subjects"',
             '--runner-os "${{ runner.os }}"',
             '--runner-arch "${{ runner.arch }}"',
             "actions/upload-artifact@v4",
@@ -629,10 +629,14 @@ class CliReleaseBinaryTests(unittest.TestCase):
         release = RELEASE_PATH.read_text(encoding="utf-8")
         self.assertIn("uses: ./.github/workflows/cli-binaries.yml", release)
         self.assertIn("release_tag: ${{ github.ref_name }}", release)
-        self.assertIn("needs: [publish, metadata, scorecards, cli-binaries]", release)
+        self.assertIn("publish-pypi,", release)
+        self.assertIn("cli-binaries,", release)
+        self.assertIn("release-artifacts,", release)
+        self.assertIn("integrity,", release)
         self.assertIn("pattern: cli-binary-*", release)
         self.assertIn("path: release-cli-binaries", release)
-        self.assertIn("release-cli-binaries/*", release)
+        self.assertIn("release-cli-binaries/subjects/*", release)
+        self.assertIn("release-cli-binaries/integrity/*", release)
 
     def test_public_guide_states_platform_and_verification_boundaries(self) -> None:
         self.assertTrue(GUIDE_PATH.is_file(), "missing prebuilt CLI guide")
@@ -652,7 +656,8 @@ class CliReleaseBinaryTests(unittest.TestCase):
             "basic_text.pdf",
             "exact standard output",
             "target operating system",
-            "DIST-005",
+            "release integrity gate",
+            "SHA256SUMS",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, guide)

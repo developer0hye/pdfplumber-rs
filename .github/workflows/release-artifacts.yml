@@ -1,0 +1,283 @@
+name: Release package artifacts
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Optional exact v-prefixed tag for release builds
+        required: false
+        type: string
+        default: ""
+      attest:
+        description: Create and retain provenance and SBOM attestations
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  rust-crates:
+    name: Build verified crates.io archives
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build and retain every verified Rust release archive
+        shell: bash
+        run: |
+          source_arguments=(--expected-commit "$GITHUB_SHA")
+          if [[ -n "${{ inputs.release_tag }}" ]]; then
+            source_arguments=(--release-tag "${{ inputs.release_tag }}")
+          fi
+          python scripts/check_crates_release.py \
+            "${source_arguments[@]}" \
+            --output-dir dist/subjects
+          mkdir -p dist/integrity
+
+      - name: Generate the Rust archive SPDX document
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/subjects
+          format: spdx-json
+          output-file: dist/integrity/rust-crates.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Bind the Rust archive group to its exact subjects and SBOM
+        run: >-
+          python scripts/build_release_integrity.py group
+          --group-id rust-crates
+          --family rust-crate
+          --subjects-dir dist/subjects
+          --subject-glob '*.crate'
+          --sbom dist/integrity/rust-crates.spdx.json
+          --source-commit "$GITHUB_SHA"
+          --release-tag "${{ inputs.release_tag }}"
+          --output dist/integrity/rust-crates.group.json
+
+      - name: Attest Rust archive build provenance
+        if: inputs.attest
+        id: provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.crate
+
+      - name: Retain the Rust archive provenance bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.provenance.outputs.bundle-path }}" dist/integrity/rust-crates.provenance.sigstore.json
+
+      - name: Attest the Rust archive SBOM
+        if: inputs.attest
+        id: sbom-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.crate
+          sbom-path: dist/integrity/rust-crates.spdx.json
+
+      - name: Retain the Rust archive SBOM attestation bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.sbom-attestation.outputs.bundle-path }}" dist/integrity/rust-crates.sbom.sigstore.json
+
+      - name: Retain verified Rust release archives and integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-rust-crates
+          path: |
+            dist/subjects/*
+            dist/integrity/*
+          if-no-files-found: error
+          compression-level: 0
+
+  wheels:
+    name: Build wheel (${{ matrix.os }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-latest
+            target: x86_64
+            manylinux: auto
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: linux
+            runner: ubuntu-latest
+            target: aarch64
+            manylinux: auto
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: macos
+            runner: macos-latest
+            target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: macos
+            runner: macos-latest
+            target: aarch64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+          - os: windows
+            runner: windows-latest
+            target: x86_64
+            interpreter: "3.9 3.10 3.11 3.12 3.13"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare wheel artifact directories on the host
+        shell: bash
+        run: mkdir -p dist/subjects dist/integrity
+
+      - uses: actions/setup-python@v5
+        if: matrix.os != 'linux'
+        with:
+          python-version: |
+            3.9
+            3.10
+            3.11
+            3.12
+            3.13
+
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: >-
+            --release
+            --out dist/subjects
+            --interpreter ${{ matrix.interpreter }}
+            --manifest-path crates/pdfplumber-py/Cargo.toml
+          manylinux: ${{ matrix.manylinux || 'auto' }}
+
+      - name: Generate the wheel SPDX document
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/subjects
+          format: spdx-json
+          output-file: dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Bind the wheel group to its exact subjects and SBOM
+        shell: bash
+        run: >-
+          python scripts/build_release_integrity.py group
+          --group-id python-wheels-${{ matrix.os }}-${{ matrix.target }}
+          --family python-wheel
+          --subjects-dir dist/subjects
+          --subject-glob '*.whl'
+          --sbom dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.spdx.json
+          --source-commit "$GITHUB_SHA"
+          --release-tag "${{ inputs.release_tag }}"
+          --output dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.group.json
+
+      - name: Attest wheel build provenance
+        if: inputs.attest
+        id: provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.whl
+
+      - name: Retain the wheel provenance bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.provenance.outputs.bundle-path }}" dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.provenance.sigstore.json
+
+      - name: Attest the wheel SBOM
+        if: inputs.attest
+        id: sbom-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.whl
+          sbom-path: dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.spdx.json
+
+      - name: Retain the wheel SBOM attestation bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.sbom-attestation.outputs.bundle-path }}" dist/integrity/python-wheels-${{ matrix.os }}-${{ matrix.target }}.sbom.sigstore.json
+
+      - name: Retain verified wheels and integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-python-wheels-${{ matrix.os }}-${{ matrix.target }}
+          path: |
+            dist/subjects/*
+            dist/integrity/*
+          if-no-files-found: error
+          compression-level: 0
+
+  sdist:
+    name: Build source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: >-
+            --out dist/subjects
+            --manifest-path crates/pdfplumber-py/Cargo.toml
+
+      - name: Prepare the source-distribution integrity directory
+        run: mkdir -p dist/integrity
+
+      - name: Generate the source-distribution SPDX document
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/subjects
+          format: spdx-json
+          output-file: dist/integrity/python-sdist.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Bind the source distribution to its exact subject and SBOM
+        run: >-
+          python scripts/build_release_integrity.py group
+          --group-id python-sdist
+          --family python-sdist
+          --subjects-dir dist/subjects
+          --subject-glob '*.tar.gz'
+          --sbom dist/integrity/python-sdist.spdx.json
+          --source-commit "$GITHUB_SHA"
+          --release-tag "${{ inputs.release_tag }}"
+          --output dist/integrity/python-sdist.group.json
+
+      - name: Attest source-distribution build provenance
+        if: inputs.attest
+        id: provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.tar.gz
+
+      - name: Retain the source-distribution provenance bundle
+        if: inputs.attest
+        run: cp "${{ steps.provenance.outputs.bundle-path }}" dist/integrity/python-sdist.provenance.sigstore.json
+
+      - name: Attest the source-distribution SBOM
+        if: inputs.attest
+        id: sbom-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/*.tar.gz
+          sbom-path: dist/integrity/python-sdist.spdx.json
+
+      - name: Retain the source-distribution SBOM attestation bundle
+        if: inputs.attest
+        run: cp "${{ steps.sbom-attestation.outputs.bundle-path }}" dist/integrity/python-sdist.sbom.sigstore.json
+
+      - name: Retain the verified source distribution and integrity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-python-sdist
+          path: |
+            dist/subjects/*
+            dist/integrity/*
+          if-no-files-found: error
+          compression-level: 0

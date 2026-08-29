@@ -18,6 +18,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_crates_release.py"
 CI_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
+RELEASE_ARTIFACTS_PATH = (
+    REPO_ROOT / ".github" / "workflows" / "release-artifacts.yml"
+)
 GUIDE_PATH = REPO_ROOT / "docs" / "crates-release.md"
 PUBLISHABLE_PACKAGES = [
     "pdfplumber-core",
@@ -147,6 +150,62 @@ class CratesReleaseGateTests(unittest.TestCase):
                     package_only=False,
                 )
 
+    def test_full_gate_retains_verified_archive_in_explicit_output_directory(
+        self,
+    ) -> None:
+        source_commit = "3" * 40
+        package = check_crates_release.WorkspacePackage(
+            name="example-package",
+            version="1.2.3",
+            manifest_path=Path("example-package/Cargo.toml"),
+            dependencies=frozenset(),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            workspace = check_crates_release.Workspace(
+                root=root,
+                target_directory=root / "target",
+                packages=(package,),
+            )
+            archive = check_crates_release.archive_path(workspace, package)
+            output = root / "release-subjects"
+
+            def simulate_cargo(command: list[str], cwd: Path) -> None:
+                self.assertEqual(cwd, root)
+                if command[1] == "publish":
+                    archive.unlink(missing_ok=True)
+                    return
+                archive.parent.mkdir(parents=True, exist_ok=True)
+                vcs_info = json.dumps(
+                    {
+                        "git": {"sha1": source_commit},
+                        "path_in_vcs": "example-package",
+                    }
+                ).encode("utf-8")
+                member = tarfile.TarInfo(
+                    "example-package-1.2.3/.cargo_vcs_info.json"
+                )
+                member.size = len(vcs_info)
+                with tarfile.open(archive, mode="w:gz") as package_archive:
+                    package_archive.addfile(member, io.BytesIO(vcs_info))
+
+            with mock.patch.object(
+                check_crates_release,
+                "run_live",
+                side_effect=simulate_cargo,
+            ):
+                check_crates_release.run_gate(
+                    workspace,
+                    source_commit,
+                    package_only=False,
+                    output_dir=output,
+                )
+
+            retained = output / archive.name
+            self.assertTrue(retained.is_file())
+            check_crates_release.verify_archive(retained, package, source_commit)
+
     def test_continuous_integration_builds_verified_candidate_archives(self) -> None:
         workflow = CI_PATH.read_text(encoding="utf-8")
         artifact_step = workflow[
@@ -162,20 +221,27 @@ class CratesReleaseGateTests(unittest.TestCase):
         self.assertIn("check_package_metadata.py", artifact_step)
 
     def test_tag_preflight_blocks_publication_until_every_dry_run_passes(self) -> None:
-        workflow = RELEASE_PATH.read_text(encoding="utf-8")
-        preflight = workflow.index("crates-package-preflight:")
-        publish = workflow.index("\n  publish:")
+        artifacts = RELEASE_ARTIFACTS_PATH.read_text(encoding="utf-8")
+        rust_job = artifacts[
+            artifacts.index("  rust-crates:") : artifacts.index("\n  wheels:")
+        ]
+        self.assertIn("scripts/check_crates_release.py", rust_job)
+        self.assertIn('--release-tag "${{ inputs.release_tag }}"', rust_job)
+        self.assertIn("--output-dir dist/subjects", rust_job)
+        self.assertNotIn("--package-only", rust_job)
+        self.assertNotIn("--no-verify", rust_job)
 
-        self.assertLess(preflight, publish)
-        preflight_job = workflow[preflight:publish]
-        self.assertIn("needs: [ci, metadata, scorecards]", preflight_job)
-        self.assertIn("scripts/check_crates_release.py", preflight_job)
-        self.assertIn('--release-tag "$GITHUB_REF_NAME"', preflight_job)
-        self.assertNotIn("--package-only", preflight_job)
-        self.assertNotIn("--no-verify", preflight_job)
+        workflow = RELEASE_PATH.read_text(encoding="utf-8")
+        artifacts_job = workflow.index("\n  release-artifacts:")
+        publish = workflow.index("\n  publish:")
+        self.assertLess(artifacts_job, publish)
+        self.assertIn("attest: true", workflow[artifacts_job:publish])
 
         publish_job = workflow[publish:]
-        self.assertIn("needs: [crates-package-preflight, metadata]", publish_job)
+        self.assertIn(
+            "needs: [release-artifacts, metadata, scorecards, integrity]",
+            publish_job,
+        )
         for package in PUBLISHABLE_PACKAGES:
             with self.subTest(package=package):
                 self.assertEqual(

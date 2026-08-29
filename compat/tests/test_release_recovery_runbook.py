@@ -51,8 +51,24 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
             with self.subTest(package=package):
                 self.assertIn(package, topology)
 
-        self.assertIn("needs: [publish, metadata, scorecards, cli-binaries]", workflow)
+        self.assertIn(
+            "needs: [release-artifacts, metadata, scorecards, integrity]",
+            workflow,
+        )
+        self.assertIn(
+            "needs: [release-artifacts, scorecards, integrity]",
+            workflow,
+        )
+        for github_release_dependency in (
+            "publish,",
+            "publish-pypi,",
+            "cli-binaries,",
+            "integrity,",
+        ):
+            self.assertIn(github_release_dependency, workflow)
         self.assertIn("crates.io", topology)
+        self.assertIn("release-artifact integrity gate", topology)
+        self.assertIn("GitHub Release waits for both", topology)
         self.assertRegex(
             normalized_topology,
             r"(?i)PyPI.*npm.*independent|independent.*PyPI.*npm",

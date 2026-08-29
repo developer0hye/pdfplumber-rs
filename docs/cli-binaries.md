@@ -52,8 +52,8 @@ same-named root directory. Extract the archive, move `pdfplumber` or
 
 The smoke gate proves one deterministic JSON text-extraction path on the exact
 fixture bytes. It does not prove every subcommand, PDF class, or older operating
-system version. [DIST-005](../PRD.md#824-p1--distribution-and-installation)
-remains responsible for archive checksums, Software Bill of Materials,
-provenance, and attestations. Until that integrity work lands, download only
-from the canonical release page and do not treat transport alone as artifact
-provenance.
+system version. The [release integrity gate](release-integrity.md) binds every
+native archive to `SHA256SUMS`, a group-scoped SPDX document, GitHub Actions
+build provenance, and signed SBOM evidence. Verify both attestation predicates
+before execution; transport from the canonical release page is not provenance
+by itself.
