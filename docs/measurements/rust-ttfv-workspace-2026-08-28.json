@@ -16,7 +16,7 @@
     "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
   },
   "inputs": {
-    "cargo_lock_sha256": "3828c7789663d9f04c402de7d68bb550baa6eb6f6e40ed915674c7480ced2421",
+    "cargo_lock_sha256": "6f1c05fa0c9643d691d86f0aa0a570dcd5dcbb7a51486979a8f7d5aa29dd90d2",
     "fixture": "tests/fixtures/generated/basic_text.pdf",
     "fixture_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
     "installation_sha256": "f037163fd5fba99e828fd445e3efe3a0bbad3183102d7a0a163bbcd68eeb4bce",
@@ -29,18 +29,18 @@
     "project": "new cargo project",
     "target": "new project-local directory"
   },
-  "measured_at_utc": "2026-08-28T04:57:59Z",
+  "measured_at_utc": "2026-08-29T21:32:21Z",
   "observation": {
     "kind": "automated clean-state lower bound",
     "network": "live crates.io access for transitive dependencies; latency is uncontrolled",
     "toolchain": "preinstalled rolling stable Rust prerequisite"
   },
   "phases": {
-    "code_copy": 0.001,
+    "code_copy": 0.0,
     "dependency_declaration": 0.0,
     "interpretation": 0.0,
     "project_creation": 0.048,
-    "resolve_build_execute": 18.414
+    "resolve_build_execute": 17.872
   },
   "registry_trial": {
     "disposition": "not counted as passing TTFV; DIST-001 now verifies the candidate package boundary, while DIST-007 remains open for the public registry",
@@ -55,8 +55,8 @@
     "kind": "workspace candidate",
     "requirement": "[dependencies]\npdfplumber = \"0.3\"",
     "resolved_version": "0.3.0",
-    "tree_sha256": "c28562dd7bdbb7aabad9a2f386705c35d9dc738570c2775bbf4b67750b4db1d7"
+    "tree_sha256": "918ab7377a70a5164683ab8ab03c261ee36d262f76a7dfb9bedec3ca33167d6c"
   },
   "threshold_seconds": 300,
-  "total_seconds": 18.464
+  "total_seconds": 17.921
 }
