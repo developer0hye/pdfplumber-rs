@@ -30,7 +30,9 @@ The [benchmark regression policy](docs/benchmarks/regressions-v0.3.0.md) documen
 
 The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) is the chronological view for repeated competitor and compatibility scorecards. It begins with the first verified candidate run; later candidates append instead of replacing earlier observations.
 
-Next release-distribution task: [`DIST-005`](PRD.md#824-p1--distribution-and-installation).
+Completed release-integrity foundation: `DIST-005`.
+
+Next claim-boundary task: [`DOC-002`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality).
 
 ## Next
 
