@@ -55,6 +55,15 @@ these values, especially for rotated or cropped pages. The diagrammed
 [coordinate-system guide](coordinate-systems.md) defines the transforms, page boxes,
 surface matrix, formulas, and persistence names.
 
+For cropping, pinned Python `pdfplumber` retains overlapping objects, clips partial
+extent fields, and keeps coordinates in the root page frame. Current Rust crop
+methods instead retain objects by center, keep their full extents, and rebase
+coordinates to the crop origin. The Python alpha currently mixes transformed
+object-list properties with extraction methods backed by that Rust view. The
+[crop-semantics guide](crop-semantics.md) documents the exact inclusion,
+clipping, nesting, validation, and surface boundaries. The compatibility
+scorecard still marks crop as not tested.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is

@@ -229,6 +229,9 @@ ordering, optional fields, and the separate serialized-schema boundary.
 The [coordinate-system guide](docs/coordinate-systems.md) diagrams native PDF
 space, rotation-aware displayed geometry, page-box metadata, and document-top
 coordinates across Rust, WebAssembly, and Python.
+The [crop-semantics guide](docs/crop-semantics.md) separates pinned Python
+intersection, clipping, and root-coordinate behavior from the current Rust
+center-selection and rebased-view contract.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the
