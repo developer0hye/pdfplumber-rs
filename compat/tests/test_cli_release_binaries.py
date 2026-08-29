@@ -17,6 +17,7 @@ from types import ModuleType
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+ATTRIBUTES_PATH = REPO_ROOT / ".gitattributes"
 TARGETS_PATH = REPO_ROOT / "cli-release-targets.toml"
 SMOKE_POLICY_PATH = REPO_ROOT / "cli-release-smoke.toml"
 PACKAGER_PATH = REPO_ROOT / "scripts" / "build_cli_release.py"
@@ -204,6 +205,13 @@ class CliReleaseBinaryTests(unittest.TestCase):
         )
         self.assertEqual(policy["args"], ["text", "{fixture}", "--format", "json"])
         self.assertEqual(policy["timeout_seconds"], 30)
+
+    def test_exact_smoke_output_checkout_bytes_are_platform_independent(self) -> None:
+        attributes = ATTRIBUTES_PATH.read_text(encoding="utf-8").splitlines()
+        self.assertIn(
+            "tests/fixtures/expected/cli-release-basic-text.jsonl text eol=lf",
+            attributes,
+        )
 
     def test_smoke_executes_the_executable_extracted_from_each_archive_format(
         self,
