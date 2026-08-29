@@ -92,6 +92,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
 - Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
 - Exact-clean-commit cargo package and cargo publish dry-run verification for all four crates.io candidates before tagged publication
+- Bounded exact-version crates.io resolution polling before each dependent package publication
 - Digest-pinned Rust 1.98.0 Bookworm development container for the rendered Rust quick starts and focused contributor tests
 
 **Known limitations**
@@ -121,6 +122,8 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/crates-release.md`](../docs/crates-release.md)
 - [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
 - [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
+- [`compat/tests/test_crates_registry_polling.py`](../compat/tests/test_crates_registry_polling.py)
+- [`scripts/wait_for_crate_resolution.py`](../scripts/wait_for_crate_resolution.py)
 - [`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)
 - [`.devcontainer/Dockerfile`](../.devcontainer/Dockerfile)
 - [`docs/rust-development.md`](../docs/rust-development.md)
@@ -162,6 +165,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Page selection plus text, JSON, and CSV outputs where implemented
 - Password and repair options on applicable commands
 - Exact-clean-commit Cargo package and publish dry-run verification before tagged publication
+- Bounded exact-version crates.io resolution polling before dependent publication
 
 **Known limitations**
 
@@ -178,6 +182,8 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/crates-release.md`](../docs/crates-release.md)
 - [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
 - [`scripts/check_crates_release.py`](../scripts/check_crates_release.py)
+- [`compat/tests/test_crates_registry_polling.py`](../compat/tests/test_crates_registry_polling.py)
+- [`scripts/wait_for_crate_resolution.py`](../scripts/wait_for_crate_resolution.py)
 - [`PRD.md`](../PRD.md)
 
 ### WebAssembly

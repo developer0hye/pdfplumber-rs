@@ -9,6 +9,10 @@ Official Cargo documentation used by the crates.io candidate gate.
 - [`cargo publish`](https://doc.rust-lang.org/cargo/commands/cargo-publish.html)
   packages, verifies, and uploads a crate. `--dry-run` performs the checks
   without uploading.
+- [`cargo info`](https://doc.rust-lang.org/cargo/commands/cargo-info.html)
+  accepts an exact `package@version` specification and a named registry. The
+  release gate polls this Cargo boundary so a dependent is not published until
+  its exact predecessor version resolves from crates.io.
 - [Specifying dependencies](https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html#multiple-locations)
   explains that a local path is used during workspace development but the
   versioned registry location is used after publication.

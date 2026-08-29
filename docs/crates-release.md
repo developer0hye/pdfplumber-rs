@@ -31,6 +31,25 @@ verified against predecessors that the release workflow has already published.
 The separate post-publication install and execution gate remains open as
 [`DIST-007`](../PRD.md#824-p1--distribution-and-installation).
 
+## Registry resolution between dependent publishes
+
+After each predecessor upload, the release workflow runs
+`cargo info <crate>@<version>` against crates.io. A successful command proves
+that Cargo can resolve the exact expected version before the workflow publishes
+its dependent; seeing only a crate name or a different version is insufficient.
+The core crate must resolve before parser publication, parser before facade
+publication, and facade before Command-Line Interface publication.
+
+Each probe is time-bounded and unsuccessful probes use exponential backoff from
+five to at most thirty seconds. A five-minute deadline bounds the entire gate,
+while every Cargo invocation also has its own thirty-second timeout. Probe
+output is not copied into workflow logs because registry diagnostics may include
+sensitive configuration. Exhausting the deadline stops publication and directs
+maintainers to the [release recovery runbook](release-recovery.md); it never
+skips ahead to a dependent package. This resolution gate does not install or
+execute the published package, which remains the separate [`DIST-007`](../PRD.md#824-p1--distribution-and-installation)
+boundary.
+
 ## Commands
 
 Continuous Integration packages the exact checkout and leaves the four archives
@@ -45,6 +64,13 @@ A tagged release runs the complete preflight before any crates.io upload:
 
 ```bash
 python scripts/check_crates_release.py --release-tag v0.3.0
+```
+
+To reproduce the exact registry-resolution probe and bounded retry policy:
+
+```bash
+python scripts/wait_for_crate_resolution.py pdfplumber-core \
+  --release-tag v0.3.0 --timeout-seconds 300
 ```
 
 `cargo publish --dry-run` performs Cargo's publish checks but does not upload.
