@@ -1,0 +1,23 @@
+schema_version = 1
+
+[[targets]]
+target = "x86_64"
+runner = "macos-15-intel"
+runner_arch = "X64"
+machine = "x86_64"
+python_tag = "cp313"
+abi_tag = "cp313"
+platform_tag = "macosx_10_12_x86_64"
+deployment_target = "10.12"
+macho_arch = "x86_64"
+
+[[targets]]
+target = "aarch64"
+runner = "macos-15"
+runner_arch = "ARM64"
+machine = "arm64"
+python_tag = "cp313"
+abi_tag = "cp313"
+platform_tag = "macosx_11_0_arm64"
+deployment_target = "11.0"
+macho_arch = "arm64"
