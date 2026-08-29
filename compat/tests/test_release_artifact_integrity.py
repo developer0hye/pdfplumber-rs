@@ -217,6 +217,35 @@ class ReleaseArtifactIntegrityTests(unittest.TestCase):
             self.assertNotEqual(unsafe.returncode, 0)
             self.assertIn("safe basename glob", unsafe.stderr)
 
+    def test_group_reports_a_missing_sbom_as_a_bounded_validation_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory) / "bundle"
+            subjects = root / "subjects"
+            self.write_subject(subjects / "example.whl", b"wheel")
+
+            result = self.checker(
+                "group",
+                "--group-id",
+                "python-wheels",
+                "--family",
+                "python-wheel",
+                "--subjects-dir",
+                str(subjects),
+                "--subject-glob",
+                "*.whl",
+                "--sbom",
+                str(root / "integrity" / "missing.spdx.json"),
+                "--source-commit",
+                SOURCE_COMMIT,
+                "--output",
+                str(root / "integrity" / "python-wheels.group.json"),
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("release integrity failed:", result.stderr)
+            self.assertIn("SPDX SBOM must be a regular file", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def test_aggregate_rejects_missing_family_and_unregistered_subjects(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)

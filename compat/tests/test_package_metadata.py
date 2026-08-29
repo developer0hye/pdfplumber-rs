@@ -193,8 +193,24 @@ class PackageMetadataContractTests(unittest.TestCase):
         ):
             with self.subTest(release_workflow=phrase):
                 self.assertIn(phrase, release)
-        self.assertEqual(release.count("needs: [ci, metadata, scorecards]"), 4)
-        self.assertIn("needs: [publish, metadata, scorecards, cli-binaries]", release)
+        for dependency in (
+            "needs: [ci, metadata, scorecards]",
+            "needs: [release-artifacts, metadata, scorecards, integrity]",
+            "needs: [release-artifacts, scorecards, integrity]",
+        ):
+            with self.subTest(release_dependency=dependency):
+                self.assertIn(dependency, release)
+        for release_dependency in (
+            "publish,",
+            "publish-pypi,",
+            "metadata,",
+            "scorecards,",
+            "cli-binaries,",
+            "release-artifacts,",
+            "integrity,",
+        ):
+            with self.subTest(github_release_dependency=release_dependency):
+                self.assertIn(release_dependency, release)
 
 
 if __name__ == "__main__":

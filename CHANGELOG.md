@@ -90,6 +90,11 @@ commit list.
   AArch64, macOS Intel and Apple Silicon, and Windows x86-64 now execute their
   extracted binary on the native target against one hash-bound PDF fixture and
   require byte-exact JSON output before release attachment.
+- **Platform:** Release archives, Python wheels and source distributions, and
+  native Command-Line Interface archives now publish deterministic SHA-256
+  checksums, group-scoped SPDX 2.3 Software Bills of Materials, GitHub Actions
+  build provenance, and signed SBOM attestations. Publication fails on an
+  omitted, changed, repeated, or unregistered subject.
 - **Platform:** Added an additive Rust feature policy and a Continuous
   Integration matrix for no-default, default, Serde, parallel, all-feature,
   and parser-tracing builds. Exact fixture fingerprints ensure optional

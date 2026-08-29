@@ -53,7 +53,7 @@ boundary.
 ## Commands
 
 Continuous Integration packages the exact checkout and leaves the four archives
-for license and metadata inspection:
+for license, metadata, and [release integrity](release-integrity.md) inspection:
 
 ```bash
 python scripts/check_crates_release.py \

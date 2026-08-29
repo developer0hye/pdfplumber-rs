@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 jobs:
   ci:
@@ -37,25 +39,60 @@ jobs:
     uses: ./.github/workflows/cli-binaries.yml
     with:
       release_tag: ${{ github.ref_name }}
+      attest: true
 
-  # ── crates.io ──────────────────────────────────────────────
-
-  crates-package-preflight:
-    name: Verify crates.io release candidates
+  release-artifacts:
+    name: Build release archives, wheels, and source distribution
     needs: [ci, metadata, scorecards]
+    uses: ./.github/workflows/release-artifacts.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+      attest: true
+
+  integrity:
+    name: Verify the complete release artifact inventory
+    needs: [release-artifacts, cli-binaries, metadata]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
-          fetch-depth: 0
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: Package and dry-run every crates.io candidate from the release tag
-        run: python scripts/check_crates_release.py --release-tag "$GITHUB_REF_NAME"
+          pattern: release-rust-*
+          path: release-bundle
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-python-*
+          path: release-bundle
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-binary-*
+          path: release-bundle
+          merge-multiple: true
+
+      - name: Build the required checksum and integrity index
+        run: >-
+          python scripts/build_release_integrity.py aggregate
+          --bundle-dir release-bundle
+          --output-dir release-integrity
+          --source-commit "$GITHUB_SHA"
+          --release-tag "$GITHUB_REF_NAME"
+          --attestations required
+
+      - name: Retain the complete checksum and integrity index
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-integrity
+          path: release-integrity/*
+          if-no-files-found: error
+          compression-level: 0
+
+  # ── crates.io ──────────────────────────────────────────────
 
   publish:
     name: Publish to crates.io
-    needs: [crates-package-preflight, metadata]
+    needs: [release-artifacts, metadata, scorecards, integrity]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,9 +128,36 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
+  # ── PyPI (maturin wheels + sdist) ──────────────────────────
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [release-artifacts, scorecards, integrity]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-python-*
+          merge-multiple: true
+          path: release-python
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: release-python/subjects
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
   release:
     name: GitHub Release
-    needs: [publish, metadata, scorecards, cli-binaries]
+    needs:
+      [
+        publish,
+        publish-pypi,
+        metadata,
+        scorecards,
+        cli-binaries,
+        release-artifacts,
+        integrity,
+      ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,9 +168,23 @@ jobs:
           merge-multiple: true
       - uses: actions/download-artifact@v4
         with:
+          pattern: release-rust-*
+          path: release-packages
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-python-*
+          path: release-packages
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
           pattern: cli-binary-*
           path: release-cli-binaries
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-integrity
+          path: release-integrity
       - uses: softprops/action-gh-release@v2
         with:
           body_path: ${{ needs.metadata.outputs.release-notes }}
@@ -114,105 +192,12 @@ jobs:
           generate_release_notes: true
           files: |
             release-scorecards/*
-            release-cli-binaries/*
+            release-packages/subjects/*
+            release-packages/integrity/*
+            release-cli-binaries/subjects/*
+            release-cli-binaries/integrity/*
+            release-integrity/**
           fail_on_unmatched_files: true
-
-  # ── PyPI (maturin wheels + sdist) ──────────────────────────
-
-  build-wheels:
-    name: Build wheel (${{ matrix.os }}, ${{ matrix.target }})
-    needs: [ci, metadata, scorecards]
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # ── Linux ──
-          - os: linux
-            runner: ubuntu-latest
-            target: x86_64
-            manylinux: auto
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
-          - os: linux
-            runner: ubuntu-latest
-            target: aarch64
-            manylinux: auto
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
-          # ── macOS (both targets cross-compile on Apple Silicon) ──
-          - os: macos
-            runner: macos-latest
-            target: x86_64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
-          - os: macos
-            runner: macos-latest
-            target: aarch64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
-          # ── Windows ──
-          - os: windows
-            runner: windows-latest
-            target: x86_64
-            interpreter: "3.9 3.10 3.11 3.12 3.13"
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        if: matrix.os != 'linux'
-        with:
-          python-version: |
-            3.9
-            3.10
-            3.11
-            3.12
-            3.13
-
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          args: >-
-            --release
-            --out dist
-            --interpreter ${{ matrix.interpreter }}
-            --manifest-path crates/pdfplumber-py/Cargo.toml
-          manylinux: ${{ matrix.manylinux || 'auto' }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-${{ matrix.os }}-${{ matrix.target }}
-          path: dist
-
-  build-sdist:
-    name: Build sdist
-    needs: [ci, metadata, scorecards]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build sdist
-        uses: PyO3/maturin-action@v1
-        with:
-          command: sdist
-          args: >-
-            --out dist
-            --manifest-path crates/pdfplumber-py/Cargo.toml
-      - uses: actions/upload-artifact@v4
-        with:
-          name: wheels-sdist
-          path: dist
-
-  publish-pypi:
-    name: Publish to PyPI
-    needs: [build-wheels, build-sdist]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          merge-multiple: true
-          path: dist
-
-      - uses: pypa/gh-action-pypi-publish@release/v1
-        with:
-          password: ${{ secrets.PYPI_API_TOKEN }}
 
   # ── npm (wasm-pack) ────────────────────────────────────────
 

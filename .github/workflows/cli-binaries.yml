@@ -8,9 +8,16 @@ on:
         required: false
         type: string
         default: ""
+      attest:
+        description: Create and retain provenance and SBOM attestations
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 
 jobs:
   plan:
@@ -55,7 +62,7 @@ jobs:
           --runner-os "${{ runner.os }}"
           --runner-arch "${{ runner.arch }}"
           --release-tag "${{ inputs.release_tag }}"
-          --output-dir dist
+          --output-dir dist/subjects
 
       - name: Smoke-test the extracted archive against the exact fixture
         shell: bash
@@ -63,12 +70,65 @@ jobs:
           python scripts/build_cli_release.py smoke
           --target "${{ matrix.target }}"
           --release-tag "${{ inputs.release_tag }}"
-          --archive-dir "dist"
+          --archive-dir "dist/subjects"
+
+      - name: Prepare the CLI integrity directory
+        shell: bash
+        run: mkdir -p dist/integrity
+
+      - name: Generate the CLI archive SPDX document
+        uses: anchore/sbom-action@v0
+        with:
+          path: dist/subjects
+          format: spdx-json
+          output-file: dist/integrity/cli-${{ matrix.target }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Bind the CLI archive to its exact subject and SBOM
+        shell: bash
+        run: >-
+          python scripts/build_release_integrity.py group
+          --group-id cli-${{ matrix.target }}
+          --family cli-binary
+          --subjects-dir dist/subjects
+          --subject-glob 'pdfplumber-cli-*'
+          --sbom dist/integrity/cli-${{ matrix.target }}.spdx.json
+          --source-commit "$GITHUB_SHA"
+          --release-tag "${{ inputs.release_tag }}"
+          --output dist/integrity/cli-${{ matrix.target }}.group.json
+
+      - name: Attest CLI archive build provenance
+        if: inputs.attest
+        id: provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/pdfplumber-cli-*
+
+      - name: Retain the CLI archive provenance bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.provenance.outputs.bundle-path }}" dist/integrity/cli-${{ matrix.target }}.provenance.sigstore.json
+
+      - name: Attest the CLI archive SBOM
+        if: inputs.attest
+        id: sbom-attestation
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/subjects/pdfplumber-cli-*
+          sbom-path: dist/integrity/cli-${{ matrix.target }}.spdx.json
+
+      - name: Retain the CLI archive SBOM attestation bundle
+        if: inputs.attest
+        shell: bash
+        run: cp "${{ steps.sbom-attestation.outputs.bundle-path }}" dist/integrity/cli-${{ matrix.target }}.sbom.sigstore.json
 
       - name: Retain the verified release archive
         uses: actions/upload-artifact@v4
         with:
           name: cli-binary-${{ matrix.target }}
-          path: dist/*
+          path: |
+            dist/subjects/*
+            dist/integrity/*
           if-no-files-found: error
           compression-level: 0

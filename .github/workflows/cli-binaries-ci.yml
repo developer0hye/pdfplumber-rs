@@ -1,4 +1,4 @@
-name: CLI binary matrix
+name: Release artifact matrix
 
 on:
   push:
@@ -6,9 +6,15 @@ on:
     paths:
       - ".github/workflows/cli-binaries.yml"
       - ".github/workflows/cli-binaries-ci.yml"
+      - ".github/workflows/release-artifacts.yml"
+      - ".github/workflows/release.yml"
       - "cli-release-targets.toml"
       - "cli-release-smoke.toml"
       - "scripts/build_cli_release.py"
+      - "scripts/build_release_integrity.py"
+      - "scripts/check_crates_release.py"
+      - "compat/tests/test_release_artifact_integrity.py"
+      - "compat/tests/test_crates_release_gate.py"
       - "tests/fixtures/generated/basic_text.pdf"
       - "tests/fixtures/expected/cli-release-basic-text.jsonl"
       - "Cargo.toml"
@@ -17,15 +23,22 @@ on:
       - "crates/pdfplumber-parse/**"
       - "crates/pdfplumber/**"
       - "crates/pdfplumber-cli/**"
+      - "crates/pdfplumber-py/**"
       - "LICENSE"
   pull_request:
     branches: [main]
     paths:
       - ".github/workflows/cli-binaries.yml"
       - ".github/workflows/cli-binaries-ci.yml"
+      - ".github/workflows/release-artifacts.yml"
+      - ".github/workflows/release.yml"
       - "cli-release-targets.toml"
       - "cli-release-smoke.toml"
       - "scripts/build_cli_release.py"
+      - "scripts/build_release_integrity.py"
+      - "scripts/check_crates_release.py"
+      - "compat/tests/test_release_artifact_integrity.py"
+      - "compat/tests/test_crates_release_gate.py"
       - "tests/fixtures/generated/basic_text.pdf"
       - "tests/fixtures/expected/cli-release-basic-text.jsonl"
       - "Cargo.toml"
@@ -34,11 +47,64 @@ on:
       - "crates/pdfplumber-parse/**"
       - "crates/pdfplumber/**"
       - "crates/pdfplumber-cli/**"
+      - "crates/pdfplumber-py/**"
       - "LICENSE"
 
 permissions:
   contents: read
+  id-token: write
+  attestations: write
 
 jobs:
+  release-artifacts:
+    uses: ./.github/workflows/release-artifacts.yml
+    with:
+      attest: ${{ github.event_name == 'push' }}
+
   cli-binaries:
     uses: ./.github/workflows/cli-binaries.yml
+    with:
+      attest: ${{ github.event_name == 'push' }}
+
+  integrity:
+    name: Verify the complete release artifact inventory
+    needs: [release-artifacts, cli-binaries]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-rust-*
+          path: release-bundle
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-python-*
+          path: release-bundle
+          merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-binary-*
+          path: release-bundle
+          merge-multiple: true
+
+      - name: Build the exact checksum and integrity index
+        shell: bash
+        run: |
+          attestation_policy=optional
+          if [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            attestation_policy=required
+          fi
+          python scripts/build_release_integrity.py aggregate \
+            --bundle-dir release-bundle \
+            --output-dir release-integrity \
+            --source-commit "$GITHUB_SHA" \
+            --attestations "$attestation_policy"
+
+      - name: Retain the complete checksum and integrity index
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-integrity
+          path: release-integrity/*
+          if-no-files-found: error
+          compression-level: 0

@@ -66,8 +66,10 @@ covers this exact path from project creation through interpreting extracted text
 For the Rust-native `pdfplumber` executable, tagged releases created by the
 current workflow are configured to attach five versioned [prebuilt CLI
 archives](docs/cli-binaries.md). Their build and executable formats plus one
-hash-bound exact-output fixture smoke are gated on every native target;
-checksums and provenance remain explicit follow-up work.
+hash-bound exact-output fixture smoke are gated on every native target. The
+[release integrity gate](docs/release-integrity.md) publishes SHA-256 checksums,
+group-scoped SPDX documents, build provenance, and Sigstore attestations for
+the verified Rust archives, Python packages, and native CLI archives.
 
 ## Quick Start
 

@@ -232,10 +232,16 @@ def check_repository(policy: release_candidate_scorecards.HistoryPolicy) -> None
             raise release_candidate_scorecards.ScorecardHistoryError(
                 f"release workflow lacks {fragment!r}"
             )
-    if release.count("needs: [ci, metadata, scorecards]") != 4:
-        raise release_candidate_scorecards.ScorecardHistoryError(
-            "every independent registry candidate must wait for scorecards"
-        )
+    scorecard_gated_candidates = (
+        "needs: [release-artifacts, metadata, scorecards, integrity]",
+        "needs: [release-artifacts, scorecards, integrity]",
+        "needs: [ci, metadata, scorecards]",
+    )
+    for dependency in scorecard_gated_candidates:
+        if dependency not in release:
+            raise release_candidate_scorecards.ScorecardHistoryError(
+                "every independent registry candidate must wait for scorecards"
+            )
     ci = CI_PATH.read_text(encoding="utf-8")
     if "python scripts/build_release_candidate_scorecards.py --check" not in ci:
         raise release_candidate_scorecards.ScorecardHistoryError(

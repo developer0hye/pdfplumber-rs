@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -70,6 +71,11 @@ def parse_args() -> argparse.Namespace:
         "--list-packages",
         action="store_true",
         help="print the discovered crates.io package order as JSON and exit",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        help="retain one verified .crate subject per package in an empty directory",
     )
     return parser.parse_args()
 
@@ -347,7 +353,20 @@ def run_gate(
     source_commit: str,
     *,
     package_only: bool,
+    output_dir: Path | None = None,
 ) -> None:
+    if output_dir is not None:
+        if output_dir.exists():
+            if output_dir.is_symlink() or not output_dir.is_dir():
+                raise CratesReleaseError(
+                    f"release archive output must be a real directory: {output_dir}"
+                )
+            if any(output_dir.iterdir()):
+                raise CratesReleaseError(
+                    f"release archive output must be empty: {output_dir}"
+                )
+        output_dir.mkdir(parents=True, exist_ok=True)
+
     packages = {package.name: package for package in workspace.packages}
     for package in workspace.packages:
         patch_arguments = candidate_patch_arguments(package, packages)
@@ -364,6 +383,15 @@ def run_gate(
             workspace.root,
         )
         verify_archive(archive, package, source_commit)
+        if output_dir is not None:
+            retained_archive = output_dir / archive.name
+            try:
+                shutil.copyfile(archive, retained_archive)
+            except OSError as error:
+                raise CratesReleaseError(
+                    f"cannot retain verified archive {archive}: {error}"
+                ) from error
+            verify_archive(retained_archive, package, source_commit)
 
         if package_only:
             continue
@@ -406,6 +434,7 @@ def main() -> int:
             workspace,
             source_commit,
             package_only=arguments.package_only,
+            output_dir=arguments.output_dir,
         )
     except CratesReleaseError as error:
         print(f"crates release gate failed: {error}", file=sys.stderr)
