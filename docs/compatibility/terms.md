@@ -6,6 +6,8 @@ The fixed reference is Python `pdfplumber` `0.11.10` at commit `7d4f2f582f2d99f9
 
 The [machine-readable scorecard](scorecard-v0.3.0.json) retains individual observations, and the [human workflow scorecard](workflows-v0.3.0.md) groups those observations without turning them into a blanket package claim.
 
+The versioned [Python-release compatibility matrix](python-release-matrix-v0.3.0.md) keeps those observations attached to the exact upstream release that produced them. A scorecard for one release is never evidence for an older, newer, or unlisted release.
+
 ## Compatible
 
 **Compatible** means that observed behavior matches the pinned Python reference exactly within a fully named scope. It is not a synonym for “implemented,” “builds,” “installs,” “usually works,” or “resembles the upstream API.”

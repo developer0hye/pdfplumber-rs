@@ -103,7 +103,7 @@ class PythonReleaseMatrixContractTests(unittest.TestCase):
         self.require_file(GENERATOR)
         mutated = SOURCE.read_text(encoding="utf-8").replace(
             'version = "0.11.10"\ntag = "v0.11.10"\nstatus = "observed"',
-            'version = "0.11.9"\ntag = "v0.11.9"\nstatus = "observed"',
+            'version = "0.11.99"\ntag = "v0.11.99"\nstatus = "observed"',
             1,
         )
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -125,7 +125,7 @@ class PythonReleaseMatrixContractTests(unittest.TestCase):
 
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn(
-            "observed release 0.11.9 differs from scorecard target 0.11.10",
+            "observed release 0.11.99 differs from scorecard target 0.11.10",
             completed.stderr,
         )
 
