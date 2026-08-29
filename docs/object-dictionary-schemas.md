@@ -275,11 +275,14 @@ These gaps remain assigned to the OBJ-CHAR, OBJ-GFX, OBJ-IMG, annotation,
 layout, serialization, and strict-gate tasks. Matching common field names or
 one fixture does not establish object-schema compatibility.
 
-Rust uses typed structs and idiomatic field names. `Char`, `Line`, `Rect`,
-`Curve`, `Image`, `Annotation`, and `Edge` use nested `BBox` values and names
-such as `advance`, `ctm`, `line_width`, `stroke_color`, `fill_color`,
-`src_width`, and `bits_per_component`. The stable model and Serde contracts are
-documented in [Rust data models](rust-data-models.md) and
+Rust uses typed structs and idiomatic field names. `Char` and `Annotation` use
+nested `BBox` values; `Line`, `Rect`, `Curve`, `Image`, and `Edge` retain typed
+coordinate fields. Other Rust names include `advance`, `ctm`, `line_width`,
+`stroke_color`, `fill_color`, `src_width`, and `bits_per_component`. Only the
+families named by the curated model table belong to that stable `0.3.x`
+boundary; `Image`, `Annotation`, and `Edge` are not silently promoted by this
+guide. The stable model and Serde contracts are documented in
+[Rust data models](rust-data-models.md) and
 [Rust Serde schemas](rust-serde-schema.md); neither is the flat Python schema.
 Rust page indexes are zero-based.
 
@@ -325,6 +328,21 @@ that commit:
 - `pdfplumber/utils/geometry.py` blob
   `93f5f3b83002deb04c7c8c7462b7dab1c4d245a7` defines the three derived-edge
   projections and orientation values.
+
+Primary and current implementation links:
+
+- Pinned upstream [README object reference](https://github.com/jsvine/pdfplumber/blob/v0.11.10/README.md),
+  [`Page` object processing](https://github.com/jsvine/pdfplumber/blob/v0.11.10/pdfplumber/page.py),
+  [`Container` access and serialization](https://github.com/jsvine/pdfplumber/blob/v0.11.10/pdfplumber/container.py),
+  and [derived-edge geometry](https://github.com/jsvine/pdfplumber/blob/v0.11.10/pdfplumber/utils/geometry.py).
+- Repository [reference snapshot](../compat/snapshots/pdfplumber-v0.11.10-object-schemas.json),
+  [snapshot builder](../compat/harness/object_schema_snapshot.py), and
+  [snapshot contract](../compat/tests/test_object_schema_snapshot.py).
+- Current [Python adapter](../crates/pdfplumber-py/src/lib.rs), [Rust character
+  model](../crates/pdfplumber-core/src/text.rs), [Rust graphical
+  models](../crates/pdfplumber-core/src/shapes.rs), [Rust edge
+  model](../crates/pdfplumber-core/src/edges.rs), and [WebAssembly
+  adapter](../crates/pdfplumber-wasm/src/lib.rs).
 
 The committed snapshot remains the authority when the README summary and
 observed runtime schema differ. Any future target release needs its own
