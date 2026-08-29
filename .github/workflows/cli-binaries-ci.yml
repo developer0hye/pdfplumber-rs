@@ -1,0 +1,38 @@
+name: CLI binary matrix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/cli-binaries.yml"
+      - ".github/workflows/cli-binaries-ci.yml"
+      - "cli-release-targets.toml"
+      - "scripts/build_cli_release.py"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/pdfplumber-core/**"
+      - "crates/pdfplumber-parse/**"
+      - "crates/pdfplumber/**"
+      - "crates/pdfplumber-cli/**"
+      - "LICENSE"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/cli-binaries.yml"
+      - ".github/workflows/cli-binaries-ci.yml"
+      - "cli-release-targets.toml"
+      - "scripts/build_cli_release.py"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/pdfplumber-core/**"
+      - "crates/pdfplumber-parse/**"
+      - "crates/pdfplumber/**"
+      - "crates/pdfplumber-cli/**"
+      - "LICENSE"
+
+permissions:
+  contents: read
+
+jobs:
+  cli-binaries:
+    uses: ./.github/workflows/cli-binaries.yml

@@ -63,6 +63,11 @@ Put a searchable PDF at `document.pdf`, then copy the first example below into
 `src/main.rs`. The [versioned clean-project measurement](docs/rust-ttfv.md)
 covers this exact path from project creation through interpreting extracted text.
 
+For the Rust-native `pdfplumber` executable, tagged releases created by the
+current workflow are configured to attach five versioned [prebuilt CLI
+archives](docs/cli-binaries.md). Their build and executable formats are gated;
+target-runtime smoke tests and checksums remain explicit follow-up work.
+
 ## Quick Start
 
 ### Extract Text

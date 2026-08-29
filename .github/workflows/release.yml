@@ -31,6 +31,13 @@ jobs:
     with:
       candidate_id: ${{ github.ref_name }}
 
+  cli-binaries:
+    name: Build prebuilt CLI binaries
+    needs: [ci, metadata]
+    uses: ./.github/workflows/cli-binaries.yml
+    with:
+      release_tag: ${{ github.ref_name }}
+
   # ── crates.io ──────────────────────────────────────────────
 
   crates-package-preflight:
@@ -86,7 +93,7 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: [publish, metadata, scorecards]
+    needs: [publish, metadata, scorecards, cli-binaries]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -95,12 +102,19 @@ jobs:
           pattern: release-candidate-scorecards-*
           path: release-scorecards
           merge-multiple: true
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cli-binary-*
+          path: release-cli-binaries
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           body_path: ${{ needs.metadata.outputs.release-notes }}
           prerelease: ${{ needs.metadata.outputs.prerelease }}
           generate_release_notes: true
-          files: release-scorecards/*
+          files: |
+            release-scorecards/*
+            release-cli-binaries/*
           fail_on_unmatched_files: true
 
   # ── PyPI (maturin wheels + sdist) ──────────────────────────

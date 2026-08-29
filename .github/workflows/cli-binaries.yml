@@ -1,0 +1,66 @@
+name: CLI binaries
+
+on:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Optional exact v-prefixed tag for release builds
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    name: Validate CLI target policy
+    runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Export the checked target matrix
+        id: targets
+        run: python scripts/build_cli_release.py matrix --github-output "$GITHUB_OUTPUT"
+
+  build:
+    name: CLI binary (${{ matrix.target }})
+    needs: plan
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Build the locked release executable
+        shell: bash
+        run: cargo build --locked --release --package pdfplumber-cli --target "${{ matrix.target }}"
+
+      - name: Verify and package the native executable
+        shell: bash
+        run: >-
+          python scripts/build_cli_release.py package
+          --target "${{ matrix.target }}"
+          --runner-os "${{ runner.os }}"
+          --runner-arch "${{ runner.arch }}"
+          --release-tag "${{ inputs.release_tag }}"
+          --output-dir dist
+
+      - name: Retain the verified release archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-binary-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0

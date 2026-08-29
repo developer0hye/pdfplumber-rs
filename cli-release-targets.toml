@@ -1,0 +1,41 @@
+schema_version = 1
+
+[[targets]]
+triple = "x86_64-unknown-linux-gnu"
+runner = "ubuntu-22.04"
+runner_os = "Linux"
+runner_arch = "X64"
+archive_format = "tar.gz"
+rust_tier = 1
+
+[[targets]]
+triple = "aarch64-unknown-linux-gnu"
+runner = "ubuntu-22.04-arm"
+runner_os = "Linux"
+runner_arch = "ARM64"
+archive_format = "tar.gz"
+rust_tier = 1
+
+[[targets]]
+triple = "x86_64-apple-darwin"
+runner = "macos-15-intel"
+runner_os = "macOS"
+runner_arch = "X64"
+archive_format = "tar.gz"
+rust_tier = 2
+
+[[targets]]
+triple = "aarch64-apple-darwin"
+runner = "macos-15"
+runner_os = "macOS"
+runner_arch = "ARM64"
+archive_format = "tar.gz"
+rust_tier = 1
+
+[[targets]]
+triple = "x86_64-pc-windows-msvc"
+runner = "windows-2025"
+runner_os = "Windows"
+runner_arch = "X64"
+archive_format = "zip"
+rust_tier = 1

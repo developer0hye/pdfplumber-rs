@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import struct
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -304,6 +305,37 @@ class CliReleaseBinaryTests(unittest.TestCase):
             ):
                 packager.validate_release_tag(invalid_tag, "1.2.3")
 
+    def test_binary_lookup_uses_cargo_metadata_target_directory(self) -> None:
+        packager = self.require_packager()
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            target_directory = Path(temporary_directory) / "shared-cargo-target"
+            commands: list[tuple[str, ...]] = []
+
+            def runner(
+                command: tuple[str, ...], **options: object
+            ) -> subprocess.CompletedProcess[str]:
+                commands.append(command)
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    stdout=f'{{"target_directory":"{target_directory}"}}',
+                    stderr="",
+                )
+
+            discovered = packager.cargo_target_directory(runner=runner)
+
+            self.assertEqual(
+                commands,
+                [("cargo", "metadata", "--no-deps", "--format-version", "1")],
+            )
+            self.assertEqual(discovered, target_directory)
+            self.assertEqual(
+                packager.default_binary_path(
+                    "aarch64-apple-darwin", target_directory=discovered
+                ),
+                target_directory / "aarch64-apple-darwin" / "release" / "pdfplumber",
+            )
+
     def test_workflows_build_locked_native_targets_and_gate_the_release(
         self,
     ) -> None:
@@ -386,7 +418,7 @@ class CliReleaseBinaryTests(unittest.TestCase):
         for target in EXPECTED_TARGETS:
             with self.subTest(target=target):
                 self.assertIn(target, configured)
-                self.assertIn(target, verified)
+                self.assertNotIn(target, verified)
         self.assertIn("DIST-004", limitations)
         self.assertIn("not runtime-smoke-tested", limitations)
         self.assertIn("cli-release-targets.toml", evidence)

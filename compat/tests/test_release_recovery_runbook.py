@@ -51,7 +51,7 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
             with self.subTest(package=package):
                 self.assertIn(package, topology)
 
-        self.assertIn("needs: [publish, metadata, scorecards]", workflow)
+        self.assertIn("needs: [publish, metadata, scorecards, cli-binaries]", workflow)
         self.assertIn("crates.io", topology)
         self.assertRegex(
             normalized_topology,
