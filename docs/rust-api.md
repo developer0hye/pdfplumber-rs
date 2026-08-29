@@ -69,6 +69,9 @@ validation, and cell-text forwarding pipeline.
 The [object-dictionary schema guide](object-dictionary-schemas.md) separates
 typed Rust and Serde models from pinned Python's flat, ordered page-object and
 derived-edge dictionaries.
+The [visual-debugging guide](visual-debugging.md) distinguishes pinned Python's
+raster `PageImage` contract from Rust's white-canvas `SvgRenderer`, selective
+table-debug SVG, fixed Command-Line Interface overlays, and adapter gaps.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

@@ -825,7 +825,7 @@ impl Page {
     /// Generate a debug SVG showing the table detection pipeline.
     ///
     /// Runs the table detection pipeline and renders intermediate results:
-    /// detected edges (red), intersection points (circles), cell boundaries
+    /// detected edges (orange), intersection points (circles), cell boundaries
     /// (dashed lines), and table regions (light blue rectangles).
     ///
     /// # Arguments

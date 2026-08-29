@@ -143,6 +143,9 @@ accept no settings argument.
 The [object-dictionary schema guide](../../docs/object-dictionary-schemas.md)
 lists the pinned ordered schemas, accessors, derived edges, and serialization
 rules before identifying every current Python-adapter schema gap.
+The [visual-debugging guide](../../docs/visual-debugging.md) records the pinned
+PDFium/Pillow raster contract and makes explicit that this alpha does not expose
+`Page.to_image`, `PageImage`, or the visual drawing helpers.
 
 ### Table
 

@@ -35,6 +35,9 @@ be `None`, a dictionary, or an already constructed `TableSettings` instance.
 `PageImage.debug_tablefinder` is the visual counterpart. It draws the selected
 edges, intersections, and table regions on an image rather than returning the
 pipeline object.
+The [visual-debugging guide](visual-debugging.md) defines that image's pinned
+dependencies, rendering, overlay order, colors, mutation, saving, and error
+behavior and keeps it separate from this project's current SVG extension.
 
 ```python
 from pdfplumber.table import TableSettings
