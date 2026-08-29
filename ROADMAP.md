@@ -56,9 +56,9 @@ Later work expands distribution and ecosystem reach only after the underlying su
 
 ### Harden the WebAssembly release path
 
-Synchronize release versions from one source of truth, then maintain a local-file browser example that does not upload the user's PDF.
+Maintain a local-file browser example that does not upload the user's PDF, and test examples from packaged artifacts rather than only workspace source.
 
-Detailed tasks: [`DIST-014`](PRD.md#824-p1--distribution-and-installation), [`ECOSYS-006`](PRD.md#826-p1--ecosystem-integration-and-example-quality).
+Detailed tasks: [`ECOSYS-006`](PRD.md#826-p1--ecosystem-integration-and-example-quality), [`ECOSYS-014`](PRD.md#826-p1--ecosystem-integration-and-example-quality).
 
 ### Earn the `1.0` claim
 
