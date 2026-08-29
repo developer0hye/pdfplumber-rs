@@ -172,7 +172,7 @@ class PackageMetadataContractTests(unittest.TestCase):
             "python scripts/check_package_metadata.py --source",
             "python scripts/check_package_metadata.py --rust target/package/*.crate",
             "python scripts/check_package_metadata.py --python dist/*.whl dist/*.tar.gz",
-            "python scripts/check_package_metadata.py --npm crates/pdfplumber-wasm/pkg",
+            "python scripts/check_package_metadata.py --npm crates/pdfplumber-wasm/pkg-browser",
         ):
             with self.subTest(ci_command=command):
                 self.assertIn(command, ci)

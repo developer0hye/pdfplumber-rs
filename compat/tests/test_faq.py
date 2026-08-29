@@ -38,9 +38,7 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
         return {
             match.group("question"): faq[
                 match.end() : (
-                    matches[index + 1].start()
-                    if index + 1 < len(matches)
-                    else len(faq)
+                    matches[index + 1].start() if index + 1 < len(matches) else len(faq)
                 )
             ]
             for index, match in enumerate(matches)
@@ -103,8 +101,9 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
                 "experimental",
                 "source is `0.3.0`",
                 "npm release is `0.2.0`",
-                "Node.js Quick Start",
-                "browser end-to-end behavior is not gated",
+                "Node.js 24.20.0",
+                "Playwright 1.62.1 Chromium",
+                "does not establish cross-browser or production support",
             ),
         }
 
@@ -146,12 +145,18 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
 
     def test_wasm_answer_matches_the_current_ci_boundary(self) -> None:
         matrix = tomllib.loads(MATRIX_PATH.read_text(encoding="utf-8"))
-        wasm = next(surface for surface in matrix["surfaces"] if surface["id"] == "wasm")
+        wasm = next(
+            surface for surface in matrix["surfaces"] if surface["id"] == "wasm"
+        )
 
         verified = "\n".join(wasm["ci_verified_platforms"])
         limitations = "\n".join(wasm["known_limitations"])
-        self.assertIn("Node.js Quick Start", verified)
-        self.assertIn("browser end-to-end behavior is not gated", limitations)
+        self.assertIn("Node.js 24.20.0", verified)
+        self.assertIn("Playwright 1.62.1 Chromium", verified)
+        self.assertIn(
+            "does not establish compatibility with every browser", limitations
+        )
+        self.assertNotIn("browser end-to-end behavior is not gated", limitations)
         self.assertNotIn(
             "does not run browser or Node.js end-to-end behavior",
             limitations,

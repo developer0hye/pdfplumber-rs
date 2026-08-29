@@ -12,7 +12,7 @@ release_upgrade_guidance = [
     "Upgrade from Rust `0.2.x` if you need the new text-line, per-axis table, CJK, right-to-left, rotation, tagged-PDF, or malformed-content handling and can accept an alpha API.",
     "Evaluate the Python `pdfplumber-rs` package if you are migrating a scoped Python `pdfplumber` v0.11.10 workflow, can validate it against the published compatibility gaps, and will use an isolated environment.",
     "Upgrade the source-built Command-Line Interface if its expanded extraction commands are useful and you do not require prebuilt binaries or stable structured-output schemas.",
-    "Do not adopt this release as a complete Python drop-in replacement, a browser-verified WebAssembly release, or evidence of a cross-project performance advantage.",
+    "Do not adopt this release as a complete Python drop-in replacement, a cross-browser or production-ready WebAssembly release, or evidence of a cross-project performance advantage.",
 ]
 release_upgrade_evidence = [
     "docs/support.md#rust",
@@ -259,7 +259,7 @@ manifest_package = "pdfplumber-wasm"
 source_version = "0.3.0"
 registry_version = "0.2.0"
 ci_verified_platforms = [
-    "Ubuntu Linux x86_64 bundler and Node.js package builds with license metadata/file inspection and an executed Node.js Quick Start",
+    "Ubuntu Linux x86-64 candidate archives installed and type-checked with TypeScript 7.0.2, executed in Node.js 24.20.0, and bundled with Vite 8.2.2 for Playwright 1.62.1 Chromium execution",
 ]
 release_configured_targets = [
     "npm bundler package built on Ubuntu during tagged releases",
@@ -270,13 +270,17 @@ features = [
     "Generated JavaScript package plus hand-authored TypeScript declarations",
 ]
 known_limitations = [
-    "The surface is experimental; the Node.js Quick Start is CI-contracted, but browser end-to-end behavior is not gated.",
+    "The surface is experimental; the prepublication gate covers one maintained Chromium build and does not establish compatibility with every browser.",
     "The observed npm release is 0.2.0 while the repository source is 0.3.0.",
-    "Bundle size, startup time, memory, browser compatibility, and published-package installation are not gated.",
+    "Bundle size, startup time, memory, cross-browser behavior, and published-registry installation are independent gates.",
 ]
 evidence = [
     ".github/workflows/ci.yml",
     ".github/workflows/release.yml",
+    "wasm-package-test-policy.toml",
+    "scripts/check_wasm_package.py",
+    "compat/tests/test_wasm_package_release.py",
+    "docs/wasm-package-testing.md",
     "crates/pdfplumber-wasm/Cargo.toml",
     "crates/pdfplumber-wasm/README.md",
     "PRD.md",

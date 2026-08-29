@@ -21,10 +21,10 @@ the workflow filename, not its `.github/workflows/` path.
 The repository environments carry no package-registry password. They narrow
 the identity asserted to each registry, and each must use a custom deployment
 tag policy of `v*.*.*` to match the release trigger. The npm job pins Node
-24.5.0, whose bundled npm 11.5.1 is the minimum release with npm trusted
-publishing support. The crates.io action automatically revokes its temporary
-token after the job. PyPI's publishing action and npm perform their own OpenID
-Connect exchanges without an explicit password or token.
+24.20.0, whose bundled npm 11.19.0 exceeds the npm 11.5.1 trusted-publishing
+minimum. The crates.io action automatically revokes its temporary token after
+the job. PyPI's publishing action and npm perform their own OpenID Connect
+exchanges without an explicit password or token.
 
 ## Configure, verify, then revoke
 
