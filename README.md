@@ -277,6 +277,10 @@ normal iterator adapters, and does not retain pages after yielding them unless
 the caller chooses to collect them. `Pdf::page` and `Pdf::pages_iter` remain
 source-compatible shortcuts during the alpha line.
 
+The [page-numbering guide](docs/page-numbering.md) distinguishes these zero-based
+Rust indexes from the one-based `page_number` values on the Python compatibility
+surface and from zero-based positions in Python's page list.
+
 ## Rust Concurrency
 
 `Pdf`, its borrowed page views, and owned `Page`/`CroppedPage` results implement

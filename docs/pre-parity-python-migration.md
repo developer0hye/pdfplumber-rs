@@ -142,7 +142,9 @@ type names, or module layout as a stable public facade.
 Audit database keys, array offsets, filenames, user-visible labels, bookmark
 destinations, and page-selection logic separately. The `pdf.rust` namespace
 retains Rust conventions, including zero-based destinations and page indexes;
-do not apply one blanket increment or decrement to both surfaces.
+do not apply one blanket increment or decrement to both surfaces. The canonical
+[page-numbering guide](page-numbering.md) defines list positions, selection,
+derived pages, conversions, and persisted field names for every public surface.
 
 The top-level package exposes `pdfplumber.open`, but the public facade is still
 incomplete. Avoid star imports and import only the names your application has

@@ -147,7 +147,9 @@ bookmarks, forms, signatures, structural validation, or image-byte extraction.
 `pdfplumber-rs` exposes these only through `document.rust`, so they cannot be
 mistaken for compatibility behavior or silently collide with future upstream
 methods. Page indexes and bookmark destinations in this namespace retain the
-Rust API's 0-based convention.
+Rust API's 0-based convention. The [page-numbering guide](../../docs/page-numbering.md)
+shows how this differs from one-based compatibility page numbers and zero-based
+Python list positions.
 
 | Method | Description |
 |---|---|
