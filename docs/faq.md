@@ -64,6 +64,11 @@ object-list properties with extraction methods backed by that Rust view. The
 clipping, nesting, validation, and surface boundaries. The compatibility
 scorecard still marks crop as not tested.
 
+Text option names are also surface-specific. The [text-option guide](text-options.md)
+lists the complete pinned Python grouping, layout, line, and search controls,
+their interactions and examples, and the narrower current Rust, Python, and
+WebAssembly boundaries.
+
 ## Is the Python package a drop-in replacement for pdfplumber?
 
 No. Compatibility with Python `pdfplumber` v0.11.10 is incomplete, and this alpha is

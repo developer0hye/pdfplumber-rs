@@ -127,6 +127,9 @@ geometry with native PDF or Python bottom-origin fields.
 WebAssembly does not currently expose cropping or derived pages; the
 [crop-semantics guide](../../docs/crop-semantics.md) defines that boundary and
 prevents Rust crop behavior from being inferred as a WebAssembly contract.
+The [text-option guide](../../docs/text-options.md) maps `extractText`,
+`extractWords`, and `search` controls to the larger pinned Python option surface
+without treating matching names as compatible behavior.
 
 ### TypeScript Types
 

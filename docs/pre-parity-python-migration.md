@@ -174,6 +174,9 @@ The [crop-semantics guide](crop-semantics.md) is the migration authority for
 partial-object clipping, root-preserved versus rebased coordinates, absolute
 and relative nested boxes, strict validation, and the current property/method
 split. Do not reuse a 0.2.0 crop baseline as Python compatibility evidence.
+Use the [text-option guide](text-options.md) to translate every 0.2.0 text,
+word, or search argument explicitly; the current compatibility facade accepts
+only a subset of the pinned Python options.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page
