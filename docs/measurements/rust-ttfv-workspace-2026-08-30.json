@@ -1,0 +1,62 @@
+{
+  "commands": [
+    "cargo new --bin --vcs none --name pdfplumber-ttfv consumer",
+    "cargo run --quiet"
+  ],
+  "coverage": {
+    "code_copy": true,
+    "execution": true,
+    "installation": true,
+    "interpretation": true
+  },
+  "environment": {
+    "architecture": "arm64",
+    "cargo": "cargo 1.98.0 (797e8a9bc 2026-08-05)",
+    "os": "Darwin 25.6.0",
+    "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
+  },
+  "inputs": {
+    "cargo_lock_sha256": "e54e6b687f5ea465945c632b6a523af738348efac8dfd28d8d3157a84c057327",
+    "fixture": "tests/fixtures/generated/basic_text.pdf",
+    "fixture_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
+    "installation_sha256": "2914d5dc2e5bfc0c381e3ee95cbb6c44de5e58d15a25c4e41e5a79aebd69681e",
+    "quick_start_sha256": "3707334a1937d3de6bf9d23cad50963268a63229b79b26ce0f1bf9a0e8399300"
+  },
+  "isolation": {
+    "candidate_substitution": "path patch outside the documented user steps",
+    "cargo_home": "empty temporary directory",
+    "cargo_lock_at_start": "absent",
+    "project": "new cargo project",
+    "target": "new project-local directory"
+  },
+  "measured_at_utc": "2026-08-30T07:44:11Z",
+  "observation": {
+    "kind": "automated clean-state lower bound",
+    "network": "live crates.io access for transitive dependencies; latency is uncontrolled",
+    "toolchain": "preinstalled rolling stable Rust prerequisite"
+  },
+  "phases": {
+    "code_copy": 0.001,
+    "dependency_declaration": 0.001,
+    "interpretation": 0.0,
+    "project_creation": 0.082,
+    "resolve_build_execute": 34.844
+  },
+  "registry_trial": {
+    "disposition": "not counted as passing TTFV; DIST-001 now verifies the candidate package boundary, while DIST-007 remains open for the public registry",
+    "reason": "Pdf::open_path is absent from the published release",
+    "result": "compile failure",
+    "version": "0.3.0"
+  },
+  "result": "pass",
+  "schema_version": 1,
+  "source": {
+    "crate": "pdfplumber",
+    "kind": "workspace candidate",
+    "requirement": "[dependencies]\npdfplumber = \"0.4.0\"",
+    "resolved_version": "0.4.0",
+    "tree_sha256": "d4cadf104908493f1ba1d31f9cd74e2fd1d314580d8c8dda591df7550a8127e8"
+  },
+  "threshold_seconds": 300,
+  "total_seconds": 34.927
+}

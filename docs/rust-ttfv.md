@@ -1,6 +1,6 @@
 # Rust time to first value
 
-The current-source Rust quick start reached useful extracted text in **79.189
+The current-source Rust quick start reached useful extracted text in **34.927
 seconds**, below the five-minute activation gate. This is a dated, automated
 clean-state observation rather than a universal build-time promise. The exact
 machine-readable result is
@@ -61,12 +61,12 @@ Cargo's definitions of project creation, caches, dependency requirements, and
 
 | Phase | Seconds |
 |---|---:|
-| Project creation | 0.044 |
-| Dependency declaration | 0.000 |
-| Code and fixture copy | 0.000 |
-| Resolve, download, build, and execute | 79.144 |
+| Project creation | 0.082 |
+| Dependency declaration | 0.001 |
+| Code and fixture copy | 0.001 |
+| Resolve, download, build, and execute | 34.844 |
 | Interpret useful output | 0.000 |
-| **Total clock** | **79.189** |
+| **Total clock** | **34.927** |
 | Product gate | 300.000 |
 
 Environment: macOS Darwin 25.6.0 on arm64, `rustc 1.98.0`, and `cargo

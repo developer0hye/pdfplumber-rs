@@ -128,7 +128,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - [`docs/rust-api-design.md`](../docs/rust-api-design.md)
 - [`compat/tests/test_rust_api_design.py`](../compat/tests/test_rust_api_design.py)
 - [`docs/rust-ttfv.md`](../docs/rust-ttfv.md)
-- [`docs/measurements/rust-ttfv-workspace-2026-08-28.json`](../docs/measurements/rust-ttfv-workspace-2026-08-28.json)
+- [`docs/measurements/rust-ttfv-workspace-2026-08-30.json`](../docs/measurements/rust-ttfv-workspace-2026-08-30.json)
 - [`compat/tests/test_rust_ttfv.py`](../compat/tests/test_rust_ttfv.py)
 - [`docs/crates-release.md`](../docs/crates-release.md)
 - [`compat/tests/test_crates_release_gate.py`](../compat/tests/test_crates_release_gate.py)
