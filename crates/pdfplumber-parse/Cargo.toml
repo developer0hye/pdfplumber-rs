@@ -16,7 +16,7 @@ maturity = "alpha"
 tracing = ["dep:tracing"]
 
 [dependencies]
-pdfplumber-core = { version = "0.4.0", path = "../pdfplumber-core" }
+pdfplumber-core = { version = "0.4.1", path = "../pdfplumber-core" }
 lopdf = { version = "0.44", default-features = false }
 thiserror = "2"
 encoding_rs = "0.8"

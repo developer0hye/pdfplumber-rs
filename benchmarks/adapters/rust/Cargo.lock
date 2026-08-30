@@ -1171,7 +1171,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "pdfplumber-core",
  "pdfplumber-parse",
@@ -1192,7 +1192,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "regex",
  "unicode-bidi",
@@ -1201,7 +1201,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-parse"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "encoding_rs",
  "lopdf 0.44.0",

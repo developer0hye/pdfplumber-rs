@@ -2,7 +2,7 @@
 
 Experimental WebAssembly bindings for evidence-driven PDF extraction with [pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs).
 
-The npm package and import name are `pdfplumber-wasm`. Release `0.4.0` is experimental, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`. The observed npm release remains `0.2.0`; source `0.4.0` has not yet been published there.
+The npm package and import name are `pdfplumber-wasm`. Release `0.4.1` is experimental, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`. The observed npm release remains `0.2.0`; source `0.4.1` has not yet been published there.
 The maintained source examples are grouped by user goal in the
 [examples by outcome](../../docs/examples.md). The current browser demo remains
 an experimental source-level exploration, not the maintained Vite example

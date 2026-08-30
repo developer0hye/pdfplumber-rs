@@ -9,14 +9,7 @@ commit list.
 
 ## [Unreleased]
 
-### Added
-
-- **Documentation:** Added a cross-surface examples index organized by user
-  outcome. Every maintained Rust and WebAssembly example now links to its source,
-  checked support-matrix maturity, and runnable entry point without promoting the
-  experimental browser demo to a maintained application.
-
-## [0.4.0] - 2026-08-30
+## [0.4.1] - 2026-08-30
 
 ### Added
 
@@ -216,6 +209,10 @@ commit list.
   page-index order; and the Python GIL/cache boundary is stated separately.
 - **Platform:** Versioned readiness and generated support pages now distinguish the
   alpha Rust, Python, and CLI surfaces from the experimental WebAssembly surface.
+- **Documentation:** Added a cross-surface examples index organized by user
+  outcome. Every maintained Rust and WebAssembly example now links to its source,
+  checked support-matrix maturity, and runnable entry point without promoting the
+  experimental browser demo to a maintained application.
 
 ### Changed
 
@@ -261,6 +258,18 @@ commit list.
   `pdfplumber` v0.11.10 behavior for font names, reported size and advance, upright
   state, and transformation matrices. Mirrored-text word grouping and stable source
   ordering for tied word clusters were also restored.
+- **Platform:** Release preparation now holds every tracked `Cargo.lock` at the
+  workspace version. The competitor benchmark adapter resolves the workspace
+  crates as path dependencies and its build passes `--locked`, so the lock left
+  at the previous version failed the `v0.4.0` release-candidate scorecard gate on
+  the release runner rather than in review.
+
+## [0.4.0] - 2026-08-30
+
+Tagged but never published. Its release run failed at the release-candidate
+scorecard gate before any artifact was built, so no crates.io, PyPI, or npm
+package and no GitHub Release exist for this version. Everything it contained is
+released in 0.4.1.
 
 ## [0.3.0] - 2026-08-22
 
@@ -293,6 +302,7 @@ commit list.
   `pdfplumber`. The Python compatibility target is pinned to v0.11.10 and remains
   evidence-scoped rather than a blanket parity claim.
 
-[Unreleased]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.2.0...v0.3.0
