@@ -12,11 +12,33 @@ before a tag can publish it:
 4. Run `cargo publish --dry-run` for each candidate.
 5. Inspect each `.crate` archive and require its Cargo Git provenance to name
    that exact clean commit.
+6. Read the normalized Cargo.toml inside each archive, resolve its declared
+   package README, and require that archived file to be a non-empty regular
+   UTF-8 file.
 
 The current ordered set is `pdfplumber-core`, `pdfplumber-parse`, `pdfplumber`,
 and `pdfplumber-cli`. The checker discovers this set instead of relying on a
 second hand-maintained package list; packages with `publish = false` are
 excluded.
+
+## Package README boundary
+
+Every publishable package declares the document crates.io must render:
+
+| Package | Source README | Audience |
+|---|---|---|
+| `pdfplumber-core` | `crates/pdfplumber-core/README.md` | Advanced model and algorithm integrations |
+| `pdfplumber-parse` | `crates/pdfplumber-parse/README.md` | Advanced parser and backend integrations |
+| `pdfplumber` | `README.md` | Ordinary Rust library users and project evaluators |
+| `pdfplumber-cli` | `crates/pdfplumber-cli/README.md` | Command-Line Interface users |
+
+Cargo may rewrite an outside-the-crate source path when it creates a package.
+The release gate therefore trusts neither the source manifest alone nor a
+hard-coded archive path. It reads `package.readme` from the normalized
+Cargo.toml in each `.crate`, rejects absolute or parent-traversing paths, and
+then requires that exact package README member to be a non-empty regular UTF-8
+file. Continuous Integration and the tagged release preflight run the same
+check before any upload.
 
 ## Coordinated unpublished dependencies
 

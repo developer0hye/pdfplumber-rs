@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "../../README.md"
 description = "Alpha evidence-driven PDF extraction for Rust: text, geometry, images, and tables"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber", "document"]
 categories = ["parser-implementations", "text-processing"]

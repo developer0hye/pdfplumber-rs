@@ -18,9 +18,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_crates_release.py"
 CI_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
-RELEASE_ARTIFACTS_PATH = (
-    REPO_ROOT / ".github" / "workflows" / "release-artifacts.yml"
-)
+RELEASE_ARTIFACTS_PATH = REPO_ROOT / ".github" / "workflows" / "release-artifacts.yml"
 GUIDE_PATH = REPO_ROOT / "docs" / "crates-release.md"
 PUBLISHABLE_PACKAGES = [
     "pdfplumber-core",
@@ -34,6 +32,45 @@ EXPECTED_READMES = {
     "pdfplumber": "README.md",
     "pdfplumber-cli": "crates/pdfplumber-cli/README.md",
 }
+
+
+def add_archive_file(
+    package_archive: tarfile.TarFile,
+    name: str,
+    contents: bytes,
+) -> None:
+    member = tarfile.TarInfo(name)
+    member.size = len(contents)
+    package_archive.addfile(member, io.BytesIO(contents))
+
+
+def write_example_archive(
+    archive: Path,
+    source_commit: str,
+    *,
+    dirty: bool | None = None,
+    readme: bytes | None = b"# example-package\n",
+) -> None:
+    prefix = "example-package-1.2.3"
+    git: dict[str, object] = {"sha1": source_commit}
+    if dirty is not None:
+        git["dirty"] = dirty
+    vcs_info = json.dumps({"git": git, "path_in_vcs": "example-package"}).encode(
+        "utf-8"
+    )
+    manifest = (
+        b'[package]\nname = "example-package"\nversion = "1.2.3"\n'
+        b'readme = "README.md"\n'
+    )
+    with tarfile.open(archive, mode="w:gz") as package_archive:
+        add_archive_file(
+            package_archive,
+            f"{prefix}/.cargo_vcs_info.json",
+            vcs_info,
+        )
+        add_archive_file(package_archive, f"{prefix}/Cargo.toml", manifest)
+        if readme is not None:
+            add_archive_file(package_archive, f"{prefix}/README.md", readme)
 
 
 class CratesReleaseGateTests(unittest.TestCase):
@@ -108,21 +145,10 @@ class CratesReleaseGateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary_directory:
             archive = Path(temporary_directory) / "example-package-1.2.3.crate"
 
-            def write_archive(git: dict[str, object]) -> None:
-                vcs_info = json.dumps(
-                    {"git": git, "path_in_vcs": "example-package"}
-                ).encode("utf-8")
-                member = tarfile.TarInfo(
-                    "example-package-1.2.3/.cargo_vcs_info.json"
-                )
-                member.size = len(vcs_info)
-                with tarfile.open(archive, mode="w:gz") as package_archive:
-                    package_archive.addfile(member, io.BytesIO(vcs_info))
-
-            write_archive({"sha1": source_commit})
+            write_example_archive(archive, source_commit)
             check_crates_release.verify_archive(archive, package, source_commit)
 
-            write_archive({"sha1": source_commit, "dirty": True})
+            write_example_archive(archive, source_commit, dirty=True)
             with self.assertRaisesRegex(
                 check_crates_release.CratesReleaseError,
                 "not bound to clean commit",
@@ -144,39 +170,22 @@ class CratesReleaseGateTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temporary_directory:
             archive = Path(temporary_directory) / "example-package-1.2.3.crate"
-            prefix = "example-package-1.2.3"
-            vcs_info = json.dumps(
-                {"git": {"sha1": source_commit}, "path_in_vcs": "example-package"}
-            ).encode("utf-8")
-            manifest = b'[package]\nname = "example-package"\nversion = "1.2.3"\nreadme = "README.md"\n'
-
-            def write_archive(readme: bytes | None) -> None:
-                with tarfile.open(archive, mode="w:gz") as package_archive:
-                    for name, contents in (
-                        (f"{prefix}/.cargo_vcs_info.json", vcs_info),
-                        (f"{prefix}/Cargo.toml", manifest),
-                    ):
-                        member = tarfile.TarInfo(name)
-                        member.size = len(contents)
-                        package_archive.addfile(member, io.BytesIO(contents))
-                    if readme is not None:
-                        member = tarfile.TarInfo(f"{prefix}/README.md")
-                        member.size = len(readme)
-                        package_archive.addfile(member, io.BytesIO(readme))
-
-            write_archive(None)
+            write_example_archive(archive, source_commit, readme=None)
             with self.assertRaisesRegex(
                 check_crates_release.CratesReleaseError,
                 "README",
             ):
                 check_crates_release.verify_archive(archive, package, source_commit)
 
-            write_archive(b"")
+            write_example_archive(archive, source_commit, readme=b"")
             with self.assertRaisesRegex(
                 check_crates_release.CratesReleaseError,
                 "README",
             ):
                 check_crates_release.verify_archive(archive, package, source_commit)
+
+            write_example_archive(archive, source_commit)
+            check_crates_release.verify_archive(archive, package, source_commit)
 
     def test_full_gate_does_not_require_dry_run_to_retain_an_archive(self) -> None:
         source_commit = "2" * 40
@@ -202,18 +211,7 @@ class CratesReleaseGateTests(unittest.TestCase):
                 archive.unlink(missing_ok=True)
                 if command[1] != "package":
                     return
-                vcs_info = json.dumps(
-                    {
-                        "git": {"sha1": source_commit},
-                        "path_in_vcs": "example-package",
-                    }
-                ).encode("utf-8")
-                member = tarfile.TarInfo(
-                    "example-package-1.2.3/.cargo_vcs_info.json"
-                )
-                member.size = len(vcs_info)
-                with tarfile.open(archive, mode="w:gz") as package_archive:
-                    package_archive.addfile(member, io.BytesIO(vcs_info))
+                write_example_archive(archive, source_commit)
 
             with mock.patch.object(
                 check_crates_release,
@@ -253,18 +251,7 @@ class CratesReleaseGateTests(unittest.TestCase):
                     archive.unlink(missing_ok=True)
                     return
                 archive.parent.mkdir(parents=True, exist_ok=True)
-                vcs_info = json.dumps(
-                    {
-                        "git": {"sha1": source_commit},
-                        "path_in_vcs": "example-package",
-                    }
-                ).encode("utf-8")
-                member = tarfile.TarInfo(
-                    "example-package-1.2.3/.cargo_vcs_info.json"
-                )
-                member.size = len(vcs_info)
-                with tarfile.open(archive, mode="w:gz") as package_archive:
-                    package_archive.addfile(member, io.BytesIO(vcs_info))
+                write_example_archive(archive, source_commit)
 
             with mock.patch.object(
                 check_crates_release,
@@ -285,8 +272,9 @@ class CratesReleaseGateTests(unittest.TestCase):
     def test_continuous_integration_builds_verified_candidate_archives(self) -> None:
         workflow = CI_PATH.read_text(encoding="utf-8")
         artifact_step = workflow[
-            workflow.index("name: Build and verify Rust crate artifacts") :
-            workflow.index("name: Test rendered Rust and CLI quick starts")
+            workflow.index(
+                "name: Build and verify Rust crate artifacts"
+            ) : workflow.index("name: Test rendered Rust and CLI quick starts")
         ]
 
         self.assertIn("scripts/check_crates_release.py", artifact_step)

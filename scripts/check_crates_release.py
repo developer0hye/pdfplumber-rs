@@ -12,8 +12,10 @@ import sys
 import tarfile
 from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
+
+import tomllib
 
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 
@@ -115,9 +117,7 @@ def load_json(value: str, context: str) -> dict[str, Any]:
 
 def is_crates_io_package(package: dict[str, Any]) -> bool:
     publish = package.get("publish")
-    return publish is None or (
-        isinstance(publish, list) and "crates-io" in publish
-    )
+    return publish is None or (isinstance(publish, list) and "crates-io" in publish)
 
 
 def topological_packages(
@@ -182,6 +182,7 @@ def discover_workspace(repo_root: Path) -> Workspace:
         version = package.get("version")
         manifest_path = package.get("manifest_path")
         dependencies = package.get("dependencies")
+        readme = package.get("readme")
         if (
             not isinstance(name, str)
             or not isinstance(version, str)
@@ -189,6 +190,31 @@ def discover_workspace(repo_root: Path) -> Workspace:
             or not isinstance(dependencies, list)
         ):
             raise CratesReleaseError("cargo metadata contains an invalid package")
+        if not isinstance(readme, str) or not readme.strip():
+            raise CratesReleaseError(
+                f"cargo metadata omits a package README for {name}"
+            )
+        manifest = Path(manifest_path).resolve()
+        source_readme = (manifest.parent / readme).resolve()
+        try:
+            source_readme.relative_to(root)
+        except ValueError as error:
+            raise CratesReleaseError(
+                f"package README for {name} escapes the workspace: {readme}"
+            ) from error
+        if source_readme.is_symlink() or not source_readme.is_file():
+            raise CratesReleaseError(
+                f"package README for {name} is not a regular file: {source_readme}"
+            )
+        try:
+            source_contents = source_readme.read_bytes()
+            source_contents.decode("utf-8")
+        except (OSError, UnicodeError) as error:
+            raise CratesReleaseError(
+                f"cannot read package README for {name} as UTF-8: {error}"
+            ) from error
+        if not source_contents.strip():
+            raise CratesReleaseError(f"package README for {name} is empty")
         local_dependencies = frozenset(
             dependency["name"]
             for dependency in dependencies
@@ -200,7 +226,7 @@ def discover_workspace(repo_root: Path) -> Workspace:
         packages[name] = WorkspacePackage(
             name=name,
             version=version,
-            manifest_path=Path(manifest_path).resolve(),
+            manifest_path=manifest,
             dependencies=local_dependencies,
         )
 
@@ -316,6 +342,26 @@ def archive_path(workspace: Workspace, package: WorkspacePackage) -> Path:
     )
 
 
+def required_archive_file(
+    package_archive: tarfile.TarFile,
+    archive: Path,
+    member_name: str,
+    label: str,
+) -> bytes:
+    try:
+        member = package_archive.getmember(member_name)
+    except KeyError as error:
+        raise CratesReleaseError(f"{archive} omits {label} {member_name}") from error
+    if not member.isfile():
+        raise CratesReleaseError(
+            f"{archive} {label} is not a regular file: {member_name}"
+        )
+    extracted = package_archive.extractfile(member)
+    if extracted is None:
+        raise CratesReleaseError(f"cannot read {label} {member_name} from {archive}")
+    return extracted.read()
+
+
 def verify_archive(
     archive: Path,
     package: WorkspacePackage,
@@ -323,13 +369,67 @@ def verify_archive(
 ) -> None:
     if not archive.is_file():
         raise CratesReleaseError(f"Cargo did not create {archive}")
-    vcs_member = f"{package.name}-{package.version}/.cargo_vcs_info.json"
+    prefix = f"{package.name}-{package.version}"
+    vcs_member = f"{prefix}/.cargo_vcs_info.json"
+    manifest_member = f"{prefix}/Cargo.toml"
     try:
         with tarfile.open(archive, mode="r:gz") as package_archive:
-            member = package_archive.extractfile(vcs_member)
-            if member is None:
-                raise CratesReleaseError(f"{archive} omits {vcs_member}")
-            vcs_info = load_json(member.read().decode("utf-8"), vcs_member)
+            vcs_contents = required_archive_file(
+                package_archive,
+                archive,
+                vcs_member,
+                "Git provenance file",
+            )
+            vcs_info = load_json(vcs_contents.decode("utf-8"), vcs_member)
+            manifest_contents = required_archive_file(
+                package_archive,
+                archive,
+                manifest_member,
+                "normalized Cargo.toml",
+            )
+            try:
+                manifest = tomllib.loads(manifest_contents.decode("utf-8"))
+            except (UnicodeError, tomllib.TOMLDecodeError) as error:
+                raise CratesReleaseError(
+                    f"cannot parse normalized Cargo.toml in {archive}: {error}"
+                ) from error
+            manifest_package = manifest.get("package")
+            readme = (
+                manifest_package.get("readme")
+                if isinstance(manifest_package, dict)
+                else None
+            )
+            if not isinstance(readme, str) or not readme.strip():
+                raise CratesReleaseError(
+                    f"normalized Cargo.toml in {archive} omits a package README"
+                )
+            readme_path = PurePosixPath(readme)
+            if (
+                readme_path.is_absolute()
+                or not readme_path.parts
+                or ".." in readme_path.parts
+            ):
+                raise CratesReleaseError(
+                    f"normalized Cargo.toml in {archive} has an unsafe README path: "
+                    f"{readme}"
+                )
+            readme_member = f"{prefix}/{readme_path.as_posix()}"
+            readme_contents = required_archive_file(
+                package_archive,
+                archive,
+                readme_member,
+                "package README",
+            )
+            if not readme_contents.strip():
+                raise CratesReleaseError(
+                    f"package README in {archive} is empty: {readme_member}"
+                )
+            try:
+                readme_contents.decode("utf-8")
+            except UnicodeError as error:
+                raise CratesReleaseError(
+                    f"package README in {archive} is not UTF-8: {readme_member}"
+                ) from error
     except (OSError, tarfile.TarError, UnicodeError) as error:
         raise CratesReleaseError(f"cannot inspect {archive}: {error}") from error
 
@@ -337,11 +437,7 @@ def verify_archive(
     if not isinstance(git, dict):
         raise CratesReleaseError(f"{archive} has no Git provenance")
     dirty = git.get("dirty", False)
-    if (
-        git.get("sha1") != source_commit
-        or not isinstance(dirty, bool)
-        or dirty
-    ):
+    if git.get("sha1") != source_commit or not isinstance(dirty, bool) or dirty:
         raise CratesReleaseError(
             f"{archive} is not bound to clean commit {source_commit}: {git}"
         )

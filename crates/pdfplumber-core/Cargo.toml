@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Alpha core types and algorithms for evidence-driven PDF extraction"
 keywords = ["pdf", "table", "text-extraction", "pdfplumber"]
 categories = ["parser-implementations", "text-processing"]

@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
 description = "Alpha CLI for evidence-driven PDF extraction: text, geometry, images, and tables"
 keywords = ["pdf", "cli", "table", "text-extraction"]
 categories = ["command-line-utilities"]
