@@ -1132,7 +1132,7 @@ checksum = "d6790f58c7ff633d8771f42965289203411a5e5c68388703c06e14f24770b41e"
 
 [[package]]
 name = "pdfplumber"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "criterion",
  "lopdf 0.34.0",
@@ -1146,7 +1146,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-cli"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "assert_cmd",
  "clap",
@@ -1159,7 +1159,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-core"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "regex",
  "serde",
@@ -1170,7 +1170,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-parse"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "encoding_rs",
  "lopdf 0.44.0",
@@ -1182,7 +1182,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-py"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "lopdf 0.34.0",
  "pdfplumber",
@@ -1191,7 +1191,7 @@ dependencies = [
 
 [[package]]
 name = "pdfplumber-wasm"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "getrandom 0.4.1",
  "lopdf 0.34.0",

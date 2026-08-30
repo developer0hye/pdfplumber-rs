@@ -26,7 +26,7 @@ The clock starts before `cargo new`. It covers these ordered phases:
 
 1. Create a new binary Cargo project with no repository, lock file, or target
    directory.
-2. Declare the rendered `pdfplumber = "0.4.0"` dependency.
+2. Declare the rendered `pdfplumber = "0.4.1"` dependency.
 3. Copy the rendered program and the searchable `document.pdf` input.
 4. Run one `cargo run --quiet`, which resolves and downloads dependencies,
    builds the candidate and consumer, then executes the program.
@@ -94,7 +94,7 @@ access:
 ```bash
 python3 scripts/measure_rust_ttfv.py \
   --measure \
-  --expected-version 0.4.0 \
+  --expected-version 0.4.1 \
   --output docs/measurements/rust-ttfv-workspace-2026-08-30.json
 python3 scripts/measure_rust_ttfv.py \
   --check docs/measurements/rust-ttfv-workspace-2026-08-30.json

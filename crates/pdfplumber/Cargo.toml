@@ -24,8 +24,8 @@ serde = ["pdfplumber-core/serde"]
 parallel = ["dep:rayon"]
 
 [dependencies]
-pdfplumber-core = { version = "0.4.0", path = "../pdfplumber-core" }
-pdfplumber-parse = { version = "0.4.0", path = "../pdfplumber-parse" }
+pdfplumber-core = { version = "0.4.1", path = "../pdfplumber-core" }
+pdfplumber-parse = { version = "0.4.1", path = "../pdfplumber-parse" }
 rayon = { version = "1.10", optional = true }
 
 [dev-dependencies]

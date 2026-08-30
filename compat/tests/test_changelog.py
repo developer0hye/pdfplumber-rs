@@ -25,6 +25,7 @@ ALLOWED_CHANGE_TYPES = {
     "Security",
 }
 EXPECTED_RELEASES = [
+    ("0.4.1", "2026-08-30"),
     ("0.4.0", "2026-08-30"),
     ("0.3.0", "2026-08-22"),
 ]

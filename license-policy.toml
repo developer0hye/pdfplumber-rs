@@ -3,7 +3,7 @@ spdx_expression = "Apache-2.0"
 license_file = "LICENSE"
 license_sha256 = "b1170ffab5ff33cd411746a6de04917574890bff1d3df9ef3f348d27b78bce72"
 repository = "https://github.com/developer0hye/pdfplumber-rs"
-source_version = "0.4.0"
+source_version = "0.4.1"
 current_since = "0.3.0"
 historical_dual_license_through = "0.2.0"
 

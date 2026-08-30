@@ -4,7 +4,7 @@ Alpha CLI for evidence-driven PDF extraction: text, geometry, images, and tables
 
 **pdfplumber-cli** is the Rust-native CLI frontend for [pdfplumber-rs](https://github.com/developer0hye/pdfplumber-rs). The separate Python package offers an alpha migration path for scoped [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) workflows; the CLI does not claim that command-line contract.
 
-Crate `pdfplumber-cli` installs executable `pdfplumber`. Release `0.4.0` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
+Crate `pdfplumber-cli` installs executable `pdfplumber`. Release `0.4.1` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
 
 ## Installation
 
