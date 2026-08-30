@@ -153,9 +153,10 @@ let settings = TableSettings {
 };
 ```
 
-Complete compiled programs for text, word bounding boxes, tables, page
-geometry, metadata, encrypted and malformed inputs, Serde JSON, and parallel
-page batches are listed in the [task-oriented Rust examples](docs/rust-examples.md).
+Maintained Rust and WebAssembly source examples are grouped in the
+[examples by outcome](docs/examples.md), with surface-specific maturity and run
+commands. Detailed output and safety notes for the compiled Rust programs remain
+in the [task-oriented Rust guide](docs/rust-examples.md).
 
 ### Extract Characters
 
