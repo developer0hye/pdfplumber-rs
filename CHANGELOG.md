@@ -9,6 +9,13 @@ commit list.
 
 ## [Unreleased]
 
+### Added
+
+- **Documentation:** Added a cross-surface examples index organized by user
+  outcome. Every maintained Rust and WebAssembly example now links to its source,
+  checked support-matrix maturity, and runnable entry point without promoting the
+  experimental browser demo to a maintained application.
+
 ## [0.4.0] - 2026-08-30
 
 ### Added

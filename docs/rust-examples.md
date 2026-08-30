@@ -2,7 +2,10 @@
 
 Every example below is a complete fallible program compiled with all features
 on current stable Rust in Continuous Integration. Replace the sample path with
-your own local PDF. Arguments after `--` belong to the example.
+your own local PDF. Arguments after `--` belong to the example. For the public
+cross-surface view and checked maturity labels, start with the
+[examples-by-outcome index](examples.md); this page retains the detailed Rust
+output and safety notes.
 
 ## Extraction and inspection
 
