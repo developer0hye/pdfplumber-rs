@@ -78,6 +78,9 @@ diagnostics, wired versus declarative extraction controls, and host isolation.
 The [encryption and repair guide](encryption-and-repair.md) is the authority for
 password-aware inputs, verified revision limits, permission policy, native
 repair semantics, Ghostscript compatibility, and adapter exposure.
+The [parser and font limitations](parser-and-font-limitations.md) guide records
+the structural and font-resolution behavior beneath this facade, including the
+current Rust-only warning surface and measured compatibility residuals.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

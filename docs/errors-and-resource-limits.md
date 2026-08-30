@@ -96,6 +96,9 @@ particular, the Ghostscript repair subprocess has no timeout, and the Python
 library does not isolate its CPU or memory use. The
 [encryption and repair guide](encryption-and-repair.md) defines the complete
 supported behavior; this page records only failure and resource boundaries.
+The [parser and font limitations](parser-and-font-limitations.md) guide adds the
+current structural recovery, font fallback, warning, and malformed-input
+boundaries that determine whether extraction can continue.
 
 ### No built-in resource budgets
 

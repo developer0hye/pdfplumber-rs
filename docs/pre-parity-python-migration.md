@@ -192,6 +192,9 @@ resource assumption; adapter constructors do not expose Rust budgets.
 Use the [encryption and repair guide](encryption-and-repair.md) to revalidate
 security-handler revisions, password type and failure behavior, permission
 policy, repair ownership and rewriting, and every external-executable boundary.
+Use the [parser and font limitations](parser-and-font-limitations.md) guide to
+revalidate structural recovery, Unicode and metric fallbacks, warnings, exact
+fixture observations, and remaining numeric residuals.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

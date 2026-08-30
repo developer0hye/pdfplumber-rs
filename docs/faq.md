@@ -35,6 +35,9 @@ The current high-level WebAssembly wrapper exposes only passwordless `WasmPdf.op
 The [encryption and repair guide](encryption-and-repair.md) gives the verified
 revision matrix, including the current legacy owner-password extraction gap and
 the empty-user-password edge case.
+The [parser and font limitations](parser-and-font-limitations.md) guide records
+what a successful open does and does not prove, plus current Unicode, metrics,
+warning, and cross-surface limitations.
 
 ## What happens with malformed PDFs?
 

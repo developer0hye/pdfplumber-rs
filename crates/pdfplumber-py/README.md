@@ -152,6 +152,9 @@ error classes and its currently absent resource-budget controls.
 The [encryption and repair guide](../../docs/encryption-and-repair.md) separates
 the pinned security handlers and public repair helper from this adapter's Rust
 password path, Ghostscript integration, and still-missing top-level helper.
+The [parser and font limitations](../../docs/parser-and-font-limitations.md)
+guide separates exact installed-wheel evidence from current parser, font,
+warning, and numeric residuals.
 
 ### Table
 
