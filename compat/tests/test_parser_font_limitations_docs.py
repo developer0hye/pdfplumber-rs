@@ -12,19 +12,10 @@ import tomllib
 REPO_ROOT = Path(__file__).resolve().parents[2]
 GUIDE_PATH = REPO_ROOT / "docs" / "parser-and-font-limitations.md"
 PROVENANCE_PATH = REPO_ROOT / "compat" / "fixture-provenance.toml"
-CHECKSUMS_PATH = REPO_ROOT / "tests" / "fixtures" / "checksums.sha256"
 
 
 def compact(text: str) -> str:
     return " ".join(text.split())
-
-
-def fixture_checksums() -> dict[str, str]:
-    checksums: dict[str, str] = {}
-    for line in CHECKSUMS_PATH.read_text(encoding="utf-8").splitlines():
-        digest, relative_path = line.split(maxsplit=1)
-        checksums[relative_path] = digest
-    return checksums
 
 
 class ParserFontLimitationsDocumentationContractTests(unittest.TestCase):
@@ -35,6 +26,9 @@ class ParserFontLimitationsDocumentationContractTests(unittest.TestCase):
         )
         cls.compact_guide = compact(cls.guide)
         provenance = tomllib.loads(PROVENANCE_PATH.read_text(encoding="utf-8"))
+        cls.fixtures_by_path = {
+            fixture["path"]: fixture for fixture in provenance["fixtures"]
+        }
         cls.external_fixtures = [
             fixture
             for fixture in provenance["fixtures"]
@@ -195,18 +189,17 @@ class ParserFontLimitationsDocumentationContractTests(unittest.TestCase):
             with self.subTest(fixture=fixture["path"], check="guide digest"):
                 self.assertIn(f"`{fixture['sha256']}`", self.guide)
 
-        checksums = fixture_checksums()
         focused_project_fixtures = (
-            "generated/cjk_mixed.pdf",
-            "generated/multi_font.pdf",
-            "real-world/fonts-encoding/special-characters.pdf",
-            "real-world/fonts-encoding/standard-14-fonts.pdf",
+            "tests/fixtures/generated/cjk_mixed.pdf",
+            "tests/fixtures/generated/multi_font.pdf",
+            "tests/fixtures/real-world/fonts-encoding/special-characters.pdf",
+            "tests/fixtures/real-world/fonts-encoding/standard-14-fonts.pdf",
         )
-        for relative_path in focused_project_fixtures:
-            full_path = f"tests/fixtures/{relative_path}"
-            with self.subTest(fixture=full_path):
-                self.assertIn(f"`{full_path}`", self.guide)
-                self.assertIn(f"`{checksums[relative_path]}`", self.guide)
+        for fixture_path in focused_project_fixtures:
+            fixture = self.fixtures_by_path[fixture_path]
+            with self.subTest(fixture=fixture_path):
+                self.assertIn(f"`{fixture_path}`", self.guide)
+                self.assertIn(f"`{fixture['sha256']}`", self.guide)
 
         for statement in (
             "The fixture table is an inventory, not a support matrix",
