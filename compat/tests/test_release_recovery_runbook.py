@@ -62,13 +62,17 @@ class ReleaseRecoveryRunbookTests(unittest.TestCase):
         for github_release_dependency in (
             "publish,",
             "publish-pypi,",
+            "publish-npm,",
+            "postpublish-crates,",
+            "postpublish-pypi,",
+            "postpublish-npm,",
             "cli-binaries,",
             "integrity,",
         ):
             self.assertIn(github_release_dependency, workflow)
         self.assertIn("crates.io", topology)
         self.assertIn("release-artifact integrity gate", topology)
-        self.assertIn("GitHub Release waits for both", topology)
+        self.assertIn("GitHub Release waits for all three", topology)
         self.assertRegex(
             normalized_topology,
             r"(?i)PyPI.*npm.*independent|independent.*PyPI.*npm",

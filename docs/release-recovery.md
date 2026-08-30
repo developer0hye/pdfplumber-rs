@@ -13,12 +13,15 @@ complete.
 
 The crates.io dependency chain is `pdfplumber-core` → `pdfplumber-parse` →
 `pdfplumber` → `pdfplumber-cli`. Both crates.io and PyPI publication wait for
-the shared release-artifact integrity gate; the GitHub Release waits for both
-registries plus the verified artifacts. The PyPI `pdfplumber-rs` and npm
-`pdfplumber-wasm` branches remain independent of crates.io publication and of
+the shared release-artifact integrity gate. The PyPI `pdfplumber-rs` and npm
+`pdfplumber-wasm` publication branches remain independent of crates.io and of
 one another, while npm waits only for the shared Continuous Integration,
-metadata, and scorecard gates. A green or failed job is therefore not proof of
-every registry's state.
+metadata, and scorecard gates. Each publisher has a dependent post-publish installation
+and exact-fixture check against its public registry. The GitHub Release waits for all three
+post-publish checks plus the verified artifacts.
+A failed or skipped public check therefore prevents the GitHub Release, but it
+does not roll back registry records that an independent publisher already
+created.
 
 1. Freeze new publication and cancel the active run with
    `gh run cancel <run-id>`. Record any job that was already in progress.

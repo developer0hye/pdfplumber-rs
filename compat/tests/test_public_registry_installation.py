@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
 import re
 import sys
+import tempfile
 import unittest
 from pathlib import Path
-
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_public_registry_release.py"
@@ -56,17 +59,17 @@ class PublicRegistryInstallationTests(unittest.TestCase):
 
     def test_release_tag_must_match_the_workspace_version_exactly(self) -> None:
         checker = self.require_checker()
-        self.assertEqual(
-            checker.release_version_from_tag("v1.2.3", "1.2.3"), "1.2.3"
-        )
+        self.assertEqual(checker.release_version_from_tag("v1.2.3", "1.2.3"), "1.2.3")
         for tag, workspace_version in (
             ("1.2.3", "1.2.3"),
             ("v1.2.4", "1.2.3"),
             ("vlatest", "1.2.3"),
         ):
-            with self.subTest(tag=tag, workspace_version=workspace_version):
-                with self.assertRaises(checker.PublicRegistryError):
-                    checker.release_version_from_tag(tag, workspace_version)
+            with (
+                self.subTest(tag=tag, workspace_version=workspace_version),
+                self.assertRaises(checker.PublicRegistryError),
+            ):
+                checker.release_version_from_tag(tag, workspace_version)
 
     def test_registry_resolution_is_exact_bounded_and_retried(self) -> None:
         checker = self.require_checker()
@@ -120,26 +123,48 @@ class PublicRegistryInstallationTests(unittest.TestCase):
         self.assertEqual(
             checker.cargo_install_command("1.2.3", root),
             (
-                "cargo", "install", "pdfplumber-cli", "--version", "=1.2.3",
-                "--registry", "crates-io", "--locked", "--root", str(root),
-                "--color", "never",
+                "cargo",
+                "install",
+                "pdfplumber-cli",
+                "--version",
+                "=1.2.3",
+                "--registry",
+                "crates-io",
+                "--locked",
+                "--root",
+                str(root),
+                "--color",
+                "never",
             ),
         )
         self.assertEqual(
             checker.pypi_install_command(python, "1.2.3"),
             (
-                str(python), "-m", "pip", "install",
-                "--disable-pip-version-check", "--no-cache-dir",
-                "--only-binary=:all:", "--index-url",
-                "https://pypi.org/simple", "pdfplumber-rs==1.2.3",
+                str(python),
+                "-m",
+                "pip",
+                "install",
+                "--disable-pip-version-check",
+                "--no-cache-dir",
+                "--only-binary=:all:",
+                "--index-url",
+                "https://pypi.org/simple",
+                "pdfplumber-rs==1.2.3",
             ),
         )
         self.assertEqual(
             checker.npm_install_command("1.2.3"),
             (
-                "npm", "install", "--ignore-scripts", "--no-audit", "--no-fund",
-                "--package-lock=false", "--save-exact", "--registry",
-                "https://registry.npmjs.org", "pdfplumber-wasm@1.2.3",
+                "npm",
+                "install",
+                "--ignore-scripts",
+                "--no-audit",
+                "--no-fund",
+                "--package-lock=false",
+                "--save-exact",
+                "--registry",
+                "https://registry.npmjs.org",
+                "pdfplumber-wasm@1.2.3",
             ),
         )
 
@@ -155,9 +180,17 @@ class PublicRegistryInstallationTests(unittest.TestCase):
         checker = self.require_checker()
         source = CHECKER_PATH.read_text(encoding="utf-8")
         for symbol in (
-            "run_crates_smoke", "run_pypi_smoke", "run_npm_browser_smoke",
-            "cli-release-smoke.toml", "run_browser_consumer",
+            "run_crates_smoke",
+            "run_pypi_smoke",
+            "run_npm_browser_smoke",
+            "cli-release-smoke.toml",
+            "run_browser_consumer",
             "validate_runtime_result",
+            "https://crates.io/api/v1/crates/pdfplumber-cli",
+            "https://registry.npmjs.org/pdfplumber-wasm",
+            "CARGO_HOME",
+            "npm_config_cache",
+            "--porcelain=v1",
         ):
             with self.subTest(symbol=symbol):
                 self.assertIn(symbol, source)
@@ -184,13 +217,48 @@ class PublicRegistryInstallationTests(unittest.TestCase):
             with self.subTest(release_dependency=check_job):
                 self.assertIn(check_job, release)
 
-    def test_public_guide_and_recovery_runbook_describe_partial_publication(self) -> None:
+    def test_identity_failures_are_retained_as_incomplete_evidence(self) -> None:
+        checker = self.require_checker()
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "failed.json"
+            with (
+                mock.patch.object(
+                    checker,
+                    "source_commit",
+                    side_effect=checker.PublicRegistryError("source checkout is dirty"),
+                ),
+                mock.patch("sys.stderr", new=io.StringIO()),
+            ):
+                result = checker.main(
+                    [
+                        "crates",
+                        "--release-tag",
+                        "v0.3.0",
+                        "--output",
+                        str(output),
+                    ]
+                )
+            self.assertEqual(result, 1)
+            evidence = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(evidence["family"], "crates")
+            self.assertEqual(evidence["version"], "0.3.0")
+            self.assertEqual(evidence["outcome"], "failed")
+            self.assertIn("source checkout is dirty", evidence["error"])
+
+    def test_public_guide_and_recovery_runbook_describe_partial_publication(
+        self,
+    ) -> None:
         self.assertTrue(GUIDE_PATH.is_file(), "missing post-publish verification guide")
         guide = GUIDE_PATH.read_text(encoding="utf-8") if GUIDE_PATH.is_file() else ""
         recovery = RECOVERY_PATH.read_text(encoding="utf-8")
         for phrase in (
-            "public registries", "exact version", "GitHub Release", "incomplete",
-            "crates.io", "PyPI", "npm",
+            "public registries",
+            "exact version",
+            "GitHub Release",
+            "incomplete",
+            "crates.io",
+            "PyPI",
+            "npm",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, guide)
