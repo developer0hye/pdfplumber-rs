@@ -55,7 +55,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pdfplumber = "0.3"
+pdfplumber = "0.3.0"
 ```
 
 Only the `pdfplumber` library dependency is required for the first extraction.
@@ -331,7 +331,7 @@ For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [We
 
 ```toml
 [dependencies]
-pdfplumber = { version = "0.3", default-features = false }
+pdfplumber = { version = "0.3.0", default-features = false }
 ```
 
 Use the bytes-based API:

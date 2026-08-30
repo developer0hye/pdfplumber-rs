@@ -315,7 +315,11 @@ def measure(expected_version: str) -> dict[str, Any]:
                 "version": "0.3.0",
                 "result": "compile failure",
                 "reason": "Pdf::open_path is absent from the published release",
-                "disposition": "not counted as passing TTFV; DIST-001 and DIST-007 remain open",
+                "disposition": (
+                    "not counted as passing TTFV; DIST-001 now verifies the "
+                    "candidate package boundary, while DIST-007 remains open for "
+                    "the public registry"
+                ),
             },
         }
     return result

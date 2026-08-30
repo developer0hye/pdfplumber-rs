@@ -19,7 +19,7 @@
     "cargo_lock_sha256": "6f1c05fa0c9643d691d86f0aa0a570dcd5dcbb7a51486979a8f7d5aa29dd90d2",
     "fixture": "tests/fixtures/generated/basic_text.pdf",
     "fixture_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
-    "installation_sha256": "f037163fd5fba99e828fd445e3efe3a0bbad3183102d7a0a163bbcd68eeb4bce",
+    "installation_sha256": "4bcad9707e1569873eea3c51c21423342f0ef9a4f6b3e0eb3bf0ae10eee8da30",
     "quick_start_sha256": "3707334a1937d3de6bf9d23cad50963268a63229b79b26ce0f1bf9a0e8399300"
   },
   "isolation": {
@@ -29,7 +29,7 @@
     "project": "new cargo project",
     "target": "new project-local directory"
   },
-  "measured_at_utc": "2026-08-29T21:32:21Z",
+  "measured_at_utc": "2026-08-30T03:54:19Z",
   "observation": {
     "kind": "automated clean-state lower bound",
     "network": "live crates.io access for transitive dependencies; latency is uncontrolled",
@@ -39,8 +39,8 @@
     "code_copy": 0.0,
     "dependency_declaration": 0.0,
     "interpretation": 0.0,
-    "project_creation": 0.048,
-    "resolve_build_execute": 17.872
+    "project_creation": 0.044,
+    "resolve_build_execute": 79.144
   },
   "registry_trial": {
     "disposition": "not counted as passing TTFV; DIST-001 now verifies the candidate package boundary, while DIST-007 remains open for the public registry",
@@ -53,10 +53,10 @@
   "source": {
     "crate": "pdfplumber",
     "kind": "workspace candidate",
-    "requirement": "[dependencies]\npdfplumber = \"0.3\"",
+    "requirement": "[dependencies]\npdfplumber = \"0.3.0\"",
     "resolved_version": "0.3.0",
     "tree_sha256": "918ab7377a70a5164683ab8ab03c261ee36d262f76a7dfb9bedec3ca33167d6c"
   },
   "threshold_seconds": 300,
-  "total_seconds": 17.921
+  "total_seconds": 79.189
 }

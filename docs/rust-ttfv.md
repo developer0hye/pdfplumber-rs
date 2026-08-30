@@ -1,6 +1,6 @@
 # Rust time to first value
 
-The current-source Rust quick start reached useful extracted text in **18.464
+The current-source Rust quick start reached useful extracted text in **79.189
 seconds**, below the five-minute activation gate. This is a dated, automated
 clean-state observation rather than a universal build-time promise. The exact
 machine-readable result is
@@ -26,7 +26,7 @@ The clock starts before `cargo new`. It covers these ordered phases:
 
 1. Create a new binary Cargo project with no repository, lock file, or target
    directory.
-2. Declare the rendered `pdfplumber = "0.3"` dependency.
+2. Declare the rendered `pdfplumber = "0.3.0"` dependency.
 3. Copy the rendered program and the searchable `document.pdf` input.
 4. Run one `cargo run --quiet`, which resolves and downloads dependencies,
    builds the candidate and consumer, then executes the program.
@@ -61,12 +61,12 @@ Cargo's definitions of project creation, caches, dependency requirements, and
 
 | Phase | Seconds |
 |---|---:|
-| Project creation | 0.048 |
+| Project creation | 0.044 |
 | Dependency declaration | 0.000 |
-| Code and fixture copy | 0.001 |
-| Resolve, download, build, and execute | 18.414 |
+| Code and fixture copy | 0.000 |
+| Resolve, download, build, and execute | 79.144 |
 | Interpret useful output | 0.000 |
-| **Total clock** | **18.464** |
+| **Total clock** | **79.189** |
 | Product gate | 300.000 |
 
 Environment: macOS Darwin 25.6.0 on arm64, `rustc 1.98.0`, and `cargo
