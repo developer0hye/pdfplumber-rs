@@ -28,6 +28,12 @@ PUBLISHABLE_PACKAGES = [
     "pdfplumber",
     "pdfplumber-cli",
 ]
+EXPECTED_READMES = {
+    "pdfplumber-core": "crates/pdfplumber-core/README.md",
+    "pdfplumber-parse": "crates/pdfplumber-parse/README.md",
+    "pdfplumber": "README.md",
+    "pdfplumber-cli": "crates/pdfplumber-cli/README.md",
+}
 
 
 class CratesReleaseGateTests(unittest.TestCase):
@@ -54,6 +60,31 @@ class CratesReleaseGateTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout), PUBLISHABLE_PACKAGES)
+
+    def test_every_publishable_package_declares_its_expected_readme(self) -> None:
+        metadata = json.loads(
+            subprocess.run(
+                ("cargo", "metadata", "--format-version", "1", "--no-deps"),
+                cwd=REPO_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        )
+        packages = {
+            package["name"]: package
+            for package in metadata["packages"]
+            if package["name"] in EXPECTED_READMES
+        }
+        self.assertEqual(set(packages), set(EXPECTED_READMES))
+        for package, relative_readme in EXPECTED_READMES.items():
+            with self.subTest(package=package):
+                expected = (REPO_ROOT / relative_readme).resolve()
+                readme = packages[package].get("readme")
+                manifest_root = Path(packages[package]["manifest_path"]).parent
+                actual = manifest_root / readme if readme else None
+                self.assertEqual(actual.resolve() if actual else None, expected)
+                self.assertGreater(expected.stat().st_size, 0)
 
     def test_checker_rejects_a_non_exact_commit_before_packaging(self) -> None:
         mismatched_commit = "0" * 40
@@ -101,6 +132,51 @@ class CratesReleaseGateTests(unittest.TestCase):
                     package,
                     source_commit,
                 )
+
+    def test_archive_rejects_a_missing_or_empty_declared_readme(self) -> None:
+        source_commit = "4" * 40
+        package = check_crates_release.WorkspacePackage(
+            name="example-package",
+            version="1.2.3",
+            manifest_path=Path("example-package/Cargo.toml"),
+            dependencies=frozenset(),
+        )
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            archive = Path(temporary_directory) / "example-package-1.2.3.crate"
+            prefix = "example-package-1.2.3"
+            vcs_info = json.dumps(
+                {"git": {"sha1": source_commit}, "path_in_vcs": "example-package"}
+            ).encode("utf-8")
+            manifest = b'[package]\nname = "example-package"\nversion = "1.2.3"\nreadme = "README.md"\n'
+
+            def write_archive(readme: bytes | None) -> None:
+                with tarfile.open(archive, mode="w:gz") as package_archive:
+                    for name, contents in (
+                        (f"{prefix}/.cargo_vcs_info.json", vcs_info),
+                        (f"{prefix}/Cargo.toml", manifest),
+                    ):
+                        member = tarfile.TarInfo(name)
+                        member.size = len(contents)
+                        package_archive.addfile(member, io.BytesIO(contents))
+                    if readme is not None:
+                        member = tarfile.TarInfo(f"{prefix}/README.md")
+                        member.size = len(readme)
+                        package_archive.addfile(member, io.BytesIO(readme))
+
+            write_archive(None)
+            with self.assertRaisesRegex(
+                check_crates_release.CratesReleaseError,
+                "README",
+            ):
+                check_crates_release.verify_archive(archive, package, source_commit)
+
+            write_archive(b"")
+            with self.assertRaisesRegex(
+                check_crates_release.CratesReleaseError,
+                "README",
+            ):
+                check_crates_release.verify_archive(archive, package, source_commit)
 
     def test_full_gate_does_not_require_dry_run_to_retain_an_archive(self) -> None:
         source_commit = "2" * 40
@@ -264,6 +340,9 @@ class CratesReleaseGateTests(unittest.TestCase):
             "does not upload",
             "registry-backed verification",
             "DIST-007",
+            "package README",
+            "non-empty",
+            "normalized Cargo.toml",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, guide)
