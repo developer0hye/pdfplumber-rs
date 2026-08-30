@@ -32,7 +32,7 @@ The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.m
 
 Completed release-integrity foundation: `DIST-005`.
 
-Next migration task: [`DOC-013`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality).
+Next migration task: [`DOC-014`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality).
 
 ## Next
 
@@ -42,7 +42,7 @@ After the trust reset, Rust and Python advance toward beta independently. Neithe
 
 Provide a migration guide, prove installed-wheel behavior rather than source-tree behavior, and test the declared operating-system, architecture, and Python-version matrix.
 
-Detailed tasks: [`DOC-014`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality), [`PYAPI-017`](PRD.md#82-p0--python-packaging-and-import-architecture), [`CI-007`](PRD.md#819-p1--continuous-integration-and-release-engineering).
+Detailed tasks: [`DOC-015`](PRD.md#821-p2--documentation-migration-and-ecosystem-quality), [`PYAPI-017`](PRD.md#82-p0--python-packaging-and-import-architecture), [`CI-007`](PRD.md#819-p1--continuous-integration-and-release-engineering).
 
 ### Ship verifiable automation artifacts
 
