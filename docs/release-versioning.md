@@ -15,6 +15,7 @@ root version:
 | Python | Maturin reads the inherited Cargo version because `pyproject.toml` keeps `version` dynamic. Installed tests require the `pdfplumber-rs` distribution metadata and native `_native.__version__` to match. |
 | npm | `wasm-pack` reads the inherited `CARGO_PKG_VERSION`; the packaged `package.json` is checked before publication. |
 | Native modules | Rust exposes `CARGO_PKG_VERSION` as Python and WebAssembly version data. |
+| Cargo lock files | Every tracked `Cargo.lock` records the workspace crates by version, including `benchmarks/adapters/rust/Cargo.lock`, which resolves them as path dependencies. Release jobs build with `--locked`, so a lock left at the previous version fails on the release runner instead of locally. |
 | Documentation | `support-matrix.toml`, `readiness.toml`, `docs/releases/vX.Y.Z.md`, and `docs/readiness/vX.Y.Z.md` are validated against the root selector. |
 | GitHub | The release tag must be exactly `vX.Y.Z` for the root version before publication starts. |
 
@@ -23,7 +24,9 @@ root version:
 1. Change only `[workspace.package].version` as the Cargo package authority.
 2. Update versioned internal dependency requirements needed by crates.io, plus
    the support, readiness, license-policy, changelog, and documentation selectors
-   for the same version. Do not rewrite historical benchmark or scorecard data.
+   for the same version. Regenerate every tracked `Cargo.lock` so each workspace
+   crate is pinned at the new version. Do not rewrite historical benchmark or
+   scorecard data.
 3. Regenerate the support matrix, readiness page, and release notes for the new
    selector.
 4. Run `python3 scripts/check_package_metadata.py --source`,
