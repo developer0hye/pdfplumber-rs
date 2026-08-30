@@ -6,9 +6,14 @@ import re
 import unittest
 from pathlib import Path
 
+import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROADMAP_PATH = REPO_ROOT / "ROADMAP.md"
 PRD_PATH = REPO_ROOT / "PRD.md"
+RELEASE_VERSION = tomllib.loads(
+    (REPO_ROOT / "support-matrix.toml").read_text(encoding="utf-8")
+)["release_version"]
 TASK_LINK_PATTERN = re.compile(
     r"\[`(?P<identifier>[A-Z]+(?:-[A-Z]+)*-[0-9]{3})`\]"
     r"\(PRD\.md#[^)]+\)"
@@ -31,7 +36,7 @@ class PublicRoadmapContractTests(unittest.TestCase):
             ["Now", "Next", "Later"],
         )
         self.assertIn("priorities, not release-date promises", roadmap)
-        self.assertIn("(docs/readiness/v0.3.0.md)", roadmap)
+        self.assertIn(f"(docs/readiness/v{RELEASE_VERSION}.md)", roadmap)
         self.assertIn("(docs/support.md)", roadmap)
         self.assertNotRegex(roadmap, TASK_PATTERN)
 

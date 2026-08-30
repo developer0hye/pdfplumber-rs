@@ -7,7 +7,7 @@ enabled and has the value `pdfplumber-rs/serde-json-v1`.
 
 ## Scope
 
-For every `0.3.x` release, `serde-json-v1` covers values passed directly to
+For every `0.3.x` and `0.4.x` release, `serde-json-v1` covers values passed directly to
 `serde_json::to_value`, `serde_json::to_string`, `serde_json::from_value`, or
 `serde_json::from_str` for all types listed in the
 [curated data-model contract](rust-data-models.md#curated-families). Every one
@@ -66,4 +66,4 @@ green. A future incompatible crate line may retain v1 or introduce a new
 identifier and fixture, but it must preserve the old fixture as historical
 evidence and publish migration notes. Whether that future line continues to
 accept v1 input must be stated explicitly; this policy commits the whole
-`0.3.x` line to both producing and consuming v1.
+`0.3.x` and `0.4.x` lines to both producing and consuming v1.

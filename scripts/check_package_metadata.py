@@ -38,10 +38,24 @@ CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 SURFACE_IDS = ("rust", "python", "cli", "wasm")
 RELEASE_CHANGE_CATEGORIES = (
     "API",
-    "Platform",
-    "Performance",
-    "Migration",
     "Compatibility",
+    "Coordinate systems",
+    "Crop semantics",
+    "Dependencies",
+    "Documentation",
+    "Encryption and repair",
+    "Errors and resource limits",
+    "Migration",
+    "Object dictionaries",
+    "Page numbering",
+    "Parser and fonts",
+    "Performance",
+    "Platform",
+    "Rust extensions",
+    "Table settings",
+    "Tables",
+    "Text options",
+    "Visual debugging",
 )
 VERSION_PATTERN = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+$")
 DESCRIPTION_MARKER = "evidence-driven pdf extraction"

@@ -205,7 +205,7 @@ Review how the proposal can evolve, not only whether it compiles today.
   an existing exhaustive type and call that change free; construction and
   matching behavior change.
 - `ExtractOptions`, `TextOptions`, `WordOptions`, and `TableSettings` are
-  defaultable but expose stable public fields. Adding a field during `0.3.x`
+  defaultable but expose stable public fields. Adding a field during `0.4.x`
   is breaking for callers that use an exhaustive struct literal; `Default`
   does not erase that commitment. A future option family should choose private
   fields plus builders, or `#[non_exhaustive]`, before stabilization when field

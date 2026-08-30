@@ -1,6 +1,6 @@
 //! Curated, stable data models for ordinary extraction workflows.
 //!
-//! This module is the documented model boundary for the `0.3.x` Rust API. It
+//! This module is the documented model boundary for the `0.4.x` Rust API. It
 //! groups the character, word, geometry, table, metadata, warning, and option
 //! types returned by or passed to the high-level [`crate::Pdf`] and
 //! [`crate::Page`] APIs. See the

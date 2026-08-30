@@ -12,6 +12,8 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = REPO_ROOT / "scripts" / "check_public_registry_release.py"
 WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
@@ -19,6 +21,9 @@ GUIDE_PATH = REPO_ROOT / "docs" / "post-publish-verification.md"
 RECOVERY_PATH = REPO_ROOT / "docs" / "release-recovery.md"
 README_PATH = REPO_ROOT / "README.md"
 PRD_PATH = REPO_ROOT / "PRD.md"
+RELEASE_VERSION = tomllib.loads(
+    (REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8")
+)["workspace"]["package"]["version"]
 
 
 def load_checker():
@@ -233,7 +238,7 @@ class PublicRegistryInstallationTests(unittest.TestCase):
                     [
                         "crates",
                         "--release-tag",
-                        "v0.3.0",
+                        f"v{RELEASE_VERSION}",
                         "--output",
                         str(output),
                     ]
@@ -241,7 +246,7 @@ class PublicRegistryInstallationTests(unittest.TestCase):
             self.assertEqual(result, 1)
             evidence = json.loads(output.read_text(encoding="utf-8"))
             self.assertEqual(evidence["family"], "crates")
-            self.assertEqual(evidence["version"], "0.3.0")
+            self.assertEqual(evidence["version"], RELEASE_VERSION)
             self.assertEqual(evidence["outcome"], "failed")
             self.assertIn("source checkout is dirty", evidence["error"])
 
@@ -271,11 +276,17 @@ class PublicRegistryInstallationTests(unittest.TestCase):
     def test_prd_records_the_red_first_partial_claim(self) -> None:
         prd = PRD_PATH.read_text(encoding="utf-8")
         self.assertIn("- [ ] **DIST-007**", prd)
-        self.assertIn("| `DIST-007` | Codex |", prd)
-        self.assertRegex(
-            prd,
-            r"(?s)\| `DIST-007` \| Codex \|.*red-first.*real tagged publication",
+        active_row = next(
+            (
+                line
+                for line in prd.splitlines()
+                if line.startswith("| `DIST-007` | Codex |")
+            ),
+            "",
         )
+        self.assertTrue(active_row, "DIST-007 is not claimed in active work")
+        self.assertIn("red-first", active_row)
+        self.assertIn("real tagged publication", active_row)
 
 
 if __name__ == "__main__":

@@ -172,7 +172,7 @@ jobs:
         run: python scripts/check_doc_quickstarts.py --check
 
       - name: Validate the versioned Rust time-to-first-value result
-        run: python scripts/measure_rust_ttfv.py --check docs/measurements/rust-ttfv-workspace-2026-08-28.json
+        run: python scripts/measure_rust_ttfv.py --check docs/measurements/rust-ttfv-workspace-2026-08-30.json
 
       - name: Validate the PRD checklist and evidence contract
         run: python scripts/check_prd.py

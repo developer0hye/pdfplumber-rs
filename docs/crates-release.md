@@ -88,14 +88,14 @@ python scripts/check_crates_release.py \
 A tagged release runs the complete preflight before any crates.io upload:
 
 ```bash
-python scripts/check_crates_release.py --release-tag v0.3.0
+python scripts/check_crates_release.py --release-tag v0.4.0
 ```
 
 To reproduce the exact registry-resolution probe and bounded retry policy:
 
 ```bash
 python scripts/wait_for_crate_resolution.py pdfplumber-core \
-  --release-tag v0.3.0 --timeout-seconds 300
+  --release-tag v0.4.0 --timeout-seconds 300
 ```
 
 `cargo publish --dry-run` performs Cargo's publish checks but does not upload.

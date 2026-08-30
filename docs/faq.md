@@ -1,9 +1,9 @@
 # Frequently Asked Questions
 
-This page answers recurring questions about the current `0.3.x` alpha. The
+This page answers recurring questions about the current `0.4.x` alpha. The
 [support matrix](support.md) is the source of truth for versions, maturity,
 platform evidence, and known limitations; the versioned
-[readiness snapshot](readiness/v0.3.0.md) names the workflows exercised in required
+[readiness snapshot](readiness/v0.4.0.md) names the workflows exercised in required
 Continuous Integration. Update this page and its contract test whenever those public
 boundaries change.
 
@@ -115,7 +115,7 @@ the 0.3.x alpha as an in-place compatible upgrade.
 
 ## Is the WebAssembly package ready for browser production use?
 
-Treat it as experimental. Repository source is `0.3.0`.
+Treat it as experimental. Repository source is `0.4.0`.
 The observed npm release is `0.2.0`. Required Continuous Integration installs fresh
 bundler and Node.js package archives, type-checks strict consumers, and requires exact
 fixture output in Node.js 24.20.0 and Playwright 1.62.1 Chromium. This one maintained

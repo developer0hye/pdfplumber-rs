@@ -1,7 +1,7 @@
 # Public Rust API documentation contract
 
 This page defines which `pdfplumber` Rust items form the stable generated
-facade during the `0.3.x` line and what “useful rustdoc” means for that facade.
+facade during the `0.4.x` line and what “useful rustdoc” means for that facade.
 It is a documentation contract, not a promise that every public workspace or
 crate-root symbol has the same compatibility status.
 
@@ -39,7 +39,7 @@ decisions explicit before implementation and merge.
 Compatibility aliases marked `#[doc(hidden)]` remain callable during the alpha
 line but are not a second generated facade. Other types and algorithms
 re-exported at the crate root remain source compatible for now, but only the
-families re-exported through `pdfplumber::models` have the stable `0.3.x` model
+families re-exported through `pdfplumber::models` have the stable `0.4.x` model
 commitment.
 
 ## Usefulness requirements

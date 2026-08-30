@@ -1,15 +1,15 @@
 schema_version = 1
-observed_at = "2026-08-26"
-release_version = "0.3.0"
+observed_at = "2026-08-30"
+release_version = "0.4.0"
 rust_policy = "rolling-stable"
 license = "Apache-2.0"
 repository = "https://github.com/developer0hye/pdfplumber-rs"
-release_notes = "docs/releases/v0.3.0.md"
+release_notes = "docs/releases/v0.4.0.md"
 github_prerelease = true
 positioning = "Evidence-driven PDF extraction for Rust, with an alpha Python pdfplumber migration path."
 github_description = "Evidence-driven PDF extraction for Rust, with an alpha Python pdfplumber migration path."
 release_upgrade_guidance = [
-    "Upgrade from Rust `0.2.x` if you need the new text-line, per-axis table, CJK, right-to-left, rotation, tagged-PDF, or malformed-content handling and can accept an alpha API.",
+    "Upgrade from Rust `0.3.0` if you need the new typed-error, input, page-view, data-model, serialization, concurrency, or compatibility fixes and can accept an alpha API.",
     "Evaluate the Python `pdfplumber-rs` package if you are migrating a scoped Python `pdfplumber` v0.11.10 workflow, can validate it against the published compatibility gaps, and will use an isolated environment.",
     "Upgrade the source-built Command-Line Interface if its expanded extraction commands are useful and you do not require prebuilt binaries or stable structured-output schemas.",
     "Do not adopt this release as a complete Python drop-in replacement, a cross-browser or production-ready WebAssembly release, or evidence of a cross-project performance advantage.",
@@ -28,11 +28,25 @@ installed_artifacts = ["wheel", "sdist"]
 explicitly_excluded_versions = ["3.14"]
 
 [release_change_evidence]
-API = "docs/readiness/v0.3.0.md#ready-workflows"
+API = "docs/readiness/v0.4.0.md#ready-workflows"
 Platform = "docs/support.md#surface-summary"
 Performance = "crates/pdfplumber/benches/README.md#benchmark-suite"
 Migration = "docs/support.md#python"
-Compatibility = "docs/readiness/v0.3.0.md#ready-workflows"
+Compatibility = "docs/readiness/v0.4.0.md#ready-workflows"
+"Coordinate systems" = "compat/tests/test_coordinate_system_docs.py"
+"Crop semantics" = "compat/tests/test_crop_semantics_docs.py"
+Dependencies = "compat/tests/test_rust_stable_policy.py"
+Documentation = "compat/tests/test_claim_evidence.py"
+"Encryption and repair" = "compat/tests/test_encryption_repair_docs.py"
+"Errors and resource limits" = "compat/tests/test_error_resource_limit_docs.py"
+"Object dictionaries" = "compat/tests/test_object_dictionary_schema_docs.py"
+"Page numbering" = "compat/tests/test_page_numbering_docs.py"
+"Parser and fonts" = "compat/tests/test_parser_font_limitations_docs.py"
+"Rust extensions" = "compat/tests/test_rust_only_extensions_docs.py"
+"Table settings" = "compat/tests/test_table_settings_docs.py"
+Tables = "compat/tests/test_rust_models.py"
+"Text options" = "compat/tests/test_text_options_docs.py"
+"Visual debugging" = "compat/tests/test_visual_debugging_docs.py"
 
 [[surfaces]]
 id = "rust"
@@ -47,7 +61,7 @@ registry_description = "Alpha evidence-driven PDF extraction for Rust: text, geo
 observed_registry_description = "Extract chars, words, lines, rects, and tables from PDF documents with precise coordinates"
 manifest = "crates/pdfplumber/Cargo.toml"
 manifest_package = "pdfplumber"
-source_version = "0.3.0"
+source_version = "0.4.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
     "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, and verified crates.io candidate archives)",
@@ -69,9 +83,9 @@ features = [
     "Digest-pinned Rust 1.98.0 Bookworm development container for the rendered Rust quick starts and focused contributor tests",
 ]
 known_limitations = [
-    "The 0.3.x API is alpha and may change before the stable contract is complete.",
+    "The 0.4.x API is alpha and may change before the stable contract is complete.",
     "Required CI verifies Ubuntu Linux only; registry installation and other targets are not smoke-tested.",
-    "The current-source Rust quick start passes, but published 0.3.0 predates Pdf::open_path and its recorded cold registry trial fails compilation.",
+    "The 0.4.0 source quick start passes, but the observed public 0.3.0 release predates Pdf::open_path and its recorded cold registry trial fails compilation.",
     "Image-only PDFs require a separate Optical Character Recognition stage.",
 ]
 evidence = [
@@ -88,7 +102,7 @@ evidence = [
     "docs/rust-api-design.md",
     "compat/tests/test_rust_api_design.py",
     "docs/rust-ttfv.md",
-    "docs/measurements/rust-ttfv-workspace-2026-08-28.json",
+    "docs/measurements/rust-ttfv-workspace-2026-08-30.json",
     "compat/tests/test_rust_ttfv.py",
     "docs/crates-release.md",
     "compat/tests/test_crates_release_gate.py",
@@ -119,7 +133,7 @@ registry_description = "Alpha Python migration path for pdfplumber workflows, po
 observed_registry_description = "High-performance PDF text, table, and geometry extraction — Rust-powered Python bindings for pdfplumber-rs"
 manifest = "crates/pdfplumber-py/Cargo.toml"
 manifest_package = "pdfplumber-py"
-source_version = "0.3.0"
+source_version = "0.4.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
     "Ubuntu Linux x86_64 with CPython 3.13 (installed wheel and source distribution)",
@@ -186,7 +200,7 @@ registry_description = "Alpha CLI for evidence-driven PDF extraction: text, geom
 observed_registry_description = "Command-line tool to extract text, characters, words, and tables from PDF documents"
 manifest = "crates/pdfplumber-cli/Cargo.toml"
 manifest_package = "pdfplumber-cli"
-source_version = "0.3.0"
+source_version = "0.4.0"
 registry_version = "0.3.0"
 ci_verified_platforms = [
     "Ubuntu Linux x86_64 with the current stable Rust toolchain (source check, test, verified crates.io candidate archive, and extracted x86_64-unknown-linux-gnu archive smoke)",
@@ -256,7 +270,7 @@ registry_description = "Experimental WebAssembly bindings for evidence-driven PD
 observed_registry_description = "WebAssembly/JavaScript bindings for pdfplumber-rs PDF extraction"
 manifest = "crates/pdfplumber-wasm/Cargo.toml"
 manifest_package = "pdfplumber-wasm"
-source_version = "0.3.0"
+source_version = "0.4.0"
 registry_version = "0.2.0"
 ci_verified_platforms = [
     "Ubuntu Linux x86-64 candidate archives installed and type-checked with TypeScript 7.0.2, executed in Node.js 24.20.0, and bundled with Vite 8.2.2 for Playwright 1.62.1 Chromium execution",
@@ -271,7 +285,7 @@ features = [
 ]
 known_limitations = [
     "The surface is experimental; the prepublication gate covers one maintained Chromium build and does not establish compatibility with every browser.",
-    "The observed npm release is 0.2.0 while the repository source is 0.3.0.",
+    "The observed npm release is 0.2.0 while the repository source is 0.4.0.",
     "Bundle size, startup time, memory, cross-browser behavior, and published-registry installation are independent gates.",
 ]
 evidence = [

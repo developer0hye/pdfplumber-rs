@@ -279,7 +279,7 @@ Rust uses typed structs and idiomatic field names. `Char` and `Annotation` use
 nested `BBox` values; `Line`, `Rect`, `Curve`, `Image`, and `Edge` retain typed
 coordinate fields. Other Rust names include `advance`, `ctm`, `line_width`,
 `stroke_color`, `fill_color`, `src_width`, and `bits_per_component`. Only the
-families named by the curated model table belong to that stable `0.3.x`
+families named by the curated model table belong to that stable `0.4.x`
 boundary; `Image`, `Annotation`, and `Edge` are not silently promoted by this
 guide. The stable model and Serde contracts are documented in
 [Rust data models](rust-data-models.md) and

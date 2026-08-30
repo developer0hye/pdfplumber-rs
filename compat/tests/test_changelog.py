@@ -24,7 +24,10 @@ ALLOWED_CHANGE_TYPES = {
     "Fixed",
     "Security",
 }
-EXPECTED_RELEASES = [("0.3.0", "2026-08-22")]
+EXPECTED_RELEASES = [
+    ("0.4.0", "2026-08-30"),
+    ("0.3.0", "2026-08-22"),
+]
 
 
 class ChangelogContractTests(unittest.TestCase):
@@ -90,14 +93,22 @@ class ChangelogContractTests(unittest.TestCase):
             return
 
         repository = "https://github.com/developer0hye/pdfplumber-rs"
+        latest_version = EXPECTED_RELEASES[0][0]
         self.assertIn(
-            f"[Unreleased]: {repository}/compare/v0.3.0...HEAD",
+            f"[Unreleased]: {repository}/compare/v{latest_version}...HEAD",
             changelog,
         )
-        self.assertIn(
-            f"[0.3.0]: {repository}/compare/v0.2.0...v0.3.0",
-            changelog,
-        )
+        for index, (version, _) in enumerate(EXPECTED_RELEASES):
+            previous = (
+                EXPECTED_RELEASES[index + 1][0]
+                if index + 1 < len(EXPECTED_RELEASES)
+                else "0.2.0"
+            )
+            with self.subTest(version=version):
+                self.assertIn(
+                    f"[{version}]: {repository}/compare/v{previous}...v{version}",
+                    changelog,
+                )
 
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         self.assertIn("[changelog](CHANGELOG.md)", readme)

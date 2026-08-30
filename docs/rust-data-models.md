@@ -7,7 +7,7 @@ items remain available at the crate root for source compatibility.
 
 ## Compatibility scope
 
-For the `0.3.x` line, each curated model's public field name, Rust type, and
+For the `0.4.x` line, each curated model's public field name, Rust type, and
 documented meaning is a compatibility commitment. Removing or changing a
 public field is breaking, and adding a field to a struct that callers can
 construct is also breaking. Removing, renaming, or adding an enum variant is breaking
