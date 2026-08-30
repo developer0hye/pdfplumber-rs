@@ -194,6 +194,9 @@ supplying `--password` with `--repair` currently skips repair.
 The [parser and font limitations](../../docs/parser-and-font-limitations.md)
 guide records structural recovery, font fallbacks, measured fixture evidence,
 and the diagnostics available through the current command-line surface.
+The [Rust-native extensions](../../docs/rust-extensions.md) guide identifies
+which inspection, export, rendering, validation, table-quality, and layout
+capabilities this alpha executable exposes and which remain Rust-only.
 
 ## License
 

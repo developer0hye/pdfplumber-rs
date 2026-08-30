@@ -81,6 +81,9 @@ repair semantics, Ghostscript compatibility, and adapter exposure.
 The [parser and font limitations](parser-and-font-limitations.md) guide records
 the structural and font-resolution behavior beneath this facade, including the
 current Rust-only warning surface and measured compatibility residuals.
+The [Rust-native extensions](rust-extensions.md) guide inventories the facade's
+non-upstream inspection, export, rendering, semantic, table, layout, and
+concurrency families together with their adapter and stability boundaries.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

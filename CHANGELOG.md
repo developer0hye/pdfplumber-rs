@@ -88,6 +88,7 @@ commit list.
 - **Errors and resource limits:** Added a source-bound cross-surface [error and resource-limit guide](docs/errors-and-resource-limits.md) for pinned Python exceptions and warnings, typed Rust diagnostics, exact enforcement and accounting boundaries, declarative-only fields, adapter gaps, and host isolation for untrusted inputs.
 - **Encryption and repair:** Added a source-bound cross-surface [encryption and repair guide](docs/encryption-and-repair.md) for pinned security handlers and Ghostscript behavior, current password revision limits, native repair semantics, permission handling, adapter gaps, and operational isolation.
 - **Parser and fonts:** Added a source-bound cross-surface [parser and font limitations](docs/parser-and-font-limitations.md) guide for structural recovery, Unicode and metric fallbacks, licensed-fixture evidence, numeric residuals, warnings, and adapter boundaries.
+- **Rust extensions:** Added a source-bound [Rust-native extensions](docs/rust-extensions.md) guide covering the current image, document-inspection, rendering, semantic, validation, table, layout, concurrency, Python namespace, Command-Line Interface, and WebAssembly boundaries without promoting extension maturity or compatibility claims.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.

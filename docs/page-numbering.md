@@ -108,6 +108,9 @@ they cannot be confused with upstream-compatible Python behavior. For mixed
 Python calls, the compatibility facade and the Rust-only namespace use different
 bases:
 
+The complete exposure and schema boundary is in the
+[Rust-native extensions](rust-extensions.md) guide.
+
 - `document.rust.bookmarks()` destinations are zero-based;
 - `document.rust.form_fields()` page indexes are zero-based;
 - `document.rust.extract_images(page_index)` accepts a zero-based index.

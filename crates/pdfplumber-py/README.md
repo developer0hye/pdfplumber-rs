@@ -179,6 +179,9 @@ methods. Page indexes and bookmark destinations in this namespace retain the
 Rust API's 0-based convention. The [page-numbering guide](../../docs/page-numbering.md)
 shows how this differs from one-based compatibility page numbers and zero-based
 Python list positions.
+The canonical [Rust-native extensions](../../docs/rust-extensions.md) guide
+adds the complete cross-surface inventory, native dictionary boundaries,
+current unnamespaced exceptions, and still-open stabilization tasks.
 
 | Method | Description |
 |---|---|

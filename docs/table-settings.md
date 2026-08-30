@@ -38,6 +38,9 @@ pipeline object.
 The [visual-debugging guide](visual-debugging.md) defines that image's pinned
 dependencies, rendering, overlay order, colors, mutation, saving, and error
 behavior and keeps it separate from this project's current SVG extension.
+The [Rust-native extensions](rust-extensions.md) guide owns the cross-surface
+inventory for table quality, merged-content normalization, layout, and SVG
+debugging without turning those controls into compatibility settings.
 
 ```python
 from pdfplumber.table import TableSettings

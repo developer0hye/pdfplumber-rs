@@ -148,6 +148,9 @@ operation is exposed by the current WebAssembly wrapper.
 The [parser and font limitations](../../docs/parser-and-font-limitations.md)
 guide records shared extraction behavior and the warning, error, and field
 boundaries of the current WebAssembly wrapper.
+The [Rust-native extensions](../../docs/rust-extensions.md) guide inventories
+the larger native surface and makes explicit which inspection, rendering,
+validation, structure, image-byte, and concurrency APIs are absent here.
 
 ### TypeScript Types
 

@@ -6,6 +6,10 @@ existing API or silently select different extraction semantics. Runtime options
 such as `TextOptions`, `WordOptions`, and `TableSettings` control extraction
 semantics.
 
+The [Rust-native extensions](rust-extensions.md) guide separates compile-time
+features from native-only runtime APIs and records which adapters expose each
+extension family.
+
 ## Public facade features
 
 | Feature | Default | Adds | Does not change |
