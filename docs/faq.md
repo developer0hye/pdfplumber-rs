@@ -25,13 +25,16 @@ or the [Command-Line Interface guide](../crates/pdfplumber-cli/README.md).
 
 ## Can it open password-protected PDFs?
 
-The Rust API accepts user or owner passwords through the matching
+The Rust API accepts passwords through the matching
 `Pdf::open_bytes_with_password`, `Pdf::open_path_with_password`, and
 `Pdf::open_reader_with_password` input family. The Python facade accepts
 `password=`, and applicable Command-Line Interface commands accept `--password`.
 A missing password produces a password-required error and a wrong password
 produces an invalid-password error.
 The current high-level WebAssembly wrapper exposes only passwordless `WasmPdf.open`.
+The [encryption and repair guide](encryption-and-repair.md) gives the verified
+revision matrix, including the current legacy owner-password extraction gap and
+the empty-user-password edge case.
 
 ## What happens with malformed PDFs?
 
@@ -43,6 +46,9 @@ facade, `repair=True` invokes the external Ghostscript executable selected by
 `gs_path` or found on the system path. Repair may still fail for severely damaged
 files, so retain the original input and treat repaired output as data to verify. The
 [privacy statement](privacy.md) documents the child-process and data boundary.
+The [encryption and repair guide](encryption-and-repair.md) defines exact
+Ghostscript arguments and ownership, native repair scope, and the non-composing
+Command-Line Interface flags.
 
 ## Which coordinate system does the project use?
 

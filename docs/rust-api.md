@@ -75,6 +75,9 @@ table-debug SVG, fixed Command-Line Interface overlays, and adapter gaps.
 The [error and resource-limit guide](errors-and-resource-limits.md) is the
 cross-surface authority for Python exceptions and warnings, Rust typed
 diagnostics, wired versus declarative extraction controls, and host isolation.
+The [encryption and repair guide](encryption-and-repair.md) is the authority for
+password-aware inputs, verified revision limits, permission policy, native
+repair semantics, Ghostscript compatibility, and adapter exposure.
 
 Every stable public function returning `Result` must include a `# Errors`
 section. Every stable public function that Clippy can prove may panic must

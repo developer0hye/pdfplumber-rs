@@ -188,6 +188,9 @@ The [error and resource-limit guide](../../docs/errors-and-resource-limits.md)
 documents runtime status, standard-error behavior, the absence of budget and
 timeout flags, and the host controls required for untrusted inputs. `--pages`
 selects output; it is not a parser or resource ceiling.
+The [encryption and repair guide](../../docs/encryption-and-repair.md) documents
+the supported password matrix, native repair scope, and the important rule that
+supplying `--password` with `--repair` currently skips repair.
 
 ## License
 

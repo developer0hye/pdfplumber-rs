@@ -158,6 +158,32 @@ class EncryptionRepairDocumentationContractTests(unittest.TestCase):
             with self.subTest(rust_method=method):
                 self.assertIn(f"pub fn {method}", rust_source)
 
+        repair_source = (REPO_ROOT / "crates/pdfplumber-core/src/repair.rs").read_text(
+            encoding="utf-8"
+        )
+        for field in (
+            "pub rebuild_xref: bool",
+            "pub fix_stream_lengths: bool",
+            "pub remove_broken_objects: bool",
+            "!self.log.is_empty()",
+        ):
+            with self.subTest(repair_contract=field):
+                self.assertIn(field, repair_source)
+
+        backend_source = (
+            REPO_ROOT / "crates/pdfplumber-parse/src/lopdf_backend.rs"
+        ).read_text(encoding="utf-8")
+        for behavior in (
+            "lopdf::Document::load_mem(bytes)",
+            "repair_stream_lengths(&mut doc, &mut result)",
+            "repair_broken_references(&mut doc, &mut result)",
+            "doc.save_to(&mut buf)",
+            "Ok(lopdf::Object::Reference(_))",
+            "lopdf::Object::Null",
+        ):
+            with self.subTest(repair_backend=behavior):
+                self.assertIn(behavior, backend_source)
+
     def test_adapter_security_and_claim_boundaries_remain_explicit(self) -> None:
         for statement in (
             "The Python adapter accepts `password=` on paths and seekable binary streams",
@@ -203,6 +229,33 @@ class EncryptionRepairDocumentationContractTests(unittest.TestCase):
         self.assertGreaterEqual(self.guide.count("```rust"), 2)
         self.assertGreaterEqual(self.guide.count("```console"), 2)
         self.assertNotRegex(self.guide, re.compile(r"\b\d+(?:\.\d+)?%\b"))
+
+        python_init = (
+            REPO_ROOT / "crates/pdfplumber-py/python/pdfplumber/__init__.py"
+        ).read_text(encoding="utf-8")
+        python_repair = (
+            REPO_ROOT / "crates/pdfplumber-py/python/pdfplumber/repair.py"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(python_init.count('__all__ = ["_native"]'), 1)
+        self.assertIn("def _repair(", python_repair)
+        self.assertNotIn("def repair(", python_repair)
+
+        cli_source = (REPO_ROOT / "crates/pdfplumber-cli/src/shared.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn(
+            "If password is provided with repair, fall back to password-only open",
+            cli_source,
+        )
+        self.assertIn("Pdf::open_bytes_with_password", cli_source)
+        self.assertIn("Pdf::open_with_repair", cli_source)
+
+        wasm_source = (REPO_ROOT / "crates/pdfplumber-wasm/src/lib.rs").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("Pdf::open_bytes(data, None)", wasm_source)
+        self.assertNotIn("password", wasm_source)
+        self.assertNotIn("repair", wasm_source)
 
 
 if __name__ == "__main__":

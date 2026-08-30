@@ -7,6 +7,9 @@ a stable uppercase code for logs, metrics, and retry policy.
 The cross-surface [error and resource-limit guide](errors-and-resource-limits.md)
 adds pinned Python behavior, complete Rust budget enforcement status, adapter
 translations, and host-level controls for untrusted inputs.
+The [encryption and repair guide](encryption-and-repair.md) adds the exact
+password-required, invalid-password, unsupported-encryption, Ghostscript, and
+native-repair boundaries that determine recovery policy.
 
 ## Safe default output
 

@@ -247,6 +247,9 @@ extension and the absent Python-adapter and WebAssembly debug surfaces.
 The [error and resource-limit guide](docs/errors-and-resource-limits.md) maps
 pinned Python exceptions, warnings, and unbounded behavior to the typed Rust
 errors and the limits actually enforced by each current surface.
+The [encryption and repair guide](docs/encryption-and-repair.md) records pinned
+security-handler and Ghostscript behavior, current native repair, verified
+password limitations, permission handling, and adapter security boundaries.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

@@ -93,10 +93,9 @@ with warnings.catch_warnings(record=True) as caught:
 `repair=True` invokes Ghostscript before normal opening. In this path, repair
 failures raise plain `Exception` with Ghostscript's standard error text. In
 particular, the Ghostscript repair subprocess has no timeout, and the Python
-library does not isolate its CPU or memory use. The separate
-encryption-and-repair guide under `DOC-013`
-will define supported behavior; this page records only current failure and
-resource boundaries.
+library does not isolate its CPU or memory use. The
+[encryption and repair guide](encryption-and-repair.md) defines the complete
+supported behavior; this page records only failure and resource boundaries.
 
 ### No built-in resource budgets
 
