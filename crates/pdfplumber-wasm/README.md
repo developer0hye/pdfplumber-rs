@@ -145,6 +145,9 @@ resource, warning, password, repair, and timeout controls.
 The [encryption and repair guide](../../docs/encryption-and-repair.md) defines
 the password and repair behavior available elsewhere and records that neither
 operation is exposed by the current WebAssembly wrapper.
+The [parser and font limitations](../../docs/parser-and-font-limitations.md)
+guide records shared extraction behavior and the warning, error, and field
+boundaries of the current WebAssembly wrapper.
 
 ### TypeScript Types
 

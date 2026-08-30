@@ -191,6 +191,9 @@ selects output; it is not a parser or resource ceiling.
 The [encryption and repair guide](../../docs/encryption-and-repair.md) documents
 the supported password matrix, native repair scope, and the important rule that
 supplying `--password` with `--repair` currently skips repair.
+The [parser and font limitations](../../docs/parser-and-font-limitations.md)
+guide records structural recovery, font fallbacks, measured fixture evidence,
+and the diagnostics available through the current command-line surface.
 
 ## License
 

@@ -10,6 +10,9 @@ translations, and host-level controls for untrusted inputs.
 The [encryption and repair guide](encryption-and-repair.md) adds the exact
 password-required, invalid-password, unsupported-encryption, Ghostscript, and
 native-repair boundaries that determine recovery policy.
+The [parser and font limitations](parser-and-font-limitations.md) guide records
+which structural and content failures remain fatal, which fallbacks continue,
+and which warnings are available only through the Rust facade.
 
 ## Safe default output
 

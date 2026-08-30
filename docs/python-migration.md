@@ -155,6 +155,9 @@ adapter gaps, and host controls needed for untrusted documents.
 The [encryption and repair guide](encryption-and-repair.md) gives the pinned and
 current algorithm matrix, password and permission boundaries, Ghostscript and
 native repair contracts, stream ownership, and adapter-specific gaps.
+The [parser and font limitations](parser-and-font-limitations.md) guide gives
+the installed-wheel fixture evidence and current parser, font, warning, and
+numeric boundaries that still require migration checks.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

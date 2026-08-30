@@ -49,6 +49,10 @@ The facade deliberately hides parser event and backend types. That allows the
 parser and algorithm crates to evolve without making every internal decision a
 high-level compatibility promise.
 
+The source-bound [parser and font limitations](parser-and-font-limitations.md)
+guide documents the structural, content-stream, Unicode, metric, warning, and
+cross-surface boundaries behind that separation.
+
 ### Advanced parser boundary
 
 The [`PdfBackend` trait](../crates/pdfplumber-parse/src/backend.rs) abstracts

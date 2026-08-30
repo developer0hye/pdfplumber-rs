@@ -250,6 +250,9 @@ errors and the limits actually enforced by each current surface.
 The [encryption and repair guide](docs/encryption-and-repair.md) records pinned
 security-handler and Ghostscript behavior, current native repair, verified
 password limitations, permission handling, and adapter security boundaries.
+The [parser and font limitations](docs/parser-and-font-limitations.md) guide
+records structural recovery, Unicode and metric fallbacks, fixture evidence,
+numeric residuals, and the narrower guarantees of each current surface.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the
