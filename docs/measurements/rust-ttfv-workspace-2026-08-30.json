@@ -16,10 +16,10 @@
     "rustc": "rustc 1.98.0 (88d9e12ae 2026-08-18)"
   },
   "inputs": {
-    "cargo_lock_sha256": "e54e6b687f5ea465945c632b6a523af738348efac8dfd28d8d3157a84c057327",
+    "cargo_lock_sha256": "2756619987ec780b7d2e31cbe4c0ffcd05cc24a2ce0df48e86b1ee812dc5aeb6",
     "fixture": "tests/fixtures/generated/basic_text.pdf",
     "fixture_sha256": "22b6f9bd4aa388d7e6fb116d45bbe15e6da84c8d23fe20582d857e4b05c809ec",
-    "installation_sha256": "2914d5dc2e5bfc0c381e3ee95cbb6c44de5e58d15a25c4e41e5a79aebd69681e",
+    "installation_sha256": "5b81a3e35cd4149bddeaf2516bcc74db1da9075e85a0367c9adcbf9817396b55",
     "quick_start_sha256": "3707334a1937d3de6bf9d23cad50963268a63229b79b26ce0f1bf9a0e8399300"
   },
   "isolation": {
@@ -29,18 +29,18 @@
     "project": "new cargo project",
     "target": "new project-local directory"
   },
-  "measured_at_utc": "2026-08-30T07:44:11Z",
+  "measured_at_utc": "2026-08-30T13:08:29Z",
   "observation": {
     "kind": "automated clean-state lower bound",
     "network": "live crates.io access for transitive dependencies; latency is uncontrolled",
     "toolchain": "preinstalled rolling stable Rust prerequisite"
   },
   "phases": {
-    "code_copy": 0.001,
-    "dependency_declaration": 0.001,
+    "code_copy": 0.0,
+    "dependency_declaration": 0.0,
     "interpretation": 0.0,
-    "project_creation": 0.082,
-    "resolve_build_execute": 34.844
+    "project_creation": 0.043,
+    "resolve_build_execute": 29.018
   },
   "registry_trial": {
     "disposition": "not counted as passing TTFV; DIST-001 now verifies the candidate package boundary, while DIST-007 remains open for the public registry",
@@ -53,10 +53,10 @@
   "source": {
     "crate": "pdfplumber",
     "kind": "workspace candidate",
-    "requirement": "[dependencies]\npdfplumber = \"0.4.0\"",
-    "resolved_version": "0.4.0",
-    "tree_sha256": "d4cadf104908493f1ba1d31f9cd74e2fd1d314580d8c8dda591df7550a8127e8"
+    "requirement": "[dependencies]\npdfplumber = \"0.4.1\"",
+    "resolved_version": "0.4.1",
+    "tree_sha256": "ad7094e123e7cf705aaade903722b10aef9939fada7254a59ab32355e2447c02"
   },
   "threshold_seconds": 300,
-  "total_seconds": 34.927
+  "total_seconds": 29.061
 }
