@@ -9,10 +9,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from unittest import mock
 
+import tomllib
+
 from scripts import check_doc_quickstarts
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / "scripts/check_doc_quickstarts.py"
+WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
+    "workspace"
+]["package"]["version"]
 
 
 @dataclass(frozen=True)
@@ -27,7 +32,7 @@ SURFACES = {
     "rust": Surface(
         document="README.md",
         installation_language="toml",
-        installation='[dependencies]\npdfplumber = "0.3"',
+        installation=f'[dependencies]\npdfplumber = "{WORKSPACE_VERSION}"',
         quick_start_languages=("rust", "rust", "rust", "rust", "rust"),
     ),
     "python": Surface(

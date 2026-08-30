@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import subprocess
 import sys
 import unittest
@@ -27,6 +28,7 @@ VERSION_GUIDE_PATH = REPO_ROOT / "docs" / "release-versioning.md"
 REFERENCE_INDEX_PATH = REPO_ROOT / "references" / "INDEX.md"
 CI_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
 RELEASE_PATH = REPO_ROOT / ".github" / "workflows" / "release.yml"
+README_PATH = REPO_ROOT / "README.md"
 
 
 def load_toml(path: Path) -> dict[str, object]:
@@ -156,6 +158,30 @@ class ReleaseVersionSyncTests(unittest.TestCase):
         self.assertIn(
             "release-versioning.md",
             REFERENCE_INDEX_PATH.read_text(encoding="utf-8"),
+        )
+
+    def test_readme_crate_requirements_match_the_workspace_release(self) -> None:
+        release_version = load_toml(WORKSPACE_PATH)["workspace"]["package"][
+            "version"
+        ]
+        readme = README_PATH.read_text(encoding="utf-8")
+        cargo_examples = re.findall(r"```toml\n(.*?)```", readme, flags=re.DOTALL)
+        requirements: list[str] = []
+        for cargo_example in cargo_examples:
+            dependency = tomllib.loads(cargo_example).get("dependencies", {}).get(
+                "pdfplumber"
+            )
+            if isinstance(dependency, str):
+                requirements.append(dependency)
+            elif isinstance(dependency, dict) and isinstance(
+                dependency.get("version"), str
+            ):
+                requirements.append(dependency["version"])
+
+        self.assertEqual(
+            requirements,
+            [release_version, release_version],
+            "README must show the exact workspace release in both Cargo examples",
         )
 
     def test_release_helper_and_tag_gate_use_the_workspace_identity(self) -> None:

@@ -13,7 +13,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
+import tomllib
+
 ROOT = Path(__file__).resolve().parents[1]
+WORKSPACE_VERSION = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))[
+    "workspace"
+]["package"]["version"]
 RUST_FIXTURE = ROOT / "tests/fixtures/generated/basic_text.pdf"
 CLI_FIXTURE = ROOT / "tests/fixtures/generated/long_document.pdf"
 PRIMARY_RUST_QUICK_START_MAX_LINES = 15
@@ -33,7 +38,7 @@ SURFACES = {
     "rust": Surface(
         document="README.md",
         installation_language="toml",
-        installation='[dependencies]\npdfplumber = "0.3"',
+        installation=f'[dependencies]\npdfplumber = "{WORKSPACE_VERSION}"',
         quick_start_languages=("rust", "rust", "rust", "rust", "rust"),
     ),
     "python": Surface(

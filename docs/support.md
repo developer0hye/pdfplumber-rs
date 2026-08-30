@@ -101,7 +101,7 @@ A release-configured target is not considered supported or CI-verified until an 
 - Two-subsequent-minor-release deprecation window for the stable Rust facade
 - Source-backed six-crate architecture, extraction flow, cache, and extension guide
 - Required stable-facade API-design review across ownership, allocation, iteration, determinism, errors, extension traits, and compatibility
-- Dated 18.464-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
+- Dated 79.189-second clean-project current-source Rust time-to-first-value observation with an explicit registry boundary
 - Exact-clean-commit cargo package and cargo publish dry-run verification for all four crates.io candidates before tagged publication
 - Bounded exact-version crates.io resolution polling before each dependent package publication
 - Digest-pinned Rust 1.98.0 Bookworm development container for the rendered Rust quick starts and focused contributor tests

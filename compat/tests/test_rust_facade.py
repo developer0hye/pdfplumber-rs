@@ -62,7 +62,10 @@ class RustFacadeContractTests(unittest.TestCase):
 
     def test_clean_consumer_compiles_only_the_pdfplumber_facade_in_ci(self) -> None:
         installation, snippets = quick_starts.surface_snippets("rust")
-        self.assertEqual(installation, '[dependencies]\npdfplumber = "0.3"')
+        self.assertEqual(
+            installation,
+            f'[dependencies]\npdfplumber = "{quick_starts.WORKSPACE_VERSION}"',
+        )
         self.assertTrue(snippets)
         self.assertIn("use pdfplumber::{Pdf, TextOptions};", snippets[0])
 
