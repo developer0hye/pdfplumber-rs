@@ -344,6 +344,15 @@ class CratesReleaseGateTests(unittest.TestCase):
             prd,
         )
         self.assertIn("| `DIST-001` | 2026-08-28 | Codex |", prd)
+        self.assertIn(
+            "- [x] **DIST-017** Include a non-empty, package-appropriate README",
+            prd,
+        )
+        self.assertIn(
+            "| `DIST-017` | 2026-08-30 | Codex | PR #508; merge "
+            "`4514f5dc735b60d8c6218b3d1386c5eec68fc896` |",
+            prd,
+        )
         self.assertIn("Turn compatibility results into a public scorecard", roadmap)
         self.assertIn("`SCORE-010`", roadmap)
         self.assertNotIn(
