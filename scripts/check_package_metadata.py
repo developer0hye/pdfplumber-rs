@@ -103,6 +103,47 @@ def load_toml(path: Path) -> dict[str, Any]:
         raise MetadataError(f"cannot read TOML {path}: {error}") from error
 
 
+# Cargo refuses to update a lock file under `--locked`, so a workspace version
+# bump that leaves any lock behind fails the release runner rather than local
+# development. Skip build outputs and fetched competitor sources: those locks
+# belong to other projects.
+LOCKFILE_SKIPPED_DIRECTORIES = frozenset({".git", ".sources", "target"})
+
+
+def workspace_lockfiles(root: Path) -> list[Path]:
+    """Every Cargo.lock this repository is responsible for keeping current."""
+    discovered: list[Path] = []
+    for lockfile in sorted(root.rglob("Cargo.lock")):
+        parts = lockfile.relative_to(root).parts[:-1]
+        if LOCKFILE_SKIPPED_DIRECTORIES.intersection(parts):
+            continue
+        discovered.append(lockfile)
+    return discovered
+
+
+def check_lockfile_versions(
+    root: Path,
+    internal_names: set[str],
+    version: str,
+) -> None:
+    """Require every locked workspace crate to match the release version."""
+    for lockfile in workspace_lockfiles(root):
+        relative = lockfile.relative_to(root).as_posix()
+        packages = load_toml(lockfile).get("package", [])
+        require(isinstance(packages, list), f"{relative} package list is missing")
+        for entry in packages:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name")
+            if name not in internal_names:
+                continue
+            locked = entry.get("version")
+            require(
+                locked == version,
+                f"{relative} pins {name} {locked} != workspace {version}",
+            )
+
+
 def repository_path(value: str, context: str) -> Path:
     relative = Path(value)
     require(
@@ -718,6 +759,12 @@ def check_source(matrix: dict[str, Any], release: ReleaseIdentity) -> None:
                         f"{relative} dependency {dependency} version "
                         f"{requirement} != workspace {release.version}",
                     )
+
+    check_lockfile_versions(
+        REPO_ROOT,
+        {name for name in internal_names if isinstance(name, str)},
+        release.version,
+    )
 
     rust = surfaces["rust"]
     rust_manifest = load_toml(repository_path(rust["manifest"], "Rust manifest"))

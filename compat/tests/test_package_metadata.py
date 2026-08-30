@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import ModuleType
 
 import tomllib
 
@@ -19,6 +21,46 @@ RELEASE_VERSION = tomllib.loads(WORKSPACE_PATH.read_text(encoding="utf-8"))[
 ]["package"]["version"]
 RELEASE_TAG = f"v{RELEASE_VERSION}"
 RELEASE_NOTES_PATH = REPO_ROOT / "docs" / "releases" / f"{RELEASE_TAG}.md"
+
+
+def load_checker() -> ModuleType | None:
+    if not CHECKER_PATH.is_file():
+        return None
+    spec = importlib.util.spec_from_file_location(
+        "check_package_metadata", CHECKER_PATH
+    )
+    if spec is None or spec.loader is None:
+        return None
+    module = importlib.util.module_from_spec(spec)
+    scripts_directory = str(CHECKER_PATH.parent)
+    sys.path.insert(0, scripts_directory)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.path.remove(scripts_directory)
+    return module
+
+
+def tracked_lockfiles() -> list[Path]:
+    listing = subprocess.run(
+        ["git", "ls-files", "*Cargo.lock"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return [REPO_ROOT / line for line in listing.stdout.split() if line]
+
+
+def workspace_member_names() -> set[str]:
+    workspace = tomllib.loads(WORKSPACE_PATH.read_text(encoding="utf-8"))
+    names: set[str] = set()
+    for member in workspace["workspace"]["members"]:
+        manifest = tomllib.loads(
+            (REPO_ROOT / member / "Cargo.toml").read_text(encoding="utf-8")
+        )
+        names.add(manifest["package"]["name"])
+    return names
 
 
 class PackageMetadataContractTests(unittest.TestCase):
@@ -224,6 +266,75 @@ class PackageMetadataContractTests(unittest.TestCase):
         ):
             with self.subTest(github_release_dependency=release_dependency):
                 self.assertIn(release_dependency, release)
+
+    def test_every_tracked_lockfile_pins_the_release_version(self) -> None:
+        """A stale lock fails the `--locked` builds the release pipeline runs.
+
+        The competitor benchmark adapter resolves the workspace crates by path,
+        so a version bump that leaves its lock behind only surfaces on the
+        release runner, after the tag is already published.
+        """
+        internal_names = workspace_member_names()
+        lockfiles = tracked_lockfiles()
+        self.assertTrue(lockfiles, "no tracked Cargo.lock files were found")
+
+        for lockfile in lockfiles:
+            locked = tomllib.loads(lockfile.read_text(encoding="utf-8"))
+            relative = lockfile.relative_to(REPO_ROOT).as_posix()
+            for entry in locked.get("package", []):
+                if entry.get("name") not in internal_names:
+                    continue
+                with self.subTest(lockfile=relative, package=entry["name"]):
+                    self.assertEqual(entry.get("version"), RELEASE_VERSION)
+
+    def test_metadata_checker_rejects_lockfile_version_drift(self) -> None:
+        checker = load_checker()
+        self.assertIsNotNone(checker, "missing package metadata checker")
+        if checker is None:
+            return
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "Cargo.lock").write_text(
+                '[[package]]\nname = "pdfplumber"\nversion = "1.2.3"\n\n'
+                '[[package]]\nname = "serde"\nversion = "1.0.0"\n',
+                encoding="utf-8",
+            )
+
+            checker.check_lockfile_versions(root, {"pdfplumber"}, "1.2.3")
+
+            with self.assertRaises(checker.MetadataError) as drifted:
+                checker.check_lockfile_versions(root, {"pdfplumber"}, "4.5.6")
+            self.assertIn("Cargo.lock", str(drifted.exception))
+            self.assertIn("1.2.3", str(drifted.exception))
+
+            # An external package at an unrelated version is not a workspace
+            # crate and must never be rewritten to the release version.
+            checker.check_lockfile_versions(root, {"absent-crate"}, "9.9.9")
+
+    def test_lockfile_discovery_covers_nested_builds_and_skips_vendored_trees(
+        self,
+    ) -> None:
+        checker = load_checker()
+        self.assertIsNotNone(checker, "missing package metadata checker")
+        if checker is None:
+            return
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            expected = {
+                root / "Cargo.lock",
+                root / "benchmarks" / "adapters" / "rust" / "Cargo.lock",
+            }
+            ignored = {
+                root / "target" / "Cargo.lock",
+                root / "benchmarks" / "adapters" / ".sources" / "dep" / "Cargo.lock",
+            }
+            for lockfile in expected | ignored:
+                lockfile.parent.mkdir(parents=True, exist_ok=True)
+                lockfile.write_text("version = 4\n", encoding="utf-8")
+
+            self.assertEqual(set(checker.workspace_lockfiles(root)), expected)
 
 
 if __name__ == "__main__":
