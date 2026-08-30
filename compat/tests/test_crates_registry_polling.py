@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 import math
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -26,6 +27,15 @@ def load_poller() -> ModuleType | None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def workflow_job(document: str, name: str) -> str:
+    match = re.search(
+        rf"^  {re.escape(name)}:\n(?P<body>.*?)(?=^  [a-z][a-z0-9-]*:\n|\Z)",
+        document,
+        re.MULTILINE | re.DOTALL,
+    )
+    return "" if match is None else match.group(0)
 
 
 class FakeClock:
@@ -196,9 +206,8 @@ class CratesRegistryPollingTests(unittest.TestCase):
         self,
     ) -> None:
         workflow = RELEASE_PATH.read_text(encoding="utf-8")
-        publish_start = workflow.index("\n  publish:")
-        publish_end = workflow.index("\n  release:", publish_start)
-        publish_job = workflow[publish_start:publish_end]
+        publish_job = workflow_job(workflow, "publish")
+        self.assertTrue(publish_job, "missing crates.io publish job")
 
         self.assertNotIn("sleep 30", publish_job)
         self.assertNotIn("run: sleep", publish_job)

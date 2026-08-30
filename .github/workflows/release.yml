@@ -144,6 +144,32 @@ jobs:
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.crates-io-auth.outputs.token }}
 
+  postpublish-crates:
+    name: Install and smoke-test the public crates.io release
+    needs: [publish, metadata]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install the exact public CLI and assert fixture output
+        run: >-
+          python scripts/check_public_registry_release.py crates
+          --release-tag "$GITHUB_REF_NAME"
+          --timeout-seconds 600
+          --output dist/postpublish-crates.json
+
+      - name: Retain crates.io installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postpublish-crates-${{ github.sha }}
+          path: dist/postpublish-crates.json
+          if-no-files-found: warn
+
   # ── PyPI (maturin wheels + sdist) ──────────────────────────
 
   publish-pypi:
@@ -167,12 +193,43 @@ jobs:
         with:
           packages-dir: release-python/subjects
 
+  postpublish-pypi:
+    name: Install and smoke-test the public PyPI release
+    needs: [publish-pypi, metadata]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install the exact public wheel and assert fixture output
+        run: >-
+          python scripts/check_public_registry_release.py pypi
+          --release-tag "$GITHUB_REF_NAME"
+          --timeout-seconds 600
+          --output dist/postpublish-pypi.json
+
+      - name: Retain PyPI installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postpublish-pypi-${{ github.sha }}
+          path: dist/postpublish-pypi.json
+          if-no-files-found: warn
+
   release:
     name: GitHub Release
     needs:
       [
         publish,
         publish-pypi,
+        publish-npm,
+        postpublish-crates,
+        postpublish-pypi,
+        postpublish-npm,
         metadata,
         scorecards,
         cli-binaries,
@@ -256,3 +313,38 @@ jobs:
 
       - name: Publish to npm
         run: npm publish crates/pdfplumber-wasm/pkg --access public
+
+  postpublish-npm:
+    name: Install and smoke-test the public npm release
+    needs: [publish-npm, metadata]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.20.0"
+          cache: npm
+          cache-dependency-path: compat/wasm-package-tests/package-lock.json
+
+      - name: Install the locked TypeScript and browser test tools
+        run: npm ci --prefix compat/wasm-package-tests --ignore-scripts
+
+      - name: Install the maintained Chromium runner
+        run: npx --prefix compat/wasm-package-tests playwright install --with-deps chromium
+
+      - name: Install the exact public package and assert browser fixture output
+        run: >-
+          python scripts/check_public_registry_release.py npm
+          --release-tag "$GITHUB_REF_NAME"
+          --timeout-seconds 600
+          --output dist/postpublish-npm.json
+
+      - name: Retain npm installation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: postpublish-npm-${{ github.sha }}
+          path: dist/postpublish-npm.json
+          if-no-files-found: warn
