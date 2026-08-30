@@ -1787,7 +1787,7 @@ Until `scripts/check_prd.py` supports a multi-file registry with integrity check
 - [x] **DOC-014** Document parser/font limitations with fixture references.
 - [x] **DOC-015** Document Rust-only extensions in a separate section.
 - [x] **DOC-016** Ensure README architecture lists all six workspace crates, not only three.
-- [ ] **DOC-017** Fix stale crate-version examples in README.
+- [x] **DOC-017** Fix stale crate-version examples in README.
 - [ ] **DOC-018** Generate Python API reference documentation from the compatibility shim and type stubs.
 - [ ] **DOC-019** Generate Rust API documentation with parity notes where names differ.
 - [ ] **DOC-020** Add runnable examples to CI.
