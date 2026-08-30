@@ -77,7 +77,7 @@
 //! [`models`] is the curated data-model boundary for ordinary extraction.
 //! Its [contract](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-data-models.md)
 //! documents units, coordinate origins, ordering, optional fields, and the
-//! compatibility scope for the `0.3.x` line. Root re-exports remain available
+//! compatibility scope for the `0.4.x` line. Root re-exports remain available
 //! for source compatibility. With the optional `serde` feature, the curated
 //! models follow the separate
 //! [Serde JSON compatibility policy](https://github.com/developer0hye/pdfplumber-rs/blob/main/docs/rust-serde-schema.md).

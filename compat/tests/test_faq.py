@@ -13,6 +13,9 @@ FAQ_PATH = REPO_ROOT / "docs" / "faq.md"
 README_PATH = REPO_ROOT / "README.md"
 MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
+MATRIX = tomllib.loads(MATRIX_PATH.read_text(encoding="utf-8"))
+RELEASE_VERSION = MATRIX["release_version"]
+WASM = next(surface for surface in MATRIX["surfaces"] if surface["id"] == "wasm")
 
 EXPECTED_QUESTIONS = [
     "Does pdfplumber-rs support scanned or image-only PDFs?",
@@ -99,8 +102,8 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
             ),
             EXPECTED_QUESTIONS[6]: (
                 "experimental",
-                "source is `0.3.0`",
-                "npm release is `0.2.0`",
+                f"source is `{WASM['source_version']}`",
+                f"npm release is `{WASM['registry_version']}`",
                 "Node.js 24.20.0",
                 "Playwright 1.62.1 Chromium",
                 "does not establish cross-browser or production support",
@@ -117,7 +120,7 @@ class FrequentlyAskedQuestionsContractTests(unittest.TestCase):
         faq = self.faq()
         for link in (
             "[support matrix](support.md)",
-            "[readiness snapshot](readiness/v0.3.0.md)",
+            f"[readiness snapshot](readiness/v{RELEASE_VERSION}.md)",
             "[Rust examples](../README.md#quick-start)",
             "[Python guide](../crates/pdfplumber-py/README.md)",
             "[Command-Line Interface guide](../crates/pdfplumber-cli/README.md)",

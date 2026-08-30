@@ -11,8 +11,9 @@ from pathlib import Path
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-RELEASE_NOTES_PATH = REPO_ROOT / "docs" / "releases" / "v0.3.0.md"
 SUPPORT_MATRIX_PATH = REPO_ROOT / "support-matrix.toml"
+SUPPORT_MATRIX = tomllib.loads(SUPPORT_MATRIX_PATH.read_text(encoding="utf-8"))
+RELEASE_NOTES_PATH = REPO_ROOT / SUPPORT_MATRIX["release_notes"]
 CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 GENERATOR_PATH = REPO_ROOT / "scripts" / "generate_release_notes.py"
 REQUIRED_SECTIONS = (
@@ -64,10 +65,11 @@ class ReleaseNoteContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.notes = RELEASE_NOTES_PATH.read_text(encoding="utf-8")
-        cls.matrix = tomllib.loads(SUPPORT_MATRIX_PATH.read_text(encoding="utf-8"))
+        cls.matrix = SUPPORT_MATRIX
 
     def test_required_sections_are_present_once_and_in_order(self) -> None:
-        self.assertTrue(self.notes.startswith("# v0.3.0 release notes\n"))
+        version = self.matrix["release_version"]
+        self.assertTrue(self.notes.startswith(f"# v{version} release notes\n"))
         self.assertEqual(
             re.findall(r"^## (.+)$", self.notes, re.MULTILINE),
             list(REQUIRED_SECTIONS),
@@ -125,16 +127,29 @@ class ReleaseNoteContractTests(unittest.TestCase):
                 self.assertIn(f"`{surface['registry_version']}`", artifacts)
                 self.assertIn(surface["ci_verified_platforms"][0], artifacts)
 
-        self.assertIn("Not published for this release", artifacts)
-        self.assertIn("Published for this release", artifacts)
+                expected_state = (
+                    "Published for this release"
+                    if surface["source_version"] == surface["registry_version"]
+                    else "Not published for this release"
+                )
+                self.assertIn(expected_state, artifacts)
 
     def test_evidence_links_are_versioned_and_release_workflow_keeps_them(self) -> None:
         evidence = markdown_section(self.notes, "Evidence")
         repository_files = f"{self.matrix['repository']}/blob/main"
+        version = self.matrix["release_version"]
+        release_match = re.search(
+            rf"^## \[{re.escape(version)}\] - (?P<date>\d{{4}}-\d{{2}}-\d{{2}})$",
+            CHANGELOG_PATH.read_text(encoding="utf-8"),
+            re.MULTILINE,
+        )
+        self.assertIsNotNone(release_match)
+        assert release_match is not None
+        changelog_anchor = f"{version.replace('.', '')}---{release_match['date']}"
         for link in (
-            f"[Changelog]({repository_files}/CHANGELOG.md#030---2026-08-22)",
+            f"[Changelog]({repository_files}/CHANGELOG.md#{changelog_anchor})",
             f"[Support matrix]({repository_files}/docs/support.md)",
-            f"[Readiness snapshot]({repository_files}/docs/readiness/v0.3.0.md)",
+            f"[Readiness snapshot]({repository_files}/docs/readiness/v{version}.md)",
             f"[Evidence ledger]({repository_files}/PRD.md#13-evidence-ledger)",
             f"[Continuous Integration gates]({repository_files}/.github/workflows/ci.yml)",
             f"[Release workflow]({repository_files}/.github/workflows/release.yml)",

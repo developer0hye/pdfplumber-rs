@@ -2,13 +2,13 @@
 
 This roadmap is the public, outcome-level sequence for `pdfplumber-rs`. Horizons describe priorities, not release-date promises. Work moves forward only when its tests and evidence gates pass.
 
-For capabilities available in release `0.3.0`, use the versioned [“What is ready today?” snapshot](docs/readiness/v0.3.0.md). Exact maturity, tested platforms, versions, features, and limitations are in the [generated support matrix](docs/support.md).
+For capabilities available in release `0.4.0`, use the versioned [“What is ready today?” snapshot](docs/readiness/v0.4.0.md). Exact maturity, tested platforms, versions, features, and limitations are in the [generated support matrix](docs/support.md).
 
 The detailed [PRD](PRD.md) remains the authoritative task registry and evidence ledger. This page deliberately selects only the work that best explains the product direction; it is not a copy of the full compatibility backlog. Completing a linked task does not automatically change a surface's maturity.
 
 ## Now
 
-The current focus is making the `0.3.x` alpha release easy to evaluate and hard to misunderstand.
+The current focus is making the `0.4.x` alpha release easy to evaluate and hard to misunderstand.
 
 ### Turn compatibility results into a public scorecard
 

@@ -4,7 +4,7 @@ Alpha Python migration path for `pdfplumber` workflows, powered by evidence-driv
 
 `pdfplumber-rs` is an alpha migration implementation targeting scoped [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) workflows via [PyO3](https://pyo3.rs). Compatibility is incomplete, so validate your workflow against the published gaps instead of treating it as a complete drop-in replacement. The Rust extension is installed as the private `pdfplumber._native` submodule so the public package can provide a Python compatibility layer separately.
 
-Distribution `pdfplumber-rs` installs import package `pdfplumber` and native module `pdfplumber._native`. Release `0.3.0` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
+Distribution `pdfplumber-rs` installs import package `pdfplumber` and native module `pdfplumber._native`. Release `0.4.0` is alpha, uses the `Apache-2.0` license, and comes from `https://github.com/developer0hye/pdfplumber-rs`.
 
 The current-source policy for the next release supports exactly CPython 3.13.
 Both the wheel and source distribution are installed and executed in required

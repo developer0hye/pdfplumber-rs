@@ -374,7 +374,10 @@ def check_result(path: Path) -> dict[str, Any]:
     )
     require(source.get("crate") == "pdfplumber", "measured crate drift")
     require(source.get("requirement") == installation, "installation snippet drift")
-    require(bool(source.get("resolved_version")), "resolved version is absent")
+    require(
+        source.get("resolved_version") == candidate_version(),
+        "resolved candidate version drift",
+    )
     require(
         source.get("tree_sha256") == candidate_source_sha256(),
         "candidate source digest drift",

@@ -8,10 +8,12 @@ import sys
 import unittest
 from pathlib import Path
 
+import tomllib
+
 ROOT = Path(__file__).resolve().parents[2]
 TOOL = ROOT / "scripts/measure_rust_ttfv.py"
 GUIDE = ROOT / "docs/rust-ttfv.md"
-RESULT = ROOT / "docs/measurements/rust-ttfv-workspace-2026-08-28.json"
+RESULT = ROOT / "docs/measurements/rust-ttfv-workspace-2026-08-30.json"
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 WORKFLOW = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
 SUPPORT_SOURCE = (ROOT / "support-matrix.toml").read_text(encoding="utf-8")
@@ -19,6 +21,9 @@ CHANGELOG = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 ROADMAP = (ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 PRD = (ROOT / "PRD.md").read_text(encoding="utf-8")
 REFERENCE_INDEX = (ROOT / "references/INDEX.md").read_text(encoding="utf-8")
+RELEASE_VERSION = tomllib.loads(
+    (ROOT / "Cargo.toml").read_text(encoding="utf-8")
+)["workspace"]["package"]["version"]
 
 
 class RustTtfvContractTests(unittest.TestCase):
@@ -88,7 +93,7 @@ class RustTtfvContractTests(unittest.TestCase):
 
         self.assertEqual(result["source"]["kind"], "workspace candidate")
         self.assertEqual(result["source"]["crate"], "pdfplumber")
-        self.assertEqual(result["source"]["resolved_version"], "0.3.0")
+        self.assertEqual(result["source"]["resolved_version"], RELEASE_VERSION)
         self.assertRegex(result["source"]["tree_sha256"], r"^[0-9a-f]{64}$")
         self.assertEqual(result["isolation"]["project"], "new cargo project")
         self.assertEqual(result["isolation"]["cargo_home"], "empty temporary directory")
@@ -114,7 +119,7 @@ class RustTtfvContractTests(unittest.TestCase):
 
         self.assertIn("## Clock boundary", guide)
         self.assertIn("## Reproduce", guide)
-        self.assertIn("rust-ttfv-workspace-2026-08-28.json", guide)
+        self.assertIn("rust-ttfv-workspace-2026-08-30.json", guide)
         self.assertRegex(normalized, r"(?i)starts before.*cargo new")
         self.assertRegex(normalized, r"(?i)stops after.*interpret")
         self.assertRegex(normalized, r"(?i)stable Rust.*prerequisite")
@@ -145,7 +150,7 @@ class RustTtfvContractTests(unittest.TestCase):
         self.assertIn("python scripts/measure_rust_ttfv.py --check", WORKFLOW)
         self.assertIn("docs/rust-ttfv.md", SUPPORT_SOURCE)
         self.assertIn(
-            "docs/measurements/rust-ttfv-workspace-2026-08-28.json",
+            "docs/measurements/rust-ttfv-workspace-2026-08-30.json",
             SUPPORT_SOURCE,
         )
         self.assertIn("compat/tests/test_rust_ttfv.py", SUPPORT_SOURCE)

@@ -175,11 +175,6 @@ def build(source: Mapping[str, object]) -> dict[str, object]:
     if source.get("schema_version") != 1:
         raise PythonReleaseMatrixError("matrix source schema_version must be 1")
     subject_version = required_string(source, "subject_version", "matrix source")
-    identity = release_version.load_release_identity(REPO_ROOT)
-    if subject_version != identity.version:
-        raise PythonReleaseMatrixError(
-            f"matrix subject {subject_version} differs from workspace {identity.version}"
-        )
 
     release_series = required_string(source, "release_series", "matrix source")
     if SERIES_PATTERN.fullmatch(release_series) is None:

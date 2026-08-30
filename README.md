@@ -11,22 +11,22 @@
 Use the Rust crate to extract text, words, coordinates, graphics, images, and tables from machine-generated PDFs. The Python package uses the same Rust core and targets ordinary [Python `pdfplumber`](https://github.com/jsvine/pdfplumber) v0.11.10 workflows.
 [Surface evidence](docs/support.md#features-and-known-limitations) records the exact features and boundaries behind those claims.
 
-**Maturity: `0.3.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement. See the [maturity evidence](docs/support.md#surface-summary).
+**Maturity: `0.4.x` alpha.** The Rust extraction API is available today. Python compatibility is incomplete and is not yet a full drop-in replacement. See the [maturity evidence](docs/support.md#surface-summary).
 
-**Release `0.3.0`.** Rust crate `pdfplumber` (import `pdfplumber`) is alpha. Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha. CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha. The npm package `pdfplumber-wasm` is experimental. Every surface uses the `Apache-2.0` license and the canonical repository `https://github.com/developer0hye/pdfplumber-rs`; see the [versioned release notes](docs/releases/v0.3.0.md), [support evidence](docs/support.md#surface-summary), and [release recovery runbook](docs/release-recovery.md).
+**Release `0.4.0`.** Rust crate `pdfplumber` (import `pdfplumber`) is alpha. Python distribution `pdfplumber-rs` (import `pdfplumber`) is alpha. CLI crate `pdfplumber-cli` installs `pdfplumber` and is alpha. The npm package `pdfplumber-wasm` is experimental. Every surface uses the `Apache-2.0` license and the canonical repository `https://github.com/developer0hye/pdfplumber-rs`; see the [versioned release notes](docs/releases/v0.4.0.md), [support evidence](docs/support.md#surface-summary), and [release recovery runbook](docs/release-recovery.md).
 
 Compatibility work is checked against the pinned upstream release on an [indexed corpus of 223 PDFs](compat/tests/test_corpus_index.py). The [compatibility terminology contract](docs/compatibility/terms.md) defines the exact scope of “compatible,” “extension,” and “approved deviation.” The versioned [Python-release compatibility matrix](docs/compatibility/python-release-matrix-v0.3.0.md) keeps evidence separate for each exact upstream release and leaves unexecuted releases explicitly untested. The versioned [machine-readable compatibility scorecard](docs/compatibility/scorecard-v0.3.0.json) exposes results by API, option, fixture class, page, platform, and artifact type, including indexed fixtures and artifact cells that were not tested. Its generated [human workflow scorecard](docs/compatibility/workflows-v0.3.0.md) groups the same evidence into open, text, words, crop, search, tables, serialization, annotations, structure, rendering, and Command-Line Interface workflows without a success percentage. A separate [redistributable benchmark corpus](docs/benchmarks/corpus-v0.3.0.md) defines exact inputs, its [output-equivalence preflight](docs/benchmarks/equivalence-v0.3.0.md) rejects semantic, schema, fixture, or canonical-output mismatches before timing, and the [pinned competitor suite](docs/benchmarks/competitors-v0.3.0.md) runs only overlapping document-open and text requests. The [separated stage suite](docs/benchmarks/stages-v0.3.0.md) gives document open, page materialization, character extraction, word grouping, table detection, serialization, and PyO3 conversion independent in-adapter clocks after the same exact-output gate. The [resource and artifact suite](docs/benchmarks/metrics-v0.3.0.md) adds separate stage CPU/allocation observations, explicitly process-lifetime peak memory, attributable native and WebAssembly sizes, and fresh-process WebAssembly startup semantics without contaminating wall clocks. The [workload-scenario suite](docs/benchmarks/scenarios-v0.3.0.md) distinguishes fresh versus warmed process state, live-page cache hits, matched single-page/full-document scopes, and a bounded ordered parallel page batch. The [run-provenance contract](docs/benchmarks/provenance-v0.3.0.md) binds clean source, host hardware, toolchains, build flags, dependency locks, built artifacts, fixture hashes, exact commands, five raw repetitions, and deterministic descriptive summaries. The versioned [benchmark result assets](docs/benchmarks/results-v0.3.0.md) retain the complete raw run, concise human projection, and checksums from one exact tag target without turning descriptive observations into a ranking or broad product performance claim. The [regression alert policy](docs/benchmarks/regressions-v0.3.0.md) compares paired baseline/current runs on one host, normalizes shared movement with pinned controls, and fails on semantic drift before evaluating noise-qualified timing changes. The [release-candidate history](docs/scorecards/release-candidate-history-v0.3.md) retains chronological competitor and compatibility summaries so a future candidate cannot silently replace earlier evidence with one favorable snapshot. User-visible release changes are curated in the [changelog](CHANGELOG.md). Product direction is in the [public roadmap](ROADMAP.md); exact validation history stays in the [detailed evidence ledger](PRD.md#13-evidence-ledger).
 
 ## Choose `pdfplumber-rs` when…
 
 - You need a native Rust library for structured PDF text extraction. ([evidence](docs/support.md#rust))
-- You are evaluating a scoped migration from Python `pdfplumber` v0.11.10 and can verify your workflow against the current alpha support boundary. ([evidence](docs/readiness/v0.3.0.md#ready-workflows))
+- You are evaluating a scoped migration from Python `pdfplumber` v0.11.10 and can verify your workflow against the current alpha support boundary. ([evidence](docs/readiness/v0.4.0.md#ready-workflows))
 - Tables, bounding boxes, and coordinate-rich page geometry matter to your application. ([evidence](docs/support.md#rust))
-- You are building local services, batch pipelines, or command-line automation around structured extraction. ([evidence](docs/readiness/v0.3.0.md#ready-workflows))
+- You are building local services, batch pipelines, or command-line automation around structured extraction. ([evidence](docs/readiness/v0.4.0.md#ready-workflows))
 
 `pdfplumber-rs` does not perform Optical Character Recognition (OCR). For scanned or image-only PDFs, run an OCR tool first and process the resulting searchable PDF. ([evidence](docs/support.md#rust))
 
-For a scoped replacement procedure, use the [Python migration guide](docs/python-migration.md). Applications upgrading from the project's 0.2.0 Python API should use the [pre-parity Python migration guide](docs/pre-parity-python-migration.md). Common extraction and migration questions are in the [Frequently Asked Questions](docs/faq.md). [Privacy and local processing](docs/privacy.md) documents the document-upload, telemetry, host-application, and optional-executable boundaries. The [dated adoption baseline](docs/adoption/baseline-2026-08-26.md) separates observed registry, traffic, issue, dependent, and evaluator signals from unavailable measurements and future targets. For tradeoffs against other Rust and Python choices, see the [evidence-separated comparison guide](docs/comparison.md). Current maturity, verified platforms, versions, and limitations are in the [generated support matrix](docs/support.md). The versioned [“What is ready today?” snapshot](docs/readiness/v0.3.0.md) is generated from checked task state and named test contracts.
+For a scoped replacement procedure, use the [Python migration guide](docs/python-migration.md). Applications upgrading from the project's 0.2.0 Python API should use the [pre-parity Python migration guide](docs/pre-parity-python-migration.md). Common extraction and migration questions are in the [Frequently Asked Questions](docs/faq.md). [Privacy and local processing](docs/privacy.md) documents the document-upload, telemetry, host-application, and optional-executable boundaries. The [dated adoption baseline](docs/adoption/baseline-2026-08-26.md) separates observed registry, traffic, issue, dependent, and evaluator signals from unavailable measurements and future targets. For tradeoffs against other Rust and Python choices, see the [evidence-separated comparison guide](docs/comparison.md). Current maturity, verified platforms, versions, and limitations are in the [generated support matrix](docs/support.md). The versioned [“What is ready today?” snapshot](docs/readiness/v0.4.0.md) is generated from checked task state and named test contracts.
 
 ## Features
 
@@ -55,7 +55,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-pdfplumber = "0.3.0"
+pdfplumber = "0.4.0"
 ```
 
 Only the `pdfplumber` library dependency is required for the first extraction.
@@ -226,7 +226,7 @@ high-level path.
 
 Import related extraction types from the curated `pdfplumber::models` module,
 or continue using their source-compatible crate-root re-exports. The
-[Rust data-model contract](docs/rust-data-models.md) defines the stable `0.3.x`
+[Rust data-model contract](docs/rust-data-models.md) defines the stable `0.4.x`
 families and documents their units, top-left coordinate system, collection
 ordering, optional fields, and the separate serialized-schema boundary.
 The [coordinate-system guide](docs/coordinate-systems.md) diagrams native PDF
@@ -264,7 +264,7 @@ cross-surface promises.
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the
 [`serde-json-v1` compatibility policy](docs/rust-serde-schema.md), which freezes
-field names, JSON value shapes, and enum encodings across `0.3.x`.
+field names, JSON value shapes, and enum encodings across `0.4.x`.
 
 ## Rust Input API
 
@@ -334,7 +334,7 @@ For `wasm32-unknown-unknown` targets, disable the default `std` feature. The [We
 
 ```toml
 [dependencies]
-pdfplumber = { version = "0.3.0", default-features = false }
+pdfplumber = { version = "0.4.0", default-features = false }
 ```
 
 Use the bytes-based API:

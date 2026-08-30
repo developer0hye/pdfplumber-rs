@@ -5,9 +5,16 @@ import unittest
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlparse
 
+import tomllib
+
 ROOT = Path(__file__).resolve().parents[2]
 README = ROOT / "README.md"
-RELEASE_NOTES = ROOT / "docs" / "releases" / "v0.3.0.md"
+SUPPORT_MATRIX = tomllib.loads(
+    (ROOT / "support-matrix.toml").read_text(encoding="utf-8")
+)
+RELEASE_VERSION = SUPPORT_MATRIX["release_version"]
+RELEASE_LINE = ".".join(RELEASE_VERSION.split(".")[:2])
+RELEASE_NOTES = ROOT / SUPPORT_MATRIX["release_notes"]
 
 MARKDOWN_LINK = re.compile(r"\[[^\]]+\]\((?P<target>[^)\s]+)(?:\s+[^)]*)?\)")
 REPOSITORY_BLOB_PREFIX = "/developer0hye/pdfplumber-rs/blob/main/"
@@ -144,8 +151,8 @@ class ProductClaimEvidenceContractTests(unittest.TestCase):
         phrases = (
             "Evidence-driven PDF extraction for Rust",
             "Use the Rust crate to extract text",
-            "Maturity: `0.3.x` alpha",
-            "Release `0.3.0`",
+            f"Maturity: `{RELEASE_LINE}.x` alpha",
+            f"Release `{RELEASE_VERSION}`",
             "Compatibility work is checked against",
         )
         self.assert_claims_have_evidence(

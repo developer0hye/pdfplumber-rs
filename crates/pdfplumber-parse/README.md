@@ -9,7 +9,7 @@ recovery used by the high-level facade.
 Most applications should depend on the high-level
 [`pdfplumber`](https://crates.io/crates/pdfplumber) crate instead. Direct use of
 `pdfplumber-parse` is intended for advanced parser and backend integrations.
-The `0.3.x` API is alpha and may change before its stability contract is
+The `0.4.x` API is alpha and may change before its stability contract is
 complete.
 
 API documentation is available on

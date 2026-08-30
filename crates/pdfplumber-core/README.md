@@ -8,7 +8,7 @@ detection, serialization models, validation, and diagnostic rendering types.
 Most applications should depend on the high-level
 [`pdfplumber`](https://crates.io/crates/pdfplumber) crate instead. Direct use of
 `pdfplumber-core` is intended for advanced integrations that provide their own
-PDF parser or consume the lower-level algorithms. The `0.3.x` API is alpha and
+PDF parser or consume the lower-level algorithms. The `0.4.x` API is alpha and
 may change before its stability contract is complete.
 
 API documentation is available on

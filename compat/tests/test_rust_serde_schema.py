@@ -6,6 +6,8 @@ import json
 import unittest
 from pathlib import Path
 
+import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POLICY = REPO_ROOT / "docs/rust-serde-schema.md"
 FIXTURE = REPO_ROOT / "crates/pdfplumber/tests/fixtures/serde-schema-v1.json"
@@ -15,6 +17,10 @@ CRATE_DOCS = (REPO_ROOT / "crates/pdfplumber/src/lib.rs").read_text(encoding="ut
 MODELS = (REPO_ROOT / "crates/pdfplumber/src/models.rs").read_text(encoding="utf-8")
 ROADMAP = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 CHANGELOG = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+RELEASE_VERSION = tomllib.loads(
+    (REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8")
+)["workspace"]["package"]["version"]
+RELEASE_LINE = ".".join(RELEASE_VERSION.split(".")[:2])
 
 CURATED_MODELS = {
     "BBox",
@@ -57,7 +63,7 @@ class RustSerdeSchemaContractTests(unittest.TestCase):
         normalized = " ".join(policy.split())
         self.assertIn("`pdfplumber::models`", policy)
         self.assertIn("`serde-json-v1`", policy)
-        self.assertIn("`0.3.x`", policy)
+        self.assertIn(f"`{RELEASE_LINE}.x`", policy)
         self.assertRegex(normalized, r"(?i)field rename.*incompatible")
         self.assertRegex(normalized, r"(?i)field type.*incompatible")
         self.assertRegex(normalized, r"(?i)enum.*encoding.*incompatible")

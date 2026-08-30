@@ -9,6 +9,8 @@ commit list.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-30
+
 ### Added
 
 - **Performance:** Defined a versioned, redistributable ten-document benchmark
@@ -210,6 +212,12 @@ commit list.
 
 ### Changed
 
+- **Migration:** Breaking: Root-level parser backend re-exports and the public
+  string-payload `PdfError` variants were removed. Depend on
+  `pdfplumber-parse` for parser internals, and replace direct error-variant
+  matching with `PdfError::kind`, `PdfError::context`,
+  `PdfError::resource_limit`, or `std::error::Error::source` as appropriate.
+
 - **Platform:** Replaced the fixed Rust 1.85 Minimum Supported Rust Version
   contract with a rolling stable Rust policy. Package manifests no longer
   publish `rust-version`, and required Continuous Integration follows the
@@ -278,5 +286,6 @@ commit list.
   `pdfplumber`. The Python compatibility target is pinned to v0.11.10 and remains
   evidence-scoped rather than a blanket parity claim.
 
-[Unreleased]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/developer0hye/pdfplumber-rs/compare/v0.2.0...v0.3.0

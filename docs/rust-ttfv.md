@@ -4,7 +4,7 @@ The current-source Rust quick start reached useful extracted text in **79.189
 seconds**, below the five-minute activation gate. This is a dated, automated
 clean-state observation rather than a universal build-time promise. The exact
 machine-readable result is
-[`rust-ttfv-workspace-2026-08-28.json`](measurements/rust-ttfv-workspace-2026-08-28.json).
+[`rust-ttfv-workspace-2026-08-30.json`](measurements/rust-ttfv-workspace-2026-08-30.json).
 
 ## Scope
 
@@ -26,7 +26,7 @@ The clock starts before `cargo new`. It covers these ordered phases:
 
 1. Create a new binary Cargo project with no repository, lock file, or target
    directory.
-2. Declare the rendered `pdfplumber = "0.3.0"` dependency.
+2. Declare the rendered `pdfplumber = "0.4.0"` dependency.
 3. Copy the rendered program and the searchable `document.pdf` input.
 4. Run one `cargo run --quiet`, which resolves and downloads dependencies,
    builds the candidate and consumer, then executes the program.
@@ -94,10 +94,10 @@ access:
 ```bash
 python3 scripts/measure_rust_ttfv.py \
   --measure \
-  --expected-version 0.3.0 \
-  --output docs/measurements/rust-ttfv-workspace-2026-08-28.json
+  --expected-version 0.4.0 \
+  --output docs/measurements/rust-ttfv-workspace-2026-08-30.json
 python3 scripts/measure_rust_ttfv.py \
-  --check docs/measurements/rust-ttfv-workspace-2026-08-28.json
+  --check docs/measurements/rust-ttfv-workspace-2026-08-30.json
 ```
 
 Continuous Integration validates the checked-in result against the current

@@ -5,6 +5,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CRATE_ROOT = (REPO_ROOT / "crates/pdfplumber/src/lib.rs").read_text(encoding="utf-8")
 MODELS_SOURCE = REPO_ROOT / "crates/pdfplumber/src/models.rs"
@@ -13,6 +15,10 @@ README = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
 ROADMAP = (REPO_ROOT / "ROADMAP.md").read_text(encoding="utf-8")
 CHANGELOG = (REPO_ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
 REFERENCE = REPO_ROOT / "references/rust-public-data-models.md"
+RELEASE_VERSION = tomllib.loads(
+    (REPO_ROOT / "Cargo.toml").read_text(encoding="utf-8")
+)["workspace"]["package"]["version"]
+RELEASE_LINE = ".".join(RELEASE_VERSION.split(".")[:2])
 
 
 class RustModelContractTests(unittest.TestCase):
@@ -44,7 +50,7 @@ class RustModelContractTests(unittest.TestCase):
         self.assertTrue(MODEL_GUIDE.is_file())
         guide = MODEL_GUIDE.read_text(encoding="utf-8")
         self.assertIn("`pdfplumber::models`", guide)
-        self.assertIn("`0.3.x`", guide)
+        self.assertIn(f"`{RELEASE_LINE}.x`", guide)
         self.assertRegex(guide, r"(?i)public field.*breaking")
         self.assertRegex(guide, r"(?i)enum variant.*breaking")
         self.assertIn("rust-serde-schema.md", guide)
