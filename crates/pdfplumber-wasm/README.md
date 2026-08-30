@@ -142,6 +142,9 @@ which does not expose a raster or SVG visual-debug method today.
 The [error and resource-limit guide](../../docs/errors-and-resource-limits.md)
 records the current `JsError` conversion and the absence of WebAssembly
 resource, warning, password, repair, and timeout controls.
+The [encryption and repair guide](../../docs/encryption-and-repair.md) defines
+the password and repair behavior available elsewhere and records that neither
+operation is exposed by the current WebAssembly wrapper.
 
 ### TypeScript Types
 

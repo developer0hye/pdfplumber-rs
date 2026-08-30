@@ -20,6 +20,12 @@ Projects organized by domain. Read the specific file matching your current probl
 | [pdfsink-rs](https://github.com/clark-labs-inc/pdfsink-rs) | — | [pdfsink-rs.md](pdfsink-rs.md) | Materially equivalent text/table options or pinned cross-project benchmark adapters |
 | [pdfium-render](https://github.com/ajrcarey/pdfium-render) | — | [pdfium-render.md](pdfium-render.md) | Borrowed page-collection views, direct indexed selection, and lazy iteration |
 
+## PDF Validation and Generation
+
+| Project | Language | File | Use When |
+|---------|----------|------|----------|
+| [qpdf](https://github.com/qpdf/qpdf) | C++ | [qpdf.md](qpdf.md) | Generating controlled encryption revisions, passwords, crypt filters, and permission fixtures |
+
 ## Rust API Design
 
 | Source | File | Use When |

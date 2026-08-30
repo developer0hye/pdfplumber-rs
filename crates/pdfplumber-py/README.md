@@ -149,6 +149,9 @@ PDFium/Pillow raster contract and makes explicit that this alpha does not expose
 The [error and resource-limit guide](../../docs/errors-and-resource-limits.md)
 separates pinned exception/warning behavior from the adapter's private native
 error classes and its currently absent resource-budget controls.
+The [encryption and repair guide](../../docs/encryption-and-repair.md) separates
+the pinned security handlers and public repair helper from this adapter's Rust
+password path, Ghostscript integration, and still-missing top-level helper.
 
 ### Table
 

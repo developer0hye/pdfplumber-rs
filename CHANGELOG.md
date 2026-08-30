@@ -86,6 +86,7 @@ commit list.
 - **Object dictionaries:** Added a complete cross-surface [object-dictionary schema guide](docs/object-dictionary-schemas.md) for exact pinned family/key order, value shapes, derived edges, accessors, serialization, known candidate gaps, and the narrower current Rust, Python, Command-Line Interface, and WebAssembly surfaces.
 - **Visual debugging:** Added a complete cross-surface [visual-debugging guide](docs/visual-debugging.md) for pinned PDFium/Pillow raster dependencies, rendering, PageImage drawing and output behavior, crop/filter/table/error boundaries, and the distinct current Rust/Command-Line Interface SVG and adapter surfaces.
 - **Errors and resource limits:** Added a source-bound cross-surface [error and resource-limit guide](docs/errors-and-resource-limits.md) for pinned Python exceptions and warnings, typed Rust diagnostics, exact enforcement and accounting boundaries, declarative-only fields, adapter gaps, and host isolation for untrusted inputs.
+- **Encryption and repair:** Added a source-bound cross-surface [encryption and repair guide](docs/encryption-and-repair.md) for pinned security handlers and Ghostscript behavior, current password revision limits, native repair semantics, permission handling, adapter gaps, and operational isolation.
 - **Documentation:** The primary Rust quick start is a complete, fallible program
   of no more than fifteen lines that opens a PDF, propagates file and page errors,
   prints extracted text, and is executed against a fixture in Continuous Integration.

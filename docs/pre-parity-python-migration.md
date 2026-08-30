@@ -189,6 +189,9 @@ current 0.3.x Python adapter does not expose the pinned `PageImage` API.
 Use the [error and resource-limit guide](errors-and-resource-limits.md) to
 revalidate exception classes, warning/log channels, safe reporting, and every
 resource assumption; adapter constructors do not expose Rust budgets.
+Use the [encryption and repair guide](encryption-and-repair.md) to revalidate
+security-handler revisions, password type and failure behavior, permission
+policy, repair ownership and rewriting, and every external-executable boundary.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

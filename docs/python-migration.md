@@ -152,6 +152,9 @@ then separates it from the current SVG extension and absent Python adapter API.
 The [error and resource-limit guide](errors-and-resource-limits.md) gives the
 exact pinned exception/warning boundary, Rust typed errors and active budgets,
 adapter gaps, and host controls needed for untrusted documents.
+The [encryption and repair guide](encryption-and-repair.md) gives the pinned and
+current algorithm matrix, password and permission boundaries, Ghostscript and
+native repair contracts, stream ownership, and adapter-specific gaps.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

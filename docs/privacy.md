@@ -47,7 +47,9 @@ privacy promise above. It inherits the invoking user's environment and permissio
 review the selected executable, its configuration, and its own security and privacy
 behavior. If that child-process boundary is unacceptable, do not select
 `repair=True`. See the [Python compatibility guide](../crates/pdfplumber-py/README.md)
-for the current repair API.
+for the current repair API and the
+[encryption and repair guide](encryption-and-repair.md) for the complete
+cross-surface contract.
 
 ## Boundaries outside the project runtime
 
