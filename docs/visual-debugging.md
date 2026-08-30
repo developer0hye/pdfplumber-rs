@@ -286,6 +286,9 @@ ValueError: Argument must be instance of TableFinderor a TableFinder settings di
 The complete settings and table-pipeline rules remain in the
 [table-setting guide](table-settings.md). A visual overlay helps inspect that
 pipeline; it does not prove that extracted cells or values are correct.
+The [Rust-native extensions](rust-extensions.md) guide places this SVG surface
+beside the other current native-only families and records its Python and
+WebAssembly exposure gaps.
 
 ## Rendering failures and resource behavior
 

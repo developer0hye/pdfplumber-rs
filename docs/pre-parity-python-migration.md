@@ -195,6 +195,9 @@ policy, repair ownership and rewriting, and every external-executable boundary.
 Use the [parser and font limitations](parser-and-font-limitations.md) guide to
 revalidate structural recovery, Unicode and metric fallbacks, warnings, exact
 fixture observations, and remaining numeric residuals.
+Use the [Rust-native extensions](rust-extensions.md) guide to inventory every
+native-only result, adapter exposure, zero-based field, schema, and maturity
+assumption before carrying an extension baseline forward.
 
 Do not infer that matching method names imply matching output. The 0.3.x work
 targets Python `pdfplumber` semantics, so object schemas, numeric types, page

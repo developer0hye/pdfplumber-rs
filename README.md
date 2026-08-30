@@ -253,6 +253,10 @@ password limitations, permission handling, and adapter security boundaries.
 The [parser and font limitations](docs/parser-and-font-limitations.md) guide
 records structural recovery, Unicode and metric fallbacks, fixture evidence,
 numeric residuals, and the narrower guarantees of each current surface.
+The [Rust-native extensions](docs/rust-extensions.md) guide inventories image,
+document-inspection, rendering, semantic, table, layout, concurrency, and
+WebAssembly additions without treating them as Python parity or stabilized
+cross-surface promises.
 
 With the optional `serde` feature, all curated models implement `Serialize`
 and `Deserialize`. Their direct `serde_json` representation follows the

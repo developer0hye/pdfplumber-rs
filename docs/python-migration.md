@@ -158,6 +158,9 @@ native repair contracts, stream ownership, and adapter-specific gaps.
 The [parser and font limitations](parser-and-font-limitations.md) guide gives
 the installed-wheel fixture evidence and current parser, font, warning, and
 numeric boundaries that still require migration checks.
+The [Rust-native extensions](rust-extensions.md) guide separates the explicit
+`document.rust` namespace and other current native additions from compatible
+Python output, including adapter gaps and unnamespaced collision risks.
 
 An observed result from a source-built command does not automatically cover a
 wheel, source distribution, or another platform. Validate the installed artifact

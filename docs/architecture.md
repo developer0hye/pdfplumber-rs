@@ -52,6 +52,9 @@ high-level compatibility promise.
 The source-bound [parser and font limitations](parser-and-font-limitations.md)
 guide documents the structural, content-stream, Unicode, metric, warning, and
 cross-surface boundaries behind that separation.
+The [Rust-native extensions](rust-extensions.md) guide inventories the
+high-level additions that sit above those shared layers and records their
+intentional adapter exposure without promoting parser internals.
 
 ### Advanced parser boundary
 
