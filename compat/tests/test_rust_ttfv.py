@@ -147,7 +147,11 @@ class RustTtfvContractTests(unittest.TestCase):
         self.assertIn("docs/rust-ttfv.md", README)
 
     def test_checker_and_public_evidence_are_wired_into_ci(self) -> None:
-        self.assertIn("python scripts/measure_rust_ttfv.py --check", WORKFLOW)
+        result_path = RESULT.relative_to(ROOT).as_posix()
+        self.assertIn(
+            f"python scripts/measure_rust_ttfv.py --check {result_path}",
+            WORKFLOW,
+        )
         self.assertIn("docs/rust-ttfv.md", SUPPORT_SOURCE)
         self.assertIn(
             "docs/measurements/rust-ttfv-workspace-2026-08-30.json",
