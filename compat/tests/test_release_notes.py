@@ -108,6 +108,46 @@ class ReleaseNoteContractTests(unittest.TestCase):
             normalize_markdown(without_claim_evidence(behavior_changes)),
         )
 
+    def test_notes_name_every_surface_absent_from_its_public_registry(self) -> None:
+        """A partial publication must be visible in the release notes.
+
+        A release can publish some registries and fail others, so the notes may
+        not single out one surface as the only unpublished one.
+        """
+        unpublished = [
+            surface
+            for surface in SUPPORT_MATRIX["surfaces"]
+            if surface["source_version"] != surface["registry_version"]
+        ]
+
+        summary = next(
+            line for line in self.notes.splitlines() if "is a prerelease" in line
+        )
+
+        for surface in unpublished:
+            with self.subTest(surface=surface["id"]):
+                # The summary paragraph is what a reader sees before the table,
+                # so it must not leave any unpublished registry unmentioned.
+                self.assertIn(surface["name"], summary)
+                self.assertIn(f"`{surface['registry_version']}`", summary)
+                self.assertIn(
+                    f"| `{surface['source_version']}` | "
+                    f"`{surface['registry_version']}` | "
+                    "Not published for this release |",
+                    self.notes,
+                )
+
+        for surface in SUPPORT_MATRIX["surfaces"]:
+            if surface in unpublished:
+                continue
+            with self.subTest(published=surface["id"]):
+                self.assertIn(
+                    f"| `{surface['source_version']}` | "
+                    f"`{surface['registry_version']}` | "
+                    "Published for this release |",
+                    self.notes,
+                )
+
     def test_limitations_and_artifacts_match_the_support_matrix(self) -> None:
         limitations = markdown_section(self.notes, "Known limitations")
         artifacts = markdown_section(self.notes, "Artifact matrix")

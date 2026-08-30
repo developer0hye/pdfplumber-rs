@@ -27,9 +27,9 @@ The GitHub search description must match that sentence exactly. Package descript
 
 | Surface | Maturity | Package | Import or executable | Source version | Observed registry version |
 |---|---|---|---|---|---|
-| Rust | Alpha | [`pdfplumber`](https://crates.io/crates/pdfplumber) (crates.io) | `pdfplumber` import | `0.4.1` | `0.3.0` as of 2026-08-30 |
+| Rust | Alpha | [`pdfplumber`](https://crates.io/crates/pdfplumber) (crates.io) | `pdfplumber` import | `0.4.1` | `0.4.1` as of 2026-08-30 |
 | Python | Alpha | [`pdfplumber-rs`](https://pypi.org/project/pdfplumber-rs/) (PyPI) | `pdfplumber` import; `pdfplumber._native` native module | `0.4.1` | `0.3.0` as of 2026-08-30 |
-| Command-Line Interface | Alpha | [`pdfplumber-cli`](https://crates.io/crates/pdfplumber-cli) (crates.io) | `pdfplumber` executable | `0.4.1` | `0.3.0` as of 2026-08-30 |
+| Command-Line Interface | Alpha | [`pdfplumber-cli`](https://crates.io/crates/pdfplumber-cli) (crates.io) | `pdfplumber` executable | `0.4.1` | `0.4.1` as of 2026-08-30 |
 | WebAssembly | Experimental | [`pdfplumber-wasm`](https://www.npmjs.com/package/pdfplumber-wasm) (npm) | `pdfplumber-wasm` import | `0.4.1` | `0.2.0` as of 2026-08-30 |
 
 A release-configured target is not considered supported or CI-verified until an installed artifact is exercised on that target. Registry versions are dated observations and may change independently of this repository snapshot.
@@ -110,7 +110,7 @@ A release-configured target is not considered supported or CI-verified until an 
 
 - The 0.4.x API is alpha and may change before the stable contract is complete.
 - Required CI verifies Ubuntu Linux only; registry installation and other targets are not smoke-tested.
-- The 0.4.1 source quick start passes, but the observed public 0.3.0 release predates Pdf::open_path and its recorded cold registry trial fails compilation.
+- The public 0.4.1 crates.io release carries Pdf::open_path; the recorded cold registry trial against the earlier public 0.3.0 build fails compilation and is retained as a historical observation.
 - Image-only PDFs require a separate Optical Character Recognition stage.
 
 **Evidence**
@@ -158,6 +158,7 @@ A release-configured target is not considered supported or CI-verified until an 
 **Known limitations**
 
 - Compatibility is incomplete and is not yet a full drop-in replacement.
+- The observed PyPI release remains 0.3.0: the 0.4.1 publication failed its trusted-publisher exchange, so no 0.4.1 wheel or source distribution is installable from PyPI.
 - The current-source policy for the next Python release supports exactly CPython 3.13 on Ubuntu for both the wheel and source distribution.
 - Published Python 0.3.0 metadata predates the current-source policy and still advertises Python 3.9 and PyPy; those immutable legacy classifiers are not support evidence.
 - Python 3.14 and PyPy are explicitly unsupported by the next-release source metadata and are not release targets.
@@ -246,7 +247,7 @@ A release-configured target is not considered supported or CI-verified until an 
 **Known limitations**
 
 - The surface is experimental; the prepublication gate covers one maintained Chromium build and does not establish compatibility with every browser.
-- The observed npm release is 0.2.0 while the repository source is 0.4.1.
+- The observed npm release is 0.2.0 while the repository source is 0.4.1: the 0.4.1 publication failed because no npm trusted publisher is bound for the package.
 - Bundle size, startup time, memory, cross-browser behavior, and published-registry installation are independent gates.
 
 **Evidence**
