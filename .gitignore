@@ -1,5 +1,4 @@
 /target
-Cargo.lock
 !benchmarks/adapters/rust/Cargo.lock
 .venv-golden/
 .venv-reference/
