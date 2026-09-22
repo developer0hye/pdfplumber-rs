@@ -224,10 +224,10 @@ class CratesRegistryPollingTests(unittest.TestCase):
         for predecessor, dependent in dependency_edges:
             with self.subTest(predecessor=predecessor, dependent=dependent):
                 publish_predecessor = publish_job.index(
-                    f"cargo publish -p {predecessor}\n"
+                    f"cargo publish --locked -p {predecessor}\n"
                 )
                 poll_predecessor = publish_job.index(f"{poller_command} {predecessor} ")
-                publish_dependent = publish_job.index(f"cargo publish -p {dependent}\n")
+                publish_dependent = publish_job.index(f"cargo publish --locked -p {dependent}\n")
                 self.assertLess(publish_predecessor, poll_predecessor)
                 self.assertLess(poll_predecessor, publish_dependent)
 

@@ -57,7 +57,7 @@ class RustConcurrencyContractTests(unittest.TestCase):
         )
         self.assertRegex(normalized, r"(?i)optional.*parallel.*WebAssembly")
         self.assertIn(
-            "cargo test -p pdfplumber --features parallel --test concurrency",
+            "cargo test --locked -p pdfplumber --features parallel --test concurrency",
             WORKFLOW,
         )
 

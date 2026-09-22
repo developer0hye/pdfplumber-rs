@@ -57,9 +57,9 @@ class RustDevelopmentEnvironmentContractTests(unittest.TestCase):
         checker = ENVIRONMENT_CHECKER.read_text(encoding="utf-8")
         for command in (
             "python3 scripts/check_doc_quickstarts.py --rust",
-            "cargo test -p pdfplumber --test feature_semantics",
-            "cargo test -p pdfplumber --features parallel --test concurrency",
-            "cargo check -p pdfplumber --examples --all-features",
+            "cargo test --locked -p pdfplumber --test feature_semantics",
+            "cargo test --locked -p pdfplumber --features parallel --test concurrency",
+            "cargo check --locked -p pdfplumber --examples --all-features",
         ):
             with self.subTest(command=command):
                 self.assertIn(command, checker)

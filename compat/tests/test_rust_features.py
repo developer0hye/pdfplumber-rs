@@ -64,13 +64,13 @@ class RustFeatureContractTests(unittest.TestCase):
     ) -> None:
         normalized = " ".join(CI.split())
         commands = (
-            "cargo test -p pdfplumber --test feature_semantics --no-default-features",
-            "cargo test -p pdfplumber --test feature_semantics",
-            "cargo test -p pdfplumber --test feature_semantics --no-default-features --features serde",
-            "cargo test -p pdfplumber --test feature_semantics --no-default-features --features parallel",
-            "cargo test -p pdfplumber --test feature_semantics --all-features",
-            "cargo test -p pdfplumber-core --features serde --test serde_roundtrip",
-            "cargo test -p pdfplumber-parse --features tracing",
+            "cargo test --locked -p pdfplumber --test feature_semantics --no-default-features",
+            "cargo test --locked -p pdfplumber --test feature_semantics",
+            "cargo test --locked -p pdfplumber --test feature_semantics --no-default-features --features serde",
+            "cargo test --locked -p pdfplumber --test feature_semantics --no-default-features --features parallel",
+            "cargo test --locked -p pdfplumber --test feature_semantics --all-features",
+            "cargo test --locked -p pdfplumber-core --features serde --test serde_roundtrip",
+            "cargo test --locked -p pdfplumber-parse --features tracing",
         )
         for command in commands:
             with self.subTest(command=command):
