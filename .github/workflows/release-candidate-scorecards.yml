@@ -62,7 +62,7 @@ jobs:
 
       - name: Build the exact candidate wheel retained by the scorecard
         run: >-
-          python -m maturin build --release
+          python -m maturin build --locked --release
           --manifest-path crates/pdfplumber-py/Cargo.toml
           --interpreter python
           --out "$RUNNER_TEMP/release-candidate-scorecards/wheels"

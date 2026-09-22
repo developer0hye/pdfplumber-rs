@@ -42,11 +42,11 @@ class RustRustdocContractTests(unittest.TestCase):
         normalized = " ".join(CI.split())
         self.assertIn("RUSTDOCFLAGS: -D warnings", normalized)
         self.assertIn(
-            "cargo doc -p pdfplumber --no-deps --all-features",
+            "cargo doc --locked -p pdfplumber --no-deps --all-features",
             normalized,
         )
         self.assertIn(
-            "cargo clippy -p pdfplumber --all-features --no-deps -- -D warnings "
+            "cargo clippy --locked -p pdfplumber --all-features --no-deps -- -D warnings "
             "-D clippy::missing_errors_doc -D clippy::missing_panics_doc",
             normalized,
         )

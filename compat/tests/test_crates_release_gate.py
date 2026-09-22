@@ -309,7 +309,7 @@ class CratesReleaseGateTests(unittest.TestCase):
         for package in PUBLISHABLE_PACKAGES:
             with self.subTest(package=package):
                 self.assertEqual(
-                    publish_job.count(f"cargo publish -p {package}\n"),
+                    publish_job.count(f"cargo publish --locked -p {package}\n"),
                     1,
                 )
         self.assertNotIn("cargo publish --no-verify", publish_job)

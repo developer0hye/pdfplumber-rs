@@ -10,6 +10,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   fmt:
     name: Format
@@ -30,9 +33,9 @@ jobs:
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
-      - run: cargo clippy --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm -- -D warnings
+      - run: cargo clippy --locked --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm -- -D warnings
       - name: Lint all-feature public API documentation contracts
-        run: cargo clippy -p pdfplumber --all-features --no-deps -- -D warnings -D clippy::missing_errors_doc -D clippy::missing_panics_doc
+        run: cargo clippy --locked -p pdfplumber --all-features --no-deps -- -D warnings -D clippy::missing_errors_doc -D clippy::missing_panics_doc
 
   test:
     name: Test (stable)
@@ -41,32 +44,32 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - run: cargo check --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
-      - run: cargo test --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+      - run: cargo check --locked --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
+      - run: cargo test --locked --workspace --exclude pdfplumber-py --exclude pdfplumber-wasm
 
       - name: Test additive Rust feature combinations and extraction semantics
         run: |
-          cargo test -p pdfplumber --test feature_semantics --no-default-features
-          cargo test -p pdfplumber --test feature_semantics
-          cargo test -p pdfplumber --test feature_semantics --no-default-features --features serde
-          cargo test -p pdfplumber --test feature_semantics --no-default-features --features parallel
-          cargo test -p pdfplumber --test feature_semantics --all-features
-          cargo test -p pdfplumber-core --features serde --test serde_roundtrip
-          cargo test -p pdfplumber-parse --features tracing
+          cargo test --locked -p pdfplumber --test feature_semantics --no-default-features
+          cargo test --locked -p pdfplumber --test feature_semantics
+          cargo test --locked -p pdfplumber --test feature_semantics --no-default-features --features serde
+          cargo test --locked -p pdfplumber --test feature_semantics --no-default-features --features parallel
+          cargo test --locked -p pdfplumber --test feature_semantics --all-features
+          cargo test --locked -p pdfplumber-core --features serde --test serde_roundtrip
+          cargo test --locked -p pdfplumber-parse --features tracing
 
       - name: Test Rust concurrency with optional parallel processing
-        run: cargo test -p pdfplumber --features parallel --test concurrency
+        run: cargo test --locked -p pdfplumber --features parallel --test concurrency
 
       - name: Compile task-oriented Rust examples
-        run: cargo check -p pdfplumber --examples --all-features
+        run: cargo check --locked -p pdfplumber --examples --all-features
 
       - name: Test compile-fail Rust API documentation
-        run: cargo test -p pdfplumber --doc --all-features
+        run: cargo test --locked -p pdfplumber --doc --all-features
 
       - name: Build strict all-feature public Rust documentation
         env:
           RUSTDOCFLAGS: -D warnings
-        run: cargo doc -p pdfplumber --no-deps --all-features
+        run: cargo doc --locked -p pdfplumber --no-deps --all-features
 
       - name: Build and verify Rust crate artifacts
         run: |
@@ -115,7 +118,7 @@ jobs:
       - name: Build wheel and source distribution
         run: |
           python -m pip install 'maturin==1.14.1'
-          maturin build --manifest-path crates/pdfplumber-py/Cargo.toml --interpreter python --out dist
+          maturin build --locked --manifest-path crates/pdfplumber-py/Cargo.toml --interpreter python --out dist
           maturin sdist --manifest-path crates/pdfplumber-py/Cargo.toml --out dist
 
       - name: Verify Python package artifacts

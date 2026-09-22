@@ -68,7 +68,7 @@ class RustExamplesContractTests(unittest.TestCase):
         self.assertEqual(examples["parallel_batch"]["required-features"], ["parallel"])
 
         workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        command = "cargo check -p pdfplumber --examples --all-features"
+        command = "cargo check --locked -p pdfplumber --examples --all-features"
         self.assertIn(command, workflow)
         self.assertNotRegex(
             workflow,

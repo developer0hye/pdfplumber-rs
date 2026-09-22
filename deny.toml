@@ -1,0 +1,19 @@
+# Supply-chain gate for .github/workflows/cargo-deny.yml.
+# Vulnerability advisories always fail; RustSec also files known-malicious
+# crates (e.g. the 2026-08-20 arrayref / proc-macro1 attack). Yanked versions
+# fail too. Licenses and bans are not checked here.
+[graph]
+all-features = true
+
+[advisories]
+version = 2
+yanked = "deny"
+unmaintained = "none"
+unsound = "workspace"
+ignore = [
+  # Pre-existing when this gate was added (2026-09-22); each needs a manifest
+  # change rather than a lock bump. Remove an entry once the fix is locked.
+  { id = "RUSTSEC-2026-0187", reason = "PDF parsing runs through pdfplumber-parse on lopdf 0.44 (fixed); pdfplumber, -cli, -py and -wasm still also depend on lopdf 0.34/0.36 and should move to >=0.42" },
+  { id = "RUSTSEC-2026-0176", reason = "pdfplumber-py is on pyo3 0.24; fixed in >=0.29, needs a pyo3 API migration" },
+  { id = "RUSTSEC-2026-0177", reason = "pdfplumber-py is on pyo3 0.24; fixed in >=0.29, needs a pyo3 API migration" },
+]

@@ -42,7 +42,7 @@ class RustCompileFailContractTests(unittest.TestCase):
 
     def test_ci_runs_all_feature_doctests_on_current_stable(self) -> None:
         workflow = (REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        command = "cargo test -p pdfplumber --doc --all-features"
+        command = "cargo test --locked -p pdfplumber --doc --all-features"
         self.assertIn(command, workflow)
         self.assertIn("dtolnay/rust-toolchain@stable", workflow)
         self.assertNotIn("matrix.rust", workflow)
